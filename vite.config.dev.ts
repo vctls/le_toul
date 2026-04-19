@@ -110,6 +110,12 @@ export default mergeConfig(
             headers: {
                 'Cross-Origin-Opener-Policy': 'same-site',
                 'Cross-Origin-Embedder-Policy': 'require-corp'
+            },
+            proxy: {
+                '/separate_track': 'http://localhost:8000',
+                '/download_video': 'http://localhost:8000',
+                '/log_error': 'http://localhost:8000',
+                '/health': 'http://localhost:8000',
             }
         }
     })
