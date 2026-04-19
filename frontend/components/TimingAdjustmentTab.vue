@@ -9,10 +9,14 @@
         you can also adjust the end of it.
       </p>
     </div>
+    <b-field label="Playhead preroll (seconds)" horizontal style="margin-bottom: 0.5em; align-self: flex-start;">
+      <b-numberinput v-model="prerollSeconds" :min="0" :max="30" :step="1" controls-position="compact" style="width: 8em;" />
+    </b-field>
     <subtitle-display class="subtitle-display" v-if="songFile && adjustmentSubtitles" ref="subtitleDisplay" :subtitles="adjustmentSubtitles"
       :fonts="{}" :backgroundColor="settingsStore.videoOptions.color.background.toString()" />
     <timing-adjuster v-if="songFile && adjustmentSubtitles" ref="timing-adjuster" :lyrics="lyricText"
-      :timings="timingsStore.rawTimings" :audioData="songFile" :vocalTrack="vocalTrack" @timingschange="onTimingsChange"
+      :timings="timingsStore.rawTimings" :audioData="songFile" :vocalTrack="vocalTrack"
+      :prerollSeconds="prerollSeconds" @timingschange="onTimingsChange"
       @timeupdate="onPlayheadUpdate" @seeking="onPlayheadUpdate" />
   </b-tab-item>
 </template>
@@ -27,9 +31,10 @@ import { useTimingsStore } from "@/stores/timings";
 import { useLyricsStore } from "@/stores/lyrics";
 import { useSettingsStore } from "@/stores/settings";
 import { storeToRefs } from "pinia";
+import { BField, BNumberinput } from "buefy";
 
 export default defineComponent({
-  components: { TimingAdjuster, SubtitleDisplay },
+  components: { BField, BNumberinput, TimingAdjuster, SubtitleDisplay },
   setup() {
     const mediaStore = useMediaStore();
     const timingsStore = useTimingsStore();
@@ -49,6 +54,7 @@ export default defineComponent({
     return {
       // Controls playhead in video and adjuster (in seconds)
       playhead: 0.0,
+      prerollSeconds: 5,
     };
   },
   computed: {

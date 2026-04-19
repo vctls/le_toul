@@ -43,6 +43,7 @@ export default defineComponent({
     audioData: Blob,
     // URL to the vocal track audio file
     vocalTrack: { type: Blob, required: false },
+    prerollSeconds: { type: Number, default: 5 },
   },
   data() {
     return {
@@ -139,8 +140,7 @@ export default defineComponent({
       });
     },
     previewNewTiming(region: Region) {
-      // When a timing changes, set the playhead 5 seconds before the changed region
-      const newPlayhead = Math.max(0, region.start - 5);
+      const newPlayhead = Math.max(0, region.start - this.prerollSeconds);
       this.setAudioPlayhead(newPlayhead);
     },
     onTimeUpdate(time: number) {
