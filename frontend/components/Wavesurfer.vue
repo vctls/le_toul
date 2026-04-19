@@ -1,5 +1,5 @@
 <template>
-  <div ref="wavesurfer-container" :class="['wavesurfer-container', { 'hide-waveform': !showWaveform }]"></div>
+  <div ref="wavesurfer-container" :class="['wavesurfer-container', { 'hide-waveform': !showWaveform }]" @wheel="onWheel"></div>
 </template>
 
 <script lang="ts">
@@ -52,6 +52,7 @@ export default defineComponent({
       regionsPlugin: RegionsPlugin.create(),
       isVisible: false,
       _observer: null as IntersectionObserver | null,
+      _zoomAnchor: null as { time: number; cursorX: number } | null,
     };
   },
   mounted() {
@@ -122,6 +123,10 @@ export default defineComponent({
         this.$nextTick(() => {
           const scrollEl = this.wavesurfer.getWrapper()?.parentElement;
           if (scrollEl) {
+            if (this._zoomAnchor) {
+              scrollEl.scrollLeft = this._zoomAnchor.time * value - this._zoomAnchor.cursorX;
+              this._zoomAnchor = null;
+            }
             scrollEl.dispatchEvent(new Event('scroll'));
           }
         });
@@ -137,7 +142,19 @@ export default defineComponent({
       deep: true
     },
   },
+  emits: ['seeking', 'region-updated', 'zoom-change'],
   methods: {
+    onWheel(event: WheelEvent) {
+      if (event.deltaY === 0) return;
+      event.preventDefault();
+      const scrollEl = this.wavesurfer?.getWrapper()?.parentElement;
+      if (scrollEl) {
+        const cursorX = event.clientX - scrollEl.getBoundingClientRect().left;
+        const time = (scrollEl.scrollLeft + cursorX) / this.minPxPerSec;
+        this._zoomAnchor = { time, cursorX };
+      }
+      this.$emit('zoom-change', Math.sign(event.deltaY) * 10);
+    },
     play() {
       if (this.wavesurfer) {
         this.wavesurfer.play();
