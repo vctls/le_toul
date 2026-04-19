@@ -12,6 +12,9 @@
     <b-field label="Waveform zoom" horizontal style="margin-bottom: 0.5em; align-self: flex-start;">
       <b-numberinput v-model="zoom" :min="10" :max="500" :step="10" controls-position="compact" style="width: 10em;" />
     </b-field>
+    <b-field label="Playback rate" horizontal style="margin-bottom: 0.5em; align-self: flex-start;">
+      <b-numberinput v-model="playbackRate" :min="0.25" :max="2" :step="0.25" controls-position="compact" style="width: 10em;" />
+    </b-field>
     <b-field label="Shift all timings (ms)" horizontal style="margin-bottom: 0.5em; align-self: flex-start;">
       <b-numberinput v-model="shiftMs" :step="1" controls-position="compact" style="width: 10em;" />
       <b-button label="Apply" @click="applyShift" style="margin-left: 0.5em;" />
@@ -23,7 +26,7 @@
       :fonts="{}" :backgroundColor="settingsStore.videoOptions.color.background.toString()" />
     <timing-adjuster v-if="songFile && adjustmentSubtitles" ref="timing-adjuster" :lyrics="lyricText"
       :timings="timingsStore.rawTimings" :audioData="songFile" :vocalTrack="vocalTrack"
-      :prerollSeconds="prerollSeconds" :zoom="zoom" @timingschange="onTimingsChange" @zoom-change="onZoomChange"
+      :prerollSeconds="prerollSeconds" :zoom="zoom" :playbackRate="playbackRate" @timingschange="onTimingsChange" @zoom-change="onZoomChange"
       @timeupdate="onPlayheadUpdate" @seeking="onPlayheadUpdate" />
   </b-tab-item>
 </template>
@@ -64,6 +67,7 @@ export default defineComponent({
       prerollSeconds: 5,
       shiftMs: 0,
       zoom: 50,
+      playbackRate: 1,
     };
   },
   computed: {

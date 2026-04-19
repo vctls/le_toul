@@ -45,6 +45,7 @@ export default defineComponent({
     vocalTrack: { type: Blob, required: false },
     prerollSeconds: { type: Number, default: 5 },
     zoom: { type: Number, default: 50 },
+    playbackRate: { type: Number, default: 1 },
   },
   data() {
     return {
@@ -79,6 +80,9 @@ export default defineComponent({
     },
     lyrics(newLyrics: String) {
       this.regions = this.createRegions(this.timings, this.splitLyrics);
+    },
+    playbackRate(value: number) {
+      this.$refs.audioPlayer.playbackRate = value;
     },
     audioData(newAudioData: Blob) {
       if (newAudioData) {

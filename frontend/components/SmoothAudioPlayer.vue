@@ -17,6 +17,14 @@ export default defineComponent({
   },
   // Expose currentTime as a property
   mounted() {
+    Object.defineProperty(this, 'playbackRate', {
+      get: () => this.audioPlayer?.playbackRate || 1,
+      set: (value) => {
+        if (this.audioPlayer) {
+          this.audioPlayer.playbackRate = value;
+        }
+      }
+    });
     Object.defineProperty(this, 'currentTime', {
       get: () => this.audioPlayer?.currentTime || 0,
       set: (value) => {
