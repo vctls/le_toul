@@ -9,6 +9,10 @@
         you can also adjust the end of it.
       </p>
     </div>
+    <b-field label="Shift all timings (ms)" horizontal style="margin-bottom: 0.5em; align-self: flex-start;">
+      <b-numberinput v-model="shiftMs" :step="1" controls-position="compact" style="width: 10em;" />
+      <b-button label="Apply" @click="applyShift" style="margin-left: 0.5em;" />
+    </b-field>
     <b-field label="Playhead preroll (seconds)" horizontal style="margin-bottom: 0.5em; align-self: flex-start;">
       <b-numberinput v-model="prerollSeconds" :min="0" :max="30" :step="1" controls-position="compact" style="width: 8em;" />
     </b-field>
@@ -31,10 +35,10 @@ import { useTimingsStore } from "@/stores/timings";
 import { useLyricsStore } from "@/stores/lyrics";
 import { useSettingsStore } from "@/stores/settings";
 import { storeToRefs } from "pinia";
-import { BField, BNumberinput } from "buefy";
+import { BButton, BField, BNumberinput } from "buefy";
 
 export default defineComponent({
-  components: { BField, BNumberinput, TimingAdjuster, SubtitleDisplay },
+  components: { BButton, BField, BNumberinput, TimingAdjuster, SubtitleDisplay },
   setup() {
     const mediaStore = useMediaStore();
     const timingsStore = useTimingsStore();
@@ -55,6 +59,7 @@ export default defineComponent({
       // Controls playhead in video and adjuster (in seconds)
       playhead: 0.0,
       prerollSeconds: 5,
+      shiftMs: 0,
     };
   },
   computed: {
@@ -91,6 +96,13 @@ export default defineComponent({
       if (this.$el.offsetParent === null) return;
       event.preventDefault();
       this.$refs['timing-adjuster']?.togglePlayPause();
+    },
+    applyShift() {
+      const deltaSeconds = this.shiftMs / 1000;
+      const shifted = this.timingsStore.rawTimings.map(
+        ([time, marker]) => [Math.max(0, time + deltaSeconds), marker]
+      );
+      this.timingsStore.resetTimings(shifted);
     },
     onTimingsChange(newTimings: Array<LyricEvent>) {
       this.timingsStore.resetTimings(newTimings);
