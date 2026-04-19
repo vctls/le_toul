@@ -3,7 +3,7 @@
     <smooth-audio-player ref="audioPlayer" controls :src="audioSource" @timeupdate="onAudioTimeUpdate"
       @seeking="onAudioSeeking" @play="onAudioPlay" @pause="onAudioPause" @error="onAudioError" />
     <wavesurfer ref="wavesurfer" :audioData="vocalTrack || audioData" :regions="regions" :mediaControls="false"
-      :showWaveform="true || Boolean(vocalTrack)" @region-updated="onRegionUpdated" @seeking="onWavesurferSeeking" />
+      :showWaveform="true || Boolean(vocalTrack)" :minPxPerSec="zoom" @region-updated="onRegionUpdated" @seeking="onWavesurferSeeking" @zoom-change="$emit('zoom-change', $event)" />
   </div>
 </template>
 
@@ -44,6 +44,7 @@ export default defineComponent({
     // URL to the vocal track audio file
     vocalTrack: { type: Blob, required: false },
     prerollSeconds: { type: Number, default: 5 },
+    zoom: { type: Number, default: 50 },
   },
   data() {
     return {

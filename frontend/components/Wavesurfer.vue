@@ -116,6 +116,17 @@ export default defineComponent({
         this.wavesurfer.loadBlob(newAudioData);
       }
     },
+    minPxPerSec(value: number) {
+      if (this.wavesurfer) {
+        this.wavesurfer.zoom(value);
+        this.$nextTick(() => {
+          const scrollEl = this.wavesurfer.getWrapper()?.parentElement;
+          if (scrollEl) {
+            scrollEl.dispatchEvent(new Event('scroll'));
+          }
+        });
+      }
+    },
     regions: {
       handler: function (newRegions) {
         // Add regions after audio is decoded or they won't render right
