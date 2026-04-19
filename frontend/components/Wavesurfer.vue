@@ -87,7 +87,7 @@ export default defineComponent({
       barWidth: 3,
       barHeight: 1,
       barGap: 2,
-      height: 100,
+      height: 200,
       minPxPerSec: this.minPxPerSec,
       //   responsive: true,
       normalize: false,
