@@ -71,6 +71,12 @@ export default defineComponent({
       return this.subtitles({ addTitleScreen: false, addCountIns: false });
     },
   },
+  mounted() {
+    window.addEventListener('keydown', this.onKeyDown);
+  },
+  beforeUnmount() {
+    window.removeEventListener('keydown', this.onKeyDown);
+  },
   watch: {
     playhead(newPlayhead: number) {
       if (this.$refs.subtitleDisplay) {
@@ -79,6 +85,13 @@ export default defineComponent({
     },
   },
   methods: {
+    onKeyDown(event: KeyboardEvent) {
+      if (event.code !== 'Space') return;
+      if ((event.target as HTMLElement).tagName === 'INPUT') return;
+      if (this.$el.offsetParent === null) return;
+      event.preventDefault();
+      this.$refs['timing-adjuster']?.togglePlayPause();
+    },
     onTimingsChange(newTimings: Array<LyricEvent>) {
       this.timingsStore.resetTimings(newTimings);
     },

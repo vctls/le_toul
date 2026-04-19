@@ -155,6 +155,14 @@ export default defineComponent({
     setAudioPlayhead(playhead: number) {
       this.$refs.audioPlayer.currentTime = playhead;
     },
+    togglePlayPause() {
+      const audio = this.$refs.audioPlayer.audioPlayer as HTMLAudioElement;
+      if (audio.paused) {
+        audio.play();
+      } else {
+        audio.pause();
+      }
+    },
     onAudioTimeUpdate(event: Event) {
       const time = (event.target as HTMLAudioElement).currentTime;
       this.setAdjusterPlayhead(time);
