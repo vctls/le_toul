@@ -129,6 +129,12 @@ export default defineComponent({
   flex-direction: column;
 }
 
+.timing-adjustment-tab :deep(.field-label) {
+  white-space: nowrap;
+  text-align: left;
+  flex-shrink: 0;
+}
+
 .subtitle-display {
   align-self: center;
 }
