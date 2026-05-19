@@ -1,9 +1,11 @@
 import { defineStore } from 'pinia';
 import { ref, computed } from 'vue';
 import { parseLyrics } from '@/lib/timing';
+import { persistJsonRef } from '@/lib/persistence';
 
 export const useLyricsStore = defineStore('lyrics', () => {
   const lyricText = ref('');
+  persistJsonRef('lyrics.lyricText', lyricText);
 
   // Parse marked up lyrics into segments using shared logic
   const lyricSegments = computed(() => {
@@ -14,9 +16,14 @@ export const useLyricsStore = defineStore('lyrics', () => {
     lyricText.value = text;
   }
 
+  function clear() {
+    lyricText.value = '';
+  }
+
   return {
     lyricText,
     lyricSegments,
-    setLyrics
+    setLyrics,
+    clear,
   };
 });

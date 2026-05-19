@@ -1,9 +1,25 @@
 import { defineStore } from 'pinia';
-import { ref, watchEffect } from 'vue';
+import { ref, watch } from 'vue';
 
 import { separateTrack, TrackSeparationResult } from '@/lib/audio';
 import { SeparationModel } from '@/types';
 import jsmediatags from "@/jsmediatags.min.js";
+import { persistJsonRef, persistBlobRef, clearPersistence } from '@/lib/persistence';
+
+const MEDIA_LOCALSTORAGE_KEYS = [
+    'media.youtubeUrl',
+    'media.separationModel',
+    'media.songTitle',
+    'media.songArtist',
+    'media.songDuration',
+];
+const MEDIA_IDB_KEYS = [
+    'media.songFile',
+    'media.backgroundVideo',
+    'media.separatedTrack',
+    'media.timingsFile',
+    'media.backingTrackFile',
+];
 
 
 export interface SeparatedTrack {
@@ -22,6 +38,13 @@ export const useMediaStore = defineStore('media', () => {
 
     // Background video (if the song is from YouTube)
     const backgroundVideo = ref<Blob | null>(null);
+
+    // Files surfaced in the "Advanced" section of SongInfoTab. The semantic
+    // state they map to (timings array, separatedTrack.backing) is held
+    // elsewhere; these refs exist so the FileUpload widgets can re-display the
+    // user's selection after a reload.
+    const timingsFile = ref<File | null>(null);
+    const backingTrackFile = ref<File | null>(null);
 
     // Song metadata
     const songTitle = ref<string | null>(null);
@@ -136,27 +159,71 @@ export const useMediaStore = defineStore('media', () => {
         });
     }
 
-    watchEffect(async () => {
-        // Update song metadata when the song file changes
-        if (songFile.value) {
-            const [metadata, durationValue] = await Promise.all([
-                getMetadata(songFile.value),
-                duration(songFile.value)
-            ]);
-            songTitle.value = metadata.title || songTitle.value;
-            songArtist.value = metadata.artist || songArtist.value;
-            songDuration.value = durationValue;
-        } else {
+    // While persisted blobs are being read from IDB, the songFile ref may flip
+    // from null to a restored File. Suppress metadata re-derivation during that
+    // window so the persisted (and possibly user-edited) title/artist/duration
+    // aren't overwritten by re-reading the file's embedded tags.
+    let isHydrating = true;
+
+    // flush: 'sync' so the isHydrating check runs in the same tick as the
+    // hydration assignment to songFile.value, before any later microtask can
+    // flip the flag.
+    watch(songFile, async (newFile) => {
+        if (isHydrating) return;
+        if (!newFile) {
             songTitle.value = null;
             songArtist.value = null;
             songDuration.value = null;
+            return;
         }
+        const [metadata, durationValue] = await Promise.all([
+            getMetadata(newFile),
+            duration(newFile),
+        ]);
+        songTitle.value = metadata.title || songTitle.value;
+        songArtist.value = metadata.artist || songArtist.value;
+        songDuration.value = durationValue;
+    }, { flush: 'sync' });
+
+    // JSON-serializable state → localStorage (synchronous load)
+    persistJsonRef('media.youtubeUrl', youtubeUrl);
+    persistJsonRef('media.separationModel', separationModel);
+    persistJsonRef('media.songTitle', songTitle);
+    persistJsonRef('media.songArtist', songArtist);
+    persistJsonRef('media.songDuration', songDuration);
+
+    // Blobs → IndexedDB (async load)
+    Promise.all([
+        persistBlobRef('media.songFile', songFile),
+        persistBlobRef('media.backgroundVideo', backgroundVideo),
+        persistBlobRef('media.separatedTrack', separatedTrack),
+        persistBlobRef('media.timingsFile', timingsFile),
+        persistBlobRef('media.backingTrackFile', backingTrackFile),
+    ]).finally(() => {
+        isHydrating = false;
     });
+
+    async function clearSession(): Promise<void> {
+        songFile.value = null;
+        backgroundVideo.value = null;
+        separatedTrack.value = null;
+        timingsFile.value = null;
+        backingTrackFile.value = null;
+        songTitle.value = null;
+        songArtist.value = null;
+        songDuration.value = null;
+        youtubeUrl.value = null;
+        error.value = null;
+        separationStartTime.value = null;
+        await clearPersistence(MEDIA_LOCALSTORAGE_KEYS, MEDIA_IDB_KEYS);
+    }
 
     return {
         // Media files
         songFile,
         backgroundVideo,
+        timingsFile,
+        backingTrackFile,
 
         songTitle,
         songArtist,
@@ -173,6 +240,7 @@ export const useMediaStore = defineStore('media', () => {
         // Methods
         startSeparation,
         setBackingTrack,
+        clearSession,
     };
 });
 

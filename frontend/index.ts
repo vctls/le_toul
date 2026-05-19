@@ -4,6 +4,7 @@ import { createPinia } from "pinia";
 import { setupErrorHandling } from "@/lib/util";
 import App from "@/App.vue";
 import "@/main.scss";
+import { useTimingsStore } from "@/stores/timings";
 
 // Import our optimized FontAwesome configuration
 import FontAwesomeIcon from './plugins/fontawesome';
@@ -21,5 +22,10 @@ window.addEventListener('load', function () {
     });
     app.config.errorHandler = logError;
     app.component('font-awesome-icon', FontAwesomeIcon);
+
+    // Options stores can't auto-wire persistence via watch() inside setup, so
+    // register the timings store's $subscribe hook once Pinia is active.
+    useTimingsStore().setupPersistence();
+
     app.mount('#app');
 });

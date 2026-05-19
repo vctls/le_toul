@@ -27,6 +27,7 @@ import {
   faPlus,
   faSpinner,
   faWandMagicSparkles,
+  faArrowRotateLeft,
 } from '@fortawesome/free-solid-svg-icons';
 
 // Import from brands
@@ -61,6 +62,7 @@ library.add(
   faPlus,
   faSpinner,
   faWandMagicSparkles,
+  faArrowRotateLeft,
 
   // Brand icons
   faGithub

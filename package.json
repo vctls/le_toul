@@ -42,6 +42,7 @@
     "audiobuffer-to-wav": "^1.0.0",
     "buefy": "npm:@ntohq/buefy-next@^0.2.0",
     "bulma": "^0.9.4",
+    "idb-keyval": "^6.2.2",
     "jszip": "^3.10.1",
     "libass-wasm": "^4.1.0",
     "lodash-es": "^4.17.21",

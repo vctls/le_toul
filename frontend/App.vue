@@ -13,6 +13,9 @@
       <template #end>
         <b-navbar-item>
           <div class="buttons">
+            <b-button type="is-text" @click="confirmStartOver" title="Discard the saved session and start fresh">
+              <b-icon icon="arrow-rotate-left" size="is-large" title="Start Over"></b-icon>
+            </b-button>
             <b-button v-if="DONATE_URL" tag="a" :href="DONATE_URL" type="is-text" target="_blank">
               <b-icon icon="circle-dollar-to-slot" size="is-large" title="Buy Me A Coffee">
               </b-icon></b-button>
@@ -84,6 +87,24 @@ export default defineComponent({
       }
     },
 
+    confirmStartOver() {
+      const mediaStore = useMediaStore();
+      const lyricsStore = useLyricsStore();
+      const timingsStore = useTimingsStore();
+      this.$buefy.dialog.confirm({
+        title: "Start over?",
+        message:
+          "This will discard the current song, lyrics, and timings. Settings will be kept. Continue?",
+        confirmText: "Start over",
+        type: "is-danger",
+        hasIcon: true,
+        onConfirm: async () => {
+          timingsStore.clear();
+          lyricsStore.clear();
+          await mediaStore.clearSession();
+        },
+      });
+    },
   },
 });
 </script>

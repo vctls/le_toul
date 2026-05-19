@@ -14,6 +14,7 @@ vi.mock('@/lib/timing', () => ({
 
 describe('Timings Store', () => {
   beforeEach(() => {
+    localStorage.clear();
     // Create a fresh pinia instance for each test
     setActivePinia(createPinia());
   });

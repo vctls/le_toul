@@ -42,8 +42,8 @@ export function setupErrorHandling() {
                 message: err.message,
                 stack: err.stack,
                 file: filePath?.split('/').slice(-2).join('/') || 'unknown', // Last two parts of path
-                line: lineNumber || 'unknown',
-                column: columnNumber || 'unknown',
+                line: lineNumber ? parseInt(lineNumber, 10) : null,
+                column: columnNumber ? parseInt(columnNumber, 10) : null,
                 type: err.name,
                 info,
                 userAgent: navigator.userAgent,

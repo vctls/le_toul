@@ -36,12 +36,12 @@
         </b-button>
       </template>
       <div class="box">
-        <file-upload name="timings-file-upload" :accept="['.json']" label="Timings File" v-model="timingsFile"
+        <file-upload name="timings-file-upload" :accept="['.json']" label="Timings File" v-model="mediaStore.timingsFile"
           @update:modelValue="onTimingsFileChange" />
-        <file-upload label="Backing Track" v-model="backingTrackFile" @update:modelValue="onBackingTrackFileChange" />
+        <file-upload label="Backing Track" v-model="mediaStore.backingTrackFile" @update:modelValue="onBackingTrackFileChange" />
       </div>
     </b-collapse>
-    <div class="buttons" v-if="!backingTrackFile">
+    <div class="buttons" v-if="!mediaStore.backingTrackFile">
       <b-tooltip position="is-right" :label="separatingTrackMessage" :always="isSeparatingTrack">
         <b-button label="Separate Track" type="is-primary" :disabled="!mediaStore.songFile" :loading="isSeparatingTrack"
           @click="separateTrack" />
@@ -78,8 +78,6 @@ export default defineComponent({
   data() {
     return {
       isLoadingYouTube: false,
-      timingsFile: null,
-      backingTrackFile: null,
       youtubeError: null,
     };
   },

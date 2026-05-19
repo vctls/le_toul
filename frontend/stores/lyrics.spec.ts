@@ -4,6 +4,7 @@ import { beforeEach, describe, expect, test } from 'vitest';
 
 describe('Lyrics Store', () => {
   beforeEach(() => {
+    localStorage.clear();
     // Create a fresh pinia instance for each test
     setActivePinia(createPinia());
   });

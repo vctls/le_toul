@@ -7,10 +7,13 @@ import { useMediaStore } from './media';
 import { useSettingsStore } from './settings';
 import { createAssFile, DEFAULT_KARAOKE_OPTIONS } from "@/lib/timing";
 import { VideoSettings } from './settings';
+import { loadJsonFromStorage } from "@/lib/persistence";
+
+const TIMINGS_STORAGE_KEY = 'timings._timings';
 
 export const useTimingsStore = defineStore('timings', {
   state: () => ({
-    _timings: []
+    _timings: loadJsonFromStorage<Array<[number, number]>>(TIMINGS_STORAGE_KEY, [])
   }),
 
   getters: {
@@ -156,6 +159,20 @@ export const useTimingsStore = defineStore('timings', {
 
     resetTimings(newTimings = []) {
       this._timings = [...newTimings];
+    },
+
+    clear() {
+      this._timings = [];
+    },
+
+    setupPersistence() {
+      this.$subscribe((_mutation, state) => {
+        try {
+          localStorage.setItem(TIMINGS_STORAGE_KEY, JSON.stringify(state._timings));
+        } catch (e) {
+          console.error(`Failed to save ${TIMINGS_STORAGE_KEY} to localStorage`, e);
+        }
+      });
     }
   }
 });
