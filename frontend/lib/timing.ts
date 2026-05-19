@@ -146,12 +146,26 @@ export class LyricSegmentIterator {
 }
 
 export function adjustSegmentTiming(segment: number, timings: Array<LyricEvent>, newValues: { start: number, end?: number }): Array<LyricEvent> {
-  // Adjust the timing of a segment by the given amount
-  // This operates on timing lists and constructs new timing lists, assembling into segments as it goes
+  // Adjust the timing of a segment. When newValues.end is a number, the
+  // segment is given an explicit SEGMENT_END marker (creating one if needed);
+  // when it's undefined, any existing SEGMENT_END marker is dropped so the
+  // segment runs up against the next one.
   let currentSegment = -1;
-  const result = [];
+  const result: Array<LyricEvent> = [];
+  let sawTargetEnd = false;
+
+  const flushPendingEnd = () => {
+    if (currentSegment === segment && !sawTargetEnd && isNumber(newValues.end)) {
+      result.push([newValues.end, LYRIC_MARKERS.SEGMENT_END]);
+      sawTargetEnd = true;
+    }
+  };
+
   for (const [t, m] of timings) {
     if (m == LYRIC_MARKERS.SEGMENT_START) {
+      // Insert a SEGMENT_END for the target segment if it didn't have one
+      // and the caller is introducing one.
+      flushPendingEnd();
       currentSegment++;
     }
 
@@ -162,10 +176,17 @@ export function adjustSegmentTiming(segment: number, timings: Array<LyricEvent>,
 
     if (m == LYRIC_MARKERS.SEGMENT_START) {
       result.push([newValues.start, m]);
-    } else if (m == LYRIC_MARKERS.SEGMENT_END && isNumber(newValues.end)) {
-      result.push([newValues.end, m]);
+    } else if (m == LYRIC_MARKERS.SEGMENT_END) {
+      sawTargetEnd = true;
+      if (isNumber(newValues.end)) {
+        result.push([newValues.end, m]);
+      }
+      // else: drop the marker. Segment becomes open-ended
     }
   }
+
+  // Target segment is the last one in the array. Flush a pending end.
+  flushPendingEnd();
 
   if (currentSegment < segment) {
     throw new Error(`Segment ${segment} not found in timings`);

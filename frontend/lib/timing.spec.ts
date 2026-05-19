@@ -264,6 +264,39 @@ test('adjustSegmentTiming', () => {
     expect(() => adjustSegmentTiming(8, testEvents, { start: 0.5, end: 1.5 })[0][0]).toThrow("Segment 8 not found in timings");
 });
 
+test('adjustSegmentTiming adds a SEGMENT_END to an open-ended segment', () => {
+    // Segment 1 in testEvents has no SEGMENT_END (it runs straight into segment 2).
+    const adjusted = adjustSegmentTiming(1, testEvents, { start: 3.0, end: 3.5 });
+    // The new SEGMENT_END should appear between segment 1's SEGMENT_START (3.0)
+    // and segment 2's SEGMENT_START (4.0).
+    expect(adjusted[2]).toEqual([3.0, LYRIC_MARKERS.SEGMENT_START]);
+    expect(adjusted[3]).toEqual([3.5, LYRIC_MARKERS.SEGMENT_END]);
+    expect(adjusted[4]).toEqual([4.0, LYRIC_MARKERS.SEGMENT_START]);
+});
+
+test('adjustSegmentTiming removes an existing SEGMENT_END when end is undefined', () => {
+    // Segment 0 in testEvents has an explicit SEGMENT_END at 2.0.
+    const adjusted = adjustSegmentTiming(0, testEvents, { start: 1.0, end: undefined });
+    // The SEGMENT_END marker should be gone; segment 1's SEGMENT_START at 3.0 follows directly.
+    expect(adjusted[0]).toEqual([1.0, LYRIC_MARKERS.SEGMENT_START]);
+    expect(adjusted[1]).toEqual([3.0, LYRIC_MARKERS.SEGMENT_START]);
+    expect(adjusted.length).toBe(testEvents.length - 1);
+});
+
+test('adjustSegmentTiming adds a SEGMENT_END for the last segment in the array', () => {
+    // Segment 7 (the last) has no SEGMENT_END and no following SEGMENT_START.
+    const adjusted = adjustSegmentTiming(7, testEvents, { start: 9.0, end: 10.0 });
+    expect(adjusted[adjusted.length - 2]).toEqual([9.0, LYRIC_MARKERS.SEGMENT_START]);
+    expect(adjusted[adjusted.length - 1]).toEqual([10.0, LYRIC_MARKERS.SEGMENT_END]);
+});
+
+test('adjustSegmentTiming leaves an open-ended segment open when end stays undefined', () => {
+    const adjusted = adjustSegmentTiming(2, testEvents, { start: 4.5, end: undefined });
+    // Should be identical to testEvents except segment 2's start moved from 4.0 to 4.5.
+    expect(adjusted.length).toBe(testEvents.length);
+    expect(adjusted[3]).toEqual([4.5, LYRIC_MARKERS.SEGMENT_START]);
+});
+
 test('compileLyricTimings handles more events than segments', () => {
     // Test with only 1 segment but many events
     const shortLyrics = "Hello world";  // This creates 1 segment: "Hello world"

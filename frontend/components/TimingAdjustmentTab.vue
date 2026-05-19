@@ -5,8 +5,10 @@
     <div class="content">
       <p>
         Use this tab to adjust lyric timings by dragging the start of the
-        lyric's rectangle. If you marked the end of a lyric with the Enter key,
-        you can also adjust the end of it.
+        lyric's rectangle. Drag the end of the rectangle to adjust the release.
+        Drag the end up to the start of the next rectangle to join them.
+        When rectangles are joined, dragging the start of the next rectangle
+        will move the end of the previous rectangle.
       </p>
     </div>
     <b-field label="Waveform zoom" horizontal style="margin-bottom: 0.5em; align-self: flex-start;">
@@ -64,7 +66,7 @@ export default defineComponent({
     return {
       // Controls playhead in video and adjuster (in seconds)
       playhead: 0.0,
-      prerollSeconds: 5,
+      prerollSeconds: 1,
       shiftMs: 0,
       zoom: 50,
       playbackRate: 1,

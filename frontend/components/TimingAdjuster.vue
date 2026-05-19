@@ -141,7 +141,7 @@ export default defineComponent({
       const segmentNum = parseInt(region.id.split("_")[1]);
       return adjustSegmentTiming(segmentNum, timings, {
         start: region.start,
-        end: region.end,
+        end: region.isOpenEnded ? undefined : region.end,
       });
     },
     previewNewTiming(region: Region) {

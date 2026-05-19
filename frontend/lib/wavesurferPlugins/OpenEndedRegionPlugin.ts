@@ -213,30 +213,69 @@ class SingleRegion extends EventEmitter<RegionEvents> implements Region {
             )
         )
 
-        if (!this.isOpenEnded) {
-            // Make the right handle draggable too
-            const rightHandle = createElement(
-                'div',
-                {
-                    part: 'region-handle region-handle-right',
-                    style: {
-                        ...handleStyle,
-                        right: '0',
-                        borderRight: '2px solid rgba(0, 0, 0, 0.5)',
-                        borderRadius: '0 2px 2px 0',
-                    },
+        // Always create a right handle. For open-ended regions it acts as a
+        // "ghost" handle: hidden by default, revealed on hover. Dragging it
+        // materializes the explicit end (introduces a gap before the next region).
+        const rightHandle = createElement(
+            'div',
+            {
+                part: 'region-handle region-handle-right',
+                style: {
+                    ...handleStyle,
+                    right: '0',
+                    borderRadius: '0 2px 2px 0',
+                    transition: 'opacity 0.15s ease',
                 },
-                element,
-            )
-            this.subscriptions.push(
-                makeDraggable(
-                    rightHandle,
-                    (dx) => this.onResize(dx, 'end'),
-                    () => null,
-                    () => this.onEndResizing(),
-                    resizeThreshold,
-                ),
-            )
+            },
+            element,
+        )
+        this.applyRightHandleAppearance(rightHandle)
+
+        const showGhost = () => {
+            if (this.isOpenEnded) rightHandle.style.opacity = '0.6'
+        }
+        const hideGhost = () => {
+            if (this.isOpenEnded) rightHandle.style.opacity = '0'
+        }
+        element.addEventListener('mouseenter', showGhost)
+        element.addEventListener('mouseleave', hideGhost)
+        this.subscriptions.push(() => {
+            element.removeEventListener('mouseenter', showGhost)
+            element.removeEventListener('mouseleave', hideGhost)
+        })
+
+        this.subscriptions.push(
+            makeDraggable(
+                rightHandle,
+                (dx) => this.onResize(dx, 'end'),
+                () => this.onStartRightResize(),
+                () => this.onEndResizing(),
+                resizeThreshold,
+            ),
+        )
+    }
+
+    private applyRightHandleAppearance(rightHandle: HTMLElement) {
+        if (this.isOpenEnded) {
+            rightHandle.style.borderRight = '2px dashed rgba(0, 0, 0, 0.5)'
+            rightHandle.style.opacity = '0'
+        } else {
+            rightHandle.style.borderRight = '2px solid rgba(0, 0, 0, 0.5)'
+            rightHandle.style.opacity = '1'
+        }
+    }
+
+    private onStartRightResize() {
+        // If this is a ghost handle, materialize the implicit end so the
+        // standard end-resize math works for the rest of the drag. Loose
+        // equality so we catch both `undefined` and `null`. Regions are
+        // commonly constructed with `end: null`.
+        if (this._explicitEnd == null) {
+            this._explicitEnd = this.end
+            const rightHandle = this.element.querySelector(
+                '[part*="region-handle-right"]',
+            ) as HTMLElement | null
+            if (rightHandle) this.applyRightHandleAppearance(rightHandle)
         }
     }
 
@@ -353,6 +392,22 @@ class SingleRegion extends EventEmitter<RegionEvents> implements Region {
 
     private onEndResizing() {
         if (!this.resize) return
+
+        // If the user dragged the end up against the next region's start (or
+        // the end of the audio), drop the explicit end and revert to open-ended.
+        if (this._explicitEnd != null) {
+            const snapThreshold = 0.05
+            const ceiling = this._nextRegion?.start ?? this.totalDuration
+            if (this._explicitEnd >= ceiling - snapThreshold) {
+                this._explicitEnd = undefined
+                this.renderPosition()
+                const rightHandle = this.element.querySelector(
+                    '[part*="region-handle-right"]',
+                ) as HTMLElement | null
+                if (rightHandle) this.applyRightHandleAppearance(rightHandle)
+            }
+        }
+
         this.emit('update-end')
     }
 
