@@ -1,4 +1,6 @@
 .DS_Store
+# PyCharm project configuration
+.idea
 __pycache__
 # pretrained_models
 songs/
