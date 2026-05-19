@@ -102,6 +102,7 @@ export default mergeConfig(
             })
         ],
         server: {
+            host: process.env.VITE_HOST || 'localhost',
             port: 5173,
             fs: {
                 // Allow serving files from one level up to include node_modules
@@ -111,12 +112,16 @@ export default mergeConfig(
                 'Cross-Origin-Opener-Policy': 'same-site',
                 'Cross-Origin-Embedder-Policy': 'require-corp'
             },
-            proxy: {
-                '/separate_track': 'http://localhost:8000',
-                '/download_video': 'http://localhost:8000',
-                '/log_error': 'http://localhost:8000',
-                '/health': 'http://localhost:8000',
-            }
+            proxy: (() => {
+                const target = process.env.TUUL_API_PROXY || 'http://localhost:8000';
+                return {
+                    '/separate_track': target,
+                    '/download_video': target,
+                    '/log_error': target,
+                    '/health': target,
+                    '/static': target,
+                };
+            })()
         }
     })
 );

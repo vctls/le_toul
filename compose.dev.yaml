@@ -1,0 +1,72 @@
+# Development stack. Run with:
+#   docker compose -f compose.dev.yaml up --build
+#
+# Open http://localhost:5173 in the browser. Vite serves the frontend with HMR
+# and proxies /separate_track, /download_video, /log_error, /health, /static
+# to the api service. Source code is bind-mounted into both containers so
+# edits trigger live reload.
+
+services:
+  vite:
+    image: node:22-slim
+    working_dir: /app
+    command: ["npm", "run", "dev", "--", "--host", "0.0.0.0"]
+    environment:
+      TUUL_API_HOSTNAME: ""
+      TUUL_DONATE_URL: ${TUUL_DONATE_URL-https://ko-fi.com/incidentist}
+      TUUL_API_PROXY: http://api:8000
+      VITE_HOST: 0.0.0.0
+      # Force IPv4 lookups. The Docker embedded DNS resolver intermittently
+      # returns EAI_AGAIN on Node 17+ default (IPv6-first) lookups.
+      NODE_OPTIONS: --dns-result-order=ipv4first
+    volumes:
+      - ./frontend:/app/frontend
+      - ./vite.config.common.ts:/app/vite.config.common.ts
+      - ./vite.config.dev.ts:/app/vite.config.dev.ts
+      - ./vite.config.prod.ts:/app/vite.config.prod.ts
+      - ./tsconfig.json:/app/tsconfig.json
+      - ./jsconfig.json:/app/jsconfig.json
+      - ./package.json:/app/package.json
+      - ./package-lock.json:/app/package-lock.json
+      # Named volume so the bind-mount above doesn't shadow node_modules.
+      - vite-node-modules:/app/node_modules
+    ports:
+      - "5173:5173"
+    # `npm clean-install` runs on first start; subsequent starts reuse the volume.
+    entrypoint: ["sh", "-c", "if [ ! -d node_modules/vite ]; then npm clean-install; fi && exec \"$$@\"", "--"]
+    networks: [default]
+    depends_on:
+      api:
+        condition: service_healthy
+
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: runner
+    image: the-tuul:dev
+    env_file: .env
+    environment:
+      PORT: 8000
+      DEBUG: "True"
+      WORKER_COUNT: 1
+      # gunicorn picks up reload=True when DEBUG is truthy (see gunicorn.conf.py).
+    command: ["gunicorn", "--config", "gunicorn.conf.py", "api.main:app"]
+    volumes:
+      - ./api:/app/api
+      - ./gunicorn.conf.py:/app/gunicorn.conf.py
+    ports:
+      - "8000:8000"
+    networks: [default]
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health').read()"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+      start_period: 10s
+
+networks:
+  default:
+
+volumes:
+  vite-node-modules:

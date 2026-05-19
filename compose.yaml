@@ -1,0 +1,57 @@
+services:
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: runner
+      args:
+        TUUL_API_HOSTNAME: ${TUUL_API_HOSTNAME-}
+        TUUL_DONATE_URL: ${TUUL_DONATE_URL-https://ko-fi.com/incidentist}
+    image: the-tuul:latest
+    env_file: .env
+    environment:
+      PORT: 8080
+      WORKER_COUNT: ${WORKER_COUNT:-1}
+      # Point the API at the separator_server when the `gpu` profile is active.
+      SEPARATOR_HOST: ${SEPARATOR_HOST-}
+      SEPARATOR_PORT: ${SEPARATOR_PORT:-8001}
+    ports:
+      - "${HOST_PORT:-8080}:8080"
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8080/health').read()"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 30s
+    restart: unless-stopped
+
+  # Optional GPU-backed separator daemon. Enable with:
+  #   docker compose --profile gpu up
+  # and set SEPARATOR_HOST=separator in the api service env to route through it.
+  separator:
+    profiles: ["gpu"]
+    image: the-tuul:latest
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: runner
+    env_file: .env
+    environment:
+      PORT: 8001
+      SEPARATOR_PORT: 8001
+    command: ["gunicorn", "--config", "gunicorn.conf.py", "api.separator_server:app"]
+    volumes:
+      - separator-models:/app/api/pretrained_models
+    ports:
+      - "${SEPARATOR_HOST_PORT:-8001}:8001"
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
+    restart: unless-stopped
+
+volumes:
+  separator-models:
