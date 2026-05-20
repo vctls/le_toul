@@ -1,4 +1,4 @@
-.PHONY: dev install bump-version-minor bump-version-patch format-backend run-api test-api build-docker
+.PHONY: dev install bump-version-minor bump-version-patch format-backend run-api test-api test-frontend-docker test-e2e-docker test-docker build-docker
 dev:
 	@set -e; \
 	trap 'printf "\n↪ shutting down…\n"; kill 0; exit 0' INT TERM; \
@@ -34,6 +34,16 @@ run-api:
 test-api:
 	@set -e; \
 	poetry run python -c "from api.main import app; print('✅ FastAPI app loads successfully')";
+
+test-frontend-docker:
+	@set -e; \
+	docker compose -f compose.dev.yaml run --rm --no-deps vite npm run test
+
+test-e2e-docker:
+	@set -e; \
+	docker compose -f compose.dev.yaml run --rm playwright
+
+test-docker: test-frontend-docker test-e2e-docker
 
 build-docker:
 	@set -e; \

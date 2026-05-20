@@ -12,7 +12,7 @@ export default defineConfig({
     /* Retry on CI only */
     retries: process.env.CI ? 2 : 0,
     /* Reporter to use */
-    reporter: 'html',
+    reporter: [['html', { host: '0.0.0.0', port: 9323 }]],
     /* Shared settings for all the projects below */
     use: {
         /* Base URL to use in actions like `await page.goto('/')` */

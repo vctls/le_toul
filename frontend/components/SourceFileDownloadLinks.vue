@@ -37,9 +37,24 @@ export default defineComponent({
     },
     async copyToClipboard(data) {
       const text = isString(data) ? data : JSON.stringify(data);
-      // Copy data to clipboard
       try {
-        await navigator.clipboard.writeText(text);
+        if (navigator.clipboard?.writeText) {
+          await navigator.clipboard.writeText(text);
+        } else {
+          // navigator.clipboard is only available in secure contexts
+          // (HTTPS / localhost). Fall back to the legacy execCommand path
+          // so the app stays functional over plain HTTP.
+          const textarea = document.createElement("textarea");
+          textarea.value = text;
+          textarea.setAttribute("readonly", "");
+          textarea.style.position = "fixed";
+          textarea.style.opacity = "0";
+          document.body.appendChild(textarea);
+          textarea.select();
+          const ok = document.execCommand("copy");
+          textarea.remove();
+          if (!ok) throw new Error("execCommand copy returned false");
+        }
         this.$buefy.toast.open({
           message: "Copied!",
           type: "is-success",

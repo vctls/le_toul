@@ -20,18 +20,15 @@ services:
       # returns EAI_AGAIN on Node 17+ default (IPv6-first) lookups.
       NODE_OPTIONS: --dns-result-order=ipv4first
     volumes:
-      - ./frontend:/app/frontend
-      - ./vite.config.common.ts:/app/vite.config.common.ts
-      - ./vite.config.dev.ts:/app/vite.config.dev.ts
-      - ./vite.config.prod.ts:/app/vite.config.prod.ts
-      - ./tsconfig.json:/app/tsconfig.json
-      - ./jsconfig.json:/app/jsconfig.json
-      - ./package.json:/app/package.json
-      - ./package-lock.json:/app/package-lock.json
+      - .:/app
       # Named volume so the bind-mount above doesn't shadow node_modules.
       - vite-node-modules:/app/node_modules
     ports:
       - "5173:5173"
+      # Playwright shares this container's network namespace (see the playwright
+      # service below), so its HTML report server (port 9323) is also published
+      # here.
+      - "9323:9323"
     # `npm clean-install` runs on first start; subsequent starts reuse the volume.
     entrypoint: ["sh", "-c", "if [ ! -d node_modules/vite ]; then npm clean-install; fi && exec \"$$@\"", "--"]
     networks: [default]
@@ -65,8 +62,36 @@ services:
       retries: 10
       start_period: 10s
 
+  # End-to-end tests. Not started by `up`; run on demand with:
+  #   docker compose -f compose.dev.yaml run --rm playwright
+  # Pass extra args after the service name, e.g. `... playwright npx playwright test lyrics-tab-functionality`.
+  #
+  # Shares the vite container's network namespace so the browser navigates to
+  # http://localhost:5173. Chromium treats loopback as a secure context, which
+  # is what exposes SharedArrayBuffer (needed by FFmpeg WASM) and the Clipboard
+  # API. Side effect: the HTML report at :9323 is published via the vite
+  # service's ports, not here.
+  playwright:
+    image: mcr.microsoft.com/playwright:v1.51.1-jammy
+    working_dir: /app
+    environment:
+      BASE_URL: http://localhost:5173
+    volumes:
+      - .:/app
+      - playwright-node-modules:/app/node_modules
+    entrypoint: ["sh", "-c", "if [ ! -d node_modules/@playwright/test ]; then npm clean-install; fi && exec \"$$@\"", "--"]
+    command: ["npx", "playwright", "test"]
+    network_mode: "service:vite"
+    profiles: ["e2e"]
+    depends_on:
+      vite:
+        condition: service_started
+      api:
+        condition: service_healthy
+
 networks:
   default:
 
 volumes:
   vite-node-modules:
+  playwright-node-modules:

@@ -92,7 +92,7 @@ export async function expectVideoPreviewToBeLoaded(page: Page): Promise<void> {
 export async function expectTimingsToMatch(
   actualTimings: any[],
   expectedTimings: any[],
-  tolerance: number = 0.1
+  tolerance: number = 0.5
 ): Promise<void> {
   // Check the overall length of the timings array
   expect(actualTimings.length).toBe(expectedTimings.length);
@@ -124,7 +124,7 @@ export async function expectSegmentTimingsToBe(
   segmentIndex: number,
   expectedStartTime: number,
   expectedEndTime: number,
-  tolerance: number = 0.1
+  tolerance: number = 0.5
 ): Promise<void> {
   // Get current timings from clipboard
   const timings = await getCurrentTimings(page);

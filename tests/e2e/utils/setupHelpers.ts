@@ -21,11 +21,11 @@ export interface TestConfig {
  * Default test configuration
  */
 export const defaultTestConfig: TestConfig = {
-  audioFile: 'my_fair_lady.mp3',
+  audioFile: 'Ma Rainey - Prove It on Me Blues, first verse.mp3',
   lyricsFile: 'lyrics.txt',
   timingsFile: 'timings.json',
-  artist: 'David Byrne',
-  title: 'My Fair Lady',
+  artist: 'Ma Rainey',
+  title: 'Prove It On Me Blues',
 };
 
 /**
@@ -87,5 +87,28 @@ export async function initAppSetup(page: Page): Promise<void> {
  */
 export async function setupTestEnvironment(page: Page): Promise<void> {
   setupConsoleErrorListener(page);
+  await installClipboardStub(page);
   await initAppSetup(page);
+}
+
+/**
+ * Installs an in-memory navigator.clipboard polyfill. The Clipboard API is
+ * only exposed in secure contexts; when the tests run against a non-localhost
+ * dev host (e.g. http://vite:5173 inside the docker stack) it is undefined,
+ * breaking both the app's copy buttons and the tests that read the clipboard
+ * back. The stub stores writes in a window-scoped buffer so writeText /
+ * readText round-trip cleanly without needing OS clipboard access.
+ */
+async function installClipboardStub(page: Page): Promise<void> {
+  await page.addInitScript(() => {
+    if (navigator.clipboard?.writeText && navigator.clipboard?.readText) return;
+    let buffer = '';
+    Object.defineProperty(navigator, 'clipboard', {
+      configurable: true,
+      value: {
+        writeText: (text: string) => { buffer = text; return Promise.resolve(); },
+        readText: () => Promise.resolve(buffer),
+      },
+    });
+  });
 }

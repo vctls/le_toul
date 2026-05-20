@@ -104,6 +104,9 @@ export default mergeConfig(
         server: {
             host: process.env.VITE_HOST || 'localhost',
             port: 5173,
+            // Permit any Host header in dev so containerized clients (e.g. the
+            // playwright service hitting http://vite:5173) aren't rejected with 403.
+            allowedHosts: true,
             fs: {
                 // Allow serving files from one level up to include node_modules
                 allow: ['..']
