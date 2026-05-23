@@ -2,7 +2,13 @@
 # PyCharm project configuration
 .idea
 __pycache__
-# pretrained_models
+# Separation model binaries. Auto-downloaded by audio-separator on first use.
+# See README "Credits" for sources. Keep metadata JSONs/YAMLs tracked so we
+# don't have to rebuild them on a clean clone.
+api/pretrained_models/*.onnx
+api/pretrained_models/*.ckpt
+api/pretrained_models/*.pth
+api/pretrained_models/*.safetensors
 songs/
 node_modules/
 api/static-build

@@ -24,8 +24,30 @@
       <b-field label="Song Title">
         <b-input name="title" v-model="mediaStore.songTitle" @input="onTextChange" />
       </b-field>
-      <b-field horizontal label="Include Backing Vocals" class="backing-vocals-toggle">
-        <b-switch v-model="includeBackingVocals"></b-switch></b-field>
+      <b-field label="Separation Model" class="separation-model-field">
+        <div class="separation-model-radios">
+          <div class="model-group-label">Keep backing vocals</div>
+          <b-radio v-model="mediaStore.separationModel" :native-value="BACKING_VOCALS_SEPARATOR_MODEL">
+            MDX-Net <span class="hint">(fast)</span>
+          </b-radio>
+          <b-radio v-model="mediaStore.separationModel" :native-value="BACKING_VOCALS_HQ_SEPARATOR_MODEL">
+            Mel-Band Roformer (aufr33/viperx)
+            <span class="hint">(high quality · minutes per song on CPU)</span>
+          </b-radio>
+          <b-radio v-model="mediaStore.separationModel" :native-value="BACKING_VOCALS_HQ_ALT_SEPARATOR_MODEL">
+            Mel-Band Roformer (becruily)
+            <span class="hint">(high quality, newer · minutes per song on CPU)</span>
+          </b-radio>
+          <div class="model-group-label">Remove backing vocals</div>
+          <b-radio v-model="mediaStore.separationModel" :native-value="NO_VOCALS_SEPARATOR_MODEL">
+            MDX-Net Inst HQ <span class="hint">(fast)</span>
+          </b-radio>
+          <b-radio v-model="mediaStore.separationModel" :native-value="NO_VOCALS_HQ_SEPARATOR_MODEL">
+            BS-Roformer
+            <span class="hint">(highest SDR · slowest on CPU)</span>
+          </b-radio>
+        </div>
+      </b-field>
     </div>
 
     <b-collapse :open="false">
@@ -59,6 +81,9 @@ import {
   useMediaStore,
   BACKING_VOCALS_SEPARATOR_MODEL,
   NO_VOCALS_SEPARATOR_MODEL,
+  BACKING_VOCALS_HQ_SEPARATOR_MODEL,
+  BACKING_VOCALS_HQ_ALT_SEPARATOR_MODEL,
+  NO_VOCALS_HQ_SEPARATOR_MODEL,
 } from "@/stores/media";
 import { useTimingsStore } from "@/stores/timings";
 import FileUpload from "@/components/FileUpload.vue";
@@ -79,6 +104,11 @@ export default defineComponent({
     return {
       isLoadingYouTube: false,
       youtubeError: null,
+      BACKING_VOCALS_SEPARATOR_MODEL,
+      NO_VOCALS_SEPARATOR_MODEL,
+      BACKING_VOCALS_HQ_SEPARATOR_MODEL,
+      BACKING_VOCALS_HQ_ALT_SEPARATOR_MODEL,
+      NO_VOCALS_HQ_SEPARATOR_MODEL,
     };
   },
   computed: {
@@ -100,16 +130,6 @@ export default defineComponent({
         return "Separating track...head to the Lyrics tab to keep working on the song!";
       }
       return "Start separating the track while you work on the song timings. It's faster!";
-    },
-    includeBackingVocals: {
-      get() {
-        return this.mediaStore.separationModel == BACKING_VOCALS_SEPARATOR_MODEL;
-      },
-      set(value) {
-        this.mediaStore.separationModel = value
-          ? BACKING_VOCALS_SEPARATOR_MODEL
-          : NO_VOCALS_SEPARATOR_MODEL;
-      },
     },
     ...mapStores(useMediaStore),
   },
@@ -189,9 +209,26 @@ export default defineComponent({
   overflow-y: auto;
 }
 
-.backing-vocals-toggle :deep(.field-label) {
-  text-align: left !important;
-  flex-grow: 0 !important;
-  flex-basis: fit-content;
+.separation-model-radios {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.separation-model-radios .model-group-label {
+  font-weight: 600;
+  font-size: 0.9em;
+  margin-top: 0.5rem;
+  color: #555;
+}
+
+.separation-model-radios .model-group-label:first-child {
+  margin-top: 0;
+}
+
+.separation-model-radios .hint {
+  color: #888;
+  font-size: 0.85em;
+  margin-left: 0.25rem;
 }
 </style>

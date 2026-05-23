@@ -38,8 +38,14 @@ DEFAULT_MODEL = "UVR_MDXNET_KARA_2.onnx"
 
 AVAILABLE_MODELS = [
     "UVR_MDXNET_KARA_2.onnx",  # Keeps background vocals
-    # "model_mel_band_roformer_ep_3005_sdr_11.4360.ckpt",
     "UVR-MDX-NET-Inst_HQ_3.onnx",  # Removes background vocals
+    # High-quality karaoke Roformers (keep backing vocals).
+    # GPU-friendly via Modal/TCP; runs on CPU too but takes minutes per song.
+    "mel_band_roformer_karaoke_aufr33_viperx_sdr_10.1956.ckpt",
+    "mel_band_roformer_karaoke_becruily.ckpt",
+    # BS-Roformer instrumental (removes backing vocals). Highest reported SDR
+    # overall; heaviest of the bunch.
+    "model_bs_roformer_ep_317_sdr_12.9755.ckpt",
 ]
 
 
