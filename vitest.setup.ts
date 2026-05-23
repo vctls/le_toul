@@ -9,16 +9,14 @@ interface SubtitlesOctopus {
 }
 
 vi.mock('libass-wasm', () => {
-    console.log('Mocking libass-wasm in test file');
     return {
         __esModule: true,
-        default: vi.fn().mockImplementation((options) => {
-            console.log('Mock constructor called in test');
+        default: vi.fn(function (options) {
             return {
                 setTrack: vi.fn(),
                 setCurrentTime: vi.fn(),
-                setIsPaused: vi.fn()
+                setIsPaused: vi.fn(),
             };
-        })
+        }),
     };
 });

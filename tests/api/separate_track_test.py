@@ -12,9 +12,9 @@ from api.main import app
 @pytest.fixture
 def audio_file():
     """Fixture providing the test audio file."""
-    file_path = Path("tests/fixtures/lookin_up_in_heaven.mp3")
+    file_path = Path("tests/fixtures/Ma Rainey - Prove It on Me Blues, first verse.mp3")
     with open(file_path, "rb") as f:
-        return (file_path.name, f.read(), "audio/mpeg")
+        return file_path.name, f.read(), "audio/mpeg"
 
 
 def test_separate_track_integration_sync(audio_file):

@@ -36,9 +36,6 @@ test.describe('Karaoke Track Creation', () => {
     await navigateToTab(page, TabId.LyricInput);
     await loadAndEnterLyrics(page, defaultTestConfig.lyricsFile);
 
-    // Take screenshot
-    await page.screenshot({ path: 'lyrics.png' });
-
     // Go back to Song Info tab to refresh tab states
     await navigateToTab(page, TabId.SongInfo);
 

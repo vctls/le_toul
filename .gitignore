@@ -10,6 +10,7 @@ api/pretrained_models/*.ckpt
 api/pretrained_models/*.pth
 api/pretrained_models/*.safetensors
 songs/
+tests/song_files/
 node_modules/
 api/static-build
 api/staticroot/
