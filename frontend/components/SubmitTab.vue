@@ -87,7 +87,8 @@
           Create Video
         </b-button>
       </div>
-      <source-file-download-links :lyrics="lyricText" :timings="timings" :subtitles="subtitles()" />
+      <source-file-download-links :lyrics="lyricText" :timings="timings" :subtitles="subtitles()"
+        :vocals="mediaStore.separatedTrack?.vocals" :accompaniment="mediaStore.separatedTrack?.backing" />
     </div>
   </b-tab-item>
 </template>
@@ -333,6 +334,14 @@ export default defineComponent({
       zip.file("subtitles.ass", this.subtitles());
       zip.file("lyrics.txt", this.lyricText);
       zip.file("timings.json", JSON.stringify(this.timings));
+
+      const separated = this.mediaStore.separatedTrack;
+      if (separated?.vocals && separated.vocals.size > 0) {
+        zip.file("vocals.wav", separated.vocals);
+      }
+      if (separated?.backing && separated.backing.size > 0) {
+        zip.file("accompaniment.wav", separated.backing);
+      }
 
       const zipBlob = await zip.generateAsync({ type: "blob" });
       this.sendZipFile(zipBlob);

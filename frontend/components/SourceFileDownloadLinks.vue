@@ -10,6 +10,15 @@
     &bullet; subtitles.ass
     <a @click="download(subtitles, 'subtitles.ass')" title="download subtitles"><b-icon icon="download" /></a><a
       @click="copyToClipboard(subtitles)" title="copy subtitles to clipboard"><b-icon icon="copy" /></a>
+    <template v-if="vocals && vocals.size > 0">
+      &bullet; vocals.wav
+      <a @click="download(vocals, 'vocals.wav')" title="download vocals"><b-icon icon="download" /></a>
+    </template>
+    <template v-if="accompaniment && accompaniment.size > 0">
+      &bullet; accompaniment.wav
+      <a @click="download(accompaniment, 'accompaniment.wav')" title="download accompaniment"><b-icon
+          icon="download" /></a>
+    </template>
   </div>
 </template>
 
@@ -22,11 +31,14 @@ export default defineComponent({
     lyrics: String,
     timings: Array,
     subtitles: String,
+    vocals: Blob,
+    accompaniment: Blob,
   },
   methods: {
     download(data, filename) {
-      const text = isString(data) ? data : JSON.stringify(data);
-      const blob = new Blob([text], { type: "text/plain" });
+      const blob = data instanceof Blob
+        ? data
+        : new Blob([isString(data) ? data : JSON.stringify(data)], { type: "text/plain" });
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");
       a.href = url;
@@ -34,6 +46,7 @@ export default defineComponent({
       document.body.appendChild(a);
       a.click();
       a.remove();
+      URL.revokeObjectURL(url);
     },
     async copyToClipboard(data) {
       const text = isString(data) ? data : JSON.stringify(data);
