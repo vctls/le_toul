@@ -88,7 +88,8 @@
         </b-button>
       </div>
       <source-file-download-links :lyrics="lyricText" :timings="timings" :subtitles="subtitles()"
-        :vocals="mediaStore.separatedTrack?.vocals" :accompaniment="mediaStore.separatedTrack?.backing" />
+        :settings="settingsYaml" :vocals="mediaStore.separatedTrack?.vocals"
+        :accompaniment="mediaStore.separatedTrack?.backing" />
     </div>
   </b-tab-item>
 </template>
@@ -102,6 +103,7 @@ import VideoPreview from "@/components/VideoPreview.vue";
 import SourceFileDownloadLinks from "@/components/SourceFileDownloadLinks.vue";
 import VideoCreationProgressIndicator from "@/components/VideoCreationProgressIndicator.vue";
 import jszip from "jszip";
+import yaml from "js-yaml";
 import video from "@/lib/video";
 import { CreationPhase } from "@/types";
 import {
@@ -225,6 +227,26 @@ export default defineComponent({
     timings() {
       return this.timingsStore.rawTimings;
     },
+    settingsYaml(): string {
+      const { vocalSeparationModel, color, ...rest } = this.videoOptions;
+      return yaml.dump({
+        song: {
+          title: this.mediaStore.songTitle,
+          artist: this.mediaStore.songArtist,
+          duration: this.mediaStore.songDuration,
+          youtubeUrl: this.mediaStore.youtubeUrl,
+        },
+        separationModel: this.musicSeparationModel,
+        videoOptions: {
+          ...rest,
+          color: {
+            background: color.background.toString(),
+            primary: color.primary.toString(),
+            secondary: color.secondary.toString(),
+          },
+        },
+      });
+    },
     videoDuration(): number {
       return this.mediaStore.songDuration + this.audioDelay;
     },
@@ -334,6 +356,7 @@ export default defineComponent({
       zip.file("subtitles.ass", this.subtitles());
       zip.file("lyrics.txt", this.lyricText);
       zip.file("timings.json", JSON.stringify(this.timings));
+      zip.file("settings.yaml", this.settingsYaml);
 
       const separated = this.mediaStore.separatedTrack;
       if (separated?.vocals && separated.vocals.size > 0) {

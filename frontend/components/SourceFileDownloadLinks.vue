@@ -10,6 +10,11 @@
     &bullet; subtitles.ass
     <a @click="download(subtitles, 'subtitles.ass')" title="download subtitles"><b-icon icon="download" /></a><a
       @click="copyToClipboard(subtitles)" title="copy subtitles to clipboard"><b-icon icon="copy" /></a>
+    <template v-if="settings">
+      &bullet; settings.yaml
+      <a @click="download(settings, 'settings.yaml')" title="download settings"><b-icon icon="download" /></a><a
+        @click="copyToClipboard(settings)" title="copy settings to clipboard"><b-icon icon="copy" /></a>
+    </template>
     <template v-if="vocals && vocals.size > 0">
       &bullet; vocals.wav
       <a @click="download(vocals, 'vocals.wav')" title="download vocals"><b-icon icon="download" /></a>
@@ -31,6 +36,7 @@ export default defineComponent({
     lyrics: String,
     timings: Array,
     subtitles: String,
+    settings: String,
     vocals: Blob,
     accompaniment: Blob,
   },
