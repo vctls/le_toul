@@ -10,6 +10,10 @@
         When rectangles are joined, dragging the start of the next rectangle
         will move the end of the previous rectangle.
       </p>
+      <p>
+        Press <kbd>spacebar</kbd> to start and stop playback.
+        Scroll up and down on the waveform to zoom in and out on the area under the cursor.
+      </p>
     </div>
     <b-field label="Waveform zoom" horizontal style="margin-bottom: 0.5em; align-self: flex-start;">
       <b-numberinput v-model="zoom" :min="10" :max="500" :step="10" controls-position="compact" style="width: 10em;" />
