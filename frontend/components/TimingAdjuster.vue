@@ -43,6 +43,9 @@ export default defineComponent({
     audioData: Blob,
     // URL to the vocal track audio file
     vocalTrack: { type: Blob, required: false },
+    // Blob driving audio playback (the waveform stays on vocalTrack/audioData).
+    // Lets the user switch what they hear without changing the waveform.
+    playbackTrack: { type: Blob, required: false },
     prerollSeconds: { type: Number, default: 5 },
     zoom: { type: Number, default: 50 },
     playbackRate: { type: Number, default: 1 },
@@ -67,8 +70,9 @@ export default defineComponent({
   },
   mounted() {
     this.regions = this.createRegions(this.timings, this.splitLyrics);
-    if (this.audioData) {
-      this.audioSource = URL.createObjectURL(this.audioData);
+    const playbackBlob = this.playbackTrack || this.audioData;
+    if (playbackBlob) {
+      this.audioSource = URL.createObjectURL(playbackBlob);
     }
   },
   watch: {
@@ -84,13 +88,8 @@ export default defineComponent({
     playbackRate(value: number) {
       this.$refs.audioPlayer.playbackRate = value;
     },
-    audioData(newAudioData: Blob) {
-      if (newAudioData) {
-        if (this.audioSource) {
-          URL.revokeObjectURL(this.audioSource);
-        }
-        this.audioSource = URL.createObjectURL(newAudioData);
-      }
+    playbackTrack(newTrack: Blob) {
+      this.swapPlaybackSource(newTrack || this.audioData);
     },
   },
   methods: {
@@ -126,6 +125,27 @@ export default defineComponent({
         regions.push(currentRegion);
       }
       return regions;
+    },
+    swapPlaybackSource(newBlob: Blob) {
+      if (!newBlob) return;
+      const audio = this.$refs.audioPlayer?.audioPlayer as HTMLAudioElement;
+      // Changing the <audio> src resets currentTime to 0 and pauses playback,
+      // so capture the playhead/play state and restore them once the new
+      // source has loaded enough metadata to be seekable.
+      const resumeTime = audio ? audio.currentTime : 0;
+      const wasPlaying = audio ? !audio.paused : false;
+      if (this.audioSource) {
+        URL.revokeObjectURL(this.audioSource);
+      }
+      this.audioSource = URL.createObjectURL(newBlob);
+      if (!audio) return;
+      const restore = () => {
+        audio.currentTime = resumeTime;
+        if (wasPlaying) {
+          audio.play();
+        }
+      };
+      audio.addEventListener("loadedmetadata", restore, { once: true });
     },
     onRegionUpdated(region: Region) {
       const newTimings = this.applyRegionUpdateToTimings(region, this.timings);

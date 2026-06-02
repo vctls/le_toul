@@ -28,10 +28,16 @@
     <b-field label="Playhead preroll (seconds)" horizontal style="margin-bottom: 0.5em; align-self: flex-start;">
       <b-numberinput v-model="prerollSeconds" :min="0" :max="30" :step="1" controls-position="compact" style="width: 8em;" />
     </b-field>
+    <b-field v-if="vocalTrack" label="Playback track" horizontal style="margin-bottom: 0.5em; align-self: flex-start;">
+      <b-select v-model="playbackTrackChoice" style="width: 10em;">
+        <option value="full">Full track</option>
+        <option value="vocals">Vocals only</option>
+      </b-select>
+    </b-field>
     <subtitle-display class="subtitle-display" v-if="songFile && debouncedSubtitles" ref="subtitleDisplay" :subtitles="debouncedSubtitles"
       :fonts="{}" :backgroundColor="settingsStore.videoOptions.color.background.toString()" />
     <timing-adjuster v-if="songFile && adjustmentSubtitles" ref="timing-adjuster" :lyrics="lyricText"
-      :timings="timingsStore.rawTimings" :audioData="songFile" :vocalTrack="vocalTrack"
+      :timings="timingsStore.rawTimings" :audioData="songFile" :vocalTrack="vocalTrack" :playbackTrack="playbackTrack"
       :prerollSeconds="prerollSeconds" :zoom="zoom" :playbackRate="playbackRate" @timingschange="onTimingsChange" @zoom-change="onZoomChange"
       @timeupdate="onPlayheadUpdate" @seeking="onPlayheadUpdate" />
   </b-tab-item>
@@ -47,10 +53,10 @@ import { useTimingsStore } from "@/stores/timings";
 import { useLyricsStore } from "@/stores/lyrics";
 import { useSettingsStore } from "@/stores/settings";
 import { storeToRefs } from "pinia";
-import { BButton, BField, BNumberinput } from "buefy";
+import { BButton, BField, BNumberinput, BSelect } from "buefy";
 
 export default defineComponent({
-  components: { BButton, BField, BNumberinput, TimingAdjuster, SubtitleDisplay },
+  components: { BButton, BField, BNumberinput, BSelect, TimingAdjuster, SubtitleDisplay },
   setup() {
     const mediaStore = useMediaStore();
     const timingsStore = useTimingsStore();
@@ -74,6 +80,8 @@ export default defineComponent({
       shiftMs: 0,
       zoom: 50,
       playbackRate: 1,
+      // Which track to play back; the waveform always stays on the vocals.
+      playbackTrackChoice: "full" as "full" | "vocals",
       // Debounced copy of `adjustmentSubtitles` fed to the SubtitleDisplay.
       // Regenerating the ASS file and re-rendering it (SubtitlesOctopus.setTrack,
       // a WASM re-parse) is expensive, so we defer it until dragging settles.
@@ -87,6 +95,12 @@ export default defineComponent({
     },
     vocalTrack(): Blob | null {
       return this.mediaStore.separatedTrack?.vocals || null;
+    },
+    playbackTrack(): Blob | null {
+      if (this.playbackTrackChoice === "vocals" && this.vocalTrack) {
+        return this.vocalTrack;
+      }
+      return this.songFile;
     },
     isEnabled(): boolean {
       return this.timingsStore.length > 0;
