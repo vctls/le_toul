@@ -4,6 +4,10 @@
     :value="modelValue"
     @input="onLyricInput"
     ref="lyricInput"
+    spellcheck="false"
+    autocorrect="off"
+    autocapitalize="off"
+    autocomplete="off"
   ></textarea>
 </template>
 
