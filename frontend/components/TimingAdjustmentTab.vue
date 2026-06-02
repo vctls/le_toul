@@ -15,25 +15,27 @@
         Scroll up and down on the waveform to zoom in and out on the area under the cursor.
       </p>
     </div>
-    <b-field label="Waveform zoom" horizontal style="margin-bottom: 0.5em; align-self: flex-start;">
-      <b-numberinput v-model="zoom" :min="10" :max="500" :step="10" controls-position="compact" style="width: 10em;" />
-    </b-field>
-    <b-field label="Playback rate" horizontal style="margin-bottom: 0.5em; align-self: flex-start;">
-      <b-numberinput v-model="playbackRate" :min="0.25" :max="2" :step="0.25" controls-position="compact" style="width: 10em;" />
-    </b-field>
-    <b-field label="Shift all timings (ms)" horizontal style="margin-bottom: 0.5em; align-self: flex-start;">
-      <b-numberinput v-model="shiftMs" :step="1" controls-position="compact" style="width: 10em;" />
-      <b-button label="Apply" @click="applyShift" style="margin-left: 0.5em;" />
-    </b-field>
-    <b-field label="Playhead preroll (seconds)" horizontal style="margin-bottom: 0.5em; align-self: flex-start;">
-      <b-numberinput v-model="prerollSeconds" :min="0" :max="30" :step="1" controls-position="compact" style="width: 8em;" />
-    </b-field>
-    <b-field v-if="vocalTrack" label="Playback track" horizontal style="margin-bottom: 0.5em; align-self: flex-start;">
-      <b-select v-model="playbackTrackChoice" style="width: 10em;">
-        <option value="full">Full track</option>
-        <option value="vocals">Vocals only</option>
-      </b-select>
-    </b-field>
+    <div class="adjustment-form">
+      <b-field label="Waveform zoom" horizontal style="margin-bottom: 0.5em;">
+        <b-numberinput v-model="zoom" :min="10" :max="500" :step="10" controls-position="compact" style="width: 10em;" />
+      </b-field>
+      <b-field label="Playback rate" horizontal style="margin-bottom: 0.5em;">
+        <b-numberinput v-model="playbackRate" :min="0.25" :max="2" :step="0.25" controls-position="compact" style="width: 10em;" />
+      </b-field>
+      <b-field label="Shift all timings (ms)" horizontal style="margin-bottom: 0.5em;">
+        <b-numberinput v-model="shiftMs" :step="1" controls-position="compact" style="width: 10em;" />
+        <b-button label="Apply" @click="applyShift" style="margin-left: 0.5em;" />
+      </b-field>
+      <b-field label="Playhead preroll (seconds)" horizontal style="margin-bottom: 0.5em;">
+        <b-numberinput v-model="prerollSeconds" :min="0" :max="30" :step="1" controls-position="compact" style="width: 8em;" />
+      </b-field>
+      <b-field v-if="vocalTrack" label="Playback track" horizontal style="margin-bottom: 0.5em;">
+        <b-select v-model="playbackTrackChoice" style="width: 10em;">
+          <option value="full">Full track</option>
+          <option value="vocals">Vocals only</option>
+        </b-select>
+      </b-field>
+    </div>
     <subtitle-display class="subtitle-display" v-if="songFile && debouncedSubtitles" ref="subtitleDisplay" :subtitles="debouncedSubtitles"
       :fonts="{}" :backgroundColor="settingsStore.videoOptions.color.background.toString()" />
     <timing-adjuster v-if="songFile && adjustmentSubtitles" ref="timing-adjuster" :lyrics="lyricText"
@@ -187,6 +189,21 @@ export default defineComponent({
   white-space: nowrap;
   text-align: left;
   flex-shrink: 0;
+}
+
+/* Single column on small screens; two columns from the tablet breakpoint
+   (medium) up. The fields stay a flat list in the markup and flow into
+   whatever number of columns the viewport allows. */
+.adjustment-form {
+  display: grid;
+  grid-template-columns: 1fr;
+  column-gap: 1.5rem;
+}
+
+@media screen and (min-width: 769px) {
+  .adjustment-form {
+    grid-template-columns: 1fr 1fr;
+  }
 }
 
 .subtitle-display {
