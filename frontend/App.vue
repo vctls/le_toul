@@ -32,6 +32,7 @@
       <lyric-input-tab></lyric-input-tab>
       <song-timing-tab></song-timing-tab>
       <timing-adjustment-tab />
+      <timing-edit-tab />
       <submit-tab :music-separation-model="musicSeparationModel"></submit-tab>
     </b-tabs>
   </div>
@@ -46,6 +47,7 @@ import SongInfoTab from "@/components/SongInfoTab.vue";
 import LyricInputTab from "@/components/LyricInputTab.vue";
 import SongTimingTab from "@/components/SongTimingTab.vue";
 import TimingAdjustmentTab from "@/components/TimingAdjustmentTab.vue";
+import TimingEditTab from "@/components/TimingEditTab.vue";
 import SubmitTab from "@/components/SubmitTab.vue";
 import {
   BACKING_VOCALS_SEPARATOR_MODEL,
@@ -64,6 +66,7 @@ export default defineComponent({
     LyricInputTab,
     SongTimingTab,
     TimingAdjustmentTab,
+    TimingEditTab,
     SubmitTab,
   },
   data() {

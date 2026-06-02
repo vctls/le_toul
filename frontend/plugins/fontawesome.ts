@@ -28,6 +28,7 @@ import {
   faSpinner,
   faWandMagicSparkles,
   faArrowRotateLeft,
+  faPenToSquare,
 } from '@fortawesome/free-solid-svg-icons';
 
 // Import from brands
@@ -49,6 +50,7 @@ library.add(
   faAngleRight,
   faCircleDollarToSlot,
   faBlender,
+  faPenToSquare,
   faCircleExclamation,
   faCircleInfo,
   faAlignLeft,
