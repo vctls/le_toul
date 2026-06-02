@@ -1,7 +1,11 @@
 <template>
   <div class="preview-container">
     <b-message type="is-info">
-      Audio in this preview includes vocals, but the finished video won't.
+      {{
+        previewTrack === "backing"
+          ? "Previewing the backing track. This matches the finished video's audio."
+          : "Audio in this preview includes vocals, but the finished video won't."
+      }}
     </b-message>
     <subtitle-display
       ref="subtitleDisplay"
@@ -41,6 +45,17 @@ export default defineComponent({
       type: Blob,
       required: true,
     },
+    // Backing (accompaniment) track, available once the song has been separated.
+    // Lets the preview play the same audio the finished video will use.
+    backingTrack: {
+      type: Blob,
+      required: false,
+    },
+    // Which track the preview should play: "full" (songFile) or "backing".
+    previewTrack: {
+      type: String,
+      default: "full",
+    },
     subtitles: {
       type: String,
       required: true,
@@ -66,12 +81,20 @@ export default defineComponent({
       audioDataUrl: "",
     };
   },
+  computed: {
+    activeAudio(): Blob {
+      if (this.previewTrack === "backing" && this.backingTrack) {
+        return this.backingTrack;
+      }
+      return this.songFile;
+    },
+  },
   mounted() {
-    this.updateAudio(this.songFile, this.audioDelay);
+    this.updateAudio(this.activeAudio, this.audioDelay);
   },
   watch: {
-    songFile(newSongFile: Blob) {
-      this.updateAudio(newSongFile, this.audioDelay);
+    activeAudio(newAudio: Blob) {
+      this.updateAudio(newAudio, this.audioDelay);
     },
   },
   methods: {
@@ -82,8 +105,31 @@ export default defineComponent({
       this.$refs.subtitleDisplay.setPlayhead(playhead);
     },
     async updateAudio(audioData: Blob, silence: number) {
+      // Switching tracks reloads the <audio> element, which resets playback to
+      // 0 and pauses. Capture the playhead/play state so the preview stays put
+      // when the user toggles between the full and backing audio.
+      const audio = this.$refs.player?.audioPlayer as
+        | HTMLAudioElement
+        | undefined;
+      const resumeTime = audio ? audio.currentTime : 0;
+      const wasPlaying = audio ? !audio.paused : false;
+
       const audioWithSilence = await this.prependSilence(audioData, silence);
+      if (this.audioDataUrl) {
+        URL.revokeObjectURL(this.audioDataUrl);
+      }
       this.audioDataUrl = URL.createObjectURL(audioWithSilence);
+
+      if (audio && (resumeTime > 0 || wasPlaying)) {
+        const restore = () => {
+          audio.currentTime = resumeTime;
+          this.$refs.subtitleDisplay?.setPlayhead(resumeTime);
+          if (wasPlaying) {
+            audio.play();
+          }
+        };
+        audio.addEventListener("loadedmetadata", restore, { once: true });
+      }
     },
     async prependSilence(
       audioData: Blob,

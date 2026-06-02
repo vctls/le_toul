@@ -68,8 +68,15 @@
       </div>
       <div class="column is-narrow">
         <h3 class="title">Video Preview:</h3>
-        <video-preview v-if="isEnabled" :song-file="mediaStore.songFile" :subtitles="subtitles()"
-          :audio-delay="audioDelay" :fonts="fonts" :background-color="videoOptions.color.background.toString()"
+        <b-field v-if="backingTrack" label="Preview audio" horizontal style="margin-bottom: 0.5em;">
+          <b-select v-model="previewTrack">
+            <option value="full">Full track</option>
+            <option value="backing">Backing track</option>
+          </b-select>
+        </b-field>
+        <video-preview v-if="isEnabled" :song-file="mediaStore.songFile" :backing-track="backingTrack"
+          :preview-track="previewTrack" :subtitles="subtitles()" :audio-delay="audioDelay" :fonts="fonts"
+          :background-color="videoOptions.color.background.toString()"
           :video-blob="videoOptions.useBackgroundVideo ? videoBlob : null" />
       </div>
     </div>
@@ -166,6 +173,8 @@ export default defineComponent({
       creationPhase: CreationPhase.NotStarted,
       videoProgress: 0,
       submitError: null,
+      // Which track the preview plays: "full" (with vocals) or "backing".
+      previewTrack: "full",
     };
   },
   mounted() {
@@ -193,6 +202,9 @@ export default defineComponent({
     },
     songFile() {
       return this.mediaStore.songFile;
+    },
+    backingTrack() {
+      return this.mediaStore.separatedTrack?.backing || null;
     },
     songDuration() {
       return this.mediaStore.songDuration;
