@@ -28,7 +28,7 @@
     <b-field label="Playhead preroll (seconds)" horizontal style="margin-bottom: 0.5em; align-self: flex-start;">
       <b-numberinput v-model="prerollSeconds" :min="0" :max="30" :step="1" controls-position="compact" style="width: 8em;" />
     </b-field>
-    <subtitle-display class="subtitle-display" v-if="songFile && adjustmentSubtitles" ref="subtitleDisplay" :subtitles="adjustmentSubtitles"
+    <subtitle-display class="subtitle-display" v-if="songFile && debouncedSubtitles" ref="subtitleDisplay" :subtitles="debouncedSubtitles"
       :fonts="{}" :backgroundColor="settingsStore.videoOptions.color.background.toString()" />
     <timing-adjuster v-if="songFile && adjustmentSubtitles" ref="timing-adjuster" :lyrics="lyricText"
       :timings="timingsStore.rawTimings" :audioData="songFile" :vocalTrack="vocalTrack"
@@ -74,6 +74,11 @@ export default defineComponent({
       shiftMs: 0,
       zoom: 50,
       playbackRate: 1,
+      // Debounced copy of `adjustmentSubtitles` fed to the SubtitleDisplay.
+      // Regenerating the ASS file and re-rendering it (SubtitlesOctopus.setTrack,
+      // a WASM re-parse) is expensive, so we defer it until dragging settles.
+      debouncedSubtitles: "",
+      _subtitleDebounceTimer: null as ReturnType<typeof setTimeout> | null,
     };
   },
   computed: {
@@ -95,12 +100,37 @@ export default defineComponent({
   },
   beforeUnmount() {
     window.removeEventListener('keydown', this.onKeyDown);
+    if (this._subtitleDebounceTimer) {
+      clearTimeout(this._subtitleDebounceTimer);
+    }
   },
   watch: {
     playhead(newPlayhead: number) {
       if (this.$refs.subtitleDisplay) {
         this.$refs.subtitleDisplay.setPlayhead(newPlayhead);
       }
+    },
+    adjustmentSubtitles: {
+      handler(newSubs: string) {
+        // First population (and clearing) should be immediate so the preview
+        // appears without delay; rapid edits while dragging are debounced.
+        if (!this.debouncedSubtitles || !newSubs) {
+          if (this._subtitleDebounceTimer) {
+            clearTimeout(this._subtitleDebounceTimer);
+            this._subtitleDebounceTimer = null;
+          }
+          this.debouncedSubtitles = newSubs;
+          return;
+        }
+        if (this._subtitleDebounceTimer) {
+          clearTimeout(this._subtitleDebounceTimer);
+        }
+        this._subtitleDebounceTimer = setTimeout(() => {
+          this.debouncedSubtitles = newSubs;
+          this._subtitleDebounceTimer = null;
+        }, 250);
+      },
+      immediate: true,
     },
   },
   methods: {

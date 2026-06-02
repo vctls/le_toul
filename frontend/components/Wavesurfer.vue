@@ -53,6 +53,11 @@ export default defineComponent({
       isVisible: false,
       _observer: null as IntersectionObserver | null,
       _zoomAnchor: null as { time: number; cursorX: number } | null,
+      // Set when a drag/resize updates a region. The drag has already moved the
+      // region's DOM to its final position, so when the resulting timings
+      // round-trip back through the `regions` prop we skip the (expensive)
+      // teardown-and-rebuild of every region for that one update.
+      _skipNextRegionsUpdate: false,
     };
   },
   mounted() {
@@ -106,6 +111,9 @@ export default defineComponent({
     });
 
     this.regionsPlugin.on("region-updated", (region: Region) => {
+      // The DOM is already at its final position; skip the rebuild triggered
+      // when these timings round-trip back through the `regions` prop.
+      this._skipNextRegionsUpdate = true;
       this.$emit("region-updated", region);
     });
 
@@ -134,6 +142,13 @@ export default defineComponent({
     },
     regions: {
       handler: function (newRegions) {
+        // A drag just moved this region in place; the prop change is only the
+        // store value catching up. The DOM is already correct, so skip the
+        // teardown-and-rebuild of every region for this one update.
+        if (this._skipNextRegionsUpdate) {
+          this._skipNextRegionsUpdate = false;
+          return;
+        }
         // Add regions after audio is decoded or they won't render right
         if (this.isReady()) {
           this.updateRegions(newRegions);
