@@ -23,14 +23,27 @@ export default defineConfig({
         video: 'retain-on-failure',
         /* Viewport size optimized for the app */
         viewport: { width: 1280, height: 720 },
-        permissions: ['clipboard-read', 'clipboard-write'],
     },
 
     /* Configure projects for different browsers */
     projects: [
         {
             name: 'chromium',
-            use: { ...devices['Desktop Chrome'] },
+            use: {
+                ...devices['Desktop Chrome'],
+                /* Clipboard permissions are Chromium-only; Firefox relies on
+                   the in-memory clipboard stub from setupHelpers. */
+                permissions: ['clipboard-read', 'clipboard-write'],
+            },
+        },
+        {
+            name: 'firefox',
+            use: { ...devices['Desktop Firefox'] },
+            /* Firefox handles media element sources differently from Chromium
+               (e.g. it aborts in-flight fetches of revoked object URLs), so
+               run the audio playback specs there too. The rest of the suite
+               is Chromium-only. */
+            testMatch: /preview-track-switching\.spec\.ts/,
         },
     ],
 

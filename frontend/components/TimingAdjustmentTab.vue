@@ -96,7 +96,10 @@ export default defineComponent({
       return this.mediaStore.songFile;
     },
     vocalTrack(): Blob | null {
-      return this.mediaStore.separatedTrack?.vocals || null;
+      // setBackingTrack() uses an empty Blob as a "no vocals" placeholder, so
+      // an empty blob means there is no usable vocal track.
+      const vocals = this.mediaStore.separatedTrack?.vocals;
+      return vocals && vocals.size > 0 ? vocals : null;
     },
     playbackTrack(): Blob | null {
       if (this.playbackTrackChoice === "vocals" && this.vocalTrack) {

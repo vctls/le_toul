@@ -81,6 +81,15 @@ export default defineComponent({
       audioDataUrl: "",
     };
   },
+  created() {
+    // Object URLs of already-prepared (silence-prepended) tracks, keyed by
+    // source blob. Caching makes repeat track switches instant (preparing a
+    // full song takes seconds) and means URLs live until unmount, so an
+    // in-use URL is never revoked (revoking one mid-playback aborts the
+    // media fetch and wedges the <audio> element, notably in Firefox).
+    // Deliberately not reactive.
+    this.preparedTrackUrls = new Map<Blob, string>();
+  },
   computed: {
     activeAudio(): Blob {
       if (this.previewTrack === "backing" && this.backingTrack) {
@@ -105,31 +114,39 @@ export default defineComponent({
       this.$refs.subtitleDisplay.setPlayhead(playhead);
     },
     async updateAudio(audioData: Blob, silence: number) {
-      // Switching tracks reloads the <audio> element, which resets playback to
-      // 0 and pauses. Capture the playhead/play state so the preview stays put
-      // when the user toggles between the full and backing audio.
+      let url = this.preparedTrackUrls.get(audioData);
+      if (!url) {
+        const audioWithSilence = await this.prependSilence(audioData, silence);
+        url = URL.createObjectURL(audioWithSilence);
+        this.preparedTrackUrls.set(audioData, url);
+      }
+      if (url === this.audioDataUrl) {
+        return;
+      }
+
+      // Capture the playhead/play state right before swapping the source,
+      // since reloading the <audio> element resets playback to 0 and pauses.
       const audio = this.$refs.player?.audioPlayer as
         | HTMLAudioElement
         | undefined;
       const resumeTime = audio ? audio.currentTime : 0;
       const wasPlaying = audio ? !audio.paused : false;
 
-      const audioWithSilence = await this.prependSilence(audioData, silence);
-      if (this.audioDataUrl) {
-        URL.revokeObjectURL(this.audioDataUrl);
-      }
-      this.audioDataUrl = URL.createObjectURL(audioWithSilence);
+      this.audioDataUrl = url;
 
-      if (audio && (resumeTime > 0 || wasPlaying)) {
-        const restore = () => {
-          audio.currentTime = resumeTime;
-          this.$refs.subtitleDisplay?.setPlayhead(resumeTime);
-          if (wasPlaying) {
-            audio.play();
-          }
-        };
-        audio.addEventListener("loadedmetadata", restore, { once: true });
+      if (!audio || (resumeTime === 0 && !wasPlaying)) {
+        return;
       }
+      const onLoaded = () => {
+        audio.currentTime = resumeTime;
+        this.$refs.subtitleDisplay?.setPlayhead(resumeTime);
+        if (wasPlaying) {
+          audio.play().catch((error) => {
+            console.error("Could not resume playback:", error);
+          });
+        }
+      };
+      audio.addEventListener("loadedmetadata", onLoaded, { once: true });
     },
     async prependSilence(
       audioData: Blob,
@@ -231,6 +248,12 @@ export default defineComponent({
       this.$refs.subtitleDisplay.pause();
       this.$emit("waiting");
     },
+  },
+  beforeUnmount() {
+    for (const url of this.preparedTrackUrls.values()) {
+      URL.revokeObjectURL(url);
+    }
+    this.preparedTrackUrls.clear();
   },
 });
 </script>

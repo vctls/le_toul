@@ -207,6 +207,16 @@ test('createAssFileForShortIntroSong', () => {
     expect(assFile).toBe(testAss);
 });
 
+test('createAssFile handles timings without lyrics', () => {
+    // A timings file can be loaded before lyrics are entered. That should
+    // yield an event-less ASS file, not a crash in the screen decorators.
+    const songDuration = 60.0;
+    const timings: LyricEvent[] = [[1.0, LYRIC_MARKERS.SEGMENT_START], [2.0, LYRIC_MARKERS.SEGMENT_END]]
+    const assFile = createAssFile("", timings, songDuration, "It's Cøøl to Tüül", "TÜ/ÜL", DEFAULT_OPTIONS);
+    const headerOnly = testAssPreamble.slice(0, testAssPreamble.indexOf("Dialogue:"));
+    expect(assFile).toBe(headerOnly);
+});
+
 test('addCountIn', () => {
     const songDuration = 60.0;
     const lyrics = "That was a long intro\nToo bad nothing rhymes with intro"

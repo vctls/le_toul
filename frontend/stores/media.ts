@@ -19,6 +19,7 @@ const MEDIA_IDB_KEYS = [
     'media.separatedTrack',
     'media.timingsFile',
     'media.backingTrackFile',
+    'media.vocalTrackFile',
 ];
 
 
@@ -50,6 +51,7 @@ export const useMediaStore = defineStore('media', () => {
     // user's selection after a reload.
     const timingsFile = ref<File | null>(null);
     const backingTrackFile = ref<File | null>(null);
+    const vocalTrackFile = ref<File | null>(null);
 
     // Song metadata
     const songTitle = ref<string | null>(null);
@@ -88,6 +90,14 @@ export const useMediaStore = defineStore('media', () => {
             separatedTrack.value = { backing: file, vocals: new Blob() };
         } else {
             separatedTrack.value.backing = file;
+        }
+    }
+
+    async function setVocalTrack(file: File) {
+        if (separatedTrack.value == null) {
+            separatedTrack.value = { backing: new Blob(), vocals: file };
+        } else {
+            separatedTrack.value.vocals = file;
         }
     }
 
@@ -204,6 +214,7 @@ export const useMediaStore = defineStore('media', () => {
         persistBlobRef('media.separatedTrack', separatedTrack),
         persistBlobRef('media.timingsFile', timingsFile),
         persistBlobRef('media.backingTrackFile', backingTrackFile),
+        persistBlobRef('media.vocalTrackFile', vocalTrackFile),
     ]).finally(() => {
         isHydrating = false;
     });
@@ -214,6 +225,7 @@ export const useMediaStore = defineStore('media', () => {
         separatedTrack.value = null;
         timingsFile.value = null;
         backingTrackFile.value = null;
+        vocalTrackFile.value = null;
         songTitle.value = null;
         songArtist.value = null;
         songDuration.value = null;
@@ -229,6 +241,7 @@ export const useMediaStore = defineStore('media', () => {
         backgroundVideo,
         timingsFile,
         backingTrackFile,
+        vocalTrackFile,
 
         songTitle,
         songArtist,
@@ -245,6 +258,7 @@ export const useMediaStore = defineStore('media', () => {
         // Methods
         startSeparation,
         setBackingTrack,
+        setVocalTrack,
         clearSession,
     };
 });

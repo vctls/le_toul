@@ -582,6 +582,11 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
 
 export function createScreens(lyrics: string, lyricEvents: LyricEvent[], songDuration: number, title: string, artist: string, options: KaraokeOptions): LyricsScreen[] {
   let screens = compileLyricTimings(lyrics, lyricEvents);
+  if (screens.length === 0) {
+    // No lyrics yet (e.g. a timings file was loaded before lyrics were
+    // entered). The decorators below index into screens[0], so bail early.
+    return screens;
+  }
   screens = denormalizeTimestamps(screens, songDuration);
   if (options.addCountIns) {
     screens = addQuickStartCountIn(screens);

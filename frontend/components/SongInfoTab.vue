@@ -61,6 +61,7 @@
         <file-upload name="timings-file-upload" :accept="['.json']" label="Timings File" v-model="mediaStore.timingsFile"
           @update:modelValue="onTimingsFileChange" />
         <file-upload label="Backing Track" v-model="mediaStore.backingTrackFile" @update:modelValue="onBackingTrackFileChange" />
+        <file-upload label="Vocal Track" v-model="mediaStore.vocalTrackFile" @update:modelValue="onVocalTrackFileChange" />
       </div>
     </b-collapse>
     <div class="buttons" v-if="!mediaStore.backingTrackFile">
@@ -189,6 +190,9 @@ export default defineComponent({
     },
     onBackingTrackFileChange(file: File | null) {
       this.mediaStore.setBackingTrack(file);
+    },
+    onVocalTrackFileChange(file: File | null) {
+      this.mediaStore.setVocalTrack(file);
     },
     async separateTrack() {
       const model = this.mediaStore.separationModel;

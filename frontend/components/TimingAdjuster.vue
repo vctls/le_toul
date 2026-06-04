@@ -56,6 +56,12 @@ export default defineComponent({
       audioSource: null as string | null,
     };
   },
+  created() {
+    // Object URLs keyed by source blob. URLs live until unmount so an in-use
+    // URL is never revoked (revoking one mid-playback aborts the media fetch
+    // and wedges the <audio> element, notably in Firefox). Not reactive.
+    this.trackUrls = new Map<Blob, string>();
+  },
   computed: {
     splitLyrics(): Array<String> {
       if (this.lyrics == null) {
@@ -72,7 +78,7 @@ export default defineComponent({
     this.regions = this.createRegions(this.timings, this.splitLyrics);
     const playbackBlob = this.playbackTrack || this.audioData;
     if (playbackBlob) {
-      this.audioSource = URL.createObjectURL(playbackBlob);
+      this.audioSource = this.trackUrl(playbackBlob);
     }
   },
   watch: {
@@ -126,23 +132,32 @@ export default defineComponent({
       }
       return regions;
     },
+    trackUrl(blob: Blob): string {
+      let url = this.trackUrls.get(blob);
+      if (!url) {
+        url = URL.createObjectURL(blob);
+        this.trackUrls.set(blob, url);
+      }
+      return url;
+    },
     swapPlaybackSource(newBlob: Blob) {
       if (!newBlob) return;
+      const url = this.trackUrl(newBlob);
+      if (url === this.audioSource) return;
       const audio = this.$refs.audioPlayer?.audioPlayer as HTMLAudioElement;
       // Changing the <audio> src resets currentTime to 0 and pauses playback,
       // so capture the playhead/play state and restore them once the new
       // source has loaded enough metadata to be seekable.
       const resumeTime = audio ? audio.currentTime : 0;
       const wasPlaying = audio ? !audio.paused : false;
-      if (this.audioSource) {
-        URL.revokeObjectURL(this.audioSource);
-      }
-      this.audioSource = URL.createObjectURL(newBlob);
+      this.audioSource = url;
       if (!audio) return;
       const restore = () => {
         audio.currentTime = resumeTime;
         if (wasPlaying) {
-          audio.play();
+          audio.play().catch((error) => {
+            console.error("Could not resume playback:", error);
+          });
         }
       };
       audio.addEventListener("loadedmetadata", restore, { once: true });
@@ -222,9 +237,10 @@ export default defineComponent({
     },
   },
   beforeUnmount() {
-    if (this.audioSource) {
-      URL.revokeObjectURL(this.audioSource);
+    for (const url of this.trackUrls.values()) {
+      URL.revokeObjectURL(url);
     }
+    this.trackUrls.clear();
   },
 });
 </script>
