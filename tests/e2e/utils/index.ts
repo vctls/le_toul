@@ -29,3 +29,21 @@ export async function expectTabToBeEnabled(page: Page, tabId: TabId): Promise<vo
 export async function expectTabToBeDisabled(page: Page, tabId: TabId): Promise<void> {
   expect(await isTabEnabled(page, tabId)).toBeFalsy();
 }
+
+/**
+ * Verifies that the Create Video button on the Submit tab is enabled.
+ * The Submit tab itself is always reachable; video creation only becomes
+ * available once a song, lyrics, and finished timings all exist.
+ * Assumes the Submit tab is the active tab.
+ */
+export async function expectVideoCreationToBeEnabled(page: Page): Promise<void> {
+  await expect(page.locator('button:has-text("Create Video")')).toBeEnabled();
+}
+
+/**
+ * Verifies that the Create Video button on the Submit tab is disabled.
+ * Assumes the Submit tab is the active tab.
+ */
+export async function expectVideoCreationToBeDisabled(page: Page): Promise<void> {
+  await expect(page.locator('button:has-text("Create Video")')).toBeDisabled();
+}

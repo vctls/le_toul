@@ -8,6 +8,8 @@ import {
   mockSeparateTrackApi,
   expectTabToBeDisabled,
   expectTabToBeEnabled,
+  expectVideoCreationToBeDisabled,
+  expectVideoCreationToBeEnabled,
   loadAndEnterTimings,
   expectSuccessMessage,
   expectFileDownload,
@@ -54,11 +56,12 @@ test.describe('YouTube Karaoke Video Creation', () => {
     // 5. Verify Song Timing tab is now enabled
     await expectTabToBeEnabled(page, TabId.SongTiming);
 
-    // 6. Navigate to Song Timing tab
-    await navigateToTab(page, TabId.SongTiming);
+    // 6. Verify the Submit tab is reachable but video creation is not yet available
+    await navigateToTab(page, TabId.Submit);
+    await expectVideoCreationToBeDisabled(page);
 
-    // 7. Verify Submit tab is initially disabled
-    await expectTabToBeDisabled(page, TabId.Submit);
+    // 7. Navigate to Song Timing tab
+    await navigateToTab(page, TabId.SongTiming);
 
     // 8. Load and enter timings from fixture file
     await loadAndEnterTimings(page, defaultTestConfig.timingsFile);
@@ -66,10 +69,7 @@ test.describe('YouTube Karaoke Video Creation', () => {
     // 9. Verify success message
     await expectSuccessMessage(page, '.song-timing-tab');
 
-    // 10. Verify Submit tab is now enabled
-    await expectTabToBeEnabled(page, TabId.Submit);
-
-    // 11. Get timings and compare with expected
+    // 10. Get timings and compare with expected
     const actualTimings = await getCurrentTimings(page);
 
     // Load the expected timings from the fixture file
@@ -77,13 +77,14 @@ test.describe('YouTube Karaoke Video Creation', () => {
 
     expectTimingsToMatch(actualTimings, expectedTimings);
 
-    // 12. Navigate to Submit tab
+    // 11. Navigate to Submit tab and verify video creation is now available
     await navigateToTab(page, TabId.Submit);
+    await expectVideoCreationToBeEnabled(page);
 
-    // 13. Click Create Video
+    // 12. Click Create Video
     await page.click('button:has-text("Create Video")');
 
-    // 14. Wait for video download and verify
+    // 13. Wait for video download and verify
     const VIDEO_CREATION_TIMEOUT = 180000; // 3 minutes
     const videoPath = await expectFileDownload(page, VIDEO_CREATION_TIMEOUT);
     console.log('Video download path:', videoPath);

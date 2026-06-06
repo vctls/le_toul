@@ -9,6 +9,8 @@ import {
   mockSeparateTrackApi,
   expectTabToBeDisabled,
   expectTabToBeEnabled,
+  expectVideoCreationToBeDisabled,
+  expectVideoCreationToBeEnabled,
   loadAndEnterTimings,
   expectSuccessMessage,
   expectFileDownload
@@ -42,11 +44,12 @@ test.describe('Karaoke Track Creation', () => {
     // 4. Verify Song Timing tab is now enabled
     await expectTabToBeEnabled(page, TabId.SongTiming);
 
-    // 5. Navigate to Song Timing tab
-    await navigateToTab(page, TabId.SongTiming);
+    // 5. Verify the Submit tab is reachable but video creation is not yet available
+    await navigateToTab(page, TabId.Submit);
+    await expectVideoCreationToBeDisabled(page);
 
-    // 6. Verify Submit tab is initially disabled
-    await expectTabToBeDisabled(page, TabId.Submit);
+    // 6. Navigate to Song Timing tab
+    await navigateToTab(page, TabId.SongTiming);
 
     // 7. Load and enter timings from fixture file
     await loadAndEnterTimings(page, defaultTestConfig.timingsFile);
@@ -54,16 +57,14 @@ test.describe('Karaoke Track Creation', () => {
     // 8. Verify success message
     await expectSuccessMessage(page, '.song-timing-tab');
 
-    // 9. Verify Submit tab is now enabled
-    await expectTabToBeEnabled(page, TabId.Submit);
-
-    // 10. Navigate to Submit tab
+    // 9. Navigate to Submit tab and verify video creation is now available
     await navigateToTab(page, TabId.Submit);
+    await expectVideoCreationToBeEnabled(page);
 
-    // 11. Click Create Video
+    // 10. Click Create Video
     await page.click('button:has-text("Create Video")');
 
-    // 12. Wait for video download and verify
+    // 11. Wait for video download and verify
     const VIDEO_CREATION_TIMEOUT = 180000; // 3 minutes
     const videoPath = await expectFileDownload(page, VIDEO_CREATION_TIMEOUT);
     console.log('Video download path:', videoPath);

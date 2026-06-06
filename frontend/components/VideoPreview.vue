@@ -83,12 +83,21 @@ export default defineComponent({
   },
   created() {
     // Object URLs of already-prepared (silence-prepended) tracks, keyed by
-    // source blob. Caching makes repeat track switches instant (preparing a
-    // full song takes seconds) and means URLs live until unmount, so an
-    // in-use URL is never revoked (revoking one mid-playback aborts the
-    // media fetch and wedges the <audio> element, notably in Firefox).
+    // source blob and the amount of prepended silence (the audio delay can
+    // change while the preview is mounted, e.g. when count-ins are toggled
+    // or timings are edited). Caching makes repeat track switches instant
+    // (preparing a full song takes seconds) and means URLs live until
+    // unmount, so an in-use URL is never revoked (revoking one mid-playback
+    // aborts the media fetch and wedges the <audio> element, notably in
+    // Firefox). Deliberately not reactive.
+    this.preparedTrackUrls = new Map<Blob, Map<number, string>>();
+    // The preview stays mounted when its tab is hidden, but its inputs keep
+    // changing (every timing tap updates the audio delay). Preparing audio
+    // is expensive, so while hidden we only remember the latest requested
+    // update and apply it when the preview becomes visible again.
     // Deliberately not reactive.
-    this.preparedTrackUrls = new Map<Blob, string>();
+    this.isDisplayed = true;
+    this.pendingAudioUpdate = null;
   },
   computed: {
     activeAudio(): Blob {
@@ -99,14 +108,33 @@ export default defineComponent({
     },
   },
   mounted() {
+    this.visibilityObserver = new IntersectionObserver((entries) => {
+      this.isDisplayed = entries[entries.length - 1].isIntersecting;
+      if (this.isDisplayed && this.pendingAudioUpdate) {
+        const { audio, silence } = this.pendingAudioUpdate;
+        this.pendingAudioUpdate = null;
+        this.updateAudio(audio, silence);
+      }
+    });
+    this.visibilityObserver.observe(this.$el);
     this.updateAudio(this.activeAudio, this.audioDelay);
   },
   watch: {
     activeAudio(newAudio: Blob) {
-      this.updateAudio(newAudio, this.audioDelay);
+      this.scheduleAudioUpdate(newAudio, this.audioDelay);
+    },
+    audioDelay(newDelay: number) {
+      this.scheduleAudioUpdate(this.activeAudio, newDelay);
     },
   },
   methods: {
+    scheduleAudioUpdate(audioData: Blob, silence: number) {
+      if (!this.isDisplayed) {
+        this.pendingAudioUpdate = { audio: audioData, silence };
+        return;
+      }
+      this.updateAudio(audioData, silence);
+    },
     setPlayhead(playhead: number) {
       if (playhead != this.$refs.player.currentTime) {
         this.$refs.player.currentTime = playhead;
@@ -114,11 +142,16 @@ export default defineComponent({
       this.$refs.subtitleDisplay.setPlayhead(playhead);
     },
     async updateAudio(audioData: Blob, silence: number) {
-      let url = this.preparedTrackUrls.get(audioData);
+      let urlsBySilence = this.preparedTrackUrls.get(audioData);
+      if (!urlsBySilence) {
+        urlsBySilence = new Map<number, string>();
+        this.preparedTrackUrls.set(audioData, urlsBySilence);
+      }
+      let url = urlsBySilence.get(silence);
       if (!url) {
         const audioWithSilence = await this.prependSilence(audioData, silence);
         url = URL.createObjectURL(audioWithSilence);
-        this.preparedTrackUrls.set(audioData, url);
+        urlsBySilence.set(silence, url);
       }
       if (url === this.audioDataUrl) {
         return;
@@ -250,8 +283,11 @@ export default defineComponent({
     },
   },
   beforeUnmount() {
-    for (const url of this.preparedTrackUrls.values()) {
-      URL.revokeObjectURL(url);
+    this.visibilityObserver?.disconnect();
+    for (const urlsBySilence of this.preparedTrackUrls.values()) {
+      for (const url of urlsBySilence.values()) {
+        URL.revokeObjectURL(url);
+      }
     }
     this.preparedTrackUrls.clear();
   },

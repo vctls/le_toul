@@ -1,29 +1,35 @@
 <template>
-  <div class="is-size-7 has-text-centered has-text-gray">
+  <div v-if="hasAnyFiles" class="is-size-7 has-text-centered has-text-gray source-file-links">
     <span>Source files: </span>
-    lyrics.txt
-    <a @click="download(lyrics, 'lyrics.txt')" title="download lyrics"><b-icon icon="download" /></a><a
-      @click="copyToClipboard(lyrics)" title="copy lyrics to clipboard"><b-icon icon="copy" /></a>
-    &bullet; timings.json
-    <a @click="download(timings, 'timings.json')" title="download timings"><b-icon icon="download" /></a><a
-      @click="copyToClipboard(timings)" title="copy timings to clipboard"><b-icon icon="copy" /></a>
-    &bullet; subtitles.ass
-    <a @click="download(subtitles, 'subtitles.ass')" title="download subtitles"><b-icon icon="download" /></a><a
-      @click="copyToClipboard(subtitles)" title="copy subtitles to clipboard"><b-icon icon="copy" /></a>
-    <template v-if="settings">
-      &bullet; settings.yaml
+    <span v-if="lyrics" class="file-item">
+      lyrics.txt
+      <a @click="download(lyrics, 'lyrics.txt')" title="download lyrics"><b-icon icon="download" /></a><a
+        @click="copyToClipboard(lyrics)" title="copy lyrics to clipboard"><b-icon icon="copy" /></a>
+    </span>
+    <span v-if="timings && timings.length > 0" class="file-item">
+      timings.json
+      <a @click="download(timings, 'timings.json')" title="download timings"><b-icon icon="download" /></a><a
+        @click="copyToClipboard(timings)" title="copy timings to clipboard"><b-icon icon="copy" /></a>
+    </span>
+    <span v-if="subtitles" class="file-item">
+      subtitles.ass
+      <a @click="download(subtitles, 'subtitles.ass')" title="download subtitles"><b-icon icon="download" /></a><a
+        @click="copyToClipboard(subtitles)" title="copy subtitles to clipboard"><b-icon icon="copy" /></a>
+    </span>
+    <span v-if="settings" class="file-item">
+      settings.yaml
       <a @click="download(settings, 'settings.yaml')" title="download settings"><b-icon icon="download" /></a><a
         @click="copyToClipboard(settings)" title="copy settings to clipboard"><b-icon icon="copy" /></a>
-    </template>
-    <template v-if="vocals && vocals.size > 0">
-      &bullet; vocals.wav
+    </span>
+    <span v-if="vocals && vocals.size > 0" class="file-item">
+      vocals.wav
       <a @click="download(vocals, 'vocals.wav')" title="download vocals"><b-icon icon="download" /></a>
-    </template>
-    <template v-if="accompaniment && accompaniment.size > 0">
-      &bullet; accompaniment.wav
+    </span>
+    <span v-if="accompaniment && accompaniment.size > 0" class="file-item">
+      accompaniment.wav
       <a @click="download(accompaniment, 'accompaniment.wav')" title="download accompaniment"><b-icon
           icon="download" /></a>
-    </template>
+    </span>
   </div>
 </template>
 
@@ -39,6 +45,18 @@ export default defineComponent({
     settings: String,
     vocals: Blob,
     accompaniment: Blob,
+  },
+  computed: {
+    hasAnyFiles(): boolean {
+      return Boolean(
+        this.lyrics ||
+        (this.timings && this.timings.length > 0) ||
+        this.subtitles ||
+        this.settings ||
+        (this.vocals && this.vocals.size > 0) ||
+        (this.accompaniment && this.accompaniment.size > 0)
+      );
+    },
   },
   methods: {
     download(data, filename) {
@@ -89,3 +107,9 @@ export default defineComponent({
   },
 });
 </script>
+
+<style scoped>
+.source-file-links .file-item+.file-item::before {
+  content: "\2022 ";
+}
+</style>

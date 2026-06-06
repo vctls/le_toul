@@ -1,6 +1,5 @@
 <template>
-  <b-tab-item label="Submit" icon="blender" class="submit-tab scroll-wrapper" headerClass="submit-tab-header"
-    :disabled="!isEnabled">
+  <b-tab-item label="Submit" icon="blender" class="submit-tab scroll-wrapper" headerClass="submit-tab-header">
     <div class="columns is-variable is-5">
       <div class="column settings-column">
         <h2 class="title">More Settings:</h2>
@@ -74,10 +73,11 @@
             <option value="backing">Backing track</option>
           </b-select>
         </b-field>
-        <video-preview v-if="isEnabled" :song-file="mediaStore.songFile" :backing-track="backingTrack"
+        <video-preview v-if="songFile" :song-file="mediaStore.songFile" :backing-track="backingTrack"
           :preview-track="previewTrack" :subtitles="subtitles()" :audio-delay="audioDelay" :fonts="fonts"
           :background-color="videoOptions.color.background.toString()"
           :video-blob="videoOptions.useBackgroundVideo ? videoBlob : null" />
+        <b-message v-else type="is-info">Upload a song to see the preview.</b-message>
       </div>
     </div>
 
@@ -88,9 +88,12 @@
       </b-message>
       <video-creation-progress-indicator v-if="isSubmitting" :song-duration="songDuration" :phase="creationPhase"
         :progress="videoProgress" :elapsed-time="elapsedSubmissionTime" />
+      <b-message v-if="!canCreateVideo" type="is-info">
+        {{ missingStepsMessage }}
+      </b-message>
       <div class="buttons">
         <b-button expanded size="is-large" type="is-primary" :loading="isSubmitting" @click="createVideo"
-          :disabled="!isEnabled && !isSubmitting">
+          :disabled="!canCreateVideo && !isSubmitting">
           Create Video
         </b-button>
       </div>
@@ -185,12 +188,27 @@ export default defineComponent({
   },
 
   computed: {
-    isEnabled() {
+    canCreateVideo() {
       return (
         this.mediaStore.songFile &&
         this.lyricText.length > 0 &&
         this.timingsStore.areTimingsFinished
       );
+    },
+    missingStepsMessage(): string {
+      const steps = [];
+      if (!this.mediaStore.songFile) {
+        steps.push("upload a song");
+      }
+      if (this.lyricText.length === 0) {
+        steps.push("enter lyrics");
+      }
+      if (!this.timingsStore.areTimingsFinished) {
+        steps.push("finish timing the lyrics");
+      }
+      const last = steps.pop();
+      const stepText = steps.length > 0 ? `${steps.join(", ")} and ${last}` : last;
+      return `To create your video, ${stepText}.`;
     },
     videoOptions: {
       get() {
@@ -214,9 +232,8 @@ export default defineComponent({
     },
     // subtitles now comes from the timings store
     audioDelay(): number {
-      if (!this.isEnabled) {
-        return 0;
-      }
+      // createScreens tolerates partial or missing timings, so this works
+      // even before the timing step is finished.
       const screens = createScreens(
         this.lyricText,
         this.timings,

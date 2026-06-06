@@ -9,6 +9,8 @@ import {
   mockSeparateTrackApiDirect,
   expectTabToBeDisabled,
   expectTabToBeEnabled,
+  expectVideoCreationToBeDisabled,
+  expectVideoCreationToBeEnabled,
   loadAndEnterTimings,
   expectSuccessMessage,
   expectFileDownload
@@ -45,11 +47,12 @@ test.describe('Separate Track Direct Response', () => {
     // Verify Song Timing tab is now enabled
     await expectTabToBeEnabled(page, TabId.SongTiming);
 
+    // Verify the Submit tab is reachable but video creation is not yet available
+    await navigateToTab(page, TabId.Submit);
+    await expectVideoCreationToBeDisabled(page);
+
     // Navigate to Song Timing tab
     await navigateToTab(page, TabId.SongTiming);
-
-    // Verify Submit tab is initially disabled
-    await expectTabToBeDisabled(page, TabId.Submit);
 
     // Load and enter timings from fixture file
     await loadAndEnterTimings(page, defaultTestConfig.timingsFile);
@@ -57,11 +60,9 @@ test.describe('Separate Track Direct Response', () => {
     // Verify success message
     await expectSuccessMessage(page, '.song-timing-tab');
 
-    // Verify Submit tab is now enabled
-    await expectTabToBeEnabled(page, TabId.Submit);
-
-    // Navigate to Submit tab
+    // Navigate to Submit tab and verify video creation is now available
     await navigateToTab(page, TabId.Submit);
+    await expectVideoCreationToBeEnabled(page);
 
     // Click Create Video
     await page.click('button:has-text("Create Video")');
