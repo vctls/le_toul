@@ -1,11 +1,14 @@
 <template>
   <b-tab-item label="Song Timing" icon="stopwatch" class="wrapper song-timing-tab" headerClass="song-timing-tab-header"
     :disabled="!songFile || lyricSegments.length == 0">
-    <h2 class="title">
-      Song Timing
-      <b-button v-if="isMobile" icon="help" icon-right="circle-question" :type="isShowingHelp ? 'is-primary' : ''"
-        @click="isShowingHelp = !isShowingHelp" />
-    </h2>
+    <div class="title-row">
+      <h2 class="title">
+        Song Timing
+        <b-button v-if="isMobile" icon="help" icon-right="circle-question" :type="isShowingHelp ? 'is-primary' : ''"
+          @click="isShowingHelp = !isShowingHelp" />
+      </h2>
+      <voice-selector />
+    </div>
     <b-collapse v-model="isShowingHelp" class="content">
       <p>
         Press <kbd>spacebar</kbd> when the singer starts the highlighted
@@ -64,7 +67,7 @@
       <span class="seek-time">{{ formatTime(duration) }}</span>
     </div>
 
-    <lyric-display :lyric-segments="lyricSegments" :current-segment="currentSegment" @keydown="onKeyDown">
+    <lyric-display :lyric-segments="segments" :current-segment="currentSegment" @keydown="onKeyDown">
     </lyric-display>
     <timing-buttons v-if="showButtonKeyboard" @keydown="onKeyDown" />
   </b-tab-item>
@@ -77,27 +80,38 @@ import { KEY_CODES, LYRIC_MARKERS } from "@/constants";
 import { isMobile } from "@/lib/device";
 import LyricDisplay from "@/components/LyricDisplay.vue";
 import TimingButtons from "@/components/TimingButtons.vue";
+import VoiceSelector from "@/components/VoiceSelector.vue";
 import { useTimingsStore } from "@/stores/timings";
 import { useLyricsStore } from "@/stores/lyrics";
 import { useMediaStore } from "@/stores/media";
+import { VoiceId } from "@/lib/voices";
 
-interface LyricTimingEvent { }
+interface VoiceTimingState {
+  currentSegment: number;
+  playbackRate: number;
+  playhead: number;
+}
+
+function defaultVoiceState(): VoiceTimingState {
+  return { currentSegment: 0, playbackRate: 1.0, playhead: 0 };
+}
 
 export default defineComponent({
-  components: { LyricDisplay, TimingButtons },
+  components: { LyricDisplay, TimingButtons, VoiceSelector },
   setup() {
     const timingsStore = useTimingsStore();
     const lyricsStore = useLyricsStore();
     const mediaStore = useMediaStore();
     const { lyricSegments } = storeToRefs(lyricsStore);
-    return { timingsStore, lyricSegments, mediaStore };
+    return { timingsStore, lyricsStore, lyricSegments, mediaStore };
   },
   data() {
     return {
-      currentSegment: 0,
+      // Per-voice control state, keyed by voice id. Switching voices swaps the whole
+      // context (current segment, playback speed, playhead).
+      voiceState: {} as Record<VoiceId, VoiceTimingState>,
       isPlaying: false,
       isShowingHelp: !isMobile(),
-      playbackRate: 1.0,
       showButtonKeyboard: isMobile(),
       currentTime: 0,
       duration: 0,
@@ -105,6 +119,32 @@ export default defineComponent({
   },
   computed: {
     isMobile,
+    activeVoice(): VoiceId {
+      return this.timingsStore.activeVoice;
+    },
+    // The active voice's lyric segments drive the timing UI.
+    segments() {
+      return this.lyricsStore.segmentsForVoice(this.activeVoice);
+    },
+    activeState(): VoiceTimingState {
+      return this.voiceState[this.activeVoice] ?? defaultVoiceState();
+    },
+    currentSegment: {
+      get(): number {
+        return this.activeState.currentSegment;
+      },
+      set(value: number) {
+        this.ensureVoiceState(this.activeVoice).currentSegment = value;
+      },
+    },
+    playbackRate: {
+      get(): number {
+        return this.activeState.playbackRate;
+      },
+      set(value: number) {
+        this.ensureVoiceState(this.activeVoice).playbackRate = value;
+      },
+    },
     songFile() {
       return this.mediaStore.songFile;
     },
@@ -127,8 +167,8 @@ export default defineComponent({
     },
     currentScreen() {
       let currentScreen = 0;
-      for (let i = 0; i < this.lyricSegments.length; i++) {
-        const segment = this.lyricSegments[i];
+      for (let i = 0; i < this.segments.length; i++) {
+        const segment = this.segments[i];
         if (i == this.currentSegment) {
           break;
         }
@@ -150,10 +190,35 @@ export default defineComponent({
       }
     },
     playbackRate(newRate) {
-      this.$refs.audio.playbackRate = parseFloat(newRate);
+      if (this.$refs.audio) {
+        this.$refs.audio.playbackRate = parseFloat(newRate);
+      }
+    },
+    activeVoice: {
+      immediate: true,
+      handler(newVoice: VoiceId, oldVoice?: VoiceId) {
+        // Save the outgoing voice's playhead, then restore the incoming voice's context.
+        if (oldVoice && this.voiceState[oldVoice] && this.$refs.audio) {
+          this.voiceState[oldVoice].playhead = this.$refs.audio.currentTime;
+        }
+        this.isPlaying = false;
+        this.ensureVoiceState(newVoice);
+        this.$nextTick(() => {
+          if (this.$refs.audio) {
+            this.$refs.audio.currentTime = this.voiceState[newVoice].playhead;
+            this.$refs.audio.playbackRate = parseFloat(String(this.voiceState[newVoice].playbackRate));
+          }
+        });
+      },
     },
   },
   methods: {
+    ensureVoiceState(voice: VoiceId): VoiceTimingState {
+      if (!this.voiceState[voice]) {
+        this.voiceState = { ...this.voiceState, [voice]: defaultVoiceState() };
+      }
+      return this.voiceState[voice];
+    },
     onKeyDown(e: KeyboardEvent) {
       const keyCode = e.keyCode;
       if (Object.values(KEY_CODES).includes(keyCode) && this.isPlaying) {
@@ -173,7 +238,7 @@ export default defineComponent({
       }
     },
     advanceToNextSegment(keyCode, currentSongTime) {
-      if (this.currentSegment >= this.lyricSegments.length) {
+      if (this.currentSegment >= this.segments.length) {
         return;
       }
       this.timingsStore.add(this.currentSegment, keyCode, currentSongTime);
@@ -227,10 +292,10 @@ export default defineComponent({
         segmentNum = 0;
 
       for (segmentNum = 0; currentScreen < screenNum; segmentNum++) {
-        if (segmentNum >= this.lyricSegments.length) {
+        if (segmentNum >= this.segments.length) {
           throw Error(`firstSegmentOfScreen: no such screen ${screenNum}`);
         }
-        const segment = this.lyricSegments[segmentNum];
+        const segment = this.segments[segmentNum];
         if (this.isSegmentEndOfScreen(segment, segmentNum)) {
           currentScreen += 1;
         }
@@ -244,7 +309,7 @@ export default defineComponent({
     isSegmentEndOfScreen(segment, segmentIndex) {
       return (
         segment.text.endsWith("\n\n") ||
-        segmentIndex == this.lyricSegments.length - 1
+        segmentIndex == this.segments.length - 1
       );
     },
   },
@@ -252,6 +317,15 @@ export default defineComponent({
 </script>
 
 <style scoped>
+.title-row {
+  display: flex;
+  flex-direction: row;
+  justify-content: space-between;
+  align-items: center;
+  gap: 1rem;
+  flex-wrap: wrap;
+}
+
 .playback-speed {
   display: flex;
   flex-grow: 1;

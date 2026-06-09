@@ -1,4 +1,4 @@
-import { LyricSegmentIterator, LyricsScreen, compileLyricTimings, setScreenStartTimes, adjustScreenTimestamps, setSegmentEndTimes, createAssFile, floatToTimecode, LyricsLine, KaraokeOptions, LyricEvent, VerticalAlignment, adjustSegmentTiming } from "./timing";
+import { LyricSegmentIterator, LyricsScreen, compileLyricTimings, setScreenStartTimes, adjustScreenTimestamps, setSegmentEndTimes, createAssFile, createMultiVoiceAssFile, floatToTimecode, LyricsLine, KaraokeOptions, LyricEvent, VerticalAlignment, adjustSegmentTiming } from "./timing";
 import { LYRIC_MARKERS } from "../constants";
 import { LyricSegment } from "./timing";
 import { COUNT_IN_SEGMENT_TEXT } from "./adjustments";
@@ -323,4 +323,57 @@ test('compileLyricTimings handles more events than segments', () => {
     expect(screens.length).toBe(1);
     expect(screens[0].lines.length).toBe(1);
     expect(screens[0].lines[0].segments.length).toBe(1); // Only got the first segment
+});
+
+describe("createMultiVoiceAssFile", () => {
+    const noAuxOptions: KaraokeOptions = {
+        ...DEFAULT_OPTIONS,
+        addTitleScreen: false,
+        addCountIns: false,
+        addInstrumentalScreens: false,
+        addStaggeredLines: false,
+    };
+
+    it("returns empty string when there are no tracks", () => {
+        expect(createMultiVoiceAssFile([], 10, "T", "A")).toBe("");
+    });
+
+    it("emits one style per voice and events tagged with each voice's style", () => {
+        const tracks = [
+            { voice: "Anna", lyrics: "Hello\n", timings: [[1.0, LYRIC_MARKERS.SEGMENT_START]] as LyricEvent[], options: noAuxOptions },
+            { voice: "Ben", lyrics: "World\n", timings: [[2.0, LYRIC_MARKERS.SEGMENT_START]] as LyricEvent[], options: noAuxOptions },
+        ];
+        const ass = createMultiVoiceAssFile(tracks, 10, "T", "A");
+
+        // One style row per voice
+        expect(ass).toContain("Style: V0,");
+        expect(ass).toContain("Style: V1,");
+        // Dialogue events reference each voice's style (",V0," is unique to events)
+        expect(ass).toContain(",V0,");
+        expect(ass).toContain(",V1,");
+        // Both voices' lyrics are present
+        expect(ass).toContain("Hello");
+        expect(ass).toContain("World");
+        // A single shared document (one [Events] section)
+        expect(ass.match(/\[Events\]/g)?.length).toBe(1);
+    });
+});
+
+describe("setSegmentEndTimes overlap clamp", () => {
+    it("clamps an explicit end that extends past the next segment's start", () => {
+        const s1 = new LyricSegment("a", 1.0, 5.0); // explicit end 5.0...
+        const s2 = new LyricSegment("b", 3.0);      // ...but next segment starts at 3.0
+        const screen = new LyricsScreen([new LyricsLine([s1, s2])]);
+        setSegmentEndTimes([screen], 10);
+        expect(s1.endTimestamp).toBe(3.0); // clamped to the next start
+        expect(s2.endTimestamp).toBe(10);  // last segment inferred to song duration
+    });
+
+    it("leaves an explicit end that fits before the next segment", () => {
+        const s1 = new LyricSegment("a", 1.0, 2.0);
+        const s2 = new LyricSegment("b", 3.0);
+        const screen = new LyricsScreen([new LyricsLine([s1, s2])]);
+        setSegmentEndTimes([screen], 10);
+        expect(s1.endTimestamp).toBe(2.0);
+    });
 });

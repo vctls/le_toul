@@ -1,5 +1,5 @@
 import { LYRIC_MARKERS, VIDEO_SIZE, TITLE_SCREEN_DURATION } from "../constants";
-import { addQuickStartCountIn, addScreenCountIns, addTitleScreen, addInstrumentalScreens, displayQuickLinesEarly } from "./adjustments";
+import { addQuickStartCountIn, addScreenCountIns, addTitleScreen, addInstrumentalScreens, displayQuickLinesEarly, deferScreenStarts } from "./adjustments";
 import { map, method, isNumber } from "lodash-es";
 import { default as BuefyColor } from "buefy/src/utils/color";
 
@@ -13,7 +13,9 @@ export interface KaraokeOptions {
   verticalAlignment: VerticalAlignment,
   font: {
     size: number,
-    name: string
+    name: string,
+    bold?: boolean,
+    italic?: boolean
   }
   color: {
     background: BuefyColor,
@@ -277,8 +279,7 @@ export class LyricsScreen {
     return Math.round(firstLineTopMargin + (lineInScreen * lineHeight))
   }
 
-  toAssEvents(formatParams: Object, videoOptions: KaraokeOptions) {
-    const styleName = "Default";
+  toAssEvents(formatParams: Object, videoOptions: KaraokeOptions, styleName: string = "Default") {
     const self = this;
     return this.lines.map((l, i) => l.toAssEvent(self.startTimestamp, self.endTimestamp, styleName, self.getLineY(i, formatParams["Fontsize"], videoOptions.verticalAlignment))).join("\n") + "\n";
   }
@@ -479,15 +480,17 @@ export function compileLyricTimings(lyrics: string, events: LyricEvent[]): Lyric
 }
 
 export function setSegmentEndTimes(screens: LyricsScreen[], songDuration: number): LyricsScreen[] {
-  // Infer end times of segments if they are not already set
+  // Infer end times of segments if they are not already set, and clamp explicit end times
+  // so a segment can't extend past the next one. Within a single voice you can't sing two
+  // segments at once, so an end later than the next segment's start (e.g. a release dragged
+  // too far in the Adjust tab) would otherwise double-colour two lines at the same time.
   const segments: LyricSegment[] = screens.flatMap(s => s.lines.flatMap(l => l.segments));
   segments.forEach((segment, i) => {
+    const nextStart = i < segments.length - 1 ? segments[i + 1].timestamp : songDuration;
     if (!segment.endTimestamp) {
-      if (i == segments.length - 1) {
-        segment.endTimestamp = songDuration;
-      } else {
-        segment.endTimestamp = segments[i + 1].timestamp;
-      }
+      segment.endTimestamp = nextStart;
+    } else if (segment.endTimestamp > nextStart) {
+      segment.endTimestamp = nextStart;
     }
   });
   return screens;
@@ -517,10 +520,10 @@ export function denormalizeTimestamps(screens: LyricsScreen[], songDuration: num
   return setScreenStartTimes(setSegmentEndTimes(screens, songDuration));
 }
 
-function createSubtitles(screens: LyricsScreen[], options: KaraokeOptions, formatParams: Object): string {
-
-  const displayParams = {
-    Name: "Default",
+// Build the display parameters (one ASS style row's fields) for a style named `styleName`.
+function buildDisplayParams(formatParams: Object, styleName: string): Record<string, unknown> {
+  const displayParams: Record<string, unknown> = {
+    Name: styleName,
     Fontname: "Arial Narrow",
     Fontsize: 20,
     PrimaryColour: [255, 0, 255, 255],
@@ -547,11 +550,26 @@ function createSubtitles(screens: LyricsScreen[], options: KaraokeOptions, forma
   };
 
   for (const key of ["PrimaryColour", "SecondaryColour", "OutlineColour", "BackColour"]) {
-    displayParams[key] = colorToString(displayParams[key]);
+    displayParams[key] = colorToString(displayParams[key] as Color);
   }
+  return displayParams;
+}
 
-  const styleKeys = Object.keys(displayParams).join(", ");
-  const styleValues = Object.values(displayParams).join(",");
+interface VoiceTrackRender {
+  styleName: string;
+  displayParams: Record<string, unknown>;
+  screens: LyricsScreen[];
+  options: KaraokeOptions;
+}
+
+// Render one ASS document from one or more styled tracks. Each track contributes its own
+// [V4+ Styles] row and its screens' events, tagged with that track's style. All tracks
+// share the same style field set (Format line), since displayParams always has every key.
+function renderAssDocument(tracks: VoiceTrackRender[]): string {
+  const formatKeys = Object.keys(tracks[0].displayParams);
+  const styleLines = tracks
+    .map((t) => `Style: ${formatKeys.map((k) => t.displayParams[k]).join(",")}`)
+    .join("\n");
   // libass default values
   const videoWidth = 384;
   const videoHeight = 288;
@@ -568,16 +586,23 @@ YCbCr Matrix: None
 WrapStyle: 0
 
 [V4+ Styles]
-Format: ${styleKeys}
-Style: ${styleValues}
+Format: ${formatKeys.join(", ")}
+${styleLines}
 
 [Events]
 Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
 `
-  for (const screen of screens) {
-    assText += screen.toAssEvents(displayParams, options)
+  for (const track of tracks) {
+    for (const screen of track.screens) {
+      assText += screen.toAssEvents(track.displayParams, track.options, track.styleName)
+    }
   }
   return assText;
+}
+
+function createSubtitles(screens: LyricsScreen[], options: KaraokeOptions, formatParams: Object): string {
+  const displayParams = buildDisplayParams(formatParams, "Default");
+  return renderAssDocument([{ styleName: "Default", displayParams, screens, options }]);
 }
 
 export function createScreens(lyrics: string, lyricEvents: LyricEvent[], songDuration: number, title: string, artist: string, options: KaraokeOptions): LyricsScreen[] {
@@ -604,14 +629,13 @@ export function createScreens(lyrics: string, lyricEvents: LyricEvent[], songDur
   return screens
 }
 
-export function createAssFile(lyrics: string, lyricEvents: LyricEvent[], songDuration: number, title: string, artist: string, options: KaraokeOptions) {
-  // Entry point to subtitles. Creates an .ass file from the given info.
-  const screensWithTitle = createScreens(lyrics, lyricEvents, songDuration, title, artist, options);
+// Derive the ASS style format params (font + colors + bold/italic) from karaoke options.
+function optionsToFormatParams(options: KaraokeOptions): Record<string, unknown> {
   const primaryColor = options.color.primary;
   const secondaryColor = options.color.secondary;
   const outlineColor = options.color.background;
 
-  return createSubtitles(screensWithTitle, options, {
+  const formatParams: Record<string, unknown> = {
     "Fontname": options.font.name,
     "Fontsize": options.font.size,
     "PrimaryColour": [primaryColor.red, primaryColor.green, primaryColor.blue, 0],
@@ -620,5 +644,72 @@ export function createAssFile(lyrics: string, lyricEvents: LyricEvent[], songDur
     "BorderStyle": 1,
     "Outline": 1,
     "Shadow": 0,
+  };
+  // Only override Bold/Italic when explicitly set, so default output is unchanged.
+  // ASS uses -1 for bold-on and 1 for italic-on.
+  if (options.font.bold !== undefined) {
+    formatParams["Bold"] = options.font.bold ? -1 : 0;
+  }
+  if (options.font.italic !== undefined) {
+    formatParams["Italic"] = options.font.italic ? 1 : 0;
+  }
+  return formatParams;
+}
+
+export function createAssFile(lyrics: string, lyricEvents: LyricEvent[], songDuration: number, title: string, artist: string, options: KaraokeOptions) {
+  // Entry point to subtitles. Creates an .ass file from the given info.
+  const screensWithTitle = createScreens(lyrics, lyricEvents, songDuration, title, artist, options);
+  return createSubtitles(screensWithTitle, options, optionsToFormatParams(options));
+}
+
+export interface VoiceTrack {
+  voice: string;
+  lyrics: string;
+  timings: LyricEvent[];
+  options: KaraokeOptions;
+}
+
+// Turn an arbitrary voice id into a valid, unique ASS style name.
+function styleNameForVoice(index: number): string {
+  return `V${index}`;
+}
+
+// Entry point for multi-voice subtitles. Each voice is rendered independently (its own
+// lyrics, timings, and style) and composited into one ASS file. This mirrors the core
+// design choice (see frontend/lib/voices.ts): a voice is a self-contained single-voice
+// project, so we just run the normal `createScreens` per voice and concatenate the
+// resulting dialogue events into one document — ASS handles overlapping events natively,
+// which is exactly why independent voices compose cleanly here.
+//
+// The title and instrumental-break screens are genuinely global (one song, shown once),
+// so only the FIRST track contributes them; otherwise every voice would draw its own and
+// they'd stack. Count-ins, by contrast, stay PER VOICE — each voice gets its own "***"
+// lead-in before its lines. Non-first voices have no title/instrumental screens to fill
+// the lead-in, so they also get `deferScreenStarts` to stop their text displaying from
+// 0:00 when their first line is deep into the song.
+export function createMultiVoiceAssFile(tracks: VoiceTrack[], songDuration: number, title: string, artist: string): string {
+  if (tracks.length === 0) {
+    return "";
+  }
+  const renders: VoiceTrackRender[] = tracks.map((track, index) => {
+    const isPrimary = index === 0;
+    // The title and instrumental-break screens are global: only the primary voice
+    // contributes them. Count-ins stay per voice. Non-primary voices have no
+    // title/instrumental to fill long gaps, so cap how early their screens display.
+    const options: KaraokeOptions = isPrimary
+      ? track.options
+      : { ...track.options, addTitleScreen: false, addInstrumentalScreens: false };
+    let screens = createScreens(track.lyrics, track.timings, songDuration, title, artist, options);
+    if (!isPrimary) {
+      screens = deferScreenStarts(screens);
+    }
+    const styleName = styleNameForVoice(index);
+    return {
+      styleName,
+      displayParams: buildDisplayParams(optionsToFormatParams(options), styleName),
+      screens,
+      options,
+    };
   });
+  return renderAssDocument(renders);
 }

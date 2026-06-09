@@ -63,6 +63,7 @@
               Bottom
             </b-radio-button>
           </b-field>
+          <voice-style-settings v-if="voices.length > 1" :fonts="fonts" />
         </b-collapse>
       </div>
       <div class="column is-narrow">
@@ -74,7 +75,7 @@
           </b-select>
         </b-field>
         <video-preview v-if="songFile" :song-file="mediaStore.songFile" :backing-track="backingTrack"
-          :preview-track="previewTrack" :subtitles="subtitles()" :audio-delay="audioDelay" :fonts="fonts"
+          :preview-track="previewTrack" :subtitles="allVoicesSubtitles()" :audio-delay="audioDelay" :fonts="fonts"
           :background-color="videoOptions.color.background.toString()"
           :video-blob="videoOptions.useBackgroundVideo ? videoBlob : null" />
         <b-message v-else type="is-info">Upload a song to see the preview.</b-message>
@@ -97,7 +98,7 @@
           Create Video
         </b-button>
       </div>
-      <source-file-download-links :lyrics="lyricText" :timings="timings" :subtitles="subtitles()"
+      <source-file-download-links :lyrics="lyricText" :timings="timingsExport" :subtitles="allVoicesSubtitles()"
         :settings="settingsYaml" :vocals="mediaStore.separatedTrack?.vocals"
         :accompaniment="mediaStore.separatedTrack?.backing" />
     </div>
@@ -112,6 +113,7 @@ import { createScreens, VerticalAlignment, KaraokeOptions } from "@/lib/timing";
 import VideoPreview from "@/components/VideoPreview.vue";
 import SourceFileDownloadLinks from "@/components/SourceFileDownloadLinks.vue";
 import VideoCreationProgressIndicator from "@/components/VideoCreationProgressIndicator.vue";
+import VoiceStyleSettings from "@/components/VoiceStyleSettings.vue";
 import jszip from "jszip";
 import yaml from "js-yaml";
 import video from "@/lib/video";
@@ -145,20 +147,23 @@ export default defineComponent({
     VideoPreview,
     SourceFileDownloadLinks,
     VideoCreationProgressIndicator,
+    VoiceStyleSettings,
   },
   setup() {
     const mediaStore = useMediaStore();
     const settingsStore = useSettingsStore();
     const timingsStore = useTimingsStore();
     const lyricsStore = useLyricsStore();
-    const { lyricText } = storeToRefs(lyricsStore);
-    const { subtitles } = storeToRefs(timingsStore);
+    const { lyricText, voices } = storeToRefs(lyricsStore);
+    const { allVoicesSubtitles } = storeToRefs(timingsStore);
     return {
       mediaStore,
       settingsStore,
       timingsStore,
+      lyricsStore,
       lyricText,
-      subtitles,
+      voices,
+      allVoicesSubtitles,
     };
   },
   props: {
@@ -232,11 +237,16 @@ export default defineComponent({
     },
     // subtitles now comes from the timings store
     audioDelay(): number {
+      // The shared title/count-in screens (which delay the audio) come from the primary
+      // voice — the first voice with timings. Falls back to the active voice's timings.
+      const primaryVoice = this.timingsStore.voicesWithTimings[0];
+      const lyrics = primaryVoice ? this.lyricsStore.lyricTextForVoice(primaryVoice) : this.lyricText;
+      const timings = primaryVoice ? this.timingsStore.timingsForVoice(primaryVoice) : this.timings;
       // createScreens tolerates partial or missing timings, so this works
       // even before the timing step is finished.
       const screens = createScreens(
-        this.lyricText,
-        this.timings,
+        lyrics,
+        timings,
         this.mediaStore.songDuration,
         this.mediaStore.songTitle,
         this.mediaStore.songArtist,
@@ -255,6 +265,10 @@ export default defineComponent({
     },
     timings() {
       return this.timingsStore.rawTimings;
+    },
+    // All voices' timings, for the downloadable timings.json.
+    timingsExport() {
+      return this.timingsStore.allTimings;
     },
     settingsYaml(): string {
       const { vocalSeparationModel, color, ...rest } = this.videoOptions;
@@ -345,7 +359,7 @@ export default defineComponent({
         const videoFile: Uint8Array = await video.createVideo(
           separatedTrack.backing,
           videoOptions.useBackgroundVideo ? this.videoBlob : null,
-          this.subtitles(),
+          this.allVoicesSubtitles(),
           this.audioDelay,
           videoOptions,
           {
@@ -382,9 +396,9 @@ export default defineComponent({
     async zipAndSendFiles(videoBlob: Uint8Array) {
       var zip = new jszip();
       zip.file(this.videoFileName, videoBlob);
-      zip.file("subtitles.ass", this.subtitles());
+      zip.file("subtitles.ass", this.allVoicesSubtitles());
       zip.file("lyrics.txt", this.lyricText);
-      zip.file("timings.json", JSON.stringify(this.timings));
+      zip.file("timings.json", JSON.stringify(this.timingsExport));
       zip.file("settings.yaml", this.settingsYaml);
 
       const separated = this.mediaStore.separatedTrack;

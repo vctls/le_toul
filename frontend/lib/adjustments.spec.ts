@@ -1,4 +1,4 @@
-import { addTitleScreen, addInstrumentalScreens, displayQuickLinesEarly } from "./adjustments";
+import { addTitleScreen, addInstrumentalScreens, displayQuickLinesEarly, deferScreenStarts } from "./adjustments";
 import { compileLyricTimings, createAssFile, denormalizeTimestamps, LyricEvent, LyricSegment, LyricsLine, LyricsScreen, KaraokeOptions, VerticalAlignment } from "./timing";
 import { testLyrics, shortIntroTestEvents } from "./timing.spec";
 import { LYRIC_MARKERS } from "../constants";
@@ -109,4 +109,23 @@ test('fast lines display early', () => {
     expect(adjustedScreens[1].lines[0].customDisplayEndTime).toBe(2.5)
     expect(adjustedScreens[2].lines[0].customDisplayStartTime).toBe(2.75)
 
+})
+
+describe("deferScreenStarts", () => {
+    function screenStartingAt(displayStart: number, firstLineTime: number): LyricsScreen {
+        const screen = new LyricsScreen([new LyricsLine([new LyricSegment("la", firstLineTime, firstLineTime + 1)])]);
+        screen.startTimestamp = displayStart;
+        return screen;
+    }
+
+    it("pulls a far-too-early display start to just before the first line", () => {
+        // First line at 2:14 but display would start at 0 -> defer to leadIn before the line.
+        const screens = deferScreenStarts([screenStartingAt(0, 134)]);
+        expect(screens[0].startTimestamp).toBe(133); // 134 - 1s lead-in
+    });
+
+    it("leaves a screen that already displays close to its line alone", () => {
+        const screens = deferScreenStarts([screenStartingAt(8, 10)]); // only 2s early
+        expect(screens[0].startTimestamp).toBe(8);
+    });
 })

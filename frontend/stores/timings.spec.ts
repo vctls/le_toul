@@ -128,6 +128,85 @@ describe('Timings Store', () => {
     expect(timingsStore.subtitles()).toBe('');
   });
 
+  test('migrates a legacy single-voice array into the default voice', () => {
+    const legacy = [[1.0, LYRIC_MARKERS.SEGMENT_START], [2.0, LYRIC_MARKERS.SEGMENT_END]];
+    localStorage.setItem('timings._timings', JSON.stringify(legacy));
+
+    const timingsStore = useTimingsStore();
+
+    // With no lyrics the active voice falls back to the default, where the legacy array landed.
+    expect(timingsStore.rawTimings).toStrictEqual(legacy);
+    expect(timingsStore.length).toBe(2);
+  });
+
+  test('active voice follows the lyrics voices and can be switched', () => {
+    const timingsStore = useTimingsStore();
+    const lyricsStore = useLyricsStore();
+
+    lyricsStore.setLyrics('[Anna] hello\n[Ben] world');
+
+    // Defaults to the first voice
+    expect(timingsStore.activeVoice).toBe('Anna');
+
+    timingsStore.setActiveVoice('Ben');
+    expect(timingsStore.activeVoice).toBe('Ben');
+
+    // An invalid/stale active voice falls back to the first voice
+    timingsStore.setActiveVoice('Nobody');
+    expect(timingsStore.activeVoice).toBe('Anna');
+  });
+
+  test('timings are isolated per voice', () => {
+    const timingsStore = useTimingsStore();
+    const lyricsStore = useLyricsStore();
+
+    lyricsStore.setLyrics('[Anna] hello\n[Ben] world');
+
+    timingsStore.setActiveVoice('Anna');
+    timingsStore.add(0, KEY_CODES.SPACEBAR, 1.0);
+
+    timingsStore.setActiveVoice('Ben');
+    expect(timingsStore.rawTimings).toEqual([]); // Ben untouched
+    timingsStore.add(0, KEY_CODES.SPACEBAR, 5.0);
+
+    // Each voice kept its own timings
+    timingsStore.setActiveVoice('Anna');
+    expect(timingsStore.rawTimings).toEqual([[1.0, LYRIC_MARKERS.SEGMENT_START]]);
+    timingsStore.setActiveVoice('Ben');
+    expect(timingsStore.rawTimings).toEqual([[5.0, LYRIC_MARKERS.SEGMENT_START]]);
+  });
+
+  test('setAllTimings replaces all voices and allTimings returns the map', () => {
+    const timingsStore = useTimingsStore();
+    timingsStore.setAllTimings({
+      Anna: [[1.0, LYRIC_MARKERS.SEGMENT_START]],
+      Ben: [[2.0, LYRIC_MARKERS.SEGMENT_START]],
+    });
+
+    expect(timingsStore.allTimings).toEqual({
+      Anna: [[1.0, LYRIC_MARKERS.SEGMENT_START]],
+      Ben: [[2.0, LYRIC_MARKERS.SEGMENT_START]],
+    });
+  });
+
+  test('clear removes timings for all voices', () => {
+    const timingsStore = useTimingsStore();
+    const lyricsStore = useLyricsStore();
+
+    lyricsStore.setLyrics('[Anna] hello\n[Ben] world');
+    timingsStore.setActiveVoice('Anna');
+    timingsStore.add(0, KEY_CODES.SPACEBAR, 1.0);
+    timingsStore.setActiveVoice('Ben');
+    timingsStore.add(0, KEY_CODES.SPACEBAR, 5.0);
+
+    timingsStore.clear();
+
+    timingsStore.setActiveVoice('Anna');
+    expect(timingsStore.rawTimings).toEqual([]);
+    timingsStore.setActiveVoice('Ben');
+    expect(timingsStore.rawTimings).toEqual([]);
+  });
+
   test('subtitles should call createAssFile with correct parameters when timings exist', () => {
     // Setup the stores
     const timingsStore = useTimingsStore();
@@ -137,8 +216,7 @@ describe('Timings Store', () => {
 
     // Mock the store data
     lyricsStore.setLyrics('Test lyrics');
-    // @ts-ignore - Mocking private property
-    timingsStore._timings = [[1.0, LYRIC_MARKERS.SEGMENT_START], [2.0, LYRIC_MARKERS.SEGMENT_END]];
+    timingsStore.resetTimings([[1.0, LYRIC_MARKERS.SEGMENT_START], [2.0, LYRIC_MARKERS.SEGMENT_END]]);
     // @ts-ignore - Mocking private properties
     mediaStore.songDuration = 10;
     mediaStore.songTitle = 'Test Song';

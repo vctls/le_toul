@@ -8,9 +8,12 @@
         a timing of a word or <kbd>/</kbd> to enter a timing of a syllable.
         Example:
       </p>
+        <pre>{{ singleVoiceExample }}</pre>
       <p>
-        <code>Hell/o_from_the_oth/er_side<br />I_must_have_called_a_thou/sand_times</code>
+        If there are more than one voice in your song, prefix the first line of each new voice with a tag between
+        square brackets. Example:
       </p>
+        <pre>{{ multiVoiceExample }}</pre>
     </div>
     <div class="level is-mobile">
       <div class="level-item">
@@ -48,6 +51,10 @@ export default defineComponent({
   data() {
     return {
       magicSlashes: true,
+      singleVoiceExample:
+        "Hell/o_from_the_oth/er_side\nI_must_have_called_a_thou/sand_times",
+      multiVoiceExample:
+        "[Bob]Hell/o_from_the_oth/er_side\n[Alice]I_must_have_called_a_thou/sand_times\n[Alice+Bob]To_tell_you_I'm so/rry_for_e/very/thing_that_I've_done",
     };
   },
   methods: {

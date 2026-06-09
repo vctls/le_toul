@@ -180,8 +180,14 @@ export default defineComponent({
       }
       const reader = new FileReader();
       reader.onload = (e) => {
-        const timings = JSON.parse(e.target.result.toString());
-        this.timingsStore.resetTimings(timings);
+        const parsed = JSON.parse(e.target.result.toString());
+        if (Array.isArray(parsed)) {
+          // Legacy / single-voice format: an array of [time, marker] tuples.
+          this.timingsStore.resetTimings(parsed);
+        } else {
+          // Multi-voice format: a per-voice map of timing arrays.
+          this.timingsStore.setAllTimings(parsed);
+        }
       };
       reader.readAsText(file);
     },

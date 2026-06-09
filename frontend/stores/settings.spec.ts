@@ -163,4 +163,47 @@ describe('Settings Store', () => {
     const savedOptions = JSON.parse(window.localStorage.videoOptions);
     expect(savedOptions.addTitleScreen).toBe(true);
   });
+
+  describe('Voice style overrides', () => {
+    beforeEach(() => {
+      window.localStorage.clear();
+    });
+
+    test('sets and gets a per-voice override', () => {
+      const store = useSettingsStore();
+      expect(store.getVoiceStyle('Anna')).toBeUndefined();
+
+      store.setVoiceStyleField('Anna', 'fontName', 'Impact');
+      store.setVoiceStyleField('Anna', 'bold', false);
+
+      expect(store.getVoiceStyle('Anna')).toEqual({ fontName: 'Impact', bold: false });
+    });
+
+    test('persists overrides with colors as hex strings', async () => {
+      const store = useSettingsStore();
+      store.setVoiceStyleField('Anna', 'primary', Color.parse('#abcdef'));
+      await nextTick();
+
+      const saved = JSON.parse(window.localStorage.getItem('voiceStyles') as string);
+      expect(saved.Anna.primary).toBe('#abcdef');
+    });
+
+    test('loads overrides from localStorage, parsing colors back', () => {
+      window.localStorage.setItem('voiceStyles', JSON.stringify({ Ben: { fontSize: 28, secondary: '#123456' } }));
+
+      const store = useSettingsStore();
+      const ben = store.getVoiceStyle('Ben');
+
+      expect(ben?.fontSize).toBe(28);
+      expect(ben?.secondary).toBeInstanceOf(Color);
+      expect(ben?.secondary?.toString()).toBe('#123456');
+    });
+
+    test('clearVoiceStyle removes the override', () => {
+      const store = useSettingsStore();
+      store.setVoiceStyleField('Anna', 'bold', true);
+      store.clearVoiceStyle('Anna');
+      expect(store.getVoiceStyle('Anna')).toBeUndefined();
+    });
+  });
 });

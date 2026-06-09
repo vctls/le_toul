@@ -51,6 +51,29 @@ export function addScreenCountIns(screens: LyricsScreen[]): LyricsScreen[] {
     return screens;
 }
 
+const MAX_EARLY_DISPLAY: Timestamp = 5.0
+const DEFERRED_LEAD_IN: Timestamp = 1.0
+
+export function deferScreenStarts(screens: LyricsScreen[], maxEarly: number = MAX_EARLY_DISPLAY, leadIn: number = DEFERRED_LEAD_IN): LyricsScreen[] {
+    // Cap how early a screen is displayed. A screen normally displays from the previous
+    // screen's end (which can be the very start of the song), so a voice whose first line
+    // is deep into the song would otherwise show its text from 0:00. When a screen would
+    // appear more than `maxEarly` seconds before its first line animates, pull its display
+    // start to `leadIn` seconds before that line. Used for non-primary voices, which have
+    // no title/instrumental screens to fill the gap. The (per-voice) count-in still applies.
+    for (const screen of screens) {
+        if (screen.lines.length === 0) {
+            continue;
+        }
+        const firstAnimation = screen.lines[0].timestamp;
+        const start = screen.startTimestamp ?? 0;
+        if (start < firstAnimation - maxEarly) {
+            screen.startTimestamp = Math.max(0, firstAnimation - leadIn);
+        }
+    }
+    return screens;
+}
+
 function getIntroLength(screens: LyricsScreen[]): number {
     // Get the length of the song intro
     return screens[0].lines[0].timestamp;

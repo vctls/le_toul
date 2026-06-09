@@ -6,7 +6,7 @@
       <a @click="download(lyrics, 'lyrics.txt')" title="download lyrics"><b-icon icon="download" /></a><a
         @click="copyToClipboard(lyrics)" title="copy lyrics to clipboard"><b-icon icon="copy" /></a>
     </span>
-    <span v-if="timings && timings.length > 0" class="file-item">
+    <span v-if="hasTimings" class="file-item">
       timings.json
       <a @click="download(timings, 'timings.json')" title="download timings"><b-icon icon="download" /></a><a
         @click="copyToClipboard(timings)" title="copy timings to clipboard"><b-icon icon="copy" /></a>
@@ -40,17 +40,24 @@ import Vue, { defineComponent } from "vue";
 export default defineComponent({
   props: {
     lyrics: String,
-    timings: Array,
+    // Either a single voice's array of [time, marker] tuples, or a per-voice map.
+    timings: [Array, Object],
     subtitles: String,
     settings: String,
     vocals: Blob,
     accompaniment: Blob,
   },
   computed: {
+    hasTimings(): boolean {
+      if (!this.timings) return false;
+      return Array.isArray(this.timings)
+        ? this.timings.length > 0
+        : Object.keys(this.timings).length > 0;
+    },
     hasAnyFiles(): boolean {
       return Boolean(
         this.lyrics ||
-        (this.timings && this.timings.length > 0) ||
+        this.hasTimings ||
         this.subtitles ||
         this.settings ||
         (this.vocals && this.vocals.size > 0) ||

@@ -1,7 +1,10 @@
 <template>
   <b-tab-item icon="flask" label="Adjust" :disabled="!isEnabled" class="timing-adjustment-tab"
     headerClass="timing-adjustment-tab-header">
-    <h2 class="title">Adjust Timings</h2>
+    <div class="title-row">
+      <h2 class="title">Adjust Timings</h2>
+      <voice-selector />
+    </div>
     <div class="content">
       <p>
         Use this tab to adjust lyric timings by dragging the start of the
@@ -38,7 +41,7 @@
     </div>
     <subtitle-display class="subtitle-display" v-if="songFile && debouncedSubtitles" ref="subtitleDisplay" :subtitles="debouncedSubtitles"
       :fonts="{}" :backgroundColor="settingsStore.videoOptions.color.background.toString()" />
-    <timing-adjuster v-if="songFile && adjustmentSubtitles" ref="timing-adjuster" :lyrics="lyricText"
+    <timing-adjuster v-if="songFile && adjustmentSubtitles" ref="timing-adjuster" :lyrics="voiceLyrics"
       :timings="timingsStore.rawTimings" :audioData="songFile" :vocalTrack="vocalTrack" :playbackTrack="playbackTrack"
       :prerollSeconds="prerollSeconds" :zoom="zoom" :playbackRate="playbackRate" @timingschange="onTimingsChange" @zoom-change="onZoomChange"
       @timeupdate="onPlayheadUpdate" @seeking="onPlayheadUpdate" />
@@ -50,27 +53,42 @@ import { defineComponent } from "vue";
 import { LyricEvent } from "@/lib/timing";
 import TimingAdjuster from "@/components/TimingAdjuster.vue";
 import SubtitleDisplay from "./SubtitleDisplay.vue";
+import VoiceSelector from "@/components/VoiceSelector.vue";
 import { useMediaStore } from "@/stores/media";
 import { useTimingsStore } from "@/stores/timings";
 import { useLyricsStore } from "@/stores/lyrics";
 import { useSettingsStore } from "@/stores/settings";
 import { storeToRefs } from "pinia";
 import { BButton, BField, BNumberinput, BSelect } from "buefy";
+import { VoiceId } from "@/lib/voices";
+import { clampTimingOverlaps } from "@/lib/timingValidation";
+
+interface AdjustVoiceState {
+  playhead: number;
+  prerollSeconds: number;
+  shiftMs: number;
+  zoom: number;
+  playbackRate: number;
+  playbackTrackChoice: "full" | "vocals";
+}
+
+function defaultAdjustState(): AdjustVoiceState {
+  return { playhead: 0.0, prerollSeconds: 1, shiftMs: 0, zoom: 50, playbackRate: 1, playbackTrackChoice: "full" };
+}
 
 export default defineComponent({
-  components: { BButton, BField, BNumberinput, BSelect, TimingAdjuster, SubtitleDisplay },
+  components: { BButton, BField, BNumberinput, BSelect, TimingAdjuster, SubtitleDisplay, VoiceSelector },
   setup() {
     const mediaStore = useMediaStore();
     const timingsStore = useTimingsStore();
     const lyricsStore = useLyricsStore();
     const settingsStore = useSettingsStore();
-    const { lyricText } = storeToRefs(lyricsStore);
     const { subtitles } = storeToRefs(timingsStore);
     return {
       mediaStore,
       timingsStore,
+      lyricsStore,
       settingsStore,
-      lyricText,
       subtitles,
     };
   },
@@ -84,6 +102,9 @@ export default defineComponent({
       playbackRate: 1,
       // Which track to play back; the waveform always stays on the vocals.
       playbackTrackChoice: "full" as "full" | "vocals",
+      // Per-voice control state. The flat fields above are the *active* voice's values;
+      // on a voice switch they are saved here and the incoming voice's values are loaded.
+      voiceState: {} as Record<VoiceId, AdjustVoiceState>,
       // Debounced copy of `adjustmentSubtitles` fed to the SubtitleDisplay.
       // Regenerating the ASS file and re-rendering it (SubtitlesOctopus.setTrack,
       // a WASM re-parse) is expensive, so we defer it until dragging settles.
@@ -92,6 +113,12 @@ export default defineComponent({
     };
   },
   computed: {
+    activeVoice(): VoiceId {
+      return this.timingsStore.activeVoice;
+    },
+    voiceLyrics(): string {
+      return this.lyricsStore.lyricTextForVoice(this.activeVoice);
+    },
     songFile(): Blob | null {
       return this.mediaStore.songFile;
     },
@@ -124,6 +151,13 @@ export default defineComponent({
     }
   },
   watch: {
+    activeVoice(newVoice: VoiceId, oldVoice?: VoiceId) {
+      // Save the outgoing voice's control state and load the incoming voice's.
+      if (oldVoice) {
+        this.voiceState = { ...this.voiceState, [oldVoice]: this.snapshotState() };
+      }
+      this.loadState(newVoice);
+    },
     playhead(newPlayhead: number) {
       if (this.$refs.subtitleDisplay) {
         this.$refs.subtitleDisplay.setPlayhead(newPlayhead);
@@ -153,6 +187,25 @@ export default defineComponent({
     },
   },
   methods: {
+    snapshotState(): AdjustVoiceState {
+      return {
+        playhead: this.playhead,
+        prerollSeconds: this.prerollSeconds,
+        shiftMs: this.shiftMs,
+        zoom: this.zoom,
+        playbackRate: this.playbackRate,
+        playbackTrackChoice: this.playbackTrackChoice,
+      };
+    },
+    loadState(voice: VoiceId) {
+      const state = this.voiceState[voice] ?? defaultAdjustState();
+      this.playhead = state.playhead;
+      this.prerollSeconds = state.prerollSeconds;
+      this.shiftMs = state.shiftMs;
+      this.zoom = state.zoom;
+      this.playbackRate = state.playbackRate;
+      this.playbackTrackChoice = state.playbackTrackChoice;
+    },
     onZoomChange(delta: number) {
       this.zoom = Math.min(500, Math.max(10, this.zoom + delta));
     },
@@ -168,10 +221,11 @@ export default defineComponent({
       const shifted = this.timingsStore.rawTimings.map(
         ([time, marker]) => [Math.max(0, time + deltaSeconds), marker]
       );
-      this.timingsStore.resetTimings(shifted);
+      this.timingsStore.resetTimings(clampTimingOverlaps(shifted));
     },
     onTimingsChange(newTimings: Array<LyricEvent>) {
-      this.timingsStore.resetTimings(newTimings);
+      // Guard against a committed overlap (an end past the next segment's start).
+      this.timingsStore.resetTimings(clampTimingOverlaps(newTimings));
     },
     onPlayheadUpdate(newPlayhead: number) {
       if (newPlayhead !== this.playhead) {
@@ -186,6 +240,15 @@ export default defineComponent({
 .timing-adjustment-tab {
   display: flex;
   flex-direction: column;
+}
+
+.title-row {
+  display: flex;
+  flex-direction: row;
+  justify-content: space-between;
+  align-items: center;
+  gap: 1rem;
+  flex-wrap: wrap;
 }
 
 .timing-adjustment-tab :deep(.field-label) {
