@@ -25,7 +25,8 @@
     <b-message v-model="successMessageVisible" type="is-success" has-icon icon="check">Done! You've got everything you
       need to create your video. Go to the
       Submit tab.</b-message>
-    <audio ref="audio" :src="audioSource" @ended="onAudioEvent" @pause="onAudioEvent" @play="onAudioEvent"></audio>
+    <audio ref="audio" :src="audioSource" @ended="onAudioEvent" @pause="onAudioEvent" @play="onAudioEvent"
+      @timeupdate="onTimeUpdate" @loadedmetadata="onLoadedMetadata"></audio>
     <div class="level">
       <div class="level-item">
         <div class="buttons">
@@ -54,6 +55,13 @@
           </b-field>
         </b-field>
       </div>
+    </div>
+
+    <div class="seek-bar">
+      <span class="seek-time">{{ formatTime(currentTime) }}</span>
+      <input class="seek-slider" type="range" min="0" :max="duration || 0" step="0.01" :value="currentTime"
+        :disabled="!duration" @input="onSeek" title="Drag to jump to a position in the track" />
+      <span class="seek-time">{{ formatTime(duration) }}</span>
     </div>
 
     <lyric-display :lyric-segments="lyricSegments" :current-segment="currentSegment" @keydown="onKeyDown">
@@ -91,6 +99,8 @@ export default defineComponent({
       isShowingHelp: !isMobile(),
       playbackRate: 1.0,
       showButtonKeyboard: isMobile(),
+      currentTime: 0,
+      duration: 0,
     };
   },
   computed: {
@@ -172,6 +182,24 @@ export default defineComponent({
     playPause() {
       this.isPlaying = !this.isPlaying;
     },
+    onTimeUpdate() {
+      this.currentTime = this.$refs.audio.currentTime;
+    },
+    onLoadedMetadata() {
+      this.duration = this.$refs.audio.duration;
+    },
+    onSeek(e: Event) {
+      this.$refs.audio.currentTime = parseFloat((e.target as HTMLInputElement).value);
+    },
+    formatTime(seconds: number): string {
+      if (!seconds || !isFinite(seconds)) {
+        return "0:00";
+      }
+      const totalSec = Math.floor(seconds);
+      const mm = Math.floor(totalSec / 60);
+      const ss = totalSec % 60;
+      return `${mm}:${ss.toString().padStart(2, "0")}`;
+    },
     onAudioEvent(e: Event) {
       const audioEl = this.$refs.audio;
       this.isPlaying = !(audioEl.paused || audioEl.ended);
@@ -244,5 +272,31 @@ export default defineComponent({
 .is-flex-shrink-0 {
   flex-shrink: 0;
   margin-right: 0.25rem;
+}
+
+.seek-bar {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  margin-bottom: 1rem;
+}
+
+.seek-slider {
+  flex-grow: 1;
+  cursor: pointer;
+  accent-color: #7957d5;
+}
+
+.seek-slider:disabled {
+  cursor: default;
+}
+
+.seek-time {
+  flex-shrink: 0;
+  font-variant-numeric: tabular-nums;
+  font-size: 0.9rem;
+  color: var(--text, #4a4a4a);
+  min-width: 3ch;
+  text-align: center;
 }
 </style>
