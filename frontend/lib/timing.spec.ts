@@ -359,6 +359,40 @@ describe("createMultiVoiceAssFile", () => {
     });
 });
 
+describe("multi-voice vertical lanes", () => {
+    function marginVsForStyle(ass: string, style: string): number[] {
+        return ass.split("\n")
+            .filter((l) => l.startsWith("Dialogue:") && l.split(",")[3] === style)
+            .map((l) => Number(l.split(",")[7]));
+    }
+
+    it("centers lines within the lane when verticalZone is set", () => {
+        const screen = new LyricsScreen([new LyricsLine([new LyricSegment("a", 1, 2)])]);
+        screen.verticalZone = { top: 160, height: 160 };
+        // 1 line, fontSize 20 => lineHeight 30; lane middle 240; top = 240 - 15
+        expect(screen.getLineY(0, 20)).toBe(225);
+    });
+
+    it("puts simultaneous voices in separate vertical lanes (voice 0 above voice 1)", () => {
+        const noAux: KaraokeOptions = {
+            ...DEFAULT_OPTIONS,
+            addTitleScreen: false,
+            addCountIns: false,
+            addInstrumentalScreens: false,
+            addStaggeredLines: false,
+        };
+        const tracks = [
+            { voice: "A", lyrics: "a one\n", timings: [[1.0, LYRIC_MARKERS.SEGMENT_START]] as LyricEvent[], options: noAux },
+            { voice: "B", lyrics: "b one\n", timings: [[1.0, LYRIC_MARKERS.SEGMENT_START]] as LyricEvent[], options: noAux },
+        ];
+        const ass = createMultiVoiceAssFile(tracks, 10, "T", "A");
+        const v0 = marginVsForStyle(ass, "V0");
+        const v1 = marginVsForStyle(ass, "V1");
+        // V0's lane sits entirely above V1's lane.
+        expect(Math.max(...v0)).toBeLessThan(Math.min(...v1));
+    });
+});
+
 describe("setSegmentEndTimes overlap clamp", () => {
     it("clamps an explicit end that extends past the next segment's start", () => {
         const s1 = new LyricSegment("a", 1.0, 5.0); // explicit end 5.0...

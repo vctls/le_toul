@@ -224,9 +224,12 @@ identical to today. This is the no-regression acceptance test.
    loader accepts the legacy array too). Overlap is blocked at three layers
    (`frontend/lib/timingValidation.ts`): the Edit tab validates and refuses to commit
    backwards timecodes, the Adjust tab clamps overlaps on commit, and the renderer clamps
-   anything still present. **Remaining:** per-voice vertical positioning
-   (simultaneous lines render centered and can overlap); truly union-based global
-   instrumental breaks.
+   anything still present. Per-voice vertical lanes (`assignVoiceLanes` +
+   `LyricsScreen.verticalZone`): a screen that overlaps another voice in time is confined to
+   its voice's horizontal band (voice 0 on top), so simultaneous voices stack as separate
+   blocks instead of interleaving; a voice with no overlap stays full-height/centered.
+   **Remaining:** truly union-based global instrumental breaks; lane height assumes a voice
+   fits within `screenHeight / voiceCount` (fine for 1-3 line screens).
 
 ## Decisions made
 

@@ -231,6 +231,10 @@ export class LyricsScreen {
   audioDelay: number = 0.0;
   // For staggered timings, we might need to adjust the top margin of the first line
   customFirstLineTopMargin?: number = null;
+  // Multi-voice only: when this screen overlaps another voice in time, it is confined to
+  // a vertical "lane" so the voices don't interleave (see createMultiVoiceAssFile). When
+  // unset, the screen uses the full height (normal centered/aligned layout).
+  verticalZone?: { top: number; height: number } | null = null;
 
   constructor(lines: LyricsLine[] = [], audioDelay = 0.0) {
     this.lines = lines;
@@ -261,6 +265,13 @@ export class LyricsScreen {
     // Pad screen with 1 line height
     const lineCount = this.lines.length;
     const lineHeight = fontSize * 1.5;
+    // When confined to a lane (overlapping another voice), center the lines within the
+    // lane regardless of the global alignment, so each voice stays a contiguous block.
+    if (this.verticalZone) {
+      const laneMiddle = this.verticalZone.top + this.verticalZone.height / 2;
+      const firstLineTopMargin = laneMiddle - (lineCount * lineHeight / 2);
+      return Math.round(firstLineTopMargin + (lineInScreen * lineHeight));
+    }
     let firstLineTopMargin = this.customFirstLineTopMargin;
     if (firstLineTopMargin === null) {
       switch (alignment) {
@@ -687,6 +698,37 @@ function styleNameForVoice(index: number): string {
 // lead-in before its lines. Non-first voices have no title/instrumental screens to fill
 // the lead-in, so they also get `deferScreenStarts` to stop their text displaying from
 // 0:00 when their first line is deep into the song.
+function screensOverlapInTime(a: LyricsScreen, b: LyricsScreen): boolean {
+  if (a.startTimestamp == null || b.startTimestamp == null) {
+    return false;
+  }
+  return a.startTimestamp < b.endTimestamp && b.startTimestamp < a.endTimestamp;
+}
+
+// Per-voice vertical lanes (the "centered alone, lanes when overlapping" layout). A screen
+// that is displayed at the same time as any *other* voice's screen is confined to its
+// voice's horizontal band (voice 0 on top, voice 1 below, ...), so simultaneous voices
+// stack as separate blocks instead of letting libass's collision-avoidance interleave
+// them. Screens with no cross-voice overlap keep their default full-height centered layout.
+function assignVoiceLanes(renders: VoiceTrackRender[]): void {
+  const voiceCount = renders.length;
+  if (voiceCount < 2) {
+    return;
+  }
+  const laneHeight = VIDEO_SIZE.height / voiceCount;
+  renders.forEach((render, index) => {
+    for (const screen of render.screens) {
+      const overlapsOtherVoice = renders.some(
+        (other, otherIndex) =>
+          otherIndex !== index && other.screens.some((os) => screensOverlapInTime(screen, os))
+      );
+      if (overlapsOtherVoice) {
+        screen.verticalZone = { top: index * laneHeight, height: laneHeight };
+      }
+    }
+  });
+}
+
 export function createMultiVoiceAssFile(tracks: VoiceTrack[], songDuration: number, title: string, artist: string): string {
   if (tracks.length === 0) {
     return "";
@@ -711,5 +753,6 @@ export function createMultiVoiceAssFile(tracks: VoiceTrack[], songDuration: numb
       options,
     };
   });
+  assignVoiceLanes(renders);
   return renderAssDocument(renders);
 }
