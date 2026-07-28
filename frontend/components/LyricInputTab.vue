@@ -2,18 +2,24 @@
   <b-tab-item label="Lyrics" icon="align-left" class="lyric-input-tab" headerClass="lyric-input-tab-header">
     <h2 class="title">Song Lyrics</h2>
     <div class="content">
-      <p>
-        Paste 'em from the Internet! A blank line indicates a new screen. By
-        default, you'll enter the timing of each line. Use <kbd>_</kbd> to enter
-        a timing of a word or <kbd>/</kbd> to enter a timing of a syllable.
-        Example:
-      </p>
-        <pre>{{ singleVoiceExample }}</pre>
-      <p>
-        If there are more than one voice in your song, prefix the first line of each new voice with a tag between
-        square brackets. Example:
-      </p>
-        <pre>{{ multiVoiceExample }}</pre>
+      <div class="columns is-variable is-5">
+        <div class="column">
+          <p>
+            Paste 'em from the Internet! A blank line indicates a new screen. By
+            default, you'll enter the timing of each line. Use <kbd>_</kbd> to enter
+            a timing of a word or <kbd>/</kbd> to enter a timing of a syllable.
+            Example:
+          </p>
+          <pre>{{ singleVoiceExample }}</pre>
+        </div>
+        <div class="column">
+          <p>
+            If there are more than one voice in your song, prefix the first line of each new voice with a tag between
+            square brackets. Example:
+          </p>
+          <pre>{{ multiVoiceExample }}</pre>
+        </div>
+      </div>
     </div>
     <div class="level is-mobile">
       <div class="level-item">
