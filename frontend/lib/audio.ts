@@ -12,6 +12,17 @@ interface PollResponse {
     finishedTrackURL: string;
 }
 
+// Shape of the JSON served while a separation job is still in flight. The
+// backend may or may not suggest a poll interval, so fall back to a value
+// suited to a job running on a remote machine.
+interface JobStatus {
+    status?: string;
+    error?: string;
+    pollIntervalSeconds?: number;
+}
+
+const DEFAULT_POLL_INTERVAL_SECONDS = 30;
+
 async function pollForResult(url: string): Promise<Blob> {
     while (true) {
         try {
@@ -21,8 +32,23 @@ async function pollForResult(url: string): Promise<Blob> {
             const contentType = response.headers.get("content-type");
 
             if (contentType?.includes("application/json")) {
-                await new Promise(resolve => setTimeout(resolve, 30000));
+                const status: JobStatus = await response.json();
+
+                // A failed job never produces a zip, so without this the poll
+                // loop would never terminate.
+                if (status.status === "error") {
+                    throw new Error(status.error || "Track separation failed");
+                }
+
+                const intervalSeconds = status.pollIntervalSeconds ?? DEFAULT_POLL_INTERVAL_SECONDS;
+                await new Promise(resolve => setTimeout(resolve, intervalSeconds * 1000));
                 continue;
+            }
+
+            // Anything that is neither JSON nor a successful response is not a
+            // zip. Reporting the status beats handing an error page to jszip.
+            if (!response.ok) {
+                throw new Error(`Track separation failed with status ${response.status}`);
             }
 
             return await response.blob();

@@ -9,13 +9,14 @@ from fastapi import (
     File,
     Form,
     HTTPException,
+    Path as PathParam,
     Query,
     Request,
     Response,
     UploadFile,
 )
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import StreamingResponse
+from fastapi.responses import FileResponse, JSONResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from markupsafe import Markup
@@ -25,7 +26,7 @@ from . import settings
 from . import app_logging
 from .karaoke import music_separation
 from .karaoke.music_separation import SeparationMethod
-from .helpers import youtube_helper, zip_helper, cloud_storage
+from .helpers import youtube_helper, zip_helper, cloud_storage, job_store
 from .helpers.youtube_helper import YouTubeException
 from .vite_assets import vite_assets
 
@@ -168,6 +169,29 @@ def process_track_separation_background(
         cloud_storage.upload_to_cache(cache_hash, zip_path)
 
 
+def process_track_separation_local(
+    cache_hash: str, model_name: str, song_content: bytes, song_filename: str
+):
+    """Background task to process track separation into the local job store."""
+    logger.info("local_separation_started", cache_hash=cache_hash)
+
+    try:
+        with tempfile.TemporaryDirectory() as song_files_dir:
+            zip_path = perform_music_separation(
+                song_content,
+                song_filename,
+                model_name,
+                Path(song_files_dir),
+                cache_hash,
+            )
+            job_store.store_result(cache_hash, zip_path)
+    except Exception as e:
+        # The client is polling for this hash, so the failure has to be recorded
+        # rather than only logged, or it will poll forever.
+        logger.exception("local_separation_failed", cache_hash=cache_hash)
+        job_store.mark_failed(cache_hash, str(e))
+
+
 @app.get("/")
 async def index(request: Request):
     """Serve the main application page."""
@@ -240,20 +264,80 @@ async def separate_track(
         else:
             logger.warning("failed_to_create_placeholder", cache_hash=cache_hash)
     else:
-        # No caching - process synchronously
-        logger.info("synchronous_separation_started")
+        # No bucket configured. Run the separation locally in the background and
+        # hand back a URL to poll: a separation can take half an hour, far longer
+        # than a browser will hold a single request open.
+        cache_hash = cloud_storage.get_cache_hash(modelName, song_content)
 
-        with tempfile.TemporaryDirectory() as song_files_dir:
-            song_files_dir_path = Path(song_files_dir)
-
-            zip_path = perform_music_separation(
-                song_content,
-                songFile.filename or "uploaded_song",
-                modelName,
-                song_files_dir_path,
+        if job_store.result_path(cache_hash).exists():
+            logger.info("local_cache_hit", cache_hash=cache_hash)
+            return SeparationPollResponse(
+                finishedTrackURL=job_store.poll_url(cache_hash)
             )
 
-            return streamed_response(zip_path)
+        status = job_store.read_status(cache_hash)
+        if (
+            status
+            and status.get("status") == job_store.STATUS_PROCESSING
+            and not job_store.is_stale(status)
+        ):
+            # Already being separated. Point the client at the running job rather
+            # than doing the same work twice.
+            logger.info("local_job_already_running", cache_hash=cache_hash)
+            return SeparationPollResponse(
+                finishedTrackURL=job_store.poll_url(cache_hash)
+            )
+
+        # Anything else (a failed job, or one whose worker died) falls through to
+        # a fresh attempt, so a single failure does not block the song forever.
+        job_store.prune_expired_results()
+
+        job_store.mark_processing(cache_hash)
+        background_tasks.add_task(
+            process_track_separation_local,
+            cache_hash,
+            modelName,
+            song_content,
+            songFile.filename or "uploaded_song",
+        )
+
+        logger.info("local_separation_queued", cache_hash=cache_hash)
+        return SeparationPollResponse(finishedTrackURL=job_store.poll_url(cache_hash))
+
+
+@app.get("/separated_track/{cache_hash}")
+async def separated_track(
+    cache_hash: str = PathParam(..., pattern="^[0-9a-f]{64}$"),
+):
+    """Poll target for a separation running in the local job store.
+
+    Returns the zip once the job has finished, JSON describing the job while it
+    is still running or if it failed, and 404 for an unknown hash. The hash is
+    constrained to a sha256 digest so it cannot escape the job directory.
+    """
+    result = job_store.result_path(cache_hash)
+    if result.exists():
+        return FileResponse(result, media_type="application/zip")
+
+    status = job_store.read_status(cache_hash)
+    if status is None:
+        raise HTTPException(status_code=404, detail="Unknown separation job")
+
+    if job_store.is_stale(status):
+        logger.warning("local_job_stale", cache_hash=cache_hash)
+        return JSONResponse(
+            {
+                "status": job_store.STATUS_ERROR,
+                "error": "Track separation stopped unexpectedly. Please try again.",
+            }
+        )
+
+    if status.get("status") == job_store.STATUS_ERROR:
+        return JSONResponse(status)
+
+    return JSONResponse(
+        {**status, "pollIntervalSeconds": job_store.POLL_INTERVAL_SECONDS}
+    )
 
 
 @app.get("/download_video")

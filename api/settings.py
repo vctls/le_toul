@@ -3,6 +3,7 @@ FastAPI application settings.
 """
 
 import os
+import tempfile
 from pathlib import Path
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
@@ -43,3 +44,20 @@ SEPARATOR_PORT = int(os.getenv("SEPARATOR_PORT", "8001"))
 
 # Remote Modal API separation
 SEPARATOR_MODAL_API_URL = os.getenv("SEPARATOR_MODAL_API_URL", "")
+
+# Local separation job store, used when SEPARATED_TRACKS_BUCKET is unset. Jobs
+# run in the background and the client polls for the result, so no request is
+# held open for the length of a separation.
+LOCAL_JOB_DIR = Path(
+    os.getenv("LOCAL_JOB_DIR", Path(tempfile.gettempdir()) / "tuul_jobs")
+)
+
+# How long finished results are kept before being pruned. Each is about the size
+# of two uncompressed WAVs. Set to 0 to keep them indefinitely.
+LOCAL_JOB_RESULT_TTL_SECONDS = int(
+    os.getenv("LOCAL_JOB_RESULT_TTL_SECONDS", str(7 * 24 * 60 * 60))
+)
+
+# A job still marked as processing after this long is assumed dead, its worker
+# having been killed. Matches the default gunicorn timeout.
+LOCAL_JOB_STALE_AFTER_SECONDS = int(os.getenv("LOCAL_JOB_STALE_AFTER_SECONDS", "7200"))

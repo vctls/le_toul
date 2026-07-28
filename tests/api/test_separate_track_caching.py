@@ -182,8 +182,9 @@ def test_separate_track_without_cache(
     mock_split_song,
     request_factory,
     song_file,
+    local_job_dir,
 ):
-    """Test that the view works normally when caching is disabled."""
+    """Test that the view processes locally and returns a poll URL when GCS is off."""
     # Mock the song splitting process
     with tempfile.TemporaryDirectory() as temp_dir:
         temp_dir_path = Path(temp_dir)
@@ -205,19 +206,28 @@ def test_separate_track_without_cache(
         data = {"modelName": "UVR_MDXNET_KARA_2.onnx"}
         files = {"songFile": (filename, content, content_type)}
 
-        # Test the view with cache disabled
+        # Test the view with GCS caching disabled
         with mock.patch("api.settings.SEPARATED_TRACKS_BUCKET", ""):
             response = factory.post("/separate_track", data=data, files=files)
 
-            # Assert that cache operations were not attempted (bucket is empty)
+            # Assert that GCS operations were not attempted (bucket is empty)
             # Note: get_cache_hash may still be called for logging/diagnostics
             mock_fetch_from_cache.assert_not_called()
             mock_upload_to_cache.assert_not_called()
 
-            # Assert that the song was split
+            # Assert that the song was split by the background task
             mock_split_song.assert_called_once()
             mock_create_zip.assert_called_once()
 
-            # Assert that the response is successful
+            # Assert that the client is handed a URL to poll rather than the zip
             assert response.status_code == 200
-            assert response.headers["content-type"] == "application/zip"
+            assert response.headers["content-type"] == "application/json"
+            poll_url = response.json()["finishedTrackURL"]
+            assert poll_url.startswith("/separated_track/")
+
+            # TestClient runs background tasks before returning, so the result
+            # is already waiting at the poll URL
+            poll_response = factory.get(poll_url)
+            assert poll_response.status_code == 200
+            assert poll_response.headers["content-type"] == "application/zip"
+            assert poll_response.content == b"zip content"

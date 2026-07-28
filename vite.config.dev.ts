@@ -119,6 +119,7 @@ export default mergeConfig(
                 const target = process.env.TUUL_API_PROXY || 'http://localhost:8000';
                 return {
                     '/separate_track': target,
+                    '/separated_track': target,
                     '/download_video': target,
                     '/log_error': target,
                     '/health': target,
