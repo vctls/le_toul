@@ -203,6 +203,25 @@ export default defineComponent({
         audio.pause();
       }
     },
+    // Move the playhead by `seconds`, staying inside the track.
+    seekBy(seconds: number) {
+      const audio = this.$refs.audioPlayer.audioPlayer as HTMLAudioElement;
+      let time = audio.currentTime + seconds;
+      if (Number.isFinite(audio.duration)) {
+        time = Math.min(audio.duration, time);
+      }
+      this.setAudioPlayhead(Math.max(0, time));
+    },
+    // Jump to `time` and play from there, whether or not playback is running.
+    restartAt(time: number) {
+      const audio = this.$refs.audioPlayer.audioPlayer as HTMLAudioElement;
+      this.setAudioPlayhead(time);
+      if (audio.paused) {
+        audio.play().catch((error) => {
+          console.error("Could not start playback:", error);
+        });
+      }
+    },
     onAudioTimeUpdate(event: Event) {
       const time = (event.target as HTMLAudioElement).currentTime;
       this.setAdjusterPlayhead(time);
