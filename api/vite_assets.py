@@ -59,7 +59,7 @@ class ViteAssets:
     def _render_dev_tags(self, entry_name: str) -> str:
         """Render tags for development mode with Vite dev server."""
         return f"""
-    <script type="module" src="http://localhost:5173/bundles/{entry_name}"></script>"""
+    <script type="module" src="http://localhost:5173/{entry_name}"></script>"""
 
     def _render_prod_tags(self, entry_name: str) -> str:
         """Render tags for production mode with built assets."""
@@ -80,7 +80,7 @@ class ViteAssets:
     def render_hmr_client(self) -> str:
         """Render Vite HMR client for development."""
         if settings.DEBUG:
-            return '    <script type="module" src="http://localhost:5173/bundles/@vite/client"></script>'
+            return '    <script type="module" src="http://localhost:5173/@vite/client"></script>'
         return ""
 
 

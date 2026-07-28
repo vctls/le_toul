@@ -12,19 +12,18 @@ To run locally, it requires python 3, [poetry](http://python-poetry.org), npm an
 Copy .env.example to .env and fill out the variables.
 
 ## Run
-This is a FastAPI app. Run it like so:
-```
-> make dev
-```
-
-Load up http://localhost:8000 and follow the instructions!
-
-Alternatively, run it with `docker compose`:  
+Run it with `docker compose`:  
 ```
 docker compose -f compose.dev.yaml up
 ```
 
-And open it on http://localhost:5173/bundles/
+And open it on http://localhost:5173
+
+Alternatively, run it directly with Poetry:    
+```
+> make dev
+```
+And open it on  http://localhost:8000
 
 ### Running Separate Separator App
 

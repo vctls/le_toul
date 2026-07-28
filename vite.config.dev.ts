@@ -88,9 +88,14 @@ function moveSourcemapsPlugin(options: MoveSourcemapsOptions = {}): Plugin {
     };
 }
 
-export default mergeConfig(
+export default defineConfig(({ command }) => mergeConfig(
     commonConfig,
-    defineConfig({
+    {
+        // The dev server hosts the app at the root so http://localhost:5173/
+        // works directly. Builds keep the common '/bundles/' base, since
+        // FastAPI serves the built assets from /static/bundles/ (see
+        // api/vite_assets.py).
+        base: command === 'serve' ? '/' : commonConfig.base,
         // Development-specific settings
         build: {
             minify: true,
@@ -127,5 +132,5 @@ export default mergeConfig(
                 };
             })()
         }
-    })
-);
+    }
+));
