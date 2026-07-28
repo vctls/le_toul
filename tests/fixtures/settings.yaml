@@ -1,0 +1,26 @@
+song:
+  title: Prove It On Me Blues
+  artist: Ma Rainey
+  duration: 30.5
+  youtubeUrl: null
+separationModel: UVR-MDX-NET-Inst_HQ_3.onnx
+videoOptions:
+  addTitleScreen: true
+  addCountIns: false
+  addInstrumentalScreens: true
+  addStaggeredLines: true
+  useBackgroundVideo: false
+  verticalAlignment: 0
+  font:
+    size: 30
+    name: Impact
+  color:
+    background: '#101010'
+    primary: '#ff8800'
+    secondary: '#0088ff'
+voiceStyles:
+  Anna:
+    fontName: Georgia
+    fontSize: 26
+    bold: true
+    primary: '#abcdef'

@@ -44,10 +44,12 @@
           </b-field>
           <b-field horizontal label="Font Size"><b-numberinput v-model="videoOptions.font.size"
               controls-position="compact"></b-numberinput></b-field>
-          <b-field horizontal label="Background Color"><b-colorpicker
-              v-model="videoOptions.color.background" /></b-field>
-          <b-field horizontal label="Primary Color"><b-colorpicker v-model="videoOptions.color.primary" /></b-field>
-          <b-field horizontal label="Secondary Color"><b-colorpicker v-model="videoOptions.color.secondary" /></b-field>
+          <b-field horizontal label="Background Color"><color-field v-model="videoOptions.color.background"
+              label="background color" /></b-field>
+          <b-field horizontal label="Primary Color"><color-field v-model="videoOptions.color.primary"
+              label="primary color" /></b-field>
+          <b-field horizontal label="Secondary Color"><color-field v-model="videoOptions.color.secondary"
+              label="secondary color" /></b-field>
           <b-field horizontal label="Lyric Vertical Alignment"><b-radio-button v-model="videoOptions.verticalAlignment"
               :native-value="VerticalAlignment.Top" type="is-primary is-light is-outlined">
               <span>Top</span>
@@ -114,6 +116,7 @@ import VideoPreview from "@/components/VideoPreview.vue";
 import SourceFileDownloadLinks from "@/components/SourceFileDownloadLinks.vue";
 import VideoCreationProgressIndicator from "@/components/VideoCreationProgressIndicator.vue";
 import VoiceStyleSettings from "@/components/VoiceStyleSettings.vue";
+import ColorField from "@/components/ColorField.vue";
 import jszip from "jszip";
 import yaml from "js-yaml";
 import video from "@/lib/video";
@@ -124,6 +127,7 @@ import {
   SeparatedTrack,
 } from "@/stores/media";
 import { useSettingsStore } from "@/stores/settings";
+import { isEmptyOverride, serializeVoiceStyle } from "@/lib/voiceStyle";
 import { useTimingsStore } from "@/stores/timings";
 import { useLyricsStore } from "@/stores/lyrics";
 
@@ -137,7 +141,7 @@ const fonts = {
   Impact: "/static/fonts/Impact.ttf",
   "Metal Mania": "/static/fonts/MetalMania.ttf",
   "Times New Roman": "/static/fonts/TimesNewRoman.ttf",
-  Trebuchet: "/static/fonts/Trebuchet.ttf",
+  "Trebuchet MS": "/static/fonts/Trebuchet.ttf",
   Verdana: "/static/fonts/Verdana.ttf",
   "Liberation Sans": "/static/fonts/LiberationSans.ttf",
 };
@@ -148,6 +152,7 @@ export default defineComponent({
     SourceFileDownloadLinks,
     VideoCreationProgressIndicator,
     VoiceStyleSettings,
+    ColorField,
   },
   setup() {
     const mediaStore = useMediaStore();
@@ -165,12 +170,6 @@ export default defineComponent({
       voices,
       allVoicesSubtitles,
     };
-  },
-  props: {
-    musicSeparationModel: {
-      type: String,
-      required: true,
-    },
   },
   data() {
     return {
@@ -272,14 +271,18 @@ export default defineComponent({
     },
     settingsYaml(): string {
       const { vocalSeparationModel, color, ...rest } = this.videoOptions;
-      return yaml.dump({
+      const styledVoices = Object.entries(this.settingsStore.voiceStyles).filter(
+        ([, style]) => !isEmptyOverride(style)
+      );
+      const document: Record<string, unknown> = {
         song: {
           title: this.mediaStore.songTitle,
           artist: this.mediaStore.songArtist,
           duration: this.mediaStore.songDuration,
           youtubeUrl: this.mediaStore.youtubeUrl,
         },
-        separationModel: this.musicSeparationModel,
+        // The model the user actually picked, so the file can be loaded back.
+        separationModel: this.mediaStore.separationModel,
         videoOptions: {
           ...rest,
           color: {
@@ -288,7 +291,13 @@ export default defineComponent({
             secondary: color.secondary.toString(),
           },
         },
-      });
+      };
+      if (styledVoices.length > 0) {
+        document.voiceStyles = Object.fromEntries(
+          styledVoices.map(([voice, style]) => [voice, serializeVoiceStyle(style)])
+        );
+      }
+      return yaml.dump(document);
     },
     videoDuration(): number {
       return this.mediaStore.songDuration + this.audioDelay;
@@ -352,7 +361,7 @@ export default defineComponent({
         }, 1000);
         const separatedTrack = await this.separateTrack(
           this.songFile,
-          this.musicSeparationModel
+          this.mediaStore.separationModel
         );
         this.creationPhase = CreationPhase.CreatingVideo;
         const videoOptions = { createTitleScreens: true, ...this.videoOptions };

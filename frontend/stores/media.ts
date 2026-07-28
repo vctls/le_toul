@@ -20,6 +20,7 @@ const MEDIA_IDB_KEYS = [
     'media.timingsFile',
     'media.backingTrackFile',
     'media.vocalTrackFile',
+    'media.settingsFile',
 ];
 
 
@@ -52,6 +53,7 @@ export const useMediaStore = defineStore('media', () => {
     const timingsFile = ref<File | null>(null);
     const backingTrackFile = ref<File | null>(null);
     const vocalTrackFile = ref<File | null>(null);
+    const settingsFile = ref<File | null>(null);
 
     // Song metadata
     const songTitle = ref<string | null>(null);
@@ -215,6 +217,7 @@ export const useMediaStore = defineStore('media', () => {
         persistBlobRef('media.timingsFile', timingsFile),
         persistBlobRef('media.backingTrackFile', backingTrackFile),
         persistBlobRef('media.vocalTrackFile', vocalTrackFile),
+        persistBlobRef('media.settingsFile', settingsFile),
     ]).finally(() => {
         isHydrating = false;
     });
@@ -226,6 +229,7 @@ export const useMediaStore = defineStore('media', () => {
         timingsFile.value = null;
         backingTrackFile.value = null;
         vocalTrackFile.value = null;
+        settingsFile.value = null;
         songTitle.value = null;
         songArtist.value = null;
         songDuration.value = null;
@@ -242,6 +246,7 @@ export const useMediaStore = defineStore('media', () => {
         timingsFile,
         backingTrackFile,
         vocalTrackFile,
+        settingsFile,
 
         songTitle,
         songArtist,

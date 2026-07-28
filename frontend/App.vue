@@ -19,7 +19,7 @@
             <b-button v-if="DONATE_URL" tag="a" :href="DONATE_URL" type="is-text" target="_blank">
               <b-icon icon="circle-dollar-to-slot" size="is-large" title="Buy Me A Coffee">
               </b-icon></b-button>
-            <b-button tag="a" href="https://github.com/incidentist/the_tuul" type="is-text">
+            <b-button tag="a" href="https://github.com/vctls/the_tuul" type="is-text">
               <b-icon pack="fab" icon="github" size="is-large" title="GitHub">
               </b-icon></b-button>
           </div>
@@ -28,12 +28,12 @@
     </b-navbar>
     <b-tabs expanded :vertical="!isMobile" type="is-boxed" class="main-tabs">
       <help-tab></help-tab>
-      <song-info-tab @options-change="onOptionsChange" :music-separation-model="musicSeparationModel"></song-info-tab>
+      <song-info-tab @options-change="onOptionsChange"></song-info-tab>
       <lyric-input-tab></lyric-input-tab>
       <song-timing-tab></song-timing-tab>
       <timing-adjustment-tab />
       <timing-edit-tab />
-      <submit-tab :music-separation-model="musicSeparationModel"></submit-tab>
+      <submit-tab></submit-tab>
     </b-tabs>
   </div>
 </template>
@@ -49,10 +49,7 @@ import SongTimingTab from "@/components/SongTimingTab.vue";
 import TimingAdjustmentTab from "@/components/TimingAdjustmentTab.vue";
 import TimingEditTab from "@/components/TimingEditTab.vue";
 import SubmitTab from "@/components/SubmitTab.vue";
-import {
-  BACKING_VOCALS_SEPARATOR_MODEL,
-  useMediaStore,
-} from "@/stores/media";
+import { useMediaStore } from "@/stores/media";
 import { useLyricsStore } from "@/stores/lyrics";
 import { useTimingsStore } from "@/stores/timings";
 // import mountedHarness from "@/mountedHarness";
@@ -72,7 +69,6 @@ export default defineComponent({
   data() {
     return {
       DONATE_URL,
-      musicSeparationModel: BACKING_VOCALS_SEPARATOR_MODEL,
       isSubmitting: false,
     };
   },

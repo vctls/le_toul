@@ -1,6 +1,6 @@
 <template>
   <b-field :label="label">
-    <b-upload v-model="file" class="file-label">
+    <b-upload v-model="file" class="file-label" :accept="acceptAttribute">
       <span class="file-cta">
         <b-icon class="file-icon" icon="upload"></b-icon>
         <span class="file-label">Choose File</span>
@@ -26,8 +26,17 @@ export default defineComponent({
   props: {
     label: String,
     modelValue: File,
+    // Extensions or MIME types to filter the file picker with, either as a list
+    // of entries or as a ready-made accept string.
+    accept: [String, Array],
   },
   computed: {
+    acceptAttribute(): string | undefined {
+      if (!this.accept) {
+        return undefined;
+      }
+      return Array.isArray(this.accept) ? this.accept.join(",") : this.accept;
+    },
     file: {
       get() {
         return this.modelValue;

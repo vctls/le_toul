@@ -164,6 +164,31 @@ describe('Settings Store', () => {
     expect(savedOptions.addTitleScreen).toBe(true);
   });
 
+  test('applyVideoOptions merges partial options over the current ones', async () => {
+    window.localStorage.clear();
+    const settingsStore = useSettingsStore();
+
+    settingsStore.applyVideoOptions({
+      addCountIns: false,
+      font: { name: 'Impact' } as any,
+      color: { primary: Color.parse('#abcdef') } as any,
+    });
+
+    // Applied
+    expect(settingsStore.videoOptions.addCountIns).toBe(false);
+    expect(settingsStore.videoOptions.font.name).toBe('Impact');
+    expect(settingsStore.videoOptions.color.primary.toString()).toBe('#abcdef');
+    // Untouched
+    expect(settingsStore.videoOptions.addTitleScreen).toBe(true);
+    expect(settingsStore.videoOptions.font.size).toBe(20);
+    expect(settingsStore.videoOptions.color.background.toString()).toBe('#000000');
+    expect(settingsStore.videoOptions.color.secondary.toString()).toBe('#00ffff');
+
+    // And persisted, like any other change
+    await nextTick();
+    expect(JSON.parse(window.localStorage.videoOptions).color.primary).toBe('#abcdef');
+  });
+
   describe('Voice style overrides', () => {
     beforeEach(() => {
       window.localStorage.clear();
@@ -197,6 +222,16 @@ describe('Settings Store', () => {
       expect(ben?.fontSize).toBe(28);
       expect(ben?.secondary).toBeInstanceOf(Color);
       expect(ben?.secondary?.toString()).toBe('#123456');
+    });
+
+    test('setVoiceStyles replaces every override', () => {
+      const store = useSettingsStore();
+      store.setVoiceStyleField('Anna', 'bold', true);
+
+      store.setVoiceStyles({ Ben: { fontSize: 18 } });
+
+      expect(store.getVoiceStyle('Anna')).toBeUndefined();
+      expect(store.getVoiceStyle('Ben')).toEqual({ fontSize: 18 });
     });
 
     test('clearVoiceStyle removes the override', () => {

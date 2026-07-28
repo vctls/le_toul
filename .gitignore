@@ -22,3 +22,5 @@ api/assets/bundles/
 test-results/
 playwright-report/
 google-application-credentials.json
+# Intermediate frames for scripts/capture-gifs.mjs
+.gif-frames/

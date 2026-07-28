@@ -17,6 +17,29 @@ export interface VoiceStyleOverride {
   outline?: BuefyColor; // maps to the background/outline color
 }
 
+// The override fields holding colors, which serialize to hex strings.
+export const VOICE_STYLE_COLOR_FIELDS = ["primary", "secondary", "outline"] as const;
+
+// Voice style overrides serialize colors as hex strings, like the base video options.
+// Used both for localStorage persistence and for the exported settings.yaml.
+export function serializeVoiceStyle(style: VoiceStyleOverride): Record<string, unknown> {
+  const out: Record<string, unknown> = {};
+  for (const [key, value] of Object.entries(style)) {
+    if (value === undefined) continue;
+    out[key] = VOICE_STYLE_COLOR_FIELDS.includes(key as any) ? (value as BuefyColor).toString() : value;
+  }
+  return out;
+}
+
+export function deserializeVoiceStyle(stored: Record<string, unknown>): VoiceStyleOverride {
+  const style: VoiceStyleOverride = {};
+  for (const [key, value] of Object.entries(stored)) {
+    if (value === undefined || value === null) continue;
+    style[key] = VOICE_STYLE_COLOR_FIELDS.includes(key as any) ? BuefyColor.parse(value as string) : value;
+  }
+  return style;
+}
+
 export function isEmptyOverride(override?: VoiceStyleOverride): boolean {
   return !override || Object.values(override).every((v) => v === undefined);
 }

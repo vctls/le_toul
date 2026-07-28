@@ -1,5 +1,6 @@
 // stores/timings.ts
 import { defineStore } from 'pinia';
+import { watch } from 'vue';
 import { KEY_CODES, LYRIC_MARKERS } from "@/constants";
 import { pullAt } from 'lodash-es';
 import { useLyricsStore } from './lyrics';
@@ -272,10 +273,60 @@ export const useTimingsStore = defineStore('timings', {
     // Replace all voices' timings at once (used when importing a multi-voice timings file).
     setAllTimings(byVoice: TimingsByVoice) {
       this._timingsByVoice = { ...byVoice };
+      // An imported file may key its timings under a voice name the current lyrics no
+      // longer use (typically the default voice of a pre-tag session).
+      this.reconcileVoices();
+    },
+
+    // Carry timings across a voice rename.
+    //
+    // Voices are named by the lyric tags, so tagging previously untagged lyrics — or
+    // editing an existing tag — renames a voice, and timings keyed under the old name
+    // would look lost. When exactly one timed voice has vanished from the lyrics and
+    // exactly one voice in the lyrics has no timings, that is unambiguously a rename, so
+    // the timings (and the style override, if the new name has none) move over. This is
+    // what makes "switch to multi-voice by adding a tag at the top" keep the timings that
+    // were tapped out before any tag existed.
+    //
+    // Anything more ambiguous (several renames at once, or a voice merged into another
+    // that is already timed) is left alone. Orphaned entries are never deleted, so
+    // re-typing the old tag brings them back.
+    reconcileVoices() {
+      const voices = useLyricsStore().voices;
+      const timed = (voice: VoiceId) => (this._timingsByVoice[voice]?.length ?? 0) > 0;
+
+      const orphans = Object.keys(this._timingsByVoice).filter(
+        (voice) => timed(voice) && !voices.includes(voice)
+      );
+      const untimed = voices.filter((voice) => !timed(voice));
+      if (orphans.length !== 1 || untimed.length !== 1) {
+        return;
+      }
+
+      const [from] = orphans;
+      const [to] = untimed;
+      const { [from]: moved, ...rest } = this._timingsByVoice;
+      this._timingsByVoice = { ...rest, [to]: moved };
+      if (this._activeVoice === from) {
+        this._activeVoice = to;
+      }
+      useSettingsStore().renameVoiceStyle(from, to);
     },
 
     clear() {
       this._timingsByVoice = {};
+    },
+
+    // Follow voice renames as the user edits the lyric tags. Registered once at app start
+    // (options stores can't call watch() from a setup scope). Runs immediately so timings
+    // restored from a previous, tag-less session are picked up on load too.
+    setupVoiceReconciliation() {
+      const lyricsStore = useLyricsStore();
+      watch(
+        () => lyricsStore.voices.join("\n"),
+        () => this.reconcileVoices(),
+        { immediate: true }
+      );
     },
 
     setupPersistence() {

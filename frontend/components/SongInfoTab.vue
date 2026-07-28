@@ -58,6 +58,8 @@
         </b-button>
       </template>
       <div class="box">
+        <file-upload name="settings-file-upload" :accept="['.yaml', '.yml']" label="Settings File"
+          v-model="mediaStore.settingsFile" @update:modelValue="onSettingsFileChange" />
         <file-upload name="timings-file-upload" :accept="['.json']" label="Timings File" v-model="mediaStore.timingsFile"
           @update:modelValue="onTimingsFileChange" />
         <file-upload label="Backing Track" v-model="mediaStore.backingTrackFile" @update:modelValue="onBackingTrackFileChange" />
@@ -87,6 +89,8 @@ import {
   NO_VOCALS_HQ_SEPARATOR_MODEL,
 } from "@/stores/media";
 import { useTimingsStore } from "@/stores/timings";
+import { useSettingsStore } from "@/stores/settings";
+import { parseSettingsYaml } from "@/lib/settingsFile";
 import FileUpload from "@/components/FileUpload.vue";
 
 export default defineComponent({
@@ -96,9 +100,11 @@ export default defineComponent({
   setup() {
     const mediaStore = useMediaStore();
     const timingsStore = useTimingsStore();
+    const settingsStore = useSettingsStore();
     return {
       mediaStore,
       timingsStore,
+      settingsStore,
     };
   },
   data() {
@@ -172,6 +178,57 @@ export default defineComponent({
         this.youtubeError = `There was a problem downloading that video: ${errorMessage}. Please try again or use a service such as <a href="https://v2.youconvert.net/en/">YouConvert</a> to get the audio and add it above.`;
       }
       this.isLoadingYouTube = false;
+    },
+    // Load a settings.yaml (as exported from the Submit tab) back into the app: video
+    // options, per-voice styles, the separation model and the song metadata.
+    async onSettingsFileChange(file: File | null) {
+      if (!file) {
+        return;
+      }
+      try {
+        const settings = parseSettingsYaml(await file.text());
+
+        this.settingsStore.applyVideoOptions(settings.videoOptions);
+        if (settings.voiceStyles) {
+          this.settingsStore.setVoiceStyles(settings.voiceStyles);
+        }
+        if (settings.separationModel) {
+          this.mediaStore.separationModel = settings.separationModel;
+        }
+        if (settings.song.title) {
+          this.mediaStore.songTitle = settings.song.title;
+        }
+        if (settings.song.artist) {
+          this.mediaStore.songArtist = settings.song.artist;
+        }
+        if (settings.song.youtubeUrl) {
+          this.mediaStore.youtubeUrl = settings.song.youtubeUrl;
+        }
+        // The real duration is derived from the audio, so the file's value is only
+        // useful as a stand-in until a song is loaded.
+        if (settings.song.duration && !this.mediaStore.songFile) {
+          this.mediaStore.songDuration = settings.song.duration;
+        }
+
+        for (const warning of settings.warnings) {
+          console.warn(`settings.yaml: ${warning}`);
+        }
+        this.$buefy.toast.open({
+          message: settings.warnings.length
+            ? `Settings loaded, but ${settings.warnings.length} entr${settings.warnings.length === 1 ? "y was" : "ies were"} skipped (see the console).`
+            : "Settings loaded!",
+          type: settings.warnings.length ? "is-warning" : "is-success",
+          duration: settings.warnings.length ? 5000 : 2000,
+        });
+      } catch (e) {
+        console.error(e);
+        this.mediaStore.settingsFile = null;
+        this.$buefy.toast.open({
+          message: (e as Error).message,
+          type: "is-danger",
+          duration: 5000,
+        });
+      }
     },
     onTimingsFileChange(file: File | null) {
       if (!file) {

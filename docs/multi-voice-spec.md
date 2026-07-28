@@ -101,6 +101,29 @@ _timings: Record<VoiceId, Array<[number, number]>>
   *within* a voice — it just becomes voice-scoped.
 - **Migration:** on load, a legacy array becomes `{ [DEFAULT_VOICE_ID]: <array> }`.
 
+### Voice renames (`reconcileVoices`)
+
+Voices are named by their tags, so editing a tag renames a voice and its timings, keyed by
+the old name, would look lost. The common case is promoting an already-timed single-voice
+project to multi-voice by adding one tag at the top: `Voice 1` becomes `Anna`, and the
+timings must come along — nobody re-taps a whole song to name a voice.
+
+`timingsStore.reconcileVoices()` runs on every change to the lyrics' voice set (and after
+importing a timings file). When **exactly one** timed voice has vanished from the lyrics and
+**exactly one** voice in the lyrics has no timings, that is unambiguously a rename: the
+timings move to the new name, the active voice follows, and the voice style override follows
+too (unless the new name already has one). This also makes the rename track the tag
+keystroke by keystroke while it is being typed.
+
+Anything more ambiguous — several renames in one edit, or a voice whose tag was dropped so
+its lines merge into an already-timed voice — is left alone. Orphaned entries are **never
+deleted**, so re-typing the old tag restores them.
+
+Note that a leading tag doesn't disturb the segment structure of the text it annotates: the
+tag is stripped in the pre-pass, and the buffer rebuild only ever collapses runs of blank
+lines, which `parseLyrics` already folds into the preceding segment. The carried-over
+timings therefore stay aligned with the same syllables.
+
 ### Active voice (global)
 
 A single app-wide `activeVoice: VoiceId` (small UI store, or on `timingsStore`). Shared

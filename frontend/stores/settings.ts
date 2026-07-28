@@ -4,30 +4,10 @@ import { VerticalAlignment } from '@/lib/timing';
 import { NO_VOCALS_SEPARATOR_MODEL, BACKING_VOCALS_SEPARATOR_MODEL } from './media';
 import Color from 'buefy/src/utils/color';
 import { SeparationModel } from '@/types';
-import { VoiceStyleOverride } from '@/lib/voiceStyle';
+import { VoiceStyleOverride, serializeVoiceStyle, deserializeVoiceStyle } from '@/lib/voiceStyle';
 import { VoiceId } from '@/lib/voices';
 
 const VOICE_STYLES_STORAGE_KEY = 'voiceStyles';
-const VOICE_STYLE_COLOR_FIELDS = ['primary', 'secondary', 'outline'] as const;
-
-// Voice style overrides persist colors as hex strings, like the base video options.
-function serializeVoiceStyle(style: VoiceStyleOverride): Record<string, unknown> {
-  const out: Record<string, unknown> = {};
-  for (const [key, value] of Object.entries(style)) {
-    if (value === undefined) continue;
-    out[key] = VOICE_STYLE_COLOR_FIELDS.includes(key as any) ? (value as Color).toString() : value;
-  }
-  return out;
-}
-
-function deserializeVoiceStyle(stored: Record<string, unknown>): VoiceStyleOverride {
-  const style: VoiceStyleOverride = {};
-  for (const [key, value] of Object.entries(stored)) {
-    if (value === undefined || value === null) continue;
-    style[key] = VOICE_STYLE_COLOR_FIELDS.includes(key as any) ? Color.parse(value as string) : value;
-  }
-  return style;
-}
 
 function loadVoiceStyles(): Record<VoiceId, VoiceStyleOverride> {
   try {
@@ -135,6 +115,38 @@ export const useSettingsStore = defineStore('settings', () => {
     voiceStyles.value = rest;
   }
 
+  // Move a style override onto another voice id. Used when a lyric tag edit renames a
+  // voice, so the style follows the voice instead of being orphaned. No-op when the
+  // source has no override or the target already has one.
+  function renameVoiceStyle(from: VoiceId, to: VoiceId) {
+    const style = voiceStyles.value[from];
+    if (!style || voiceStyles.value[to]) {
+      return;
+    }
+    const { [from]: _removed, ...rest } = voiceStyles.value;
+    voiceStyles.value = { ...rest, [to]: style };
+  }
+
+  // Merge a partial set of options over the current ones, e.g. from a loaded
+  // settings.yaml. The nested font and color groups merge field by field, so a file that
+  // only mentions one color leaves the others untouched.
+  function applyVideoOptions(options: Partial<VideoSettings>): void {
+    const { font, color, ...rest } = options;
+    Object.assign(videoOptions, rest);
+    if (font) {
+      Object.assign(videoOptions.font, font);
+    }
+    if (color) {
+      Object.assign(videoOptions.color, color);
+    }
+  }
+
+  // Replace every per-voice override. A settings file describes the complete set, so
+  // voices it doesn't mention go back to the base style.
+  function setVoiceStyles(styles: Record<VoiceId, VoiceStyleOverride>): void {
+    voiceStyles.value = { ...styles };
+  }
+
   function loadSettings(): void {
     const optionsStr = localStorage.videoOptions;
     if (!optionsStr) {
@@ -193,6 +205,9 @@ export const useSettingsStore = defineStore('settings', () => {
     getVoiceStyle,
     setVoiceStyleField,
     clearVoiceStyle,
+    renameVoiceStyle,
+    applyVideoOptions,
+    setVoiceStyles,
     loadSettings,
     saveSettings,
     resetSettings

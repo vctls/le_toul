@@ -1,4 +1,5 @@
 import { createPinia, setActivePinia } from 'pinia';
+import { nextTick } from 'vue';
 import { useTimingsStore } from './timings';
 import { useLyricsStore } from './lyrics';
 import { useMediaStore } from './media';
@@ -6,6 +7,7 @@ import { useSettingsStore } from './settings';
 import { beforeEach, describe, expect, test, vi } from 'vitest';
 import { KEY_CODES, LYRIC_MARKERS } from '@/constants';
 import { createAssFile } from '@/lib/timing';
+import { DEFAULT_VOICE_ID } from '@/lib/voices';
 
 // Mock the createAssFile function
 vi.mock('@/lib/timing', async (importOriginal) => ({
@@ -205,6 +207,130 @@ describe('Timings Store', () => {
     expect(timingsStore.rawTimings).toEqual([]);
     timingsStore.setActiveVoice('Ben');
     expect(timingsStore.rawTimings).toEqual([]);
+  });
+
+  describe('voice reconciliation', () => {
+    // Timings tapped out before any voice tag existed live under the default voice. Adding
+    // a tag renames that voice, and the timings must follow it.
+    const timeSingleVoice = (lyrics = 'hello\nworld') => {
+      const timingsStore = useTimingsStore();
+      const lyricsStore = useLyricsStore();
+
+      lyricsStore.setLyrics(lyrics);
+      timingsStore.resetTimings([
+        [1.0, LYRIC_MARKERS.SEGMENT_START],
+        [2.0, LYRIC_MARKERS.SEGMENT_END],
+      ]);
+      expect(timingsStore.activeVoice).toBe(DEFAULT_VOICE_ID);
+
+      return { timingsStore, lyricsStore };
+    };
+
+    test('tagging untagged lyrics carries the timings over to the tagged voice', async () => {
+      const { timingsStore, lyricsStore } = timeSingleVoice();
+      const timings = timingsStore.rawTimings;
+      timingsStore.setupVoiceReconciliation();
+
+      lyricsStore.setLyrics('[Anna] hello\nworld');
+      await nextTick();
+
+      expect(lyricsStore.voices).toEqual(['Anna']);
+      expect(timingsStore.activeVoice).toBe('Anna');
+      expect(timingsStore.rawTimings).toStrictEqual(timings);
+      expect(timingsStore.allTimings).toEqual({ Anna: timings });
+    });
+
+    test('the timings keep following the tag as it is typed out', async () => {
+      const { timingsStore, lyricsStore } = timeSingleVoice();
+      const timings = timingsStore.rawTimings;
+      timingsStore.setupVoiceReconciliation();
+
+      for (const tag of ['[A]', '[An]', '[Ann]', '[Anna]']) {
+        lyricsStore.setLyrics(`${tag} hello\nworld`);
+        await nextTick();
+      }
+
+      expect(timingsStore.allTimings).toEqual({ Anna: timings });
+    });
+
+    test('a second voice added afterwards is timed from scratch', async () => {
+      const { timingsStore, lyricsStore } = timeSingleVoice();
+      const timings = timingsStore.rawTimings;
+      timingsStore.setupVoiceReconciliation();
+
+      lyricsStore.setLyrics('[Anna] hello\nworld');
+      await nextTick();
+      lyricsStore.setLyrics('[Anna] hello\nworld\n[Ben] backing');
+      await nextTick();
+
+      expect(lyricsStore.voices).toEqual(['Anna', 'Ben']);
+      // Anna kept the original timings; Ben starts empty.
+      expect(timingsStore.timingsForVoice('Anna')).toStrictEqual(timings);
+      expect(timingsStore.timingsForVoice('Ben')).toEqual([]);
+      expect(timingsStore.voicesWithTimings).toEqual(['Anna']);
+    });
+
+    test('the voice style follows the rename', async () => {
+      const { timingsStore, lyricsStore } = timeSingleVoice();
+      const settingsStore = useSettingsStore();
+      settingsStore.setVoiceStyleField(DEFAULT_VOICE_ID, 'verticalAlignment', 'bottom');
+      timingsStore.setupVoiceReconciliation();
+
+      lyricsStore.setLyrics('[Anna] hello\nworld');
+      await nextTick();
+
+      expect(settingsStore.getVoiceStyle('Anna')).toEqual({ verticalAlignment: 'bottom' });
+      expect(settingsStore.getVoiceStyle(DEFAULT_VOICE_ID)).toBeUndefined();
+    });
+
+    test('an ambiguous change leaves the timings parked and recoverable', async () => {
+      const { timingsStore, lyricsStore } = timeSingleVoice();
+      const timings = timingsStore.rawTimings;
+      timingsStore.setupVoiceReconciliation();
+
+      // Two new voices at once: there is no telling which one owns the old timings.
+      lyricsStore.setLyrics('[Anna] hello\n[Ben] world');
+      await nextTick();
+
+      expect(timingsStore.rawTimings).toEqual([]);
+      expect(timingsStore.allTimings[DEFAULT_VOICE_ID]).toStrictEqual(timings);
+
+      // Undoing the edit brings them back.
+      lyricsStore.setLyrics('hello\nworld');
+      await nextTick();
+      expect(timingsStore.rawTimings).toStrictEqual(timings);
+    });
+
+    test('does not move timings onto a voice that already has its own', async () => {
+      const timingsStore = useTimingsStore();
+      const lyricsStore = useLyricsStore();
+      timingsStore.setupVoiceReconciliation();
+
+      lyricsStore.setLyrics('[Anna] hello\n[Ben] world');
+      await nextTick();
+      timingsStore.setActiveVoice('Anna');
+      timingsStore.add(0, KEY_CODES.SPACEBAR, 1.0);
+      timingsStore.setActiveVoice('Ben');
+      timingsStore.add(0, KEY_CODES.SPACEBAR, 5.0);
+
+      // Dropping Ben's tag merges his line into Anna, who is already timed.
+      lyricsStore.setLyrics('[Anna] hello\nworld');
+      await nextTick();
+
+      expect(timingsStore.timingsForVoice('Anna')).toEqual([[1.0, LYRIC_MARKERS.SEGMENT_START]]);
+      expect(timingsStore.allTimings.Ben).toEqual([[5.0, LYRIC_MARKERS.SEGMENT_START]]);
+    });
+
+    test('setAllTimings adopts an imported default-voice map into the sole tagged voice', () => {
+      const timingsStore = useTimingsStore();
+      const lyricsStore = useLyricsStore();
+
+      lyricsStore.setLyrics('[Anna] hello\nworld');
+      const timings = [[1.0, LYRIC_MARKERS.SEGMENT_START]];
+      timingsStore.setAllTimings({ [DEFAULT_VOICE_ID]: timings });
+
+      expect(timingsStore.allTimings).toEqual({ Anna: timings });
+    });
   });
 
   test('subtitles should call createAssFile with correct parameters when timings exist', () => {
