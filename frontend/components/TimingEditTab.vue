@@ -17,7 +17,16 @@
       </p>
     </div>
     <b-field>
-      <b-input v-model="draft" type="textarea" custom-class="timing-editor-textarea" :rows="16" />
+      <b-input
+        v-model="draft"
+        type="textarea"
+        custom-class="timing-editor-textarea"
+        :rows="16"
+        spellcheck="false"
+        autocorrect="off"
+        autocapitalize="off"
+        autocomplete="off"
+      />
     </b-field>
     <p v-if="error" class="has-text-danger">{{ error }}</p>
     <div class="buttons">
