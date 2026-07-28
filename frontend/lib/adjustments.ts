@@ -167,9 +167,15 @@ export function displayQuickLinesEarly(screens: LyricsScreen[], displayOptions: 
 
         // TODO what if nextScreen.length == 2 and screen.length == 3?
         const earlyDisplayLines = nextScreen.lines.slice(0, earlyRemovalLines.length);
-        // Adjust y positions so they don't overwrite remaining lines
-        if (screen.getLineY(0, displayOptions.font.size) < nextScreen.getLineY(0, displayOptions.font.size)) {
-            nextScreen.customFirstLineTopMargin = screen.getLineY(0, displayOptions.font.size);
+        // Adjust y positions so they don't overwrite remaining lines. The next screen's block
+        // is laid out as if it had this screen's line count, which puts its first line in the
+        // slot this screen's first line is vacating. Recording the line count rather than the
+        // resulting Y keeps this correct once voice lanes are assigned (multi-voice), which
+        // happens after this pass and moves the whole block.
+        const fontSize = displayOptions.font.size;
+        const alignment = displayOptions.verticalAlignment;
+        if (screen.getLineY(0, fontSize, alignment) < nextScreen.getLineY(0, fontSize, alignment)) {
+            nextScreen.positionAsLineCount = screen.positionAsLineCount ?? screen.lines.length;
         }
 
         earlyDisplayLines.forEach((line, i) => {
