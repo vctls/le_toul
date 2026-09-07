@@ -20,7 +20,7 @@
 <script lang="ts">
 /* A component that displays an .ass file */
 
-import { throttle, mapKeys } from "lodash-es";
+import { throttle, mapKeys, isEqual } from "lodash-es";
 import { defineComponent } from "vue";
 import SubtitlesOctopus from "libass-wasm";
 
@@ -89,22 +89,7 @@ export default defineComponent({
     this.pendingSubtitles = null;
   },
   mounted() {
-    const canvas = this.$refs.subtitleCanvas;
-    // SubtitleOctopus expects font names to be lowercase
-    const fontMap = mapKeys(this.fonts, (_, key) => key.toLowerCase());
-    // Create a subtitle renderer and tie it to our player and canvas
-    var options = {
-      debug: false,
-      canvas: canvas,
-      subContent: this.effectiveSubtitles,
-      lazyFileLoading: true,
-      availableFonts: fontMap,
-      // workerUrl: require("!!file-loader?name=[name].[ext]!libass-wasm/dist/subtitles-octopus-worker.js"),
-      // workerUrl: workerUrl,
-      workerUrl: "/static/subtitles-octopus-worker.js", // Link to WebAssembly-based file "libassjs-worker.js"
-      legacyWorkerUrl: "/static/subtitles-octopus-worker-legacy.js", // Link to non-WebAssembly worker
-    };
-    this.subtitleManager = new SubtitlesOctopus(options);
+    this.createRenderer();
     this.currentTime = 0.0;
     this.visibilityObserver = new IntersectionObserver((entries) => {
       this.isDisplayed = entries[entries.length - 1].isIntersecting;
@@ -117,6 +102,7 @@ export default defineComponent({
   },
   beforeUnmount() {
     this.visibilityObserver?.disconnect();
+    this.destroyRenderer();
   },
   watch: {
     effectiveSubtitles(newSubs: string) {
@@ -124,13 +110,53 @@ export default defineComponent({
         this.pendingSubtitles = newSubs;
         return;
       }
-      this.subtitleManager.setTrack(newSubs);
+      this.subtitleManager?.setTrack(newSubs);
     },
     currentTime(newTime: number) {
-      this.subtitleManager.setCurrentTime(newTime);
+      this.subtitleManager?.setCurrentTime(newTime);
+    },
+    fonts(newFonts, oldFonts) {
+      // libass loads fonts when the worker starts, with no way to add one later, so a
+      // new font only takes effect on a fresh renderer.
+      if (isEqual(newFonts, oldFonts)) {
+        return;
+      }
+      this.destroyRenderer();
+      this.createRenderer();
     },
   },
   methods: {
+    createRenderer() {
+      const canvas = this.$refs.subtitleCanvas;
+      // SubtitleOctopus expects font names to be lowercase
+      const fontMap = mapKeys(this.fonts, (_, key) => key.toLowerCase());
+      // Create a subtitle renderer and tie it to our player and canvas
+      var options = {
+        debug: false,
+        canvas: canvas,
+        subContent: this.effectiveSubtitles,
+        lazyFileLoading: true,
+        availableFonts: fontMap,
+        // workerUrl: require("!!file-loader?name=[name].[ext]!libass-wasm/dist/subtitles-octopus-worker.js"),
+        // workerUrl: workerUrl,
+        workerUrl: "/static/subtitles-octopus-worker.js", // Link to WebAssembly-based file "libassjs-worker.js"
+        legacyWorkerUrl: "/static/subtitles-octopus-worker-legacy.js", // Link to non-WebAssembly worker
+      };
+      this.subtitleManager = new SubtitlesOctopus(options);
+      // A replacement renderer starts at zero, so put it back where playback is.
+      if (this.currentTime) {
+        this.subtitleManager.setCurrentTime(this.currentTime);
+      }
+    },
+    destroyRenderer() {
+      this.subtitleManager?.dispose?.();
+      this.subtitleManager = null;
+      // dispose() leaves its last frame on the canvas until the replacement draws.
+      const canvas = this.$refs.subtitleCanvas as HTMLCanvasElement | undefined;
+      canvas
+        ?.getContext("2d")
+        ?.clearRect(0, 0, canvas.width, canvas.height);
+    },
     setPlayhead(playhead: number) {
       this.currentTime = playhead;
       this.setVideoPlayhead(Math.max(0, playhead - this.audioDelay));
@@ -141,10 +167,10 @@ export default defineComponent({
       }
     },
     pause() {
-      this.subtitleManager.setIsPaused(true, this.currentTime);
+      this.subtitleManager?.setIsPaused(true, this.currentTime);
     },
     play() {
-      this.subtitleManager.setIsPaused(false, this.currentTime);
+      this.subtitleManager?.setIsPaused(false, this.currentTime);
     },
   },
 });

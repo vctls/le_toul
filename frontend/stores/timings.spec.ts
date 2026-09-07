@@ -1,3 +1,5 @@
+import { readFileSync } from 'node:fs';
+import path from 'node:path';
 import { createPinia, setActivePinia } from 'pinia';
 import { nextTick } from 'vue';
 import { useTimingsStore } from './timings';
@@ -347,7 +349,7 @@ describe('Timings Store', () => {
     mediaStore.songDuration = 10;
     mediaStore.songTitle = 'Test Song';
     mediaStore.songArtist = 'Test Artist';
-    settingsStore.videoOptions = { test: 'options' };
+    settingsStore.videoOptions.font.name = 'Impact';
 
     // Check the result
     expect(timingsStore.subtitles()).toBe('mock subtitles content');
@@ -359,7 +361,25 @@ describe('Timings Store', () => {
       10,
       'Test Song',
       'Test Artist',
-      { test: 'options' }
+      expect.objectContaining({ font: expect.objectContaining({ name: 'Impact' }) })
     );
+  });
+
+  test('subtitles should use an uploaded font over the picked one', async () => {
+    const timingsStore = useTimingsStore();
+    const lyricsStore = useLyricsStore();
+    const settingsStore = useSettingsStore();
+
+    lyricsStore.setLyrics('Test lyrics');
+    timingsStore.resetTimings([[1.0, LYRIC_MARKERS.SEGMENT_START], [2.0, LYRIC_MARKERS.SEGMENT_END]]);
+    settingsStore.videoOptions.font.name = 'Impact';
+    const fontData = readFileSync(path.resolve(__dirname, '../../api/assets/fonts/MetalMania.ttf'));
+    await settingsStore.setCustomFont(new File([fontData], 'uploaded.ttf'));
+
+    timingsStore.subtitles();
+
+    // The family name the uploaded file declares, not the picked font.
+    const options = vi.mocked(createAssFile).mock.lastCall?.[5];
+    expect(options?.font.name).toBe('Metal Mania');
   });
 });

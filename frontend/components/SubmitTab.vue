@@ -42,6 +42,21 @@
               </option>
             </b-select>
           </b-field>
+          <b-field horizontal>
+            <template #label>
+              Custom Font
+              <b-tooltip label="Upload your own .ttf or .otf font file. It overrides the font picked above.">
+                <b-icon size="is-small" icon="circle-question"></b-icon>
+              </b-tooltip>
+            </template>
+            <file-upload name="custom-font-upload" :accept="['.ttf', '.otf', '.ttc']"
+              :model-value="settingsStore.customFont" @update:modelValue="onCustomFontChange" />
+          </b-field>
+          <b-field horizontal v-if="settingsStore.customFontFamily">
+            <p class="help custom-font-help">
+              Rendering lyrics in &ldquo;{{ settingsStore.customFontFamily }}&rdquo;, overriding the font above.
+            </p>
+          </b-field>
           <b-field horizontal label="Font Size"><b-numberinput v-model="videoOptions.font.size"
               controls-position="compact"></b-numberinput></b-field>
           <b-field horizontal label="Background Color"><color-field v-model="videoOptions.color.background"
@@ -77,7 +92,7 @@
           </b-select>
         </b-field>
         <video-preview v-if="songFile" :song-file="mediaStore.songFile" :backing-track="backingTrack"
-          :preview-track="previewTrack" :subtitles="allVoicesSubtitles()" :audio-delay="audioDelay" :fonts="fonts"
+          :preview-track="previewTrack" :subtitles="allVoicesSubtitles()" :audio-delay="audioDelay" :fonts="fontMap"
           :background-color="videoOptions.color.background.toString()"
           :video-blob="videoOptions.useBackgroundVideo ? videoBlob : null" />
         <b-message v-else type="is-info">Upload a song to see the preview.</b-message>
@@ -117,6 +132,7 @@ import SourceFileDownloadLinks from "@/components/SourceFileDownloadLinks.vue";
 import VideoCreationProgressIndicator from "@/components/VideoCreationProgressIndicator.vue";
 import VoiceStyleSettings from "@/components/VoiceStyleSettings.vue";
 import ColorField from "@/components/ColorField.vue";
+import FileUpload from "@/components/FileUpload.vue";
 import jszip from "jszip";
 import yaml from "js-yaml";
 import video from "@/lib/video";
@@ -153,6 +169,7 @@ export default defineComponent({
     VideoCreationProgressIndicator,
     VoiceStyleSettings,
     ColorField,
+    FileUpload,
   },
   setup() {
     const mediaStore = useMediaStore();
@@ -222,6 +239,17 @@ export default defineComponent({
         this.settingsStore.videoOptions = newValue;
       }
     },
+    renderOptions() {
+      return this.settingsStore.renderOptions;
+    },
+    // Keyed by the family name an ASS style row references, not by file name.
+    fontMap(): Record<string, string> {
+      const { customFontFamily, customFontUrl } = this.settingsStore;
+      if (!customFontFamily || !customFontUrl) {
+        return fonts;
+      }
+      return { ...fonts, [customFontFamily]: customFontUrl };
+    },
     songFile() {
       return this.mediaStore.songFile;
     },
@@ -270,6 +298,8 @@ export default defineComponent({
       return this.timingsStore.allTimings;
     },
     settingsYaml(): string {
+      // Exports the picked font, not the uploaded one: a settings file naming a font it
+      // can't carry would no longer load back.
       const { vocalSeparationModel, color, ...rest } = this.videoOptions;
       const styledVoices = Object.entries(this.settingsStore.voiceStyles).filter(
         ([, style]) => !isEmptyOverride(style)
@@ -310,6 +340,25 @@ export default defineComponent({
     },
   },
   methods: {
+    async onCustomFontChange(file: File | null) {
+      try {
+        await this.settingsStore.setCustomFont(file);
+        if (file) {
+          this.$buefy.toast.open({
+            message: `Using "${this.settingsStore.customFontFamily}" for the lyrics.`,
+            type: "is-success",
+            duration: 2000,
+          });
+        }
+      } catch (e) {
+        console.error(e);
+        this.$buefy.toast.open({
+          message: (e as Error).message,
+          type: "is-danger",
+          duration: 5000,
+        });
+      }
+    },
     async separateTrack(
       songFile: File,
       model: string
@@ -364,7 +413,7 @@ export default defineComponent({
           this.mediaStore.separationModel
         );
         this.creationPhase = CreationPhase.CreatingVideo;
-        const videoOptions = { createTitleScreens: true, ...this.videoOptions };
+        const videoOptions = { createTitleScreens: true, ...this.renderOptions };
         const videoFile: Uint8Array = await video.createVideo(
           separatedTrack.backing,
           videoOptions.useBackgroundVideo ? this.videoBlob : null,
@@ -376,7 +425,7 @@ export default defineComponent({
             title: this.mediaStore.songTitle,
             duration: this.mediaStore.songDuration,
           },
-          fonts,
+          this.fontMap,
           (progress) => {
             self.videoProgress = progress;
           }

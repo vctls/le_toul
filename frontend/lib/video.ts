@@ -163,11 +163,17 @@ async function createVideo(
         await fetchFile(accompanimentDataUrl)
     );
 
-    // Write the subtitle font to the filesystem
-    await ffmpeg.writeFile(
-        `/tmp/${videoOptions.font.name}.ttf`,
-        await fetchFile(fontMap[videoOptions.font.name])
-    );
+    // The ass filter indexes fontsdir by the family name inside each file, so the filename
+    // only has to be path-safe, which a family name is not necessarily.
+    const fontSource = fontMap[videoOptions.font.name];
+    if (fontSource) {
+        await ffmpeg.writeFile(
+            `/tmp/${videoOptions.font.name.replace(/[^\w.-]+/g, "_")}.ttf`,
+            await fetchFile(fontSource)
+        );
+    } else {
+        console.warn(`No font file available for "${videoOptions.font.name}", falling back`);
+    }
 
     await ffmpeg.writeFile("subtitles.ass", subtitles);
 

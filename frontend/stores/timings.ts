@@ -120,7 +120,7 @@ export const useTimingsStore = defineStore('timings', {
         const settingsStore = useSettingsStore();
 
         try {
-          const baseOptions = settingsStore.videoOptions || DEFAULT_KARAOKE_OPTIONS;
+          const baseOptions = settingsStore.renderOptions || DEFAULT_KARAOKE_OPTIONS;
           // Apply the active voice's style override (no-op when it has none).
           const voiceOptions = applyVoiceStyle(baseOptions, settingsStore.getVoiceStyle(this.activeVoice));
 
@@ -160,7 +160,7 @@ export const useTimingsStore = defineStore('timings', {
         const lyricsStore = useLyricsStore();
         const settingsStore = useSettingsStore();
         const mediaStore = useMediaStore();
-        const baseOptions = settingsStore.videoOptions || DEFAULT_KARAOKE_OPTIONS;
+        const baseOptions = settingsStore.renderOptions || DEFAULT_KARAOKE_OPTIONS;
 
         const tracks = this.voicesWithTimings.map((voice) => ({
           voice,

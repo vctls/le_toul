@@ -1,3 +1,5 @@
+import { readFileSync } from 'node:fs';
+import path from 'node:path';
 import { createPinia, setActivePinia } from 'pinia';
 import { useSettingsStore } from './settings';
 import { VerticalAlignment } from '@/lib/timing';
@@ -5,6 +7,13 @@ import { BACKING_VOCALS_SEPARATOR_MODEL, NO_VOCALS_SEPARATOR_MODEL } from './med
 import Color from 'buefy/src/utils/color';
 import { beforeEach, describe, expect, test, vi } from 'vitest';
 import { nextTick } from 'vue';
+import { applyVoiceStyle } from '@/lib/voiceStyle';
+import { UnreadableFontError } from '@/lib/fontFile';
+
+function fontFile(name: string, as = name): File {
+  const data = readFileSync(path.resolve(__dirname, '../../api/assets/fonts', name));
+  return new File([data], as);
+}
 
 describe('Settings Store', () => {
   let localStorageMock: Record<string, string>;
@@ -239,6 +248,93 @@ describe('Settings Store', () => {
       store.setVoiceStyleField('Anna', 'bold', true);
       store.clearVoiceStyle('Anna');
       expect(store.getVoiceStyle('Anna')).toBeUndefined();
+    });
+  });
+
+  describe('custom font', () => {
+    // Earlier tests leave settings in localStorage, which a new store would load; these
+    // cases are about the defaults and the uploaded font.
+    beforeEach(() => {
+      window.localStorage.clear();
+      setActivePinia(createPinia());
+    });
+
+    test('renderOptions matches videoOptions when no font is uploaded', () => {
+      const store = useSettingsStore();
+
+      expect(store.customFontFamily).toBeNull();
+      expect(store.renderOptions.font.name).toBe(store.videoOptions.font.name);
+    });
+
+    test('an uploaded font overrides the picked one for rendering', async () => {
+      const store = useSettingsStore();
+      store.videoOptions.font.name = 'Arial';
+
+      await store.setCustomFont(fontFile('MetalMania.ttf', 'my-font.ttf'));
+
+      // The family name the font declares, not the file name, is what libass matches on.
+      expect(store.customFontFamily).toBe('Metal Mania');
+      expect(store.renderOptions.font.name).toBe('Metal Mania');
+      // The picker keeps its own value, so clearing the upload restores it.
+      expect(store.videoOptions.font.name).toBe('Arial');
+      expect(store.customFontUrl).toBeTruthy();
+    });
+
+    test('other render options are untouched by an uploaded font', async () => {
+      const store = useSettingsStore();
+      store.videoOptions.font.size = 42;
+
+      await store.setCustomFont(fontFile('Impact.ttf'));
+
+      expect(store.renderOptions.font.size).toBe(42);
+      expect(store.renderOptions.color.primary.toString()).toBe('#ff00ff');
+    });
+
+    test('clearing the font falls back to the picked one', async () => {
+      const store = useSettingsStore();
+      store.videoOptions.font.name = 'Arial';
+      await store.setCustomFont(fontFile('Impact.ttf'));
+
+      await store.setCustomFont(null);
+
+      expect(store.customFont).toBeNull();
+      expect(store.customFontFamily).toBeNull();
+      expect(store.customFontUrl).toBeNull();
+      expect(store.renderOptions.font.name).toBe('Arial');
+    });
+
+    test('a file that is not a font is rejected and does not become active', async () => {
+      const store = useSettingsStore();
+
+      await expect(store.setCustomFont(new File(['nope'], 'fake.ttf'))).rejects.toThrow(
+        UnreadableFontError
+      );
+      expect(store.customFont).toBeNull();
+      expect(store.customFontFamily).toBeNull();
+      expect(store.renderOptions.font.name).toBe('Arial Narrow');
+    });
+
+    test('a voice with its own font keeps it over the uploaded one', async () => {
+      const store = useSettingsStore();
+      store.setVoiceStyleField('Anna', 'fontName', 'Impact');
+      await store.setCustomFont(fontFile('MetalMania.ttf'));
+
+      const anna = applyVoiceStyle(store.renderOptions, store.getVoiceStyle('Anna'));
+      const ben = applyVoiceStyle(store.renderOptions, store.getVoiceStyle('Ben'));
+
+      expect(anna.font.name).toBe('Impact');
+      expect(ben.font.name).toBe('Metal Mania');
+    });
+
+    test('resetSettings drops the uploaded font', async () => {
+      const store = useSettingsStore();
+      await store.setCustomFont(fontFile('Impact.ttf'));
+
+      store.resetSettings();
+
+      expect(store.customFont).toBeNull();
+      expect(store.customFontFamily).toBeNull();
+      expect(store.renderOptions.font.name).toBe('Arial Narrow');
     });
   });
 });

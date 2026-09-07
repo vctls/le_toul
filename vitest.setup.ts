@@ -6,6 +6,7 @@ interface SubtitlesOctopus {
     setTrack: (subtitles: string) => void;
     setCurrentTime: (time: number) => void;
     setIsPaused: (isPaused: boolean, currentTime: number) => void;
+    dispose: () => void;
 }
 
 vi.mock('libass-wasm', () => {
@@ -16,6 +17,7 @@ vi.mock('libass-wasm', () => {
                 setTrack: vi.fn(),
                 setCurrentTime: vi.fn(),
                 setIsPaused: vi.fn(),
+                dispose: vi.fn(),
             };
         }),
     };
