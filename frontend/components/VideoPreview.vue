@@ -1,6 +1,6 @@
 <template>
   <div class="preview-container">
-    <b-message type="is-info">
+    <b-message type="is-info" :closable="false">
       {{
         previewTrack === "backing"
           ? "Previewing the backing track. This matches the finished video's audio."

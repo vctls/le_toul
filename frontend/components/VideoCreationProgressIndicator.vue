@@ -1,6 +1,6 @@
 <template>
   <div class="video-creation-progress-indicator">
-    <b-message type="is-success" has-icon icon="wand-magic-sparkles">
+    <b-message type="is-success" has-icon icon="wand-magic-sparkles" :closable="false">
       Creating your karaoke video. This might take a few minutes.
     </b-message>
     <b-progress

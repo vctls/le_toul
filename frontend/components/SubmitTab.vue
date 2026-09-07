@@ -10,13 +10,13 @@
               <b-icon size="is-small" icon="circle-question"></b-icon>
             </b-tooltip>
           </template>
-          <b-switch expanded v-model="videoOptions.addCountIns"></b-switch></b-field>
+          <b-switch v-model="videoOptions.addCountIns"></b-switch></b-field>
         <b-field horizontal>
           <template #label>
             Add Instrumental Breaks
             <b-tooltip label="Add screens that count down long instrumentals">
               <b-icon size="is-small" icon="circle-question"></b-icon>
-            </b-tooltip> </template><b-switch expanded
+            </b-tooltip> </template><b-switch
             v-model="videoOptions.addInstrumentalScreens"></b-switch></b-field>
         <b-field horizontal>
           <template #label>
@@ -24,9 +24,9 @@
             <b-tooltip
               label="Show the first few lines of a screen early if it starts right after the previous screen ends">
               <b-icon size="is-small" icon="circle-question"></b-icon>
-            </b-tooltip> </template><b-switch expanded v-model="videoOptions.addStaggeredLines"></b-switch></b-field>
+            </b-tooltip> </template><b-switch v-model="videoOptions.addStaggeredLines"></b-switch></b-field>
         <b-field v-if="videoBlob" horizontal label="Use Background Video">
-          <b-switch expanded v-model="videoOptions.useBackgroundVideo"></b-switch></b-field>
+          <b-switch v-model="videoOptions.useBackgroundVideo"></b-switch></b-field>
         <b-collapse v-model="isShowingFontsAndColors">
           <template #trigger="props">
             <a aria-controls="contentIdForA11y4" :aria-expanded="props.open">
@@ -95,7 +95,7 @@
           :preview-track="previewTrack" :subtitles="allVoicesSubtitles()" :audio-delay="audioDelay" :fonts="fontMap"
           :background-color="videoOptions.color.background.toString()"
           :video-blob="videoOptions.useBackgroundVideo ? videoBlob : null" />
-        <b-message v-else type="is-info">Upload a song to see the preview.</b-message>
+        <b-message v-else type="is-info" :closable="false">Upload a song to see the preview.</b-message>
       </div>
     </div>
 
@@ -106,7 +106,7 @@
       </b-message>
       <video-creation-progress-indicator v-if="isSubmitting" :song-duration="songDuration" :phase="creationPhase"
         :progress="videoProgress" :elapsed-time="elapsedSubmissionTime" />
-      <b-message v-if="!canCreateVideo" type="is-info">
+      <b-message v-if="!canCreateVideo" type="is-info" :closable="false">
         {{ missingStepsMessage }}
       </b-message>
       <div class="buttons">

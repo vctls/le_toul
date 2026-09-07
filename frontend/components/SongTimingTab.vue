@@ -4,7 +4,7 @@
     <div class="title-row">
       <h2 class="title">
         Song Timing
-        <b-button v-if="isMobile" icon="help" icon-right="circle-question" :type="isShowingHelp ? 'is-primary' : ''"
+        <b-button v-if="isMobile" icon-right="circle-question" :type="isShowingHelp ? 'is-primary' : ''"
           @click="isShowingHelp = !isShowingHelp" />
       </h2>
       <voice-selector />
