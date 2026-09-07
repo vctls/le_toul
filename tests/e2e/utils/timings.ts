@@ -1,7 +1,7 @@
 /**
  * Timing helpers for Playwright tests
  */
-import { Page } from '@playwright/test';
+import { Page, Locator, expect } from '@playwright/test';
 import { TabId, navigateToTab } from './navigation';
 import { loadFixtureJson } from './setupHelpers';
 import { DEFAULT_VOICE_ID } from '../../../frontend/lib/voices';
@@ -35,23 +35,15 @@ export async function enterTimings(page: Page, timings: TimingEntry[]): Promise<
   // Start playback
   await togglePlayback(page);
 
-  for (let i = 0; i < timings.length; i++) {
-    const timing = timings[i];
-
-    // Calculate delay based on the difference between current and previous timing
-    const previousTime = i === 0 ? 0 : timings[i - 1].time;
-    const delay = (timing.time - previousTime) * 1000;
-
-    // Determine which key to press based on timing type
+  // Schedule each press against the start of the batch rather than the previous
+  // press, so key-press latency doesn't accumulate into the recorded timestamps.
+  const startedAt = Date.now();
+  for (const timing of timings) {
     const key = timing.type === 1 ? 'Space' : 'Enter';
-
-    console.log(`Waiting for ${delay}ms before pressing ${key} at time ${timing.time}`);
-
-    if (delay > 0) {
-      await page.waitForTimeout(delay);
+    const remaining = timing.time * 1000 - (Date.now() - startedAt);
+    if (remaining > 0) {
+      await page.waitForTimeout(remaining);
     }
-
-    // Press the appropriate key
     await page.keyboard.press(key);
   }
 
@@ -78,7 +70,49 @@ export async function loadAndEnterTimings(page: Page, timingsFilename: string): 
 }
 
 /**
- * Adjusts timing for a specific segment by dragging handles
+ * Drags one edge of a region by `offset` pixels and waits for it to land.
+ */
+async function dragRegionHandle(
+  page: Page,
+  region: Locator,
+  side: 'left' | 'right',
+  offset: number
+): Promise<void> {
+  const handle = region.locator(`[part="region-handle region-handle-${side}"]`);
+  const box = await handle.boundingBox();
+  if (!box) {
+    throw new Error(`Could not get boundingBox for the ${side} handle`);
+  }
+
+  const edgeOf = (b: { x: number; width: number } | null) =>
+    b === null ? undefined : side === 'left' ? b.x : b.x + b.width;
+  const before = edgeOf(await region.boundingBox());
+
+  const fromX = box.x + box.width / 2;
+  const y = box.y + box.height / 2;
+  const toX = fromX + offset;
+  if (toX < 0) {
+    throw new Error(`Drag target ${toX}px is off-screen; offset ${offset} is too large`);
+  }
+
+  await page.mouse.move(fromX, y);
+  await page.mouse.down();
+  // wavesurfer's makeDraggable accumulates per-move deltas and ignores anything
+  // under its threshold, so step the pointer instead of jumping in one move.
+  await page.mouse.move(toX, y, { steps: 10 });
+  await page.mouse.up();
+
+  await expect
+    .poll(() => region.boundingBox().then(edgeOf), {
+      message: `region ${side} edge should move by ${offset}px`,
+    })
+    .not.toBe(before);
+}
+
+/**
+ * Adjusts timing for a specific segment by dragging its region handles.
+ * Offsets are in pixels: the Adjust tab renders one second as `zoom` pixels
+ * (50 by default), so -25 moves a start a half second earlier.
  */
 export async function adjustTiming(
   page: Page,
@@ -88,46 +122,17 @@ export async function adjustTiming(
 ): Promise<void> {
   if (!await page.locator('.timing-adjustment-tab').isVisible()) {
     await navigateToTab(page, TabId.TimingAdjustment);
-    await page.waitForTimeout(1000); // Wait for the tab to load
   }
 
-  // Get segment handles based on the region-handle classes from OpenEndedRegionPlugin
-  const startHandle = page.locator(`[part="region segment_${segmentIndex}"] [part="region-handle region-handle-left"]`);
-  const endHandle = page.locator(`[part="region segment_${segmentIndex}"] [part="region-handle region-handle-right"]`);
+  const region = page.locator(`[part="region segment_${segmentIndex}"]`);
+  await expect(region).toBeVisible();
 
-  // Perform drag operations if offsets are non-zero
   if (startOffset !== 0) {
-    // Get current handle position
-    const startBounds = await startHandle.boundingBox();
-    if (!startBounds) {
-      throw new Error(`Could not get boundingBox for start handle of segment ${segmentIndex}`);
-    }
-    console.log(`Start handle bounds: ${JSON.stringify(startBounds)}`);
-    // Calculate absolute target position by adding offset to current position
-    const targetX = startBounds.x - 500;
-    await startHandle.hover();
-    await page.mouse.down();
-    await page.waitForTimeout(1000); // Wait for the tab to load
-
-    await page.mouse.move(targetX, startBounds.y);
-    await page.waitForTimeout(1000); // Wait for the tab to load
-
-    await page.mouse.up();
+    await dragRegionHandle(page, region, 'left', startOffset);
   }
 
   if (endOffset !== 0) {
-    // Get current handle position
-    const endBounds = await endHandle.boundingBox();
-    if (!endBounds) {
-      throw new Error(`Could not get boundingBox for end handle of segment ${segmentIndex}`);
-    }
-    // Calculate absolute target position by adding offset to current position
-    const targetX = endBounds.x + endOffset;
-
-    await endHandle.dragTo(endHandle, {
-      force: true,
-      targetPosition: { x: targetX, y: endBounds.y }
-    });
+    await dragRegionHandle(page, region, 'right', endOffset);
   }
 }
 

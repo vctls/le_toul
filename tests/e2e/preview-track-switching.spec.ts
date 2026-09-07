@@ -20,6 +20,7 @@ interface PreviewAudioState {
   error: string | null;
   src: string;
   readyState: number;
+  seeking: boolean;
 }
 
 function previewAudioState(page: Page): Promise<PreviewAudioState> {
@@ -29,6 +30,7 @@ function previewAudioState(page: Page): Promise<PreviewAudioState> {
     error: el.error ? `${el.error.code}: ${el.error.message}` : null,
     src: el.currentSrc,
     readyState: el.readyState,
+    seeking: el.seeking,
   }));
 }
 
@@ -54,10 +56,17 @@ async function startPreviewPlayback(page: Page): Promise<void> {
   }
 }
 
-function seekPreview(page: Page, time: number): Promise<void> {
-  return page.locator(PREVIEW_AUDIO).evaluate((el: HTMLAudioElement, t) => {
+async function seekPreview(page: Page, time: number): Promise<void> {
+  await page.locator(PREVIEW_AUDIO).evaluate((el: HTMLAudioElement, t) => {
     el.currentTime = t;
   }, time);
+  // Wait for the element to finish seeking rather than sleeping, so rapid
+  // consecutive seeks can't race each other.
+  await expect
+    .poll(async () => (await previewAudioState(page)).seeking, {
+      message: `seek to ${time}s should settle`,
+    })
+    .toBe(false);
 }
 
 async function expectPlayingAndAdvancing(page: Page, label: string) {
@@ -112,9 +121,7 @@ test.describe('Submit preview track switching', () => {
 
     // Seek around manually a few times, like a user dragging the scrubber
     await seekPreview(page, 5);
-    await page.waitForTimeout(300);
     await seekPreview(page, 2);
-    await page.waitForTimeout(300);
     await seekPreview(page, 8);
     await expectPlayingAndAdvancing(page, 'after manual seeks on backing');
 

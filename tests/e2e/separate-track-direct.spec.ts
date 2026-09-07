@@ -31,9 +31,6 @@ test.describe('Separate Track Direct Response', () => {
     await navigateToTab(page, TabId.SongInfo);
     await uploadAudioFile(page, defaultTestConfig.audioFile, defaultTestConfig.artist, defaultTestConfig.title);
 
-    // Wait for the separation to complete
-    await page.waitForTimeout(2000); // Give some time for the API call to complete
-
     // Verify Song Timing tab is initially disabled
     await expectTabToBeDisabled(page, TabId.SongTiming);
 

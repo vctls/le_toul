@@ -27,7 +27,7 @@
             </b-tooltip> </template><b-switch expanded v-model="videoOptions.addStaggeredLines"></b-switch></b-field>
         <b-field v-if="videoBlob" horizontal label="Use Background Video">
           <b-switch expanded v-model="videoOptions.useBackgroundVideo"></b-switch></b-field>
-        <b-collapse :open="false">
+        <b-collapse v-model="isShowingFontsAndColors">
           <template #trigger="props">
             <a aria-controls="contentIdForA11y4" :aria-expanded="props.open">
               Fonts and Colors
@@ -198,6 +198,7 @@ export default defineComponent({
       submitError: null,
       // Which track the preview plays: "full" (with vocals) or "backing".
       previewTrack: "full",
+      isShowingFontsAndColors: false,
     };
   },
   mounted() {

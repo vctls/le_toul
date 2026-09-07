@@ -7,7 +7,6 @@ import {
   uploadAudioFile,
   loadAndEnterLyrics,
   mockSeparateTrackApi,
-  togglePlayback,
   enterTimings,
   adjustTiming,
   expectTabToBeEnabled,
@@ -25,7 +24,7 @@ test.describe('Multi-screen Timing and Adjustment', () => {
     await mockSeparateTrackApi(context);
   });
 
-  test.fixme('Adjust timing on first screen and continue with second screen. Region dragging events are being blocked somehow.', async ({ page }) => {
+  test('Adjust timing on first screen and continue with second screen', async ({ page }) => {
     // 1. Setup: Upload audio and enter a 2-screen lyrics text
     await navigateToTab(page, TabId.SongInfo);
     await uploadAudioFile(page, defaultTestConfig.audioFile, defaultTestConfig.artist, defaultTestConfig.title);
@@ -56,16 +55,13 @@ test.describe('Multi-screen Timing and Adjustment', () => {
     // Enter timings for first screen
     await enterTimings(page, firstScreenTimings);
 
-    // Stop playback after entering timings for first screen
-    await togglePlayback(page);
-
     // 3. Navigate to Adjustment tab and adjust the first segment
     await navigateToTab(page, TabId.TimingAdjustment);
-    await page.waitForTimeout(1000); // Wait for the adjustment tab to load
 
-    // Adjust the timing of the first segment - move start time earlier by 0.5 seconds
+    // Move the first segment's start half a second earlier. The waveform renders
+    // one second as `zoom` pixels, 50 by default.
     const firstSegmentIndex = 0;
-    const startTimeAdjustment = -500; // Pixel adjustment that would correspond to ~0.5 seconds
+    const startTimeAdjustment = -25;
     await adjustTiming(page, firstSegmentIndex, startTimeAdjustment, 0);
 
     // 4. Navigate back to Timing tab to do timings for second screen
@@ -80,7 +76,6 @@ test.describe('Multi-screen Timing and Adjustment', () => {
     ];
 
     // Enter timings for second screen
-    await togglePlayback(page); // Start playback again
     await enterTimings(page, secondScreenTimings);
 
     // Verify success message is displayed

@@ -50,7 +50,7 @@
       </b-field>
     </div>
 
-    <b-collapse :open="false">
+    <b-collapse v-model="isShowingAdvanced">
       <template #trigger="props">
         <b-button type="is-text" aria-controls="contentIdForA11y4" :aria-expanded="props.open">
           <span>Advanced</span>
@@ -116,6 +116,7 @@ export default defineComponent({
       BACKING_VOCALS_HQ_SEPARATOR_MODEL,
       BACKING_VOCALS_HQ_ALT_SEPARATOR_MODEL,
       NO_VOCALS_HQ_SEPARATOR_MODEL,
+      isShowingAdvanced: false,
     };
   },
   computed: {
