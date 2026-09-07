@@ -1,8 +1,8 @@
 # Stage 1: Frontend builder
 FROM node:22-slim AS frontend-builder
 
-ARG TUUL_API_HOSTNAME="" \
-    TUUL_DONATE_URL="https://ko-fi.com/incidentist"
+ARG TUUL_API_HOSTNAME=""
+ARG TUUL_DONATE_URL="https://ko-fi.com/incidentist"
 
 ENV TUUL_API_HOSTNAME=$TUUL_API_HOSTNAME \
     TUUL_DONATE_URL=$TUUL_DONATE_URL
@@ -52,19 +52,20 @@ RUN poetry install --without dev --no-root --no-interaction --no-ansi
 
 FROM python:3.13-slim AS runner
 
+
+# Service must listen to $PORT environment variable.
+# The default value facilitates local development.
 ENV APP_HOME=/app \
     PYTHONUNBUFFERED=TRUE \
     VIRTUAL_ENV=/app/.venv \
     PATH="/app/.venv/bin:$PATH" \
-    # Service must listen to $PORT environment variable.
-    # This default value facilitates local development.
     PORT=8080 \
     WORKER_COUNT=1 \
     DEBUG=False \
     SECRET_KEY=SECRET_KEY \
-    YOUTUBE_SOCKS5_PROXY= \
-    SEPARATED_TRACKS_BUCKET= \
-    SEPARATOR_SOCKET_PATH= 
+    YOUTUBE_SOCKS5_PROXY="" \
+    SEPARATED_TRACKS_BUCKET="" \
+    SEPARATOR_SOCKET_PATH=""
 
 WORKDIR $APP_HOME
 
