@@ -3,6 +3,10 @@ export function readFileAsync(file: File): Promise<string | ArrayBuffer> {
         let reader = new FileReader();
 
         reader.onload = () => {
+            if (reader.result === null) {
+                reject(new Error("File could not be read"));
+                return;
+            }
             resolve(reader.result);
         };
 

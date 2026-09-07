@@ -152,7 +152,9 @@ export async function expectSegmentTimingsToBe(
 
   const timingData = segmentIndex < processedTimings.length ? processedTimings[segmentIndex] : null;
 
-  expect(timingData).not.toBeNull();
+  if (timingData === null) {
+    throw new Error(`No timing found for segment ${segmentIndex}`);
+  }
   expect(Math.abs(timingData.startTime - expectedStartTime)).toBeLessThanOrEqual(tolerance);
   expect(Math.abs(timingData.endTime - expectedEndTime)).toBeLessThanOrEqual(tolerance);
 }

@@ -1,5 +1,5 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { mount, shallowMount, Wrapper } from '@vue/test-utils'
+import { describe, it, expect, beforeEach } from 'vitest'
+import { mount, shallowMount } from '@vue/test-utils'
 import VideoPreview from '@/components/VideoPreview.vue'
 
 describe('VideoPreview', () => {
@@ -25,7 +25,7 @@ describe('VideoPreview', () => {
     });
 
     it('mounts successfully', async () => {
-        const wrapper: Wrapper<Vue> = shallowMount(VideoPreview, {
+        const wrapper = shallowMount(VideoPreview, {
             propsData: props,
             stubs: {
                 'b-message': true
@@ -36,7 +36,7 @@ describe('VideoPreview', () => {
     });
 
     it('renders the correct elements', async () => {
-        const wrapper: Wrapper<Vue> = mount(VideoPreview, {
+        const wrapper = mount(VideoPreview, {
             propsData: props,
             stubs: {
                 'b-message': true

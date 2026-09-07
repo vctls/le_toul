@@ -1,4 +1,4 @@
-import { test, expect } from '@playwright/test';
+import { test } from '@playwright/test';
 import {
   defaultTestConfig,
   setupTestEnvironment,
@@ -75,7 +75,7 @@ test.describe('YouTube Karaoke Video Creation', () => {
     // Load the expected timings from the fixture file
     const expectedTimings: any[] = await loadFixtureJson(defaultTestConfig.timingsFile);
 
-    expectTimingsToMatch(actualTimings, expectedTimings);
+    await expectTimingsToMatch(actualTimings, expectedTimings);
 
     // 11. Navigate to Submit tab and verify video creation is now available
     await navigateToTab(page, TabId.Submit);

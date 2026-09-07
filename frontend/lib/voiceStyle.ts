@@ -32,12 +32,12 @@ export function serializeVoiceStyle(style: VoiceStyleOverride): Record<string, u
 }
 
 export function deserializeVoiceStyle(stored: Record<string, unknown>): VoiceStyleOverride {
-  const style: VoiceStyleOverride = {};
+  const style: Record<string, unknown> = {};
   for (const [key, value] of Object.entries(stored)) {
     if (value === undefined || value === null) continue;
     style[key] = VOICE_STYLE_COLOR_FIELDS.includes(key as any) ? BuefyColor.parse(value as string) : value;
   }
-  return style;
+  return style as VoiceStyleOverride;
 }
 
 export function isEmptyOverride(override?: VoiceStyleOverride): boolean {

@@ -1,7 +1,7 @@
 /**
  * Input helpers for Playwright tests
  */
-import { Page, expect, Locator } from '@playwright/test';
+import { Page, expect } from '@playwright/test';
 import { getFixturePath, loadFixtureFile } from './setupHelpers';
 import { TabId, navigateToTab } from './navigation';
 

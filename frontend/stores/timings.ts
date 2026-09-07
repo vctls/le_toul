@@ -6,7 +6,7 @@ import { pullAt } from 'lodash-es';
 import { useLyricsStore } from './lyrics';
 import { useMediaStore } from './media';
 import { useSettingsStore } from './settings';
-import { createAssFile, createMultiVoiceAssFile, DEFAULT_KARAOKE_OPTIONS, LyricEvent } from "@/lib/timing";
+import { createAssFile, createMultiVoiceAssFile, DEFAULT_KARAOKE_OPTIONS } from "@/lib/timing";
 import { applyVoiceStyle } from "@/lib/voiceStyle";
 import { VideoSettings } from './settings';
 import { VoiceId, DEFAULT_VOICE_ID } from "@/lib/voices";
@@ -67,7 +67,7 @@ export const useTimingsStore = defineStore('timings', {
       return this.rawTimings.length;
     },
 
-    last() {
+    last(): [number, number] | null {
       const timings = this.rawTimings;
       return timings.length > 0 ? timings[timings.length - 1] : null;
     },
@@ -132,9 +132,9 @@ export const useTimingsStore = defineStore('timings', {
           return createAssFile(
             lyricsStore.lyricTextForVoice(this.activeVoice),
             this.rawTimings,
-            mediaStore.songDuration,
-            mediaStore.songTitle,
-            mediaStore.songArtist,
+            mediaStore.songDuration ?? 0,
+            mediaStore.songTitle ?? "",
+            mediaStore.songArtist ?? "",
             adjustedOptions
           );
         } catch (e) {
@@ -175,9 +175,9 @@ export const useTimingsStore = defineStore('timings', {
         try {
           return createMultiVoiceAssFile(
             tracks,
-            mediaStore.songDuration,
-            mediaStore.songTitle,
-            mediaStore.songArtist
+            mediaStore.songDuration ?? 0,
+            mediaStore.songTitle ?? "",
+            mediaStore.songArtist ?? ""
           );
         } catch (e) {
           console.error("Failed to create multi-voice subtitles", e);
@@ -202,7 +202,7 @@ export const useTimingsStore = defineStore('timings', {
       return this._timingsByVoice[voice];
     },
 
-    add(currentSegmentNum, keyCode, timestamp) {
+    add(currentSegmentNum: number, keyCode: number, timestamp: number) {
       if (currentSegmentNum < 0) {
         return;
       }
@@ -219,7 +219,7 @@ export const useTimingsStore = defineStore('timings', {
       this.ensureActiveTimings().push([timestamp, marker]);
     },
 
-    handleConflictWithPreviousSegment(segmentStartTimestamp) {
+    handleConflictWithPreviousSegment(segmentStartTimestamp: number) {
       // If the user has entered a segment start time that is before the end of
       // the previous segment, adjust the end of the previous segment
       const timings = this._timingsByVoice[this.activeVoice];
@@ -233,7 +233,7 @@ export const useTimingsStore = defineStore('timings', {
       }
     },
 
-    timingForSegmentNum(segmentNum) {
+    timingForSegmentNum(segmentNum: number) {
       const starts = this.rawTimings.filter(
         (t) => t[1] == LYRIC_MARKERS.SEGMENT_START
       );
@@ -245,7 +245,7 @@ export const useTimingsStore = defineStore('timings', {
       return starts[segmentNum][0];
     },
 
-    setCurrentSegment(segmentNum) {
+    setCurrentSegment(segmentNum: number) {
       // Set the segment we're currently listening for to segmentNum
       const timings = this.rawTimings;
       let i = 0,

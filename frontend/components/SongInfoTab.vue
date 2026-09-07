@@ -1,5 +1,5 @@
 <template>
-  <b-tab-item :class="['help-tab', 'scroll-wrapper']" headerClass="song-info-tab-header">
+  <b-tab-item :class="['song-info-tab', 'scroll-wrapper']" headerClass="song-info-tab-header">
     <template #header>
       <b-icon v-if="!isSeparatingTrack" icon="file-audio"></b-icon>
       <b-tooltip v-else label="Separating track" position="is-bottom"><span class="icon is-small loader"></span>
@@ -261,8 +261,6 @@ export default defineComponent({
       const model = this.mediaStore.separationModel;
       this.mediaStore.startSeparation(this.mediaStore.songFile, model);
 
-      // Also store the song file and background video in the media store
-      this.mediaStore.songFile = this.mediaStore.songFile;
       if (this.videoBlob) {
         this.mediaStore.backgroundVideo = this.videoBlob;
       }

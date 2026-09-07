@@ -13,7 +13,8 @@ import {
   expectTabToBeEnabled,
   getCurrentTimings,
   expectSegmentTimingsToBe,
-  expectTimingsToMatch
+  expectTimingsToMatch,
+  TimingEntry
 } from './utils';
 
 test.describe('Multi-screen Timing and Adjustment', () => {
@@ -45,7 +46,7 @@ test.describe('Multi-screen Timing and Adjustment', () => {
     await navigateToTab(page, TabId.SongTiming);
 
     // Define timings for the first screen (4 lines = 8 events, start and end for each line)
-    const firstScreenTimings = [
+    const firstScreenTimings: TimingEntry[] = [
       { time: 1.0, type: 1 },  // Line 1 start
       { time: 2.0, type: 2 },  // Line 1 end
       { time: 3.0, type: 1 },  // Line 2 start
@@ -71,7 +72,7 @@ test.describe('Multi-screen Timing and Adjustment', () => {
     await navigateToTab(page, TabId.SongTiming);
 
     // Continue with timings for the second screen
-    const secondScreenTimings = [
+    const secondScreenTimings: TimingEntry[] = [
       { time: 6.0, type: 1 }, // Line 3 start
       { time: 7.0, type: 2 }, // Line 3 end
       { time: 8.0, type: 1 }, // Line 4 start

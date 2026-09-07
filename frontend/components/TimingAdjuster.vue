@@ -3,7 +3,7 @@
     <smooth-audio-player ref="audioPlayer" controls :src="audioSource" @timeupdate="onAudioTimeUpdate"
       @seeking="onAudioSeeking" @play="onAudioPlay" @pause="onAudioPause" @error="onAudioError" />
     <wavesurfer ref="wavesurfer" :audioData="vocalTrack || audioData" :regions="regions" :mediaControls="false"
-      :showWaveform="true || Boolean(vocalTrack)" :minPxPerSec="zoom" @region-updated="onRegionUpdated" @seeking="onWavesurferSeeking" @zoom-change="$emit('zoom-change', $event)" />
+      :minPxPerSec="zoom" @region-updated="onRegionUpdated" @seeking="onWavesurferSeeking" @zoom-change="$emit('zoom-change', $event)" />
   </div>
 </template>
 

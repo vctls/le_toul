@@ -12,13 +12,10 @@ import { UnreadableFontError } from '@/lib/fontFile';
 
 function fontFile(name: string, as = name): File {
   const data = readFileSync(path.resolve(__dirname, '../../api/assets/fonts', name));
-  return new File([data], as);
+  return new File([new Uint8Array(data)], as);
 }
 
 describe('Settings Store', () => {
-  let localStorageMock: Record<string, string>;
-
-  // Setup mock localStorage
   beforeEach(() => {
     // Create a fresh pinia instance for each test
     setActivePinia(createPinia());

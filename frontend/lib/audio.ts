@@ -62,13 +62,14 @@ async function pollForResult(url: string): Promise<Blob> {
 async function processZipResponse(zipBlob: Blob): Promise<TrackSeparationResult> {
     console.log("Received separated audio. Unzipping...");
     const zip = await jszip.loadAsync(zipBlob);
-    const accompaniment = await zip.file("accompaniment.wav").async("blob").then((blob) => {
-        return new Blob([blob], { type: "audio/wav" });
-    });
+    const accompanimentEntry = zip.file("accompaniment.wav");
+    const vocalsEntry = zip.file("vocals.wav");
+    if (!accompanimentEntry || !vocalsEntry) {
+        throw new Error("Separated track archive is missing accompaniment.wav or vocals.wav");
+    }
 
-    const vocals = await zip.file("vocals.wav").async("blob").then((blob) => {
-        return new Blob([blob], { type: "audio/wav" });
-    });
+    const accompaniment = new Blob([await accompanimentEntry.async("blob")], { type: "audio/wav" });
+    const vocals = new Blob([await vocalsEntry.async("blob")], { type: "audio/wav" });
 
     return { backing: accompaniment, vocals: vocals };
 }

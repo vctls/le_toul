@@ -1,9 +1,10 @@
 /**
  * Timing helpers for Playwright tests
  */
-import { Page, expect } from '@playwright/test';
+import { Page } from '@playwright/test';
 import { TabId, navigateToTab } from './navigation';
 import { loadFixtureJson } from './setupHelpers';
+import { DEFAULT_VOICE_ID } from '../../../frontend/lib/voices';
 
 // Define the format of a timing entry
 export interface TimingEntry {
@@ -147,6 +148,8 @@ export async function getCurrentTimings(page: Page): Promise<any> {
   // Read clipboard content
   const clipboardContent = await page.evaluate(() => navigator.clipboard.readText());
 
-  // Parse and return the timings
-  return JSON.parse(clipboardContent);
+  const exported = JSON.parse(clipboardContent);
+  // The export is a per-voice map; these helpers assert against one voice's stream.
+  // Older exports were a bare array.
+  return Array.isArray(exported) ? exported : (exported[DEFAULT_VOICE_ID] ?? []);
 }

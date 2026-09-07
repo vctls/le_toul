@@ -1,14 +1,12 @@
-import { FFmpeg } from "@ffmpeg/ffmpeg";
-import { fetchFile, toBlobURL } from "@ffmpeg/util";
-import type { Log } from '@ffmpeg/ffmpeg/dist/esm/types';
+import type {LogEvent} from '@ffmpeg/ffmpeg';
+import {FFmpeg} from "@ffmpeg/ffmpeg";
+import {fetchFile, toBlobURL} from "@ffmpeg/util";
 
 
-import { KaraokeOptions } from "@/lib/timing";
+import {KaraokeOptions} from "@/lib/timing";
 import jszip from "jszip";
 
 // Functions related to video file creation
-
-const FFMPEG_CORE_VERSION = '0.12.9';
 
 interface VideoMetadata {
     duration?: number;
@@ -18,7 +16,7 @@ interface VideoMetadata {
 
 class ApiError extends Error {
     public path: string;
-    public status: number;
+    public status?: number;
 
     constructor(path: string, message: string, status?: number) {
         super(message);
@@ -89,7 +87,7 @@ function getFfmpegParams(hasVideo: boolean, backgroundColor: string, audioDelayM
 
 type ProgressCallback = (progress: number) => void;
 
-function getProgressParser(fps: number, videoDuration: number, onProgress?: ProgressCallback): (message: Log) => void {
+function getProgressParser(fps: number, videoDuration: number, onProgress?: ProgressCallback): (message: LogEvent) => void {
     // Return a message handler function that can parse logs and call the progress callback
     let totalFrames = fps * videoDuration;
     var framesFinished = 0;
@@ -111,7 +109,7 @@ function getProgressParser(fps: number, videoDuration: number, onProgress?: Prog
 
 async function createVideo(
     accompanimentDataUrl: string,
-    videoBlob: Blob = null,
+    videoBlob: Blob | null = null,
     subtitles: string,
     audioDelay: number = 0,
     videoOptions: KaraokeOptions,
@@ -187,8 +185,7 @@ async function createVideo(
     const ffmpegParams = getFfmpegParams(Boolean(videoBlob), backgroundColor, audioDelayMs, metadata);
     await ffmpeg.exec(ffmpegParams);
 
-    const videoData = (await ffmpeg.readFile("karaoke.mp4")) as Uint8Array;
-    return videoData;
+    return (await ffmpeg.readFile("karaoke.mp4")) as Uint8Array;
 }
 
 interface DownloadPollResponse {
@@ -221,11 +218,12 @@ async function pollForVideoResult(url: string): Promise<Blob> {
                 cache: 'no-cache'
             });
         } catch (error) {
+            const err = error instanceof Error ? error : new Error(String(error));
             console.error('pollForVideoResult fetch failed:', {
                 url,
-                error: error.message,
-                errorType: error.constructor.name,
-                stack: error.stack
+                error: err.message,
+                errorType: err.constructor.name,
+                stack: err.stack
             });
             throw error;
         }
@@ -276,10 +274,17 @@ export async function fetchYouTubeVideo(url: string): Promise<[Blob, Blob, Objec
         }
 
         const zip = await jszip.loadAsync(zipContents);
+        const audioEntry = zip.file("audio.mp4");
+        const videoEntry = zip.file("video.mp4");
+        const metadataEntry = zip.file("metadata.json");
+        if (!audioEntry || !videoEntry || !metadataEntry) {
+            throw new Error("YouTube download archive is missing audio.mp4, video.mp4 or metadata.json");
+        }
+
         const [audio, video, metadata] = await Promise.all([
-            zip.file("audio.mp4").async("blob"),
-            zip.file("video.mp4").async("blob"),
-            zip.file("metadata.json").async("string").then(md => JSON.parse(md))
+            audioEntry.async("blob"),
+            videoEntry.async("blob"),
+            metadataEntry.async("string").then(md => JSON.parse(md))
         ]);
 
         // TODO return blob URLs instead

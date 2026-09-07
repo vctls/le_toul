@@ -76,7 +76,7 @@
 <script lang="ts">
 import { defineComponent } from "vue";
 import { storeToRefs } from "pinia";
-import { KEY_CODES, LYRIC_MARKERS } from "@/constants";
+import { KEY_CODES } from "@/constants";
 import { isMobile } from "@/lib/device";
 import LyricDisplay from "@/components/LyricDisplay.vue";
 import TimingButtons from "@/components/TimingButtons.vue";
@@ -369,7 +369,7 @@ export default defineComponent({
   flex-shrink: 0;
   font-variant-numeric: tabular-nums;
   font-size: 0.9rem;
-  color: var(--text, #4a4a4a);
+  color: var(--bulma-text, #4a4a4a);
   min-width: 3ch;
   text-align: center;
 }

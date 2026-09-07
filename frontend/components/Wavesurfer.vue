@@ -8,7 +8,6 @@ import { defineComponent } from "vue";
 import WaveSurfer from "wavesurfer.js";
 import RegionsPlugin, {
   Region,
-  RegionsPluginEvents,
 } from "@/lib/wavesurferPlugins/OpenEndedRegionPlugin";
 
 export default defineComponent({

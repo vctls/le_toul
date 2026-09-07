@@ -1,10 +1,10 @@
-import { defineStore } from 'pinia';
-import { ref, watch } from 'vue';
+import {defineStore} from 'pinia';
+import {ref, watch} from 'vue';
 
-import { separateTrack, TrackSeparationResult } from '@/lib/audio';
-import { SeparationModel } from '@/types';
+import {separateTrack} from '@/lib/audio';
+import {SeparationModel} from '@/types';
 import jsmediatags from "@/jsmediatags.min.js";
-import { persistJsonRef, persistBlobRef, clearPersistence } from '@/lib/persistence';
+import {clearPersistence, persistBlobRef, persistJsonRef} from '@/lib/persistence';
 
 const MEDIA_LOCALSTORAGE_KEYS = [
     'media.youtubeUrl',
@@ -68,7 +68,7 @@ export const useMediaStore = defineStore('media', () => {
     const error = ref<string | null>(null);
     const separationStartTime = ref<Date | null>(null);
 
-    async function startSeparation(inputData: any, modelName: SeparationModel): Promise<SeparatedTrack> {
+    async function startSeparation(inputData: any, modelName: SeparationModel): Promise<SeparatedTrack | undefined> {
         if (isProcessing.value) {
             return;
         }
@@ -76,8 +76,7 @@ export const useMediaStore = defineStore('media', () => {
         error.value = null;
         separationStartTime.value = new Date();
         try {
-            const result = await separateTrack(inputData, modelName);
-            separatedTrack.value = result;
+            separatedTrack.value = await separateTrack(inputData, modelName);
             return separatedTrack.value;
         } catch (err) {
             console.error(err);
@@ -110,7 +109,7 @@ export const useMediaStore = defineStore('media', () => {
             reader.onload = async (event) => {
                 try {
                     const audioContext = new AudioContext();
-                    const arrayBuffer = event.target.result as ArrayBuffer;
+                    const arrayBuffer = reader.result as ArrayBuffer;
 
                     audioContext.decodeAudioData(
                         arrayBuffer,
@@ -133,7 +132,7 @@ export const useMediaStore = defineStore('media', () => {
                     reject(
                         new Error(
                             "Failed to create or use AudioContext: " +
-                            (error?.message || "Unknown error")
+                            (error instanceof Error ? error.message : "Unknown error")
                         )
                     );
                 }
@@ -160,15 +159,15 @@ export const useMediaStore = defineStore('media', () => {
                 return;
             }
             jsmediatags.read(songFile, {
-                async onSuccess(tag) {
-                    resolve({ title: tag.tags.title, artist: tag.tags.artist });
+                onSuccess(tag) {
+                    resolve({ title: tag.tags.title ?? null, artist: tag.tags.artist ?? null });
                 },
-                onFailure(error) {
+                onError(error) {
                     console.error(error);
                     reject(
                         new Error(
                             "Failed to read metadata: " +
-                            (error?.message || "Unknown error")
+                            (error.info || error.type || "Unknown error")
                         )
                     );
                 },
@@ -267,12 +266,3 @@ export const useMediaStore = defineStore('media', () => {
         clearSession,
     };
 });
-
-// Fake API call to demonstrate functionality
-async function fakeMusicSeparationAPI(inputData: any) {
-    return new Promise<string>((resolve) => {
-        setTimeout(() => {
-            resolve('instrumental.wav');
-        }, 2000);
-    });
-}

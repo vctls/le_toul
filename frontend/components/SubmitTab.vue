@@ -126,7 +126,7 @@
 import { sum, map } from "lodash-es";
 import { defineComponent } from "vue";
 import { storeToRefs } from "pinia";
-import { createScreens, VerticalAlignment, KaraokeOptions } from "@/lib/timing";
+import { createScreens, VerticalAlignment } from "@/lib/timing";
 import VideoPreview from "@/components/VideoPreview.vue";
 import SourceFileDownloadLinks from "@/components/SourceFileDownloadLinks.vue";
 import VideoCreationProgressIndicator from "@/components/VideoCreationProgressIndicator.vue";
@@ -139,7 +139,6 @@ import video from "@/lib/video";
 import { CreationPhase } from "@/types";
 import {
   useMediaStore,
-  NO_VOCALS_SEPARATOR_MODEL,
   SeparatedTrack,
 } from "@/stores/media";
 import { useSettingsStore } from "@/stores/settings";
@@ -430,7 +429,7 @@ export default defineComponent({
             self.videoProgress = progress;
           }
         );
-        this.zipAndSendFiles(videoFile);
+        await this.zipAndSendFiles(videoFile);
       } catch (e) {
         console.error(e);
         this.submitError = e.message;
@@ -468,7 +467,7 @@ export default defineComponent({
       }
 
       const zipBlob = await zip.generateAsync({ type: "blob" });
-      this.sendZipFile(zipBlob);
+      await this.sendZipFile(zipBlob);
     },
   },
 });
@@ -491,7 +490,7 @@ export default defineComponent({
   margin: 0 10%;
 }
 
-.submit-tab column {
+.submit-tab .column {
   text-align: center;
 }
 </style>

@@ -35,7 +35,7 @@
 
 <script lang="ts">
 import { isString } from "lodash-es";
-import Vue, { defineComponent } from "vue";
+import { defineComponent } from "vue";
 
 export default defineComponent({
   props: {

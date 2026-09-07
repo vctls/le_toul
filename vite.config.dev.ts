@@ -2,7 +2,7 @@
 import fs from 'fs';
 import path from 'path';
 import { defineConfig, mergeConfig, Plugin } from 'vite'
-import { OutputOptions, OutputBundle } from 'rollup';
+import type { Rollup } from 'vite';
 
 import commonConfig from './vite.config.common'
 
@@ -19,7 +19,7 @@ function moveSourcemapsPlugin(options: MoveSourcemapsOptions = {}): Plugin {
         name: 'move-sourcemaps',
         enforce: 'post',
 
-        writeBundle(outputOptions: OutputOptions, bundle: OutputBundle) {
+        writeBundle(outputOptions: Rollup.NormalizedOutputOptions, bundle: Rollup.OutputBundle) {
             // Get the full target directory path
             const fullTargetDir = path.resolve(targetDir);
 

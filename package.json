@@ -57,6 +57,7 @@
     "@playwright/test": "^1.60.0",
     "@types/jsmediatags": "^3.9.6",
     "@types/lodash": "^4.17.24",
+    "@types/lodash-es": "^4.17.12",
     "@vitejs/plugin-vue": "^6.0.7",
     "@vue/test-utils": "^2.4.10",
     "happy-dom": "^20.9.0",

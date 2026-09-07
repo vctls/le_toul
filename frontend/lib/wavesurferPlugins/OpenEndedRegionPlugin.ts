@@ -99,7 +99,7 @@ class SingleRegion extends EventEmitter<RegionEvents> implements Region {
     private _nextRegion?: Region
     private _prevRegion?: Region
 
-    get end() {
+    get end(): number {
         return this._explicitEnd ?? this._nextRegion?.start ?? this.totalDuration;
     }
 
@@ -351,7 +351,7 @@ class SingleRegion extends EventEmitter<RegionEvents> implements Region {
         const { width } = this.element.parentElement.getBoundingClientRect()
         const deltaSeconds = (dx / width) * this.totalDuration
         const newStart = !side || side === 'start' ? this.start + deltaSeconds : this.start
-        const newEnd = !side || side === 'end' ? this._explicitEnd + deltaSeconds : this.end
+        const newEnd = !side || side === 'end' ? (this._explicitEnd ?? this.end) + deltaSeconds : this.end
         const length = newEnd - newStart
 
         // If previous region is open-ended, we can't resize past its start. Otherwise 

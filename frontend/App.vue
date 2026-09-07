@@ -7,8 +7,9 @@
         </b-navbar-item>
         <b-navbar-item>
           <span class="subtitle mb-0">
-            &nbsp;(For Making Decent Karaoke Videos From Any Song in About 10
-            Minutes)</span></b-navbar-item>
+            &nbsp;(For Making Decent Karaoke Videos From Any Song in About <s>10</s> 20 Minutes)
+          </span>
+        </b-navbar-item>
       </template>
       <template #end>
         <b-navbar-item>
@@ -52,11 +53,8 @@ import SubmitTab from "@/components/SubmitTab.vue";
 import { useMediaStore } from "@/stores/media";
 import { useLyricsStore } from "@/stores/lyrics";
 import { useTimingsStore } from "@/stores/timings";
-// import mountedHarness from "@/mountedHarness";
-import { storeToRefs } from "pinia";
 
 export default defineComponent({
-  // mixins: [mountedHarness],
   components: {
     HelpTab,
     SongInfoTab,

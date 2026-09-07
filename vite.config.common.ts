@@ -1,6 +1,6 @@
 // https://vitejs.dev/config/
 
-import { defineConfig, UserConfig } from 'vite'
+import { UserConfig } from 'vite'
 import vue from '@vitejs/plugin-vue'
 import { resolve } from 'path'
 

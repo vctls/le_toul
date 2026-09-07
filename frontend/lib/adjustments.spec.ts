@@ -1,7 +1,8 @@
 import { addTitleScreen, addInstrumentalScreens, displayQuickLinesEarly, deferScreenStarts } from "./adjustments";
-import { compileLyricTimings, createAssFile, denormalizeTimestamps, LyricEvent, LyricSegment, LyricsLine, LyricsScreen, KaraokeOptions, VerticalAlignment } from "./timing";
+import { compileLyricTimings, denormalizeTimestamps, LyricEvent, LyricSegment, LyricsLine, LyricsScreen, KaraokeOptions, VerticalAlignment } from "./timing";
 import { testLyrics, shortIntroTestEvents } from "./timing.spec";
-import { LYRIC_MARKERS } from "../constants";
+import { LYRIC_MARKERS } from "@/constants";
+import { default as BuefyColor } from "buefy/src/utils/color";
 
 const DEFAULT_OPTIONS: KaraokeOptions = {
     addTitleScreen: true,
@@ -15,9 +16,9 @@ const DEFAULT_OPTIONS: KaraokeOptions = {
         name: "Arial Narrow"
     },
     color: {
-        background: null,
-        primary: null,
-        secondary: null
+        background: BuefyColor.parse("black"),
+        primary: BuefyColor.parse("#FF00FF"),
+        secondary: BuefyColor.parse("#00FFFF")
     }
 }
 

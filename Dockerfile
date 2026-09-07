@@ -15,7 +15,7 @@ RUN npm clean-install
 
 # Copy the rest of the frontend source
 COPY frontend/ ./frontend/
-COPY vite.config.*.ts tsconfig.json jsconfig.json ./
+COPY vite.config.*.ts tsconfig.json ./
 
 # Build the frontend
 RUN npm run build

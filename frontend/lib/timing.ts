@@ -1,4 +1,4 @@
-import { LYRIC_MARKERS, SUBTITLE_CANVAS, TITLE_SCREEN_DURATION } from "../constants";
+import { LYRIC_MARKERS, SUBTITLE_CANVAS } from "@/constants";
 import { addQuickStartCountIn, addScreenCountIns, addTitleScreen, addInstrumentalScreens, displayQuickLinesEarly, deferScreenStarts } from "./adjustments";
 import { map, method, isNumber } from "lodash-es";
 import { default as BuefyColor } from "buefy/src/utils/color";
@@ -201,7 +201,7 @@ export class LyricSegment {
   timestamp: number;
   endTimestamp?: number;
 
-  constructor(text: string, timestamp: number, endTimestamp: number = null) {
+  constructor(text: string, timestamp: number, endTimestamp?: number) {
     this.text = text;
     this.timestamp = timestamp;
     this.endTimestamp = endTimestamp;
@@ -213,13 +213,13 @@ export class LyricSegment {
 
   adjustTimestamps(adjustment: number): LyricSegment {
     const newTs = this.timestamp + adjustment;
-    const newEndTs = this.endTimestamp === null ? null : this.endTimestamp + adjustment;
+    const newEndTs = this.endTimestamp === undefined ? undefined : this.endTimestamp + adjustment;
     return new LyricSegment(this.text, newTs, newEndTs);
   }
 
   toAss() {
     // Render this segment as part of an ASS event line
-    const durationInCentiseconds = Math.floor((this.endTimestamp - this.timestamp) * 100);
+    const durationInCentiseconds = Math.floor(((this.endTimestamp ?? 0) - this.timestamp) * 100);
     return `{\\kf${durationInCentiseconds}}${this.text}`
   }
 }
@@ -234,7 +234,7 @@ export class LyricsScreen {
   // screen's line count instead of its own. Stored as a line count rather than a ready-made
   // Y offset so the same correction resolves correctly under any vertical alignment and
   // inside a voice lane. See displayQuickLinesEarly.
-  positionAsLineCount?: number = null;
+  positionAsLineCount?: number;
   // Multi-voice only: when this screen overlaps another voice in time, it is confined to
   // a vertical "lane" so the voices don't interleave (see createMultiVoiceAssFile). When
   // unset, the screen uses the full height (normal centered/aligned layout).
@@ -247,7 +247,7 @@ export class LyricsScreen {
 
   get endTimestamp(): Timestamp {
     if (this.lines.length == 0) {
-      return this.startTimestamp;
+      return this.startTimestamp ?? 0;
     }
     return this.lines[this.lines.length - 1].endTimestamp;
   }
@@ -294,16 +294,16 @@ export class LyricsScreen {
     return Math.round(firstLineTopMargin + (lineInScreen * lineHeight))
   }
 
-  toAssEvents(formatParams: Object, videoOptions: KaraokeOptions, styleName: string = "Default") {
+  toAssEvents(formatParams: Record<string, unknown>, videoOptions: KaraokeOptions, styleName: string = "Default") {
     const self = this;
-    return this.lines.map((l, i) => l.toAssEvent(self.startTimestamp, self.endTimestamp, styleName, self.getLineY(i, formatParams["Fontsize"], videoOptions.verticalAlignment))).join("\n") + "\n";
+    return this.lines.map((l, i) => l.toAssEvent(self.startTimestamp ?? 0, self.endTimestamp, styleName, self.getLineY(i, formatParams["Fontsize"] as number, videoOptions.verticalAlignment))).join("\n") + "\n";
   }
 
   adjustTimestamps(adjustment: number): LyricsScreen {
     const lines = map(this.lines, method('adjustTimestamps', adjustment));
     const screen = new LyricsScreen(lines, this.audioDelay);
     screen.startTimestamp = this.startTimestamp;
-    if (isNumber(screen.startTimestamp)) {
+    if (isNumber(this.startTimestamp)) {
       screen.startTimestamp = this.startTimestamp + adjustment;
     }
     // else {
@@ -330,8 +330,8 @@ export class LyricsLine {
 
   // Times to start/end display of the line, as opposed to animation.
   // If none, screen start/end times will be used.
-  customDisplayStartTime?: Timestamp = null;
-  customDisplayEndTime?: Timestamp = null;
+  customDisplayStartTime?: Timestamp;
+  customDisplayEndTime?: Timestamp;
   fadeInDuration: Seconds = 0.0;
   fadeOutDuration: Seconds = 0.0;
 
@@ -358,7 +358,7 @@ export class LyricsLine {
     if (this.segments.length == 0) {
       return this.timestamp;
     }
-    return this.segments[this.segments.length - 1].endTimestamp;
+    return this.segments[this.segments.length - 1].endTimestamp ?? 0;
   }
 
   addSegmentToFront(newSegment: LyricSegment) {
@@ -379,9 +379,9 @@ export class LyricsLine {
       singStartDelay = 0;
     }
     let line = `{\\k${singStartDelay}}`;
-    let previousEnd = null;
+    let previousEnd: number | undefined = undefined;
     for (const s of segments) {
-      if (previousEnd !== null && previousEnd < s.timestamp) {
+      if (previousEnd !== undefined && previousEnd < s.timestamp) {
         // Insert a blank segment to represent a gap between segments
         const blankSegment = new LyricSegment("", previousEnd, s.timestamp)
         line += blankSegment.toAss()
@@ -412,7 +412,7 @@ export class LyricsLine {
       Effect: "",
       Text: this.decorateAssLine(this.segments, displayStart)
     }
-    return `${e.type}: ` + ["Layer", "Start", "End", "Style", "Name", "MarginL", "MarginR", "MarginV", "Effect", "Text"].map(k => e[k]).join(",");
+    return `${e.type}: ` + (["Layer", "Start", "End", "Style", "Name", "MarginL", "MarginR", "MarginV", "Effect", "Text"] as (keyof AssEvent)[]).map(k => e[k]).join(",");
   }
 
   addAssFades(assLine: string): string {
@@ -483,6 +483,9 @@ export function compileLyricTimings(lyrics: string, events: LyricEvent[]): Lyric
     }
 
     if (line !== null) {
+      if (!screen) {
+        screen = new LyricsScreen();
+      }
       screen.lines.push(line);
     }
     if (screen !== null && screen.lines.length > 0) {

@@ -80,7 +80,7 @@ describe('Timings Store', () => {
     timings.add(0, KEY_CODES.SPACEBAR, 1.0);
     expect(timings.length).toBe(1);
 
-    const newTimings = [[2.0, LYRIC_MARKERS.SEGMENT_START], [5.0, LYRIC_MARKERS.SEGMENT_END]];
+    const newTimings: [number, number][] = [[2.0, LYRIC_MARKERS.SEGMENT_START], [5.0, LYRIC_MARKERS.SEGMENT_END]];
     timings.resetTimings(newTimings);
 
     expect(timings.length).toBe(2);
@@ -275,13 +275,13 @@ describe('Timings Store', () => {
     test('the voice style follows the rename', async () => {
       const { timingsStore, lyricsStore } = timeSingleVoice();
       const settingsStore = useSettingsStore();
-      settingsStore.setVoiceStyleField(DEFAULT_VOICE_ID, 'verticalAlignment', 'bottom');
+      settingsStore.setVoiceStyleField(DEFAULT_VOICE_ID, 'fontName', 'Impact');
       timingsStore.setupVoiceReconciliation();
 
       lyricsStore.setLyrics('[Anna] hello\nworld');
       await nextTick();
 
-      expect(settingsStore.getVoiceStyle('Anna')).toEqual({ verticalAlignment: 'bottom' });
+      expect(settingsStore.getVoiceStyle('Anna')).toEqual({ fontName: 'Impact' });
       expect(settingsStore.getVoiceStyle(DEFAULT_VOICE_ID)).toBeUndefined();
     });
 
@@ -328,7 +328,7 @@ describe('Timings Store', () => {
       const lyricsStore = useLyricsStore();
 
       lyricsStore.setLyrics('[Anna] hello\nworld');
-      const timings = [[1.0, LYRIC_MARKERS.SEGMENT_START]];
+      const timings: [number, number][] = [[1.0, LYRIC_MARKERS.SEGMENT_START]];
       timingsStore.setAllTimings({ [DEFAULT_VOICE_ID]: timings });
 
       expect(timingsStore.allTimings).toEqual({ Anna: timings });
@@ -374,7 +374,7 @@ describe('Timings Store', () => {
     timingsStore.resetTimings([[1.0, LYRIC_MARKERS.SEGMENT_START], [2.0, LYRIC_MARKERS.SEGMENT_END]]);
     settingsStore.videoOptions.font.name = 'Impact';
     const fontData = readFileSync(path.resolve(__dirname, '../../api/assets/fonts/MetalMania.ttf'));
-    await settingsStore.setCustomFont(new File([fontData], 'uploaded.ttf'));
+    await settingsStore.setCustomFont(new File([new Uint8Array(fontData)], 'uploaded.ttf'));
 
     timingsStore.subtitles();
 

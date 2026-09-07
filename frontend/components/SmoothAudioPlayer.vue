@@ -6,7 +6,7 @@
 
 <script lang="ts">
 // A wrapper for an audio element that emits timeupdate events more frequently
-import { computed, defineComponent, ref } from "vue";
+import { defineComponent, ref } from "vue";
 
 export default defineComponent({
   inheritAttrs: false,

@@ -101,7 +101,8 @@ export async function setupTestEnvironment(page: Page): Promise<void> {
  */
 async function installClipboardStub(page: Page): Promise<void> {
   await page.addInitScript(() => {
-    if (navigator.clipboard?.writeText && navigator.clipboard?.readText) return;
+    const existing = navigator.clipboard as Partial<Clipboard> | undefined;
+    if (existing?.writeText && existing?.readText) return;
     let buffer = '';
     Object.defineProperty(navigator, 'clipboard', {
       configurable: true,

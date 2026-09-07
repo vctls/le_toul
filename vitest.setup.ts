@@ -1,14 +1,6 @@
 import { vi } from 'vitest';
 
 // Global mocks for web APIs can go here
-// Define interface for SubtitlesOctopus
-interface SubtitlesOctopus {
-    setTrack: (subtitles: string) => void;
-    setCurrentTime: (time: number) => void;
-    setIsPaused: (isPaused: boolean, currentTime: number) => void;
-    dispose: () => void;
-}
-
 vi.mock('libass-wasm', () => {
     return {
         __esModule: true,

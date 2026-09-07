@@ -1,6 +1,7 @@
 import { LyricSegmentIterator, LyricsScreen, compileLyricTimings, setScreenStartTimes, adjustScreenTimestamps, setSegmentEndTimes, createAssFile, createMultiVoiceAssFile, floatToTimecode, LyricsLine, KaraokeOptions, LyricEvent, VerticalAlignment, adjustSegmentTiming } from "./timing";
 import { LYRIC_MARKERS } from "../constants";
 import { LyricSegment } from "./timing";
+import { default as BuefyColor } from "buefy/src/utils/color";
 import { COUNT_IN_SEGMENT_TEXT } from "./adjustments";
 
 const DEFAULT_OPTIONS: KaraokeOptions = {
@@ -15,9 +16,9 @@ const DEFAULT_OPTIONS: KaraokeOptions = {
         name: "Arial Narrow"
     },
     color: {
-        background: { red: 255, green: 255, blue: 0 },
-        primary: { red: 255, green: 0, blue: 255 },
-        secondary: { red: 0, green: 255, blue: 255 }
+        background: BuefyColor.parse("#FFFF00"),
+        primary: BuefyColor.parse("#FF00FF"),
+        secondary: BuefyColor.parse("#00FFFF")
     }
 }
 
