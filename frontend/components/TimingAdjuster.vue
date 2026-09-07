@@ -1,14 +1,16 @@
 <template>
   <div>
-    <smooth-audio-player ref="audioPlayer" controls :src="audioSource" @timeupdate="onAudioTimeUpdate"
-      @seeking="onAudioSeeking" @play="onAudioPlay" @pause="onAudioPause" @error="onAudioError" />
+    <smooth-audio-player ref="audioPlayer" controls :src="audioSource ?? undefined" @timeupdate="onAudioTimeUpdate"
+      @seeking="onAudioSeeking" @pause="onAudioPause" @error="onAudioError" />
+    <!-- Display only. It loads its own copy of the audio, so playing it would double up
+         with the player above; the playhead is driven by setTime instead. -->
     <wavesurfer ref="wavesurfer" :audioData="vocalTrack || audioData" :regions="regions" :mediaControls="false"
       :minPxPerSec="zoom" @region-updated="onRegionUpdated" @seeking="onWavesurferSeeking" @zoom-change="$emit('zoom-change', $event)" />
   </div>
 </template>
 
 <script lang="ts">
-import { defineComponent } from "vue";
+import { defineComponent, markRaw } from "vue";
 import { LyricSegmentIterator } from "@/lib/timing";
 import {
   RegionParams,
@@ -20,19 +22,18 @@ import SmoothAudioPlayer from "./SmoothAudioPlayer.vue";
 import { LyricEvent, adjustSegmentTiming } from "@/lib/timing";
 import { LYRIC_MARKERS } from "@/constants";
 
-function createLyricRegion(id: number, params): RegionParams {
+function createLyricRegion(id: number, params: Partial<RegionParams> & { start: number }): RegionParams {
   return {
     id: `segment_${id}`,
     // The region plugin uses "channels" to display regions on different lines
     channelIdx: id % 5,
-    loop: false,
-    drag: false,
     resize: true,
     ...params,
   };
 }
 
 export default defineComponent({
+  emits: ["timingschange", "timeupdate", "seeking", "zoom-change"],
   components: {
     Wavesurfer,
     SmoothAudioPlayer,
@@ -52,18 +53,17 @@ export default defineComponent({
   },
   data() {
     return {
-      regions: [],
+      regions: [] as RegionParams[],
       audioSource: null as string | null,
+      // Object URLs keyed by source blob. URLs live until unmount so an in-use
+      // URL is never revoked (revoking one mid-playback aborts the media fetch
+      // and wedges the <audio> element, notably in Firefox). Nothing here is
+      // rendered, hence markRaw.
+      trackUrls: markRaw(new Map<Blob, string>()),
     };
   },
-  created() {
-    // Object URLs keyed by source blob. URLs live until unmount so an in-use
-    // URL is never revoked (revoking one mid-playback aborts the media fetch
-    // and wedges the <audio> element, notably in Firefox). Not reactive.
-    this.trackUrls = new Map<Blob, string>();
-  },
   computed: {
-    splitLyrics(): Array<String> {
+    splitLyrics(): Array<string> {
       if (this.lyrics == null) {
         return [];
       }
@@ -75,7 +75,7 @@ export default defineComponent({
     },
   },
   mounted() {
-    this.regions = this.createRegions(this.timings, this.splitLyrics);
+    this.regions = this.createRegions(this.timings ?? [], this.splitLyrics);
     const playbackBlob = this.playbackTrack || this.audioData;
     if (playbackBlob) {
       this.audioSource = this.trackUrl(playbackBlob);
@@ -89,19 +89,28 @@ export default defineComponent({
       deep: true
     },
     lyrics(newLyrics: String) {
-      this.regions = this.createRegions(this.timings, this.splitLyrics);
+      this.regions = this.createRegions(this.timings ?? [], this.splitLyrics);
     },
     playbackRate(value: number) {
-      this.$refs.audioPlayer.playbackRate = value;
+      const player = this.audioPlayerRef();
+      if (player) player.playbackRate = value;
     },
     playbackTrack(newTrack: Blob) {
       this.swapPlaybackSource(newTrack || this.audioData);
     },
   },
   methods: {
+    audioPlayerRef() {
+      return this.$refs.audioPlayer as
+        | (InstanceType<typeof SmoothAudioPlayer> & { currentTime: number; playbackRate: number })
+        | undefined;
+    },
+    wavesurferRef() {
+      return this.$refs.wavesurfer as InstanceType<typeof Wavesurfer> | undefined;
+    },
     createRegions(
       timings: Array<LyricEvent>,
-      lyrics: Array<String>
+      lyrics: Array<string>
     ): Array<RegionParams> {
       if (!timings || !lyrics) {
         return [];
@@ -119,11 +128,11 @@ export default defineComponent({
           const lyricSegment = lyrics[currentLyricIndex];
           currentRegion = createLyricRegion(regions.length, {
             start: time,
-            end: null,
+            end: undefined,
             content: lyricSegment,
             color: "rgba(102, 209, 255, 1)",
           });
-        } else if (marker === LYRIC_MARKERS.SEGMENT_END) {
+        } else if (marker === LYRIC_MARKERS.SEGMENT_END && currentRegion) {
           currentRegion.end = time;
         }
       }
@@ -144,7 +153,7 @@ export default defineComponent({
       if (!newBlob) return;
       const url = this.trackUrl(newBlob);
       if (url === this.audioSource) return;
-      const audio = this.$refs.audioPlayer?.audioPlayer as HTMLAudioElement;
+      const audio = this.audioPlayerRef()?.audioPlayer as HTMLAudioElement | undefined;
       // Changing the <audio> src resets currentTime to 0 and pauses playback,
       // so capture the playhead/play state and restore them once the new
       // source has loaded enough metadata to be seekable.
@@ -163,7 +172,7 @@ export default defineComponent({
       audio.addEventListener("loadedmetadata", restore, { once: true });
     },
     onRegionUpdated(region: Region) {
-      const newTimings = this.applyRegionUpdateToTimings(region, this.timings);
+      const newTimings = this.applyRegionUpdateToTimings(region, this.timings ?? []);
       this.$emit("timingschange", newTimings);
       this.$nextTick(() => {
         this.previewNewTiming(region);
@@ -190,13 +199,15 @@ export default defineComponent({
       this.$emit("seeking", time);
     },
     setAdjusterPlayhead(playhead: number) {
-      this.$refs.wavesurfer.setTime(playhead);
+      this.wavesurferRef()?.setTime(playhead);
     },
     setAudioPlayhead(playhead: number) {
-      this.$refs.audioPlayer.currentTime = playhead;
+      const player = this.audioPlayerRef();
+      if (player) player.currentTime = playhead;
     },
     togglePlayPause() {
-      const audio = this.$refs.audioPlayer.audioPlayer as HTMLAudioElement;
+      const audio = this.audioPlayerRef()?.audioPlayer as HTMLAudioElement | undefined;
+      if (!audio) return;
       if (audio.paused) {
         audio.play();
       } else {
@@ -205,7 +216,8 @@ export default defineComponent({
     },
     // Move the playhead by `seconds`, staying inside the track.
     seekBy(seconds: number) {
-      const audio = this.$refs.audioPlayer.audioPlayer as HTMLAudioElement;
+      const audio = this.audioPlayerRef()?.audioPlayer as HTMLAudioElement | undefined;
+      if (!audio) return;
       let time = audio.currentTime + seconds;
       if (Number.isFinite(audio.duration)) {
         time = Math.min(audio.duration, time);
@@ -214,7 +226,8 @@ export default defineComponent({
     },
     // Jump to `time` and play from there, whether or not playback is running.
     restartAt(time: number) {
-      const audio = this.$refs.audioPlayer.audioPlayer as HTMLAudioElement;
+      const audio = this.audioPlayerRef()?.audioPlayer as HTMLAudioElement | undefined;
+      if (!audio) return;
       this.setAudioPlayhead(time);
       if (audio.paused) {
         audio.play().catch((error) => {
@@ -239,11 +252,8 @@ export default defineComponent({
     onWavesurferSeeked(time: number) {
       this.setAudioPlayhead(time);
     },
-    onAudioPlay() {
-      // this.$refs.wavesurfer.play();
-    },
     onAudioPause() {
-      this.$refs.wavesurfer.pause();
+      this.wavesurferRef()?.pause();
     },
     onAudioError(event: Event) {
       const audio = event.target as HTMLAudioElement;

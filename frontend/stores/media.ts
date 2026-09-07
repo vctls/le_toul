@@ -1,5 +1,5 @@
 import {defineStore} from 'pinia';
-import {ref, watch} from 'vue';
+import {ref, shallowRef, watch} from 'vue';
 
 import {separateTrack} from '@/lib/audio';
 import {SeparationModel} from '@/types';
@@ -41,19 +41,19 @@ export const NO_VOCALS_HQ_SEPARATOR_MODEL = "model_bs_roformer_ep_317_sdr_12.975
 
 export const useMediaStore = defineStore('media', () => {
     // The mixed song file (uploaded by user)
-    const songFile = ref<File | null>(null);
+    const songFile = shallowRef<File | null>(null);
 
     // Background video (if the song is from YouTube)
-    const backgroundVideo = ref<Blob | null>(null);
+    const backgroundVideo = shallowRef<Blob | null>(null);
 
     // Files surfaced in the "Advanced" section of SongInfoTab. The semantic
     // state they map to (timings array, separatedTrack.backing) is held
     // elsewhere; these refs exist so the FileUpload widgets can re-display the
     // user's selection after a reload.
-    const timingsFile = ref<File | null>(null);
-    const backingTrackFile = ref<File | null>(null);
-    const vocalTrackFile = ref<File | null>(null);
-    const settingsFile = ref<File | null>(null);
+    const timingsFile = shallowRef<File | null>(null);
+    const backingTrackFile = shallowRef<File | null>(null);
+    const vocalTrackFile = shallowRef<File | null>(null);
+    const settingsFile = shallowRef<File | null>(null);
 
     // Song metadata
     const songTitle = ref<string | null>(null);
@@ -64,9 +64,9 @@ export const useMediaStore = defineStore('media', () => {
     // Track separation state
     const isProcessing = ref(false);
     const separationModel = ref<SeparationModel>(BACKING_VOCALS_SEPARATOR_MODEL);
-    const separatedTrack = ref<SeparatedTrack | null>(null);
+    const separatedTrack = shallowRef<SeparatedTrack | null>(null);
     const error = ref<string | null>(null);
-    const separationStartTime = ref<Date | null>(null);
+    const separationStartTime = shallowRef<Date | null>(null);
 
     async function startSeparation(inputData: any, modelName: SeparationModel): Promise<SeparatedTrack | undefined> {
         if (isProcessing.value) {
@@ -84,21 +84,21 @@ export const useMediaStore = defineStore('media', () => {
         } finally {
             isProcessing.value = false;
         }
-    };
+    }
 
-    async function setBackingTrack(file: File) {
+    async function setBackingTrack(file: File | null) {
         if (separatedTrack.value == null) {
-            separatedTrack.value = { backing: file, vocals: new Blob() };
+            separatedTrack.value = { backing: file ?? new Blob(), vocals: new Blob() };
         } else {
-            separatedTrack.value.backing = file;
+            separatedTrack.value = { ...separatedTrack.value, backing: file ?? new Blob() };
         }
     }
 
-    async function setVocalTrack(file: File) {
+    async function setVocalTrack(file: File | null) {
         if (separatedTrack.value == null) {
-            separatedTrack.value = { backing: new Blob(), vocals: file };
+            separatedTrack.value = { backing: new Blob(), vocals: file ?? new Blob() };
         } else {
-            separatedTrack.value.vocals = file;
+            separatedTrack.value = { ...separatedTrack.value, vocals: file ?? new Blob() };
         }
     }
 
@@ -106,12 +106,12 @@ export const useMediaStore = defineStore('media', () => {
         return new Promise<number>((resolve, reject) => {
             const reader = new FileReader();
 
-            reader.onload = async (event) => {
+            reader.onload = async () => {
                 try {
                     const audioContext = new AudioContext();
                     const arrayBuffer = reader.result as ArrayBuffer;
 
-                    audioContext.decodeAudioData(
+                    await audioContext.decodeAudioData(
                         arrayBuffer,
                         (audioBuffer) => {
                             const duration = audioBuffer.duration;
@@ -138,7 +138,7 @@ export const useMediaStore = defineStore('media', () => {
                 }
             };
 
-            reader.onerror = (event) => {
+            reader.onerror = () => {
                 console.error("FileReader error:", reader.error);
                 reject(
                     new Error(
@@ -150,7 +150,7 @@ export const useMediaStore = defineStore('media', () => {
 
             reader.readAsArrayBuffer(songFile);
         });
-    };
+    }
 
     async function getMetadata(songFile: File): Promise<{ title: string | null; artist: string | null }> {
         return new Promise((resolve, reject) => {

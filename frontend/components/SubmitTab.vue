@@ -50,14 +50,14 @@
               </b-tooltip>
             </template>
             <file-upload name="custom-font-upload" :accept="['.ttf', '.otf', '.ttc']"
-              :model-value="settingsStore.customFont" @update:modelValue="onCustomFontChange" />
+              :model-value="(settingsStore.customFont as File | undefined) ?? undefined" @update:modelValue="onCustomFontChange" />
           </b-field>
           <b-field horizontal v-if="settingsStore.customFontFamily">
             <p class="help custom-font-help">
               Rendering lyrics in &ldquo;{{ settingsStore.customFontFamily }}&rdquo;, overriding the font above.
             </p>
           </b-field>
-          <b-field horizontal label="Font Size"><b-numberinput v-model="videoOptions.font.size"
+          <b-field horizontal label="Font Size"><b-numberinput :model-value="videoOptions.font.size" @update:model-value="(v: number | null | undefined) => (videoOptions.font.size = Number(v ?? videoOptions.font.size))"
               controls-position="compact"></b-numberinput></b-field>
           <b-field horizontal label="Background Color"><color-field v-model="videoOptions.color.background"
               label="background color" /></b-field>
@@ -91,21 +91,22 @@
             <option value="backing">Backing track</option>
           </b-select>
         </b-field>
-        <video-preview v-if="songFile" :song-file="mediaStore.songFile" :backing-track="backingTrack"
+        <video-preview v-if="songFile" :song-file="songFile" :backing-track="backingTrack ?? undefined"
           :preview-track="previewTrack" :subtitles="allVoicesSubtitles()" :audio-delay="audioDelay" :fonts="fontMap"
           :background-color="videoOptions.color.background.toString()"
-          :video-blob="videoOptions.useBackgroundVideo ? videoBlob : null" />
+          :video-blob="videoOptions.useBackgroundVideo ? (videoBlob ?? undefined) : undefined" />
         <b-message v-else type="is-info" :closable="false">Upload a song to see the preview.</b-message>
       </div>
     </div>
 
     <div class="submit-button-container">
-      <b-message v-model="submitError" type="is-danger" has-icon icon="circle-exclamation">
+      <b-message :model-value="submitError !== null" @update:model-value="submitError = null"
+        type="is-danger" has-icon icon="circle-exclamation">
         There was a problem making your video: {{ submitError }}. Try again? Or
         email me?
       </b-message>
-      <video-creation-progress-indicator v-if="isSubmitting" :song-duration="songDuration" :phase="creationPhase"
-        :progress="videoProgress" :elapsed-time="elapsedSubmissionTime" />
+      <video-creation-progress-indicator v-if="isSubmitting" :song-duration="songDuration ?? undefined" :phase="creationPhase"
+        :progress="videoProgress" :elapsed-time="elapsedSubmissionTime ?? undefined" />
       <b-message v-if="!canCreateVideo" type="is-info" :closable="false">
         {{ missingStepsMessage }}
       </b-message>
@@ -136,12 +137,12 @@ import FileUpload from "@/components/FileUpload.vue";
 import jszip from "jszip";
 import yaml from "js-yaml";
 import video from "@/lib/video";
-import { CreationPhase } from "@/types";
+import { CreationPhase, SeparationModel } from "@/types";
 import {
   useMediaStore,
   SeparatedTrack,
 } from "@/stores/media";
-import { useSettingsStore } from "@/stores/settings";
+import { useSettingsStore, VideoSettings } from "@/stores/settings";
 import { isEmptyOverride, serializeVoiceStyle } from "@/lib/voiceStyle";
 import { useTimingsStore } from "@/stores/timings";
 import { useLyricsStore } from "@/stores/lyrics";
@@ -192,10 +193,10 @@ export default defineComponent({
       fonts,
       VerticalAlignment,
       isSubmitting: false,
-      elapsedSubmissionTime: null,
+      elapsedSubmissionTime: null as number | null,
       creationPhase: CreationPhase.NotStarted,
       videoProgress: 0,
-      submitError: null,
+      submitError: null as string | null,
       // Which track the preview plays: "full" (with vocals) or "backing".
       previewTrack: "full",
       isShowingFontsAndColors: false,
@@ -203,7 +204,7 @@ export default defineComponent({
   },
   mounted() {
     // Initialize useBackgroundVideo based on whether the song has a video
-    if (this.mediaStore.videoBlob != null) {
+    if (this.videoBlob != null) {
       this.videoOptions.useBackgroundVideo = true;
     }
   },
@@ -235,7 +236,7 @@ export default defineComponent({
       get() {
         return this.settingsStore.videoOptions;
       },
-      set(newValue) {
+      set(newValue: VideoSettings) {
         this.settingsStore.videoOptions = newValue;
       }
     },
@@ -250,17 +251,17 @@ export default defineComponent({
       }
       return { ...fonts, [customFontFamily]: customFontUrl };
     },
-    songFile() {
-      return this.mediaStore.songFile;
+    songFile(): File | null {
+      return this.mediaStore.songFile as File | null;
     },
-    backingTrack() {
-      return this.mediaStore.separatedTrack?.backing || null;
+    backingTrack(): Blob | null {
+      return (this.mediaStore.separatedTrack?.backing as Blob | undefined) || null;
     },
     songDuration() {
       return this.mediaStore.songDuration;
     },
-    videoBlob() {
-      return this.mediaStore.backgroundVideo;
+    videoBlob(): Blob | null {
+      return this.mediaStore.backgroundVideo as Blob | null;
     },
     // subtitles now comes from the timings store
     audioDelay(): number {
@@ -274,9 +275,9 @@ export default defineComponent({
       const screens = createScreens(
         lyrics,
         timings,
-        this.mediaStore.songDuration,
-        this.mediaStore.songTitle,
-        this.mediaStore.songArtist,
+        this.mediaStore.songDuration ?? 0,
+        this.mediaStore.songTitle ?? "",
+        this.mediaStore.songArtist ?? "",
         this.videoOptions
       );
       return sum(map(screens, "audioDelay"));
@@ -330,7 +331,7 @@ export default defineComponent({
       return yaml.dump(document);
     },
     videoDuration(): number {
-      return this.mediaStore.songDuration + this.audioDelay;
+      return (this.mediaStore.songDuration ?? 0) + this.audioDelay;
     },
     videoFps(): number {
       return this.videoOptions.useBackgroundVideo ? 30 : 20;
@@ -369,7 +370,7 @@ export default defineComponent({
             resolve(this.mediaStore.separatedTrack);
             return;
           }
-          this.mediaStore.startSeparation(songFile, model);
+          this.mediaStore.startSeparation(songFile, model as SeparationModel);
           const stopWatchingBacking = this.$watch(
             "mediaStore.separatedTrack",
             (separatedTrack) => {
@@ -394,8 +395,12 @@ export default defineComponent({
       return backingTrackPromise;
     },
     async createVideo() {
+      const songFile = this.songFile;
+      if (!songFile) {
+        return;
+      }
       let self = this;
-      let elapsedTimeInterval: ReturnType<typeof setInterval>;
+      let elapsedTimeInterval: ReturnType<typeof setInterval> | undefined;
       this.isSubmitting = true;
       try {
         this.creationPhase = CreationPhase.SeparatingVocals;
@@ -409,7 +414,7 @@ export default defineComponent({
             this.mediaStore.separationStartTime.getTime();
         }, 1000);
         const separatedTrack = await this.separateTrack(
-          this.songFile,
+          songFile,
           this.mediaStore.separationModel
         );
         this.creationPhase = CreationPhase.CreatingVideo;
@@ -421,9 +426,9 @@ export default defineComponent({
           this.audioDelay,
           videoOptions,
           {
-            artist: this.mediaStore.songArtist,
-            title: this.mediaStore.songTitle,
-            duration: this.mediaStore.songDuration,
+            artist: this.mediaStore.songArtist ?? undefined,
+            title: this.mediaStore.songTitle ?? undefined,
+            duration: this.mediaStore.songDuration ?? undefined,
           },
           this.fontMap,
           (progress) => {
@@ -433,7 +438,7 @@ export default defineComponent({
         await this.zipAndSendFiles(videoFile);
       } catch (e) {
         console.error(e);
-        this.submitError = e.message;
+        this.submitError = e instanceof Error ? e.message : String(e);
       } finally {
         this.isSubmitting = false;
         clearInterval(elapsedTimeInterval);

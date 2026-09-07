@@ -4,10 +4,12 @@
 
 <script lang="ts">
 // A Vue wrapper for a WaveSurfer instance
-import { defineComponent } from "vue";
+import { defineComponent, PropType } from "vue";
 import WaveSurfer from "wavesurfer.js";
+import type { GenericPlugin } from "wavesurfer.js/dist/base-plugin";
 import RegionsPlugin, {
   Region,
+  RegionParams,
 } from "@/lib/wavesurferPlugins/OpenEndedRegionPlugin";
 
 export default defineComponent({
@@ -33,7 +35,7 @@ export default defineComponent({
       default: 50,
     },
     regions: {
-      type: Array,
+      type: Array as PropType<RegionParams[]>,
       default: () => [],
     },
     waveColor: {
@@ -96,12 +98,12 @@ export default defineComponent({
       minPxPerSec: this.minPxPerSec,
       //   responsive: true,
       normalize: false,
-      plugins: [this.regionsPlugin],
+      plugins: [this.regionsPlugin as unknown as GenericPlugin],
     });
-    this.wavesurfer.loadBlob(this.audioData);
+    if (this.audioData) this.wavesurfer.loadBlob(this.audioData);
 
     this.wavesurfer.on("click", (x: number, y: number) => {
-      const time = x * this.wavesurfer.getDuration();
+      const time = x * (this.wavesurfer?.getDuration() ?? 0);
       this.$emit("seeking", time);
     });
 
@@ -128,7 +130,7 @@ export default defineComponent({
       if (this.wavesurfer) {
         this.wavesurfer.zoom(value);
         this.$nextTick(() => {
-          const scrollEl = this.wavesurfer.getWrapper()?.parentElement;
+          const scrollEl = this.wavesurfer?.getWrapper()?.parentElement;
           if (scrollEl) {
             if (this._zoomAnchor) {
               scrollEl.scrollLeft = this._zoomAnchor.time * value - this._zoomAnchor.cursorX;
@@ -193,7 +195,7 @@ export default defineComponent({
     isReady() {
       return this.wavesurfer && this.wavesurfer.getDecodedData();
     },
-    updateRegions(regions: Region[]) {
+    updateRegions(regions: RegionParams[]) {
       if (!this.wavesurfer || !this.isVisible) return;
 
       // Clear regions first

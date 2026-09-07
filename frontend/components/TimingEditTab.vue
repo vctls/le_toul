@@ -18,7 +18,7 @@
     </div>
     <b-field>
       <b-input
-        v-model="draft"
+        :model-value="draft ?? ''" @update:model-value="(v: string | number | undefined) => { draft = v == null ? '' : String(v); }"
         type="textarea"
         custom-class="timing-editor-textarea"
         :rows="16"

@@ -14,15 +14,15 @@
         <template #message>
           <span v-html="youtubeError"></span>
         </template>
-        <b-input type="text" v-model="mediaStore.youtubeUrl" />
+        <b-input type="text" :model-value="mediaStore.youtubeUrl ?? ''" @update:model-value="(v: string | number | undefined) => { mediaStore.youtubeUrl = v == null ? null : String(v); }" />
         <b-button label="Load" :type="mediaStore.youtubeUrl ? 'is-primary' : 'is-light'"
           :disabled="!mediaStore.youtubeUrl" @click="loadYouTubeUrl" :loading="isLoadingYouTube" />
       </b-field>
       <b-field label="Song Artist">
-        <b-input name="artist" v-model="mediaStore.songArtist" @input="onTextChange" />
+        <b-input name="artist" :model-value="mediaStore.songArtist ?? ''" @update:model-value="(v: string | number | undefined) => { mediaStore.songArtist = v == null ? null : String(v); }" />
       </b-field>
       <b-field label="Song Title">
-        <b-input name="title" v-model="mediaStore.songTitle" @input="onTextChange" />
+        <b-input name="title" :model-value="mediaStore.songTitle ?? ''" @update:model-value="(v: string | number | undefined) => { mediaStore.songTitle = v == null ? null : String(v); }" />
       </b-field>
       <b-field label="Separation Model" class="separation-model-field">
         <div class="separation-model-radios">
@@ -79,6 +79,7 @@
 import { defineComponent } from "vue";
 import { mapStores } from "pinia";
 import { fetchYouTubeVideo, parseYouTubeTitle } from "@/lib/video";
+import { SeparationModel } from "@/types";
 
 import {
   useMediaStore,
@@ -110,7 +111,7 @@ export default defineComponent({
   data() {
     return {
       isLoadingYouTube: false,
-      youtubeError: null,
+      youtubeError: null as string | null,
       BACKING_VOCALS_SEPARATOR_MODEL,
       NO_VOCALS_SEPARATOR_MODEL,
       BACKING_VOCALS_HQ_SEPARATOR_MODEL,
@@ -120,16 +121,6 @@ export default defineComponent({
     };
   },
   computed: {
-    songInfo() {
-      return {
-        file: this.songFile,
-        artist: this.songArtist,
-        title: this.songTitle,
-        duration: this.songDuration,
-        youtubeUrl: this.youtubeUrl,
-        videoBlob: this.videoBlob,
-      };
-    },
     isSeparatingTrack() {
       return this.mediaStore.isProcessing;
     },
@@ -142,16 +133,12 @@ export default defineComponent({
     ...mapStores(useMediaStore),
   },
   methods: {
-
-    onTextChange(e) {
-      this.$emit("update:modelValue", this.songInfo);
-    },
     async loadYouTubeUrl() {
       this.isLoadingYouTube = true;
       this.youtubeError = null;
       try {
         const [audioBlob, videoBlob, metadata] = await fetchYouTubeVideo(
-          this.mediaStore.youtubeUrl
+          this.mediaStore.youtubeUrl ?? ""
         );
         this.mediaStore.songFile = new File([audioBlob], "audio.mp4", {
           type: "audio/mp4",
@@ -164,7 +151,7 @@ export default defineComponent({
         this.mediaStore.backgroundVideo = videoBlob;
       } catch (e) {
         console.error(e);
-        let errorMessage = e.message;
+        let errorMessage = e instanceof Error ? e.message : String(e);
         
         // Try to extract the detail from JSON error responses
         try {
@@ -238,7 +225,7 @@ export default defineComponent({
       }
       const reader = new FileReader();
       reader.onload = (e) => {
-        const parsed = JSON.parse(e.target.result.toString());
+        const parsed = JSON.parse(String(reader.result));
         if (Array.isArray(parsed)) {
           // Legacy / single-voice format: an array of [time, marker] tuples.
           this.timingsStore.resetTimings(parsed);
@@ -249,7 +236,7 @@ export default defineComponent({
       };
       reader.readAsText(file);
     },
-    onSeparationModelChange(model) {
+    onSeparationModelChange(model: SeparationModel) {
       this.mediaStore.separationModel = model;
     },
     onBackingTrackFileChange(file: File | null) {
@@ -261,10 +248,6 @@ export default defineComponent({
     async separateTrack() {
       const model = this.mediaStore.separationModel;
       this.mediaStore.startSeparation(this.mediaStore.songFile, model);
-
-      if (this.videoBlob) {
-        this.mediaStore.backgroundVideo = this.videoBlob;
-      }
     },
   },
 });

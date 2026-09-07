@@ -60,8 +60,7 @@ async function seekPreview(page: Page, time: number): Promise<void> {
   await page.locator(PREVIEW_AUDIO).evaluate((el: HTMLAudioElement, t) => {
     el.currentTime = t;
   }, time);
-  // Wait for the element to finish seeking rather than sleeping, so rapid
-  // consecutive seeks can't race each other.
+  // Rapid consecutive seeks race unless each one is allowed to settle.
   await expect
     .poll(async () => (await previewAudioState(page)).seeking, {
       message: `seek to ${time}s should settle`,

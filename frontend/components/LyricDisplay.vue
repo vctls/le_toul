@@ -11,12 +11,12 @@
 </template>
 
 <script lang="ts">
-import { defineComponent } from "vue";
+import { defineComponent, PropType } from "vue";
 
 export default defineComponent({
   props: {
-    lyricSegments: Array,
-    currentSegment: Number,
+    lyricSegments: { type: Array as PropType<{ text: string }[]>, default: () => [] },
+    currentSegment: { type: Number, default: 0 },
   },
   watch: {
     currentSegment: "onCurrentLyricsChange",
@@ -45,11 +45,11 @@ export default defineComponent({
     },
   },
   methods: {
-    wrapLyricSegment(segment) {
+    wrapLyricSegment(segment: { text: string }) {
       return segment.text;
     },
     onCurrentLyricsChange() {
-      this.$refs.currentLyrics.scrollIntoView({
+      (this.$refs.currentLyrics as HTMLElement | undefined)?.scrollIntoView({
         behavior: "smooth",
         block: "center",
       });

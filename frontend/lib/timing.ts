@@ -46,7 +46,7 @@ export const DEFAULT_KARAOKE_OPTIONS: KaraokeOptions = {
   },
 }
 
-interface Segment {
+export interface Segment {
   text: string;
 }
 

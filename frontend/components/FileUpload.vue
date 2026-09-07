@@ -1,6 +1,7 @@
 <template>
   <b-field :label="label">
-    <b-upload v-model="file" class="file-label" :accept="acceptAttribute">
+    <b-upload :model-value="file ?? undefined" @update:model-value="(v: File | File[] | null) => { file = Array.isArray(v) ? (v[0] ?? null) : v; }"
+      class="file-label" :accept="acceptAttribute">
       <span class="file-cta">
         <b-icon class="file-icon" icon="upload"></b-icon>
         <span class="file-label">Choose File</span>
@@ -21,11 +22,12 @@
 </template>
 
 <script lang="ts">
-import { defineComponent } from "vue";
+import { defineComponent, PropType } from "vue";
 export default defineComponent({
+  emits: ["update:modelValue"],
   props: {
     label: String,
-    modelValue: File,
+    modelValue: { type: File as unknown as PropType<File | null>, default: null },
     // Extensions or MIME types to filter the file picker with, either as a list
     // of entries or as a ready-made accept string.
     accept: [String, Array],
@@ -41,7 +43,7 @@ export default defineComponent({
       get() {
         return this.modelValue;
       },
-      set(newValue) {
+      set(newValue: File | null) {
         this.$emit("update:modelValue", newValue);
       },
     },

@@ -24,17 +24,17 @@
     </div>
     <div class="adjustment-form">
       <b-field label="Waveform zoom" horizontal style="margin-bottom: 0.5em;">
-        <b-numberinput v-model="zoom" :min="10" :max="500" :step="10" controls-position="compact" style="width: 10em;" />
+        <b-numberinput :model-value="zoom" @update:model-value="(v: number | null | undefined) => (zoom = Number(v ?? zoom))" :min="10" :max="500" :step="10" controls-position="compact" style="width: 10em;" />
       </b-field>
       <b-field label="Playback rate" horizontal style="margin-bottom: 0.5em;">
-        <b-numberinput v-model="playbackRate" :min="0.25" :max="2" :step="0.25" controls-position="compact" style="width: 10em;" />
+        <b-numberinput :model-value="playbackRate" @update:model-value="(v: number | null | undefined) => (playbackRate = Number(v ?? playbackRate))" :min="0.25" :max="2" :step="0.25" controls-position="compact" style="width: 10em;" />
       </b-field>
       <b-field label="Shift all timings (ms)" horizontal style="margin-bottom: 0.5em;">
-        <b-numberinput v-model="shiftMs" :step="1" controls-position="compact" style="width: 10em;" />
+        <b-numberinput :model-value="shiftMs" @update:model-value="(v: number | null | undefined) => (shiftMs = Number(v ?? shiftMs))" :step="1" controls-position="compact" style="width: 10em;" />
         <b-button label="Apply" @click="applyShift" style="margin-left: 0.5em;" />
       </b-field>
       <b-field label="Playhead preroll (seconds)" horizontal style="margin-bottom: 0.5em;">
-        <b-numberinput v-model="prerollSeconds" :min="0" :max="30" :step="1" controls-position="compact" style="width: 8em;" />
+        <b-numberinput :model-value="prerollSeconds" @update:model-value="(v: number | null | undefined) => (prerollSeconds = Number(v ?? prerollSeconds))" :min="0" :max="30" :step="1" controls-position="compact" style="width: 8em;" />
       </b-field>
       <b-field v-if="vocalTrack" label="Playback track" horizontal style="margin-bottom: 0.5em;">
         <b-select v-model="playbackTrackChoice" style="width: 10em;">
@@ -46,7 +46,7 @@
     <subtitle-display class="subtitle-display" v-if="songFile && debouncedSubtitles" ref="subtitleDisplay" :subtitles="debouncedSubtitles"
       :fonts="{}" :backgroundColor="settingsStore.videoOptions.color.background.toString()" />
     <timing-adjuster v-if="songFile && adjustmentSubtitles" ref="timing-adjuster" :lyrics="voiceLyrics"
-      :timings="timingsStore.rawTimings" :audioData="songFile" :vocalTrack="vocalTrack" :playbackTrack="playbackTrack"
+      :timings="timingsStore.rawTimings" :audioData="songFile ?? undefined" :vocalTrack="vocalTrack ?? undefined" :playbackTrack="playbackTrack ?? undefined"
       :prerollSeconds="prerollSeconds" :zoom="zoom" :playbackRate="playbackRate" @timingschange="onTimingsChange" @zoom-change="onZoomChange"
       @timeupdate="onPlayheadUpdate" @seeking="onSeek" />
   </b-tab-item>
@@ -175,9 +175,7 @@ export default defineComponent({
       this.loadState(newVoice);
     },
     playhead(newPlayhead: number) {
-      if (this.$refs.subtitleDisplay) {
-        this.$refs.subtitleDisplay.setPlayhead(newPlayhead);
-      }
+      this.subtitleDisplayRef()?.setPlayhead(newPlayhead);
     },
     adjustmentSubtitles: {
       handler(newSubs: string) {
@@ -203,6 +201,13 @@ export default defineComponent({
     },
   },
   methods: {
+    // $refs is not reactive, so these must be read on each call rather than cached.
+    subtitleDisplayRef() {
+      return this.$refs.subtitleDisplay as InstanceType<typeof SubtitleDisplay> | undefined;
+    },
+    timingAdjusterRef() {
+      return this.$refs['timing-adjuster'] as InstanceType<typeof TimingAdjuster> | undefined;
+    },
     snapshotState(): AdjustVoiceState {
       return {
         playhead: this.playhead,
@@ -240,21 +245,21 @@ export default defineComponent({
       if (this.$el.offsetParent === null) return;
       event.preventDefault();
       if (isEnter) {
-        this.$refs['timing-adjuster']?.restartAt(this.manualPlayhead);
+        this.timingAdjusterRef()?.restartAt(this.manualPlayhead);
       } else if (isArrow) {
         const direction = event.code === 'ArrowLeft' ? -1 : 1;
         const step = event.shiftKey
           ? this.prerollSeconds * COARSE_STEP_MULTIPLIER
           : this.prerollSeconds;
-        this.$refs['timing-adjuster']?.seekBy(direction * step);
+        this.timingAdjusterRef()?.seekBy(direction * step);
       } else {
-        this.$refs['timing-adjuster']?.togglePlayPause();
+        this.timingAdjusterRef()?.togglePlayPause();
       }
     },
     applyShift() {
       const deltaSeconds = this.shiftMs / 1000;
       const shifted = this.timingsStore.rawTimings.map(
-        ([time, marker]) => [Math.max(0, time + deltaSeconds), marker]
+        ([time, marker]): LyricEvent => [Math.max(0, time + deltaSeconds), marker]
       );
       this.timingsStore.resetTimings(clampTimingOverlaps(shifted));
     },

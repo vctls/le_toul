@@ -44,13 +44,14 @@ export default defineComponent({
         )}%`;
       }
     },
-    phaseProgress() {
+    phaseProgress(): number {
       if (this.phase == CreationPhase.CreatingVideo) {
-        return this.progress;
+        return this.progress ?? 0;
       } else if (this.phase == CreationPhase.SeparatingVocals) {
-        const elapsedSeconds = this.elapsedTime / 1000;
-        return Math.min(elapsedSeconds / this.songDuration, 1);
+        const elapsedSeconds = (this.elapsedTime ?? 0) / 1000;
+        return Math.min(elapsedSeconds / (this.songDuration || 1), 1);
       }
+      return 0;
     },
   },
 });

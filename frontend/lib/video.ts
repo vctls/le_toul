@@ -108,7 +108,7 @@ function getProgressParser(fps: number, videoDuration: number, onProgress?: Prog
 }
 
 async function createVideo(
-    accompanimentDataUrl: string,
+    accompanimentDataUrl: string | Blob,
     videoBlob: Blob | null = null,
     subtitles: string,
     audioDelay: number = 0,

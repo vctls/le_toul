@@ -35,8 +35,8 @@ export async function enterTimings(page: Page, timings: TimingEntry[]): Promise<
   // Start playback
   await togglePlayback(page);
 
-  // Schedule each press against the start of the batch rather than the previous
-  // press, so key-press latency doesn't accumulate into the recorded timestamps.
+  // Schedule against the batch start, not the previous press: cumulative
+  // scheduling lets key-press latency drift into the recorded timestamps.
   const startedAt = Date.now();
   for (const timing of timings) {
     const key = timing.type === 1 ? 'Space' : 'Enter';

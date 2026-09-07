@@ -12,7 +12,7 @@ export default defineComponent({
   inheritAttrs: false,
   emits: ["timeupdate", "seeking", "error", "play", "pause", "seeked", "waiting"],
   setup() {
-    const audioPlayer = ref(null);
+    const audioPlayer = ref<HTMLAudioElement | null>(null);
     return { audioPlayer };
   },
   // Expose currentTime as a property

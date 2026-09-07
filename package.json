@@ -8,6 +8,7 @@
     "node": ">=22.0.0"
   },
   "scripts": {
+    "typecheck": "tsc --noEmit && vue-tsc --noEmit",
     "test": "vitest run",
     "test:watch": "vitest",
     "e2e": "playwright test",
@@ -65,7 +66,8 @@
     "sass-embedded": "^1.100.0",
     "typescript": "^6.0.3",
     "vite": "^8.0.14",
-    "vitest": "^4.1.7"
+    "vitest": "^4.1.7",
+    "vue-tsc": "^3.3.11"
   },
   "optionalDependencies": {
     "@rollup/rollup-linux-x64-gnu": "^4.60.4"

@@ -10,7 +10,7 @@
         </b-select>
       </b-field>
       <b-field horizontal label="Font Size">
-        <b-numberinput v-model="fontSize" controls-position="compact" />
+        <b-numberinput :model-value="fontSize" @update:model-value="(v: number | null | undefined) => (fontSize = Number(v ?? fontSize))" controls-position="compact" />
       </b-field>
       <b-field horizontal label="Bold">
         <b-switch v-model="bold" />

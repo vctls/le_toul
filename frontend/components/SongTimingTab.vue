@@ -78,6 +78,7 @@ import { defineComponent } from "vue";
 import { storeToRefs } from "pinia";
 import { KEY_CODES } from "@/constants";
 import { isMobile } from "@/lib/device";
+import { Segment } from "@/lib/timing";
 import LyricDisplay from "@/components/LyricDisplay.vue";
 import TimingButtons from "@/components/TimingButtons.vue";
 import VoiceSelector from "@/components/VoiceSelector.vue";
@@ -149,20 +150,20 @@ export default defineComponent({
       return this.mediaStore.songFile;
     },
     audioSource() {
-      return this.songFile ? URL.createObjectURL(this.songFile) : null;
+      return this.songFile ? URL.createObjectURL(this.songFile) : undefined;
     },
     warningMessageVisible: {
       get() {
         return this.timingsStore.areTimingsUsable && !this.timingsStore.areTimingsFinished;
       },
-      set(value) {
+      set() {
       }
     },
     successMessageVisible: {
       get() {
         return this.timingsStore.areTimingsFinished;
       },
-      set(value) {
+      set() {
       }
     },
     currentScreen() {
@@ -183,36 +184,42 @@ export default defineComponent({
     isPlaying(newVal) {
       if (newVal) {
         window.addEventListener("keydown", this.onKeyDown);
-        this.$refs.audio.play();
+        this.audioElement()?.play();
       } else {
         window.removeEventListener("keydown", this.onKeyDown);
-        this.$refs.audio.pause();
+        this.audioElement()?.pause();
       }
     },
-    playbackRate(newRate) {
-      if (this.$refs.audio) {
-        this.$refs.audio.playbackRate = parseFloat(newRate);
+    playbackRate(newRate: number | string) {
+      const audio = this.audioElement();
+      if (audio) {
+        audio.playbackRate = parseFloat(String(newRate));
       }
     },
     activeVoice: {
       immediate: true,
       handler(newVoice: VoiceId, oldVoice?: VoiceId) {
         // Save the outgoing voice's playhead, then restore the incoming voice's context.
-        if (oldVoice && this.voiceState[oldVoice] && this.$refs.audio) {
-          this.voiceState[oldVoice].playhead = this.$refs.audio.currentTime;
+        const outgoing = this.audioElement();
+        if (oldVoice && this.voiceState[oldVoice] && outgoing) {
+          this.voiceState[oldVoice].playhead = outgoing.currentTime;
         }
         this.isPlaying = false;
         this.ensureVoiceState(newVoice);
         this.$nextTick(() => {
-          if (this.$refs.audio) {
-            this.$refs.audio.currentTime = this.voiceState[newVoice].playhead;
-            this.$refs.audio.playbackRate = parseFloat(String(this.voiceState[newVoice].playbackRate));
+          const incoming = this.audioElement();
+          if (incoming) {
+            incoming.currentTime = this.voiceState[newVoice].playhead;
+            incoming.playbackRate = parseFloat(String(this.voiceState[newVoice].playbackRate));
           }
         });
       },
     },
   },
   methods: {
+    audioElement(): HTMLAudioElement | undefined {
+      return this.$refs.audio as HTMLAudioElement | undefined;
+    },
     ensureVoiceState(voice: VoiceId): VoiceTimingState {
       if (!this.voiceState[voice]) {
         this.voiceState = { ...this.voiceState, [voice]: defaultVoiceState() };
@@ -221,23 +228,24 @@ export default defineComponent({
     },
     onKeyDown(e: KeyboardEvent) {
       const keyCode = e.keyCode;
-      if (Object.values(KEY_CODES).includes(keyCode) && this.isPlaying) {
-        const currentSongTime = this.$refs.audio.currentTime;
-        if (!this.hasCompletedTimings || keyCode == KEY_CODES.ENTER) {
+      const audio = this.audioElement();
+      if (Object.values(KEY_CODES).includes(keyCode) && this.isPlaying && audio) {
+        const currentSongTime = audio.currentTime;
+        if (!this.timingsStore.areTimingsUsable || keyCode == KEY_CODES.ENTER) {
           this.addTimingEvent(keyCode, currentSongTime);
         }
         e.preventDefault();
         return false;
       }
     },
-    addTimingEvent(keyCode, currentSongTime) {
+    addTimingEvent(keyCode: number, currentSongTime: number) {
       if (keyCode == KEY_CODES.ENTER) {
         this.timingsStore.add(this.currentSegment - 1, keyCode, currentSongTime);
       } else if (keyCode == KEY_CODES.SPACEBAR) {
         this.advanceToNextSegment(keyCode, currentSongTime);
       }
     },
-    advanceToNextSegment(keyCode, currentSongTime) {
+    advanceToNextSegment(keyCode: number, currentSongTime: number) {
       if (this.currentSegment >= this.segments.length) {
         return;
       }
@@ -248,13 +256,15 @@ export default defineComponent({
       this.isPlaying = !this.isPlaying;
     },
     onTimeUpdate() {
-      this.currentTime = this.$refs.audio.currentTime;
+      this.currentTime = this.audioElement()?.currentTime ?? 0;
     },
     onLoadedMetadata() {
-      this.duration = this.$refs.audio.duration;
+      this.duration = this.audioElement()?.duration ?? 0;
     },
     onSeek(e: Event) {
-      this.$refs.audio.currentTime = parseFloat((e.target as HTMLInputElement).value);
+      const audio = this.audioElement();
+      if (!audio) return;
+      audio.currentTime = parseFloat((e.target as HTMLInputElement).value);
     },
     formatTime(seconds: number): string {
       if (!seconds || !isFinite(seconds)) {
@@ -266,10 +276,11 @@ export default defineComponent({
       return `${mm}:${ss.toString().padStart(2, "0")}`;
     },
     onAudioEvent(e: Event) {
-      const audioEl = this.$refs.audio;
+      const audioEl = this.audioElement();
+      if (!audioEl) return;
       this.isPlaying = !(audioEl.paused || audioEl.ended);
-      if (e.type == "ended" && !this.hasMarkedEndOfLastLine) {
-        this.addTimingEvent(KEY_CODES.ENTER, this.$refs.audio.currentTime);
+      if (e.type == "ended" && !this.timingsStore.areTimingsFinished) {
+        this.addTimingEvent(KEY_CODES.ENTER, audioEl.currentTime);
       }
     },
     redoScreen() {
@@ -280,14 +291,17 @@ export default defineComponent({
           Math.max(this.currentScreen - 1, 0)
         );
       }
-      this.$refs.audio.currentTime = this.secondsBeforeSegment(
-        firstSegmentInScreen,
-        5
-      );
+      const audio = this.audioElement();
+      if (audio) {
+        audio.currentTime = this.secondsBeforeSegment(
+          firstSegmentInScreen,
+          5
+        );
+      }
       this.timingsStore.setCurrentSegment(firstSegmentInScreen);
       this.currentSegment = firstSegmentInScreen;
     },
-    firstSegmentOfScreen(screenNum) {
+    firstSegmentOfScreen(screenNum: number) {
       let currentScreen = 0,
         segmentNum = 0;
 
@@ -302,11 +316,11 @@ export default defineComponent({
       }
       return segmentNum;
     },
-    secondsBeforeSegment(segmentNum, seconds) {
+    secondsBeforeSegment(segmentNum: number, seconds: number) {
       const segmentStart = this.timingsStore.timingForSegmentNum(segmentNum);
       return Math.max(segmentStart - seconds, 0);
     },
-    isSegmentEndOfScreen(segment, segmentIndex) {
+    isSegmentEndOfScreen(segment: Segment, segmentIndex: number) {
       return (
         segment.text.endsWith("\n\n") ||
         segmentIndex == this.segments.length - 1

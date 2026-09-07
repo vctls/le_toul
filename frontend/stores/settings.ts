@@ -38,6 +38,8 @@ export type VideoSettings = {
   font: {
     size: number;
     name: string;
+    bold?: boolean;
+    italic?: boolean;
   };
   color: {
     background: Color;

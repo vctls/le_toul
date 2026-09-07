@@ -29,7 +29,7 @@
     </b-navbar>
     <b-tabs expanded :vertical="!isMobile" type="is-boxed" class="main-tabs">
       <help-tab></help-tab>
-      <song-info-tab @options-change="onOptionsChange"></song-info-tab>
+      <song-info-tab></song-info-tab>
       <lyric-input-tab></lyric-input-tab>
       <song-timing-tab></song-timing-tab>
       <timing-adjustment-tab />
@@ -75,15 +75,6 @@ export default defineComponent({
     isMobile,
   },
   methods: {
-    onOptionsChange(newOptions) {
-      for (const key in newOptions) {
-        if (Object.hasOwnProperty.call(newOptions, key)) {
-          const newValue = newOptions[key];
-          this[key] = newValue;
-        }
-      }
-    },
-
     confirmStartOver() {
       const mediaStore = useMediaStore();
       const lyricsStore = useLyricsStore();

@@ -169,11 +169,11 @@ describe('TimingAdjustmentTab shortcuts', () => {
         const wrapper = mountTab();
         wrapper.vm.onSeek(12.5);
         // Switching voices saves the outgoing voice's state and loads the incoming one's.
-        wrapper.vm.$options.watch.activeVoice.call(wrapper.vm, 'voice2', 'voice1');
+        (wrapper.vm.$options.watch!.activeVoice as Function).call(wrapper.vm, 'voice2', 'voice1');
         pressKey('Enter');
         expect(restartAt).toHaveBeenLastCalledWith(0);
 
-        wrapper.vm.$options.watch.activeVoice.call(wrapper.vm, 'voice1', 'voice2');
+        (wrapper.vm.$options.watch!.activeVoice as Function).call(wrapper.vm, 'voice1', 'voice2');
         pressKey('Enter');
         expect(restartAt).toHaveBeenLastCalledWith(12.5);
     });

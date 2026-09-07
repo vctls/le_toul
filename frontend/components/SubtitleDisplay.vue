@@ -21,7 +21,7 @@
 /* A component that displays an .ass file */
 
 import { throttle, mapKeys, isEqual } from "lodash-es";
-import { defineComponent } from "vue";
+import { defineComponent, markRaw } from "vue";
 import SubtitlesOctopus from "libass-wasm";
 
 // Minimal valid ASS file, used when there are no subtitles yet (e.g. the
@@ -63,8 +63,17 @@ export default defineComponent({
   },
   data() {
     return {
-      subtitleManager: null,
-      currentTime: null,
+      subtitleManager: null as SubtitlesOctopus | null,
+      currentTime: null as number | null,
+      // The display stays mounted when its tab is hidden, but the subtitles keep
+      // changing (every timing tap regenerates them). While hidden we only remember
+      // the latest version and hand it to the renderer when the display becomes
+      // visible again. Nothing here is rendered, hence markRaw.
+      view: markRaw({
+        isDisplayed: true,
+        pendingSubtitles: null as string | null,
+        visibilityObserver: null as IntersectionObserver | null,
+      }),
     };
   },
   computed: {
@@ -72,7 +81,7 @@ export default defineComponent({
       if (this.videoBlob) {
         return URL.createObjectURL(this.videoBlob);
       }
-      return null;
+      return undefined;
     },
     effectiveSubtitles(): string {
       return this.subtitles || EMPTY_ASS;
@@ -81,33 +90,27 @@ export default defineComponent({
   created() {
     // Chrome video stutters when currentTime is set frequently, so we throttle it to 15fps
     this.setVideoPlayhead = throttle(this.setVideoPlayhead, 1000 / 15);
-    // The display stays mounted when its tab is hidden, but the subtitles
-    // keep changing (every timing tap regenerates them). While hidden we
-    // only remember the latest version and hand it to the renderer when the
-    // display becomes visible again. Deliberately not reactive.
-    this.isDisplayed = true;
-    this.pendingSubtitles = null;
   },
   mounted() {
     this.createRenderer();
     this.currentTime = 0.0;
-    this.visibilityObserver = new IntersectionObserver((entries) => {
-      this.isDisplayed = entries[entries.length - 1].isIntersecting;
-      if (this.isDisplayed && this.pendingSubtitles !== null) {
-        this.subtitleManager.setTrack(this.pendingSubtitles);
-        this.pendingSubtitles = null;
+    this.view.visibilityObserver = new IntersectionObserver((entries) => {
+      this.view.isDisplayed = entries[entries.length - 1].isIntersecting;
+      if (this.view.isDisplayed && this.view.pendingSubtitles !== null) {
+        this.subtitleManager?.setTrack(this.view.pendingSubtitles);
+        this.view.pendingSubtitles = null;
       }
     });
-    this.visibilityObserver.observe(this.$el);
+    this.view.visibilityObserver.observe(this.$el);
   },
   beforeUnmount() {
-    this.visibilityObserver?.disconnect();
+    this.view.visibilityObserver?.disconnect();
     this.destroyRenderer();
   },
   watch: {
     effectiveSubtitles(newSubs: string) {
-      if (!this.isDisplayed) {
-        this.pendingSubtitles = newSubs;
+      if (!this.view.isDisplayed) {
+        this.view.pendingSubtitles = newSubs;
         return;
       }
       this.subtitleManager?.setTrack(newSubs);
@@ -127,7 +130,7 @@ export default defineComponent({
   },
   methods: {
     createRenderer() {
-      const canvas = this.$refs.subtitleCanvas;
+      const canvas = this.$refs.subtitleCanvas as HTMLCanvasElement;
       // SubtitleOctopus expects font names to be lowercase
       const fontMap = mapKeys(this.fonts, (_, key) => key.toLowerCase());
       // Create a subtitle renderer and tie it to our player and canvas
@@ -162,8 +165,9 @@ export default defineComponent({
       this.setVideoPlayhead(Math.max(0, playhead - this.audioDelay));
     },
     setVideoPlayhead(playhead: number) {
-      if (this.$refs.video) {
-        this.$refs.video.currentTime = playhead;
+      const video = this.$refs.video as HTMLVideoElement | undefined;
+      if (video) {
+        video.currentTime = playhead;
       }
     },
     pause() {

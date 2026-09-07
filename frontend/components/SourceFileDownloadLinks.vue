@@ -66,7 +66,7 @@ export default defineComponent({
     },
   },
   methods: {
-    download(data, filename) {
+    download(data: unknown, filename: string) {
       const blob = data instanceof Blob
         ? data
         : new Blob([isString(data) ? data : JSON.stringify(data)], { type: "text/plain" });
@@ -79,7 +79,7 @@ export default defineComponent({
       a.remove();
       URL.revokeObjectURL(url);
     },
-    async copyToClipboard(data) {
+    async copyToClipboard(data: unknown) {
       const text = isString(data) ? data : JSON.stringify(data);
       try {
         if (navigator.clipboard?.writeText) {

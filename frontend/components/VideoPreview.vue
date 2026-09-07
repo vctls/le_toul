@@ -20,7 +20,7 @@
       :src="audioDataUrl"
       controls
       @timeupdate="onAudioTimeUpdate"
-      @playing="onAudioPlaying"
+      @play="onAudioPlaying"
       @pause="onAudioPause"
       @seeking="onAudioSeeking"
       @seeked="onAudioSeeked"
@@ -33,7 +33,7 @@
 /* A component that displays WebVTT subtitles over a black screen, with an audio file provided as a prop */
 // TODO: Incorporate audio delay
 
-import { defineComponent } from "vue";
+import { defineComponent, markRaw } from "vue";
 import bufferToWav from "audiobuffer-to-wav";
 import SubtitleDisplay from "./SubtitleDisplay.vue";
 import SmoothAudioPlayer from "./SmoothAudioPlayer.vue";
@@ -79,25 +79,26 @@ export default defineComponent({
   data() {
     return {
       audioDataUrl: "",
+      // Nothing here is rendered, hence markRaw.
+      view: markRaw({
+        // Object URLs of already-prepared (silence-prepended) tracks, keyed by
+        // source blob and the amount of prepended silence (the audio delay can
+        // change while the preview is mounted, e.g. when count-ins are toggled
+        // or timings are edited). Caching makes repeat track switches instant
+        // (preparing a full song takes seconds) and means URLs live until
+        // unmount, so an in-use URL is never revoked (revoking one mid-playback
+        // aborts the media fetch and wedges the <audio> element, notably in
+        // Firefox).
+        preparedTrackUrls: new Map<Blob, Map<number, string>>(),
+        // The preview stays mounted when its tab is hidden, but its inputs keep
+        // changing (every timing tap updates the audio delay). Preparing audio
+        // is expensive, so while hidden we only remember the latest requested
+        // update and apply it when the preview becomes visible again.
+        isDisplayed: true,
+        pendingAudioUpdate: null as { audio: Blob; silence: number } | null,
+        visibilityObserver: null as IntersectionObserver | null,
+      }),
     };
-  },
-  created() {
-    // Object URLs of already-prepared (silence-prepended) tracks, keyed by
-    // source blob and the amount of prepended silence (the audio delay can
-    // change while the preview is mounted, e.g. when count-ins are toggled
-    // or timings are edited). Caching makes repeat track switches instant
-    // (preparing a full song takes seconds) and means URLs live until
-    // unmount, so an in-use URL is never revoked (revoking one mid-playback
-    // aborts the media fetch and wedges the <audio> element, notably in
-    // Firefox). Deliberately not reactive.
-    this.preparedTrackUrls = new Map<Blob, Map<number, string>>();
-    // The preview stays mounted when its tab is hidden, but its inputs keep
-    // changing (every timing tap updates the audio delay). Preparing audio
-    // is expensive, so while hidden we only remember the latest requested
-    // update and apply it when the preview becomes visible again.
-    // Deliberately not reactive.
-    this.isDisplayed = true;
-    this.pendingAudioUpdate = null;
   },
   computed: {
     activeAudio(): Blob {
@@ -108,15 +109,15 @@ export default defineComponent({
     },
   },
   mounted() {
-    this.visibilityObserver = new IntersectionObserver((entries) => {
-      this.isDisplayed = entries[entries.length - 1].isIntersecting;
-      if (this.isDisplayed && this.pendingAudioUpdate) {
-        const { audio, silence } = this.pendingAudioUpdate;
-        this.pendingAudioUpdate = null;
+    this.view.visibilityObserver = new IntersectionObserver((entries) => {
+      this.view.isDisplayed = entries[entries.length - 1].isIntersecting;
+      if (this.view.isDisplayed && this.view.pendingAudioUpdate) {
+        const { audio, silence } = this.view.pendingAudioUpdate;
+        this.view.pendingAudioUpdate = null;
         this.updateAudio(audio, silence);
       }
     });
-    this.visibilityObserver.observe(this.$el);
+    this.view.visibilityObserver.observe(this.$el);
     this.updateAudio(this.activeAudio, this.audioDelay);
   },
   watch: {
@@ -128,24 +129,33 @@ export default defineComponent({
     },
   },
   methods: {
+    playerRef() {
+      return this.$refs.player as
+        | (InstanceType<typeof SmoothAudioPlayer> & { currentTime: number; playbackRate: number })
+        | undefined;
+    },
+    subtitleDisplayRef() {
+      return this.$refs.subtitleDisplay as InstanceType<typeof SubtitleDisplay> | undefined;
+    },
     scheduleAudioUpdate(audioData: Blob, silence: number) {
-      if (!this.isDisplayed) {
-        this.pendingAudioUpdate = { audio: audioData, silence };
+      if (!this.view.isDisplayed) {
+        this.view.pendingAudioUpdate = { audio: audioData, silence };
         return;
       }
       this.updateAudio(audioData, silence);
     },
     setPlayhead(playhead: number) {
-      if (playhead != this.$refs.player.currentTime) {
-        this.$refs.player.currentTime = playhead;
+      const player = this.playerRef();
+      if (player && playhead != player.currentTime) {
+        player.currentTime = playhead;
       }
-      this.$refs.subtitleDisplay.setPlayhead(playhead);
+      this.subtitleDisplayRef()?.setPlayhead(playhead);
     },
     async updateAudio(audioData: Blob, silence: number) {
-      let urlsBySilence = this.preparedTrackUrls.get(audioData);
+      let urlsBySilence = this.view.preparedTrackUrls.get(audioData);
       if (!urlsBySilence) {
         urlsBySilence = new Map<number, string>();
-        this.preparedTrackUrls.set(audioData, urlsBySilence);
+        this.view.preparedTrackUrls.set(audioData, urlsBySilence);
       }
       let url = urlsBySilence.get(silence);
       if (!url) {
@@ -159,7 +169,7 @@ export default defineComponent({
 
       // Capture the playhead/play state right before swapping the source,
       // since reloading the <audio> element resets playback to 0 and pauses.
-      const audio = this.$refs.player?.audioPlayer as
+      const audio = this.playerRef()?.audioPlayer as
         | HTMLAudioElement
         | undefined;
       const resumeTime = audio ? audio.currentTime : 0;
@@ -172,7 +182,7 @@ export default defineComponent({
       }
       const onLoaded = () => {
         audio.currentTime = resumeTime;
-        this.$refs.subtitleDisplay?.setPlayhead(resumeTime);
+        this.subtitleDisplayRef()?.setPlayhead(resumeTime);
         if (wasPlaying) {
           audio.play().catch((error) => {
             console.error("Could not resume playback:", error);
@@ -248,16 +258,16 @@ export default defineComponent({
     // These listeners call some internal libass-wasm functions that dramatically
     // improve rendering performance
     onAudioPlaying() {
-      this.$refs.subtitleDisplay.play();
+      this.subtitleDisplayRef()?.play();
       this.$emit("playing");
     },
 
     onAudioPause() {
-      this.$refs.subtitleDisplay.pause();
+      this.subtitleDisplayRef()?.pause();
       this.$emit("pause");
     },
     onAudioSeeking(e: Event) {
-      this.$refs.player.removeEventListener(
+      this.playerRef()?.removeEventListener(
         "timeupdate",
         this.onAudioTimeUpdate,
         false
@@ -266,30 +276,30 @@ export default defineComponent({
     },
 
     onAudioSeeked(e: Event) {
-      this.$refs.player.addEventListener(
+      this.playerRef()?.addEventListener(
         "timeupdate",
         this.onAudioTimeUpdate,
         false
       );
 
       var currentTime = (e.target as HTMLAudioElement).currentTime;
-      this.$refs.subtitleDisplay.setPlayhead(currentTime);
+      this.subtitleDisplayRef()?.setPlayhead(currentTime);
 
       this.$emit("seeked", currentTime);
     },
     onAudioWaiting() {
-      this.$refs.subtitleDisplay.pause();
+      this.subtitleDisplayRef()?.pause();
       this.$emit("waiting");
     },
   },
   beforeUnmount() {
-    this.visibilityObserver?.disconnect();
-    for (const urlsBySilence of this.preparedTrackUrls.values()) {
+    this.view.visibilityObserver?.disconnect();
+    for (const urlsBySilence of this.view.preparedTrackUrls.values()) {
       for (const url of urlsBySilence.values()) {
         URL.revokeObjectURL(url);
       }
     }
-    this.preparedTrackUrls.clear();
+    this.view.preparedTrackUrls.clear();
   },
 });
 </script>

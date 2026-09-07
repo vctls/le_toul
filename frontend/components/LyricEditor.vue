@@ -24,19 +24,20 @@ import {
 
 export default defineComponent({
   props: {
-    modelValue: String,
+    modelValue: { type: String, default: "" },
     magicSlashes: {
       type: Boolean,
       default: true,
     },
   },
   methods: {
-    onLyricInput(e) {
+    onLyricInput(e: Event) {
       // TODO: Also update on slash removal
       // TODO: update on pasted text and bulk-removed text
-      this.$emit("update:modelValue", e.target.value);
+      const target = e.target as HTMLTextAreaElement;
+      this.$emit("update:modelValue", target.value);
       if (this.magicSlashes && this.isSlashEntry(e)) {
-        const input = e.target;
+        const input = target;
         const currentPosition = input.selectionStart;
         const selectionEnd = input.selectionEnd;
         const currentText = input.value;
@@ -54,7 +55,7 @@ export default defineComponent({
         });
       }
     },
-    isSlashEntry(e) {
+    isSlashEntry(e: Event) {
       // Return true if event is a user typing a slash
       return (
         e instanceof InputEvent && e.inputType == "insertText" && e.data == "/"
@@ -62,7 +63,7 @@ export default defineComponent({
     },
     convertSpaces() {
       // Convert spaces to underscores
-      const input = this.$refs.lyricInput;
+      const input = this.$refs.lyricInput as HTMLTextAreaElement;
       const currentPosition = input.selectionStart;
       const selectionEnd = input.selectionEnd;
       const newValue = convertSpacesToUnderscores(this.modelValue);
