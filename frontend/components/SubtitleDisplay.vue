@@ -134,7 +134,7 @@ export default defineComponent({
       // SubtitleOctopus expects font names to be lowercase
       const fontMap = mapKeys(this.fonts, (_, key) => key.toLowerCase());
       // Create a subtitle renderer and tie it to our player and canvas
-      var options = {
+      const options = {
         debug: false,
         canvas: canvas,
         subContent: this.effectiveSubtitles,

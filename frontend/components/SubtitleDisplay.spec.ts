@@ -4,7 +4,7 @@ import SubtitleDisplay from './SubtitleDisplay.vue';
 describe('SubtitleDisplay', () => {
     it('renders', () => {
         const wrapper = shallowMount(SubtitleDisplay, {
-            propsData: {
+            props: {
                 subtitles: '',
                 fonts: {}
             }

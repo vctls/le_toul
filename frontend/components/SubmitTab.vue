@@ -124,10 +124,10 @@
 </template>
 
 <script lang="ts">
-import { sum, map } from "lodash-es";
-import { defineComponent } from "vue";
-import { storeToRefs } from "pinia";
-import { createScreens, VerticalAlignment } from "@/lib/timing";
+import {map, sum} from "lodash-es";
+import {defineComponent} from "vue";
+import {storeToRefs} from "pinia";
+import {createScreens, VerticalAlignment} from "@/lib/timing";
 import VideoPreview from "@/components/VideoPreview.vue";
 import SourceFileDownloadLinks from "@/components/SourceFileDownloadLinks.vue";
 import VideoCreationProgressIndicator from "@/components/VideoCreationProgressIndicator.vue";
@@ -137,15 +137,12 @@ import FileUpload from "@/components/FileUpload.vue";
 import jszip from "jszip";
 import yaml from "js-yaml";
 import video from "@/lib/video";
-import { CreationPhase, SeparationModel } from "@/types";
-import {
-  useMediaStore,
-  SeparatedTrack,
-} from "@/stores/media";
-import { useSettingsStore, VideoSettings } from "@/stores/settings";
-import { isEmptyOverride, serializeVoiceStyle } from "@/lib/voiceStyle";
-import { useTimingsStore } from "@/stores/timings";
-import { useLyricsStore } from "@/stores/lyrics";
+import {CreationPhase, SeparationModel} from "@/types";
+import {SeparatedTrack, useMediaStore,} from "@/stores/media";
+import {useSettingsStore, VideoSettings} from "@/stores/settings";
+import {isEmptyOverride, serializeVoiceStyle} from "@/lib/voiceStyle";
+import {useTimingsStore} from "@/stores/timings";
+import {useLyricsStore} from "@/stores/lyrics";
 
 const fonts = {
   "Andale Mono": "/static/fonts/AndaleMono.ttf",
@@ -364,35 +361,34 @@ export default defineComponent({
       songFile: File,
       model: string
     ): Promise<SeparatedTrack> {
-      const backingTrackPromise = new Promise<SeparatedTrack>(
-        (resolve, reject) => {
-          if (this.mediaStore.separatedTrack) {
-            resolve(this.mediaStore.separatedTrack);
-            return;
+      return new Promise<SeparatedTrack>(
+          (resolve, reject) => {
+            if (this.mediaStore.separatedTrack) {
+              resolve(this.mediaStore.separatedTrack);
+              return;
+            }
+            this.mediaStore.startSeparation(songFile, model as SeparationModel);
+            const stopWatchingBacking = this.$watch(
+                "mediaStore.separatedTrack",
+                (separatedTrack) => {
+                  console.log("separatedTrackWatcher", separatedTrack);
+                  if (separatedTrack) {
+                    stopWatchingBacking();
+                    stopWatchingError();
+                    resolve(separatedTrack);
+                  }
+                }
+            );
+            const stopWatchingError = this.$watch(
+                "mediaStore.error",
+                (error) => {
+                  stopWatchingBacking();
+                  stopWatchingError();
+                  reject(error);
+                }
+            );
           }
-          this.mediaStore.startSeparation(songFile, model as SeparationModel);
-          const stopWatchingBacking = this.$watch(
-            "mediaStore.separatedTrack",
-            (separatedTrack) => {
-              console.log("separatedTrackWatcher", separatedTrack);
-              if (separatedTrack) {
-                stopWatchingBacking();
-                stopWatchingError();
-                resolve(separatedTrack);
-              }
-            }
-          );
-          const stopWatchingError = this.$watch(
-            "mediaStore.error",
-            (error) => {
-              stopWatchingBacking();
-              stopWatchingError();
-              reject(error);
-            }
-          );
-        }
       );
-      return backingTrackPromise;
     },
     async createVideo() {
       const songFile = this.songFile;
@@ -457,7 +453,7 @@ export default defineComponent({
       anchor.click();
     },
     async zipAndSendFiles(videoBlob: Uint8Array) {
-      var zip = new jszip();
+      const zip = new jszip();
       zip.file(this.videoFileName, videoBlob);
       zip.file("subtitles.ass", this.allVoicesSubtitles());
       zip.file("lyrics.txt", this.lyricText);

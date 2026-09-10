@@ -26,7 +26,7 @@ describe('VideoPreview', () => {
 
     it('mounts successfully', async () => {
         const wrapper = shallowMount(VideoPreview, {
-            propsData: props,
+            props,
             stubs: {
                 'b-message': true
             }
@@ -37,7 +37,7 @@ describe('VideoPreview', () => {
 
     it('renders the correct elements', async () => {
         const wrapper = mount(VideoPreview, {
-            propsData: props,
+            props,
             stubs: {
                 'b-message': true
             }

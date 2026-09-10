@@ -6,11 +6,31 @@
  * extends to the end of the audio or the start of the next region.
  */
 
-import { makeDraggable } from 'wavesurfer.js/dist/draggable';
+import { createDragStream } from 'wavesurfer.js/dist/reactive/drag-stream';
 import { BasePlugin } from 'wavesurfer.js/dist/base-plugin';
 import { BasePluginEvents } from 'wavesurfer.js/dist/base-plugin';
 import EventEmitter from 'wavesurfer.js/dist/event-emitter'
 import createElement from 'wavesurfer.js/dist/dom'
+
+function makeDraggable(
+    element: HTMLElement,
+    onDrag: (dx: number, dy: number, x: number, y: number) => void,
+    onStart?: (x: number, y: number) => void,
+    onEnd?: (x: number, y: number) => void,
+    threshold?: number,
+): () => void {
+    const { signal, cleanup } = createDragStream(element, { threshold })
+    const unsubscribe = signal.subscribe((drag) => {
+        if (!drag) return
+        if (drag.type === 'start') onStart?.(drag.x, drag.y)
+        else if (drag.type === 'move') onDrag(drag.deltaX ?? 0, drag.deltaY ?? 0, drag.x, drag.y)
+        else onEnd?.(drag.x, drag.y)
+    })
+    return () => {
+        unsubscribe()
+        cleanup()
+    }
+}
 
 export class OverlapError extends Error {
     constructor(region: Region, otherRegion: Region) {

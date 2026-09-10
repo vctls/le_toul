@@ -97,7 +97,7 @@ async function dragBy(
 
   await page.mouse.move(x, y);
   await page.mouse.down();
-  // wavesurfer's makeDraggable accumulates per-move deltas and ignores anything
+  // wavesurfer's drag stream accumulates per-move deltas and ignores anything
   // under its threshold, so step the pointer instead of jumping in one move.
   await page.mouse.move(toX, y, { steps: 10 });
   await page.mouse.up();

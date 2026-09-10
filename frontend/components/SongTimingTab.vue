@@ -76,7 +76,7 @@
 <script lang="ts">
 import { defineComponent } from "vue";
 import { storeToRefs } from "pinia";
-import { KEY_CODES } from "@/constants";
+import { KEY_CODES, TIMING_KEY_CODES } from "@/constants";
 import { isMobile } from "@/lib/device";
 import { Segment } from "@/lib/timing";
 import LyricDisplay from "@/components/LyricDisplay.vue";
@@ -227,9 +227,9 @@ export default defineComponent({
       return this.voiceState[voice];
     },
     onKeyDown(e: KeyboardEvent) {
-      const keyCode = e.keyCode;
+      const keyCode = TIMING_KEY_CODES[e.code];
       const audio = this.audioElement();
-      if (Object.values(KEY_CODES).includes(keyCode) && this.isPlaying && audio) {
+      if (keyCode !== undefined && this.isPlaying && audio) {
         const currentSongTime = audio.currentTime;
         if (!this.timingsStore.areTimingsUsable || keyCode == KEY_CODES.ENTER) {
           this.addTimingEvent(keyCode, currentSongTime);

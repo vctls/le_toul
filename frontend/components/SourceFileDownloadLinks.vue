@@ -95,6 +95,7 @@ export default defineComponent({
           textarea.style.opacity = "0";
           document.body.appendChild(textarea);
           textarea.select();
+          // noinspection JSDeprecatedSymbols
           const ok = document.execCommand("copy");
           textarea.remove();
           if (!ok) throw new Error("execCommand copy returned false");

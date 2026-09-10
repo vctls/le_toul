@@ -8,7 +8,6 @@
 <script lang="ts">
 // Shows buttons for submitting timing info, in case of a mobile device without a hardware keyboard
 
-import { KEY_CODES } from "@/constants";
 import { defineComponent } from "vue";
 
 export default defineComponent({
@@ -16,19 +15,13 @@ export default defineComponent({
     fireSpacebar() {
       this.$emit(
         "keydown",
-        new KeyboardEvent("keydown", {
-          keyCode: KEY_CODES.SPACEBAR,
-          code: "Space",
-        })
+        new KeyboardEvent("keydown", { code: "Space" })
       );
     },
     fireEnter() {
       this.$emit(
         "keydown",
-        new KeyboardEvent("keydown", {
-          keyCode: KEY_CODES.ENTER,
-          code: "Enter",
-        })
+        new KeyboardEvent("keydown", { code: "Enter" })
       );
     },
   },

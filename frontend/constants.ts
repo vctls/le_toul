@@ -3,8 +3,16 @@ export const API_HOSTNAME = import.meta.env.TUUL_API_HOSTNAME || "";
 export const DONATE_URL = import.meta.env.TUUL_DONATE_URL || "";
 
 export const KEY_CODES = {
-  SPACEBAR: 32, // code: "Space"
-  ENTER: 13, // code: "Enter"
+  SPACEBAR: 32,
+  ENTER: 13,
+};
+
+// Timing markers are stored as legacy keyCode numbers, so DOM handlers translate
+// KeyboardEvent.code into that vocabulary at the boundary.
+export const TIMING_KEY_CODES: Record<string, number> = {
+  Space: KEY_CODES.SPACEBAR,
+  Enter: KEY_CODES.ENTER,
+  NumpadEnter: KEY_CODES.ENTER,
 };
 
 export const LYRIC_MARKERS = {

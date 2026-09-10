@@ -4,7 +4,7 @@ import FileUpload from './FileUpload.vue';
 describe('FileUpload', () => {
   it('renders a file upload input', () => {
     const wrapper = mount(FileUpload, {
-      propsData: {
+      props: {
         label: 'Upload a file',
         value: null,
       },

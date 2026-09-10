@@ -33,7 +33,7 @@
 /* A component that displays WebVTT subtitles over a black screen, with an audio file provided as a prop */
 // TODO: Incorporate audio delay
 
-import { defineComponent, markRaw } from "vue";
+import {defineComponent, markRaw} from "vue";
 import bufferToWav from "audiobuffer-to-wav";
 import SubtitleDisplay from "./SubtitleDisplay.vue";
 import SmoothAudioPlayer from "./SmoothAudioPlayer.vue";
@@ -243,11 +243,9 @@ export default defineComponent({
 
       // Convert the result buffer to a wav
       const wavAudio: ArrayBuffer = bufferToWav(songWithSilenceBuffer);
-      const result = new Blob([new DataView(wavAudio)], {
+      return new Blob([new DataView(wavAudio)], {
         type: "audio/wav",
       });
-
-      return result;
     },
 
     onAudioTimeUpdate(e: Event) {
