@@ -5,7 +5,7 @@
     <!-- Display only. It loads its own copy of the audio, so playing it would double up
          with the player above; the playhead is driven by setTime instead. -->
     <wavesurfer ref="wavesurfer" :audioData="vocalTrack || audioData" :regions="regions" :mediaControls="false"
-      :minPxPerSec="zoom" @region-updated="onRegionUpdated" @seeking="onWavesurferSeeking" @zoom-change="$emit('zoom-change', $event)" />
+      :minPxPerSec="zoom" @region-updated="onRegionUpdated" @regions-updated="onRegionsUpdated" @seeking="onWavesurferSeeking" @zoom-change="$emit('zoom-change', $event)" />
   </div>
 </template>
 
@@ -172,10 +172,17 @@ export default defineComponent({
       audio.addEventListener("loadedmetadata", restore, { once: true });
     },
     onRegionUpdated(region: Region) {
-      const newTimings = this.applyRegionUpdateToTimings(region, this.timings ?? []);
+      this.onRegionsUpdated([region]);
+    },
+    onRegionsUpdated(regions: Array<Region>) {
+      if (regions.length === 0) return;
+      const newTimings = regions.reduce(
+        (timings, region) => this.applyRegionUpdateToTimings(region, timings),
+        this.timings ?? []
+      );
       this.$emit("timingschange", newTimings);
       this.$nextTick(() => {
-        this.previewNewTiming(region);
+        this.previewNewTiming(regions[0]);
       });
     },
     applyRegionUpdateToTimings(

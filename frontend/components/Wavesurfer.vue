@@ -1,10 +1,13 @@
 <template>
-  <div ref="wavesurfer-container" :class="['wavesurfer-container', { 'hide-waveform': !showWaveform }]" @wheel="onWheel"></div>
+  <div
+      ref="wavesurfer-container"
+      :class="['wavesurfer-container', { 'hide-waveform': !showWaveform }]"
+      @wheel="onWheel"></div>
 </template>
 
 <script lang="ts">
 // A Vue wrapper for a WaveSurfer instance
-import { defineComponent, PropType } from "vue";
+import { defineComponent, markRaw, PropType } from "vue";
 import WaveSurfer from "wavesurfer.js";
 import type { GenericPlugin } from "wavesurfer.js/dist/base-plugin";
 import RegionsPlugin, {
@@ -50,7 +53,10 @@ export default defineComponent({
   data() {
     return {
       wavesurfer: null as WaveSurfer | null,
-      regionsPlugin: RegionsPlugin.create(),
+      // Not reactive: Vue would hand back proxies of the regions the plugin
+      // holds, and the raw instances its own events carry would no longer
+      // compare equal to them.
+      regionsPlugin: markRaw(RegionsPlugin.create()),
       isVisible: false,
       _observer: null as IntersectionObserver | null,
       _zoomAnchor: null as { time: number; cursorX: number } | null,
@@ -118,6 +124,10 @@ export default defineComponent({
       this.$emit("region-updated", region);
     });
 
+    this.regionsPlugin.on("regions-updated", (regions: Region[]) => {
+      this._skipNextRegionsUpdate = true;
+      this.$emit("regions-updated", regions);
+    });
   },
   watch: {
     audioData(newAudioData: Blob) {
@@ -158,7 +168,7 @@ export default defineComponent({
       deep: true
     },
   },
-  emits: ['seeking', 'region-updated', 'zoom-change'],
+  emits: ['seeking', 'region-updated', 'regions-updated', 'zoom-change'],
   methods: {
     onWheel(event: WheelEvent) {
       if (event.deltaY === 0) return;

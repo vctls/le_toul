@@ -69,6 +69,42 @@ export async function loadAndEnterTimings(page: Page, timingsFilename: string): 
   await enterTimings(page, timings);
 }
 
+async function centreOf(target: Locator): Promise<{ x: number; y: number }> {
+  const box = await target.boundingBox();
+  if (!box) {
+    throw new Error('Could not get boundingBox for the drag target');
+  }
+  return { x: box.x + box.width / 2, y: box.y + box.height / 2 };
+}
+
+/**
+ * Grabs `grab` at its centre, drags it `offset` pixels sideways and waits for
+ * `measure` to report a different position.
+ */
+async function dragBy(
+  page: Page,
+  grab: Locator,
+  offset: number,
+  measure: () => Promise<number | undefined>,
+  message: string
+): Promise<void> {
+  const before = await measure();
+  const { x, y } = await centreOf(grab);
+  const toX = x + offset;
+  if (toX < 0) {
+    throw new Error(`Drag target ${toX}px is off-screen; offset ${offset} is too large`);
+  }
+
+  await page.mouse.move(x, y);
+  await page.mouse.down();
+  // wavesurfer's makeDraggable accumulates per-move deltas and ignores anything
+  // under its threshold, so step the pointer instead of jumping in one move.
+  await page.mouse.move(toX, y, { steps: 10 });
+  await page.mouse.up();
+
+  await expect.poll(measure, { message }).not.toBe(before);
+}
+
 /**
  * Drags one edge of a region by `offset` pixels and waits for it to land.
  */
@@ -78,35 +114,81 @@ async function dragRegionHandle(
   side: 'left' | 'right',
   offset: number
 ): Promise<void> {
-  const handle = region.locator(`[part="region-handle region-handle-${side}"]`);
-  const box = await handle.boundingBox();
-  if (!box) {
-    throw new Error(`Could not get boundingBox for the ${side} handle`);
+  const edge = () =>
+    region
+      .boundingBox()
+      .then((box) => (box === null ? undefined : side === 'left' ? box.x : box.x + box.width));
+
+  await dragBy(
+    page,
+    region.locator(`[part="region-handle region-handle-${side}"]`),
+    offset,
+    edge,
+    `region ${side} edge should move by ${offset}px`
+  );
+}
+
+/**
+ * Brings the Adjust tab's waveform on screen. Its regions are only rendered
+ * while it is in the viewport, so nothing is clickable until it has scrolled
+ * into view.
+ */
+export async function scrollWaveformIntoView(page: Page): Promise<void> {
+  await page.locator('.timing-adjustment-tab .wavesurfer-container').scrollIntoViewIfNeeded();
+}
+
+/** The Adjust tab's rectangle for one lyric segment. */
+export function regionLocator(page: Page, segmentIndex: number): Locator {
+  return page.locator(`[part="region segment_${segmentIndex}"]`);
+}
+
+/**
+ * Clicks a rectangle's body, which toggles it into the Adjust tab's selection
+ * (or extends the selection to it, if one is already started).
+ */
+export async function clickRegion(page: Page, segmentIndex: number): Promise<void> {
+  const region = regionLocator(page, segmentIndex);
+  await expect(region).toBeVisible();
+  const { x, y } = await centreOf(region);
+  await page.mouse.click(x, y);
+}
+
+// Buefy's primary, which a selected rectangle is filled with.
+const SELECTED_REGION_COLOR = 'rgb(121, 87, 213)';
+
+export async function expectRegionSelected(
+  page: Page,
+  segmentIndex: number,
+  selected = true
+): Promise<void> {
+  const fill = expect
+    .poll(() => regionLocator(page, segmentIndex).evaluate((el) => el.style.backgroundColor), {
+      message: `segment ${segmentIndex} should ${selected ? '' : 'not '}look selected`,
+    });
+  if (selected) {
+    await fill.toBe(SELECTED_REGION_COLOR);
+  } else {
+    await fill.not.toBe(SELECTED_REGION_COLOR);
   }
+}
 
-  const edgeOf = (b: { x: number; width: number } | null) =>
-    b === null ? undefined : side === 'left' ? b.x : b.x + b.width;
-  const before = edgeOf(await region.boundingBox());
-
-  const fromX = box.x + box.width / 2;
-  const y = box.y + box.height / 2;
-  const toX = fromX + offset;
-  if (toX < 0) {
-    throw new Error(`Drag target ${toX}px is off-screen; offset ${offset} is too large`);
-  }
-
-  await page.mouse.move(fromX, y);
-  await page.mouse.down();
-  // wavesurfer's makeDraggable accumulates per-move deltas and ignores anything
-  // under its threshold, so step the pointer instead of jumping in one move.
-  await page.mouse.move(toX, y, { steps: 10 });
-  await page.mouse.up();
-
-  await expect
-    .poll(() => region.boundingBox().then(edgeOf), {
-      message: `region ${side} edge should move by ${offset}px`,
-    })
-    .not.toBe(before);
+/**
+ * Drags a rectangle by its body, which moves the whole selection it belongs to.
+ * The offset is in pixels; the Adjust tab renders one second as `zoom` pixels.
+ */
+export async function dragRegionBody(
+  page: Page,
+  segmentIndex: number,
+  offset: number
+): Promise<void> {
+  const region = regionLocator(page, segmentIndex);
+  await dragBy(
+    page,
+    region,
+    offset,
+    () => region.boundingBox().then((box) => box?.x),
+    `segment ${segmentIndex} should have moved`
+  );
 }
 
 /**
@@ -123,8 +205,9 @@ export async function adjustTiming(
   if (!await page.locator('.timing-adjustment-tab').isVisible()) {
     await navigateToTab(page, TabId.TimingAdjustment);
   }
+  await scrollWaveformIntoView(page);
 
-  const region = page.locator(`[part="region segment_${segmentIndex}"]`);
+  const region = regionLocator(page, segmentIndex);
   await expect(region).toBeVisible();
 
   if (startOffset !== 0) {

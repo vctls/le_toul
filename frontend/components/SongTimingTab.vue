@@ -284,7 +284,7 @@ export default defineComponent({
       }
     },
     redoScreen() {
-      var firstSegmentInScreen = this.firstSegmentOfScreen(this.currentScreen);
+      let firstSegmentInScreen = this.firstSegmentOfScreen(this.currentScreen);
       if (firstSegmentInScreen == this.currentSegment) {
         // User meant to go back a screen
         firstSegmentInScreen = this.firstSegmentOfScreen(

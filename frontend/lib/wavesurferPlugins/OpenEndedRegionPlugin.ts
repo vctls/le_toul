@@ -11,7 +11,6 @@ import { BasePlugin } from 'wavesurfer.js/dist/base-plugin';
 import { BasePluginEvents } from 'wavesurfer.js/dist/base-plugin';
 import EventEmitter from 'wavesurfer.js/dist/event-emitter'
 import createElement from 'wavesurfer.js/dist/dom'
-import { property } from 'lodash-es';
 
 export class OverlapError extends Error {
     constructor(region: Region, otherRegion: Region) {
@@ -28,6 +27,8 @@ export type RegionsPluginEvents = BasePluginEvents & {
     'region-update': [region: Region, side?: 'start' | 'end']
     /** When a region is done updating */
     'region-updated': [region: Region]
+    /** When a selection of regions is done being dragged together */
+    'regions-updated': [regions: Region[]]
     /** When a region is removed */
     'region-removed': [region: Region]
     /** When a region is clicked */
@@ -47,6 +48,12 @@ export type RegionEvents = {
     update: [side?: 'start' | 'end']
     /** When dragging or resizing is finished */
     'update-end': []
+    /** When a drag of the region's body begins */
+    'body-drag-start': []
+    /** While the region's body is being dragged, by a horizontal pixel delta */
+    'body-drag': [dx: number]
+    /** When a drag of the region's body finishes */
+    'body-drag-end': []
     /** On play */
     play: []
     /** On mouse click */
@@ -82,6 +89,49 @@ export type RegionParams = {
     contentEditable?: boolean
 }
 
+// Buefy's primary, spelled out because it exposes no custom property for it.
+const SELECTION_COLOR = '#7957d5'
+
+const CONTENT_STYLE = {
+    padding: '0em 0.2em',
+    display: 'inline-block',
+    whiteSpace: 'nowrap',
+    overflow: 'visible',
+    position: 'relative',
+    zIndex: '1',
+}
+
+function pixelsToSeconds(dx: number, width: number, totalDuration: number): number {
+    if (!width || !totalDuration) return 0
+    return (dx / width) * totalDuration
+}
+
+/** The bits of a region that constrain how far a selection may be shifted. */
+export type ShiftBounds = {
+    start: number
+    end: number
+    isOpenEnded: boolean
+}
+
+/**
+ * How far a contiguous run of selected regions may shift before it would cross
+ * a region outside the selection. An open-ended neighbour stretches or shrinks
+ * instead of blocking, so on that side the limit is its start rather than its end.
+ */
+export function clampGroupShift(
+    bounds: { first: ShiftBounds; last: ShiftBounds; prev?: ShiftBounds; next?: ShiftBounds },
+    deltaSeconds: number,
+    totalDuration: number,
+): number {
+    const { first, last, prev, next } = bounds
+    const lowerBound = prev ? (prev.isOpenEnded ? prev.start : prev.end) : 0
+    const upperBound = next ? next.start : totalDuration
+    const trailingEdge = last.isOpenEnded ? last.start : last.end
+    const maxLeft = Math.max(0, first.start - lowerBound)
+    const maxRight = Math.max(0, upperBound - trailingEdge)
+    return Math.min(maxRight, Math.max(-maxLeft, deltaSeconds))
+}
+
 class SingleRegion extends EventEmitter<RegionEvents> implements Region {
     public element: HTMLElement
     public id: string
@@ -89,10 +139,12 @@ class SingleRegion extends EventEmitter<RegionEvents> implements Region {
     public resize: boolean
     public color: string
     public content?: HTMLElement
+    private contentOverlay?: HTMLElement
     public minLength = 0
     public maxLength = Infinity
     public channelIdx: number
     public contentEditable = false
+    public selected = false
     public subscriptions: (() => void)[] = []
 
     private _explicitEnd?: number
@@ -145,6 +197,10 @@ class SingleRegion extends EventEmitter<RegionEvents> implements Region {
         return this._explicitEnd == undefined
     }
 
+    public get isMarker(): boolean {
+        return this.start === this.end
+    }
+
     constructor(params: RegionParams, private totalDuration: number, private numberOfChannels = 0) {
         super()
 
@@ -172,8 +228,7 @@ class SingleRegion extends EventEmitter<RegionEvents> implements Region {
     }
 
     private setPart() {
-        const isMarker = this.start === this.end
-        this.element.setAttribute('part', `${isMarker ? 'marker' : 'region'} ${this.id}`)
+        this.element.setAttribute('part', `${this.isMarker ? 'marker' : 'region'} ${this.id}`)
     }
 
     private addResizeHandles(element: HTMLElement) {
@@ -203,6 +258,7 @@ class SingleRegion extends EventEmitter<RegionEvents> implements Region {
 
         // Resize
         const resizeThreshold = 1
+        this.stopBodyDragFrom(leftHandle)
         this.subscriptions.push(
             makeDraggable(
                 leftHandle,
@@ -230,6 +286,7 @@ class SingleRegion extends EventEmitter<RegionEvents> implements Region {
             element,
         )
         this.applyRightHandleAppearance(rightHandle)
+        this.stopBodyDragFrom(rightHandle)
 
         const showGhost = () => {
             if (this.isOpenEnded) rightHandle.style.opacity = '0.6'
@@ -253,6 +310,15 @@ class SingleRegion extends EventEmitter<RegionEvents> implements Region {
                 resizeThreshold,
             ),
         )
+    }
+
+    // A handle's pointerdown bubbles to the region body, which would start a
+    // group drag on top of the resize. stopPropagation leaves the handle's own
+    // drag listener running and only keeps the body's from firing.
+    private stopBodyDragFrom(handle: HTMLElement) {
+        const stop = (event: PointerEvent) => event.stopPropagation()
+        handle.addEventListener('pointerdown', stop)
+        this.subscriptions.push(() => handle.removeEventListener('pointerdown', stop))
     }
 
     private applyRightHandleAppearance(rightHandle: HTMLElement) {
@@ -291,7 +357,7 @@ class SingleRegion extends EventEmitter<RegionEvents> implements Region {
     }
 
     private initElement() {
-        const isMarker = this.start === this.end;
+        const isMarker = this.isMarker;
 
         let elementTop = 0;
         let elementHeight = 'auto'; // Change to auto to fit content
@@ -321,6 +387,17 @@ class SingleRegion extends EventEmitter<RegionEvents> implements Region {
             this.addResizeHandles(element);
         }
 
+        // The body drives group moves; the plugin ignores the drag unless this
+        // region is part of the current selection.
+        this.subscriptions.push(
+            makeDraggable(
+                element,
+                (dx) => this.emit('body-drag', dx),
+                () => this.emit('body-drag-start'),
+                () => this.emit('body-drag-end'),
+            ),
+        );
+
         return element;
     }
 
@@ -349,9 +426,9 @@ class SingleRegion extends EventEmitter<RegionEvents> implements Region {
     public _onUpdate(dx: number, side: 'start' | 'end') {
         if (!this.element.parentElement) return
         const { width } = this.element.parentElement.getBoundingClientRect()
-        const deltaSeconds = (dx / width) * this.totalDuration
-        const newStart = !side || side === 'start' ? this.start + deltaSeconds : this.start
-        const newEnd = !side || side === 'end' ? (this._explicitEnd ?? this.end) + deltaSeconds : this.end
+        const deltaSeconds = pixelsToSeconds(dx, width, this.totalDuration)
+        const newStart = side === 'start' ? this.start + deltaSeconds : this.start
+        const newEnd = side === 'end' ? (this._explicitEnd ?? this.end) + deltaSeconds : this.end
         const length = newEnd - newStart
 
         // If previous region is open-ended, we can't resize past its start. Otherwise 
@@ -422,6 +499,27 @@ class SingleRegion extends EventEmitter<RegionEvents> implements Region {
         this.emit('update-end')
     }
 
+    public setSelected(selected: boolean) {
+        this.selected = selected
+        if (!this.element) return
+        this.element.style.backgroundColor = selected ? SELECTION_COLOR : this.isMarker ? 'none' : this.color
+        this.element.style.borderLeftColor = selected ? SELECTION_COLOR : this.color
+        this.element.style.cursor = selected ? 'grab' : 'default'
+        if (this.contentOverlay) {
+            this.contentOverlay.style.display = selected ? 'block' : 'none'
+        }
+    }
+
+    /** Slide the region, and its explicit end if it has one, by `deltaSeconds`. */
+    public _shiftBy(deltaSeconds: number) {
+        this.start += deltaSeconds
+        if (this._explicitEnd != null) {
+            this._explicitEnd += deltaSeconds
+        }
+        this.renderPosition()
+        this.emit('update')
+    }
+
     public _setTotalDuration(totalDuration: number) {
         this.totalDuration = totalDuration
         this.renderPosition()
@@ -435,27 +533,37 @@ class SingleRegion extends EventEmitter<RegionEvents> implements Region {
     /** Set the HTML content of the region */
     public setContent(content: string | undefined) {
         this.content?.remove();
+        this.contentOverlay?.remove();
+        this.contentOverlay = undefined;
         if (!content) {
             this.content = undefined;
             return;
         }
-        this.content = createElement('div', {
-            style: {
-                padding: `0em 0.2em`,
-                display: 'inline-block',
-                color: 'black',
-                whiteSpace: 'nowrap',    // Prevent line breaks
-                overflow: 'visible',      // Allow content to overflow
-                position: 'relative',     // Enable z-index
-                zIndex: '1',             // Ensure content stays below handle
-            },
-            textContent: content,
-        });
+        const label = (color: string) =>
+            createElement('div', { style: { ...CONTENT_STYLE, color }, textContent: content });
+        this.content = label('black');
         if (this.contentEditable) {
             this.content.contentEditable = 'true';
         }
         this.content.setAttribute('part', 'region-content');
         this.element.appendChild(this.content);
+
+        // A label wider than its region spills onto the bare waveform. A second
+        // copy of it, clipped to the region box, repaints just the part over a
+        // selected region's dark fill in white; the overhang stays black.
+        if (this.contentEditable) return;
+        this.contentOverlay = createElement('div', {
+            style: {
+                position: 'absolute',
+                inset: '0',
+                overflow: 'hidden',
+                pointerEvents: 'none',
+                zIndex: '1',
+                display: this.selected ? 'block' : 'none',
+            },
+        });
+        this.contentOverlay.appendChild(label('white'));
+        this.element.appendChild(this.contentOverlay);
     }
 
     /** Update the region's options */
@@ -466,7 +574,7 @@ class SingleRegion extends EventEmitter<RegionEvents> implements Region {
         }
 
         if (options.start !== undefined || options.end !== undefined) {
-            const isMarker = this.start === this.end
+            const isMarker = this.isMarker
             this.start = this.clampPosition(options.start ?? this.start)
             this._explicitEnd = this.clampPosition(options.end ?? (isMarker ? this.start : this.end))
             this.renderPosition()
@@ -483,9 +591,8 @@ class SingleRegion extends EventEmitter<RegionEvents> implements Region {
         }
 
         if (options.resize !== undefined && options.resize !== this.resize) {
-            const isMarker = this.start === this.end
             this.resize = options.resize
-            if (this.resize && !isMarker) {
+            if (this.resize && !this.isMarker) {
                 this.addResizeHandles(this.element)
             } else {
                 this.removeResizeHandles(this.element)
@@ -523,6 +630,11 @@ class RegionsPlugin extends BasePlugin<RegionsPluginEvents, RegionsPluginOptions
     private regions: Region[] = []
     private regionsContainer: HTMLElement
     private firstRegion?: Region
+    // Kept as ids rather than references so a selection survives the
+    // teardown-and-rebuild the host does whenever the timings change.
+    private selectedIds = new Set<string>()
+    private anchorId?: string
+    private groupDrag?: Region[]
 
     /** Create an instance of RegionsPlugin */
     constructor(options?: RegionsPluginOptions) {
@@ -660,6 +772,71 @@ class RegionsPlugin extends BasePlugin<RegionsPluginEvents, RegionsPluginOptions
         }
     }
 
+    private orderedRegions(): Region[] {
+        return [...this.regions].sort((a, b) => a.start - b.start)
+    }
+
+    /** The selected regions, in time order. */
+    private getSelectedRegions(): Region[] {
+        return this.orderedRegions().filter((region) => this.selectedIds.has(region.id))
+    }
+
+    public clearSelection() {
+        this.setSelection([])
+        this.anchorId = undefined
+    }
+
+    private setSelection(regions: Region[]) {
+        const ids = new Set(regions.map((region) => region.id))
+        this.regions.forEach((region) => region.setSelected(ids.has(region.id)))
+        this.selectedIds = ids
+    }
+
+    private onRegionClicked(region: Region) {
+        if (this.selectedIds.has(region.id)) return this.clearSelection()
+
+        const ordered = this.orderedRegions()
+        const anchorIndex = ordered.findIndex((other) => other.id === this.anchorId)
+        if (anchorIndex === -1) {
+            this.anchorId = region.id
+            return this.setSelection([region])
+        }
+
+        const clickedIndex = ordered.findIndex((other) => other.id === region.id)
+        this.setSelection(
+            ordered.slice(Math.min(anchorIndex, clickedIndex), Math.max(anchorIndex, clickedIndex) + 1),
+        )
+    }
+
+    private onGroupDragStart(region: Region) {
+        if (!this.selectedIds.has(region.id)) return
+        this.groupDrag = this.getSelectedRegions()
+    }
+
+    private onGroupDrag(region: Region, dx: number) {
+        const selection = this.groupDrag
+        if (!selection?.length) return
+        const first = selection[0]
+        const last = selection[selection.length - 1]
+        const { width } = this.regionsContainer.getBoundingClientRect()
+        const duration = this.wavesurfer?.getDuration() ?? 0
+        const delta = clampGroupShift(
+            { first, last, prev: first.prevRegion, next: last.nextRegion },
+            pixelsToSeconds(dx, width, duration),
+            duration,
+        )
+        if (!delta) return
+        selection.forEach((selectedRegion) => selectedRegion._shiftBy(delta))
+        this.adjustScroll(region)
+    }
+
+    private onGroupDragEnd() {
+        const selection = this.groupDrag
+        this.groupDrag = undefined
+        if (!selection?.length) return
+        this.emit('regions-updated', selection)
+    }
+
     private adjustScroll(region: Region) {
         const scrollContainer = this.wavesurfer?.getWrapper()?.parentElement
         if (!scrollContainer) return
@@ -706,6 +883,7 @@ class RegionsPlugin extends BasePlugin<RegionsPluginEvents, RegionsPluginOptions
     }
 
     private saveRegion(region: Region) {
+        region.setSelected(this.selectedIds.has(region.id))
         this.virtualAppend(region, this.regionsContainer, region.element)
         this.avoidOverlapping(region)
         this.setNextRegion(region)
@@ -713,8 +891,10 @@ class RegionsPlugin extends BasePlugin<RegionsPluginEvents, RegionsPluginOptions
 
         const regionSubscriptions = [
             region.on('update', (side) => {
-                // Undefined side indicates that we are dragging not resizing
-                if (!side) {
+                // Undefined side indicates that we are dragging not resizing.
+                // A group drag scrolls once for the region under the cursor
+                // instead, or every member would fight over the scroll position.
+                if (!side && !this.groupDrag) {
                     this.adjustScroll(region)
                 }
                 this.emit('region-update', region, side)
@@ -731,8 +911,15 @@ class RegionsPlugin extends BasePlugin<RegionsPluginEvents, RegionsPluginOptions
             }),
 
             region.on('click', (e) => {
+                this.onRegionClicked(region)
                 this.emit('region-clicked', region, e)
             }),
+
+            region.on('body-drag-start', () => this.onGroupDragStart(region)),
+
+            region.on('body-drag', (dx) => this.onGroupDrag(region, dx)),
+
+            region.on('body-drag-end', () => this.onGroupDragEnd()),
 
             region.on('dblclick', (e) => {
                 this.emit('region-double-clicked', region, e)

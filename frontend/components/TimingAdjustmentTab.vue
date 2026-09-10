@@ -14,6 +14,12 @@
         will move the end of the previous rectangle.
       </p>
       <p>
+        Click a rectangle to select it, then click another one to select every
+        rectangle between the two. Dragging any selected rectangle moves the
+        whole selection at once, up to the rectangles on either side of it.
+        Click a selected rectangle to clear the selection.
+      </p>
+      <p>
         Press <kbd>spacebar</kbd> to start and stop playback, and
         <kbd>&larr;</kbd> <kbd>&rarr;</kbd> to move the playhead by the preroll set below.
         Hold <kbd>shift</kbd> for steps five times as long.

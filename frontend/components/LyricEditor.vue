@@ -76,3 +76,8 @@ export default defineComponent({
 });
 </script>
 
+<style scoped>
+.lyric-editor-textarea {
+  font-family: monospace;
+}
+</style>
