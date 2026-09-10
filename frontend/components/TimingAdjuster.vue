@@ -88,7 +88,7 @@ export default defineComponent({
       },
       deep: true
     },
-    lyrics(newLyrics: String) {
+    lyrics() {
       this.regions = this.createRegions(this.timings ?? [], this.splitLyrics);
     },
     playbackRate(value: number) {

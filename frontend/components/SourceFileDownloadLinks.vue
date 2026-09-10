@@ -21,6 +21,10 @@
       <a @click="download(settings, 'settings.yaml')" title="download settings"><b-icon icon="download" /></a><a
         @click="copyToClipboard(settings)" title="copy settings to clipboard"><b-icon icon="copy" /></a>
     </span>
+    <span v-if="font" class="file-item">
+      {{ font.name }}
+      <a @click="download(font, font.name)" title="download font"><b-icon icon="download" /></a>
+    </span>
     <span v-if="vocals && vocals.size > 0" class="file-item">
       vocals.wav
       <a @click="download(vocals, 'vocals.wav')" title="download vocals"><b-icon icon="download" /></a>
@@ -44,6 +48,7 @@ export default defineComponent({
     timings: [Array, Object],
     subtitles: String,
     settings: String,
+    font: File,
     vocals: Blob,
     accompaniment: Blob,
   },
@@ -60,6 +65,7 @@ export default defineComponent({
         this.hasTimings ||
         this.subtitles ||
         this.settings ||
+        this.font ||
         (this.vocals && this.vocals.size > 0) ||
         (this.accompaniment && this.accompaniment.size > 0)
       );

@@ -108,7 +108,7 @@ export default defineComponent({
     });
     if (this.audioData) this.wavesurfer.loadBlob(this.audioData);
 
-    this.wavesurfer.on("click", (x: number, y: number) => {
+    this.wavesurfer.on("click", (x: number) => {
       const time = x * (this.wavesurfer?.getDuration() ?? 0);
       this.$emit("seeking", time);
     });

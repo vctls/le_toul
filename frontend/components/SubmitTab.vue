@@ -117,7 +117,7 @@
         </b-button>
       </div>
       <source-file-download-links :lyrics="lyricText" :timings="timingsExport" :subtitles="allVoicesSubtitles()"
-        :settings="settingsYaml" :vocals="mediaStore.separatedTrack?.vocals"
+        :settings="settingsYaml" :font="customFont ?? undefined" :vocals="mediaStore.separatedTrack?.vocals"
         :accompaniment="mediaStore.separatedTrack?.backing" />
     </div>
   </b-tab-item>
@@ -250,6 +250,9 @@ export default defineComponent({
     },
     songFile(): File | null {
       return this.mediaStore.songFile as File | null;
+    },
+    customFont(): File | null {
+      return (this.settingsStore.customFont as File | null) ?? null;
     },
     backingTrack(): Blob | null {
       return (this.mediaStore.separatedTrack?.backing as Blob | undefined) || null;
@@ -459,6 +462,9 @@ export default defineComponent({
       zip.file("lyrics.txt", this.lyricText);
       zip.file("timings.json", JSON.stringify(this.timingsExport));
       zip.file("settings.yaml", this.settingsYaml);
+      if (this.customFont) {
+        zip.file(this.customFont.name, this.customFont);
+      }
 
       const separated = this.mediaStore.separatedTrack;
       if (separated?.vocals && separated.vocals.size > 0) {

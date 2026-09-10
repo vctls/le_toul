@@ -264,7 +264,7 @@ export default defineComponent({
       this.subtitleDisplayRef()?.pause();
       this.$emit("pause");
     },
-    onAudioSeeking(e: Event) {
+    onAudioSeeking() {
       this.playerRef()?.removeEventListener(
         "timeupdate",
         this.onAudioTimeUpdate,

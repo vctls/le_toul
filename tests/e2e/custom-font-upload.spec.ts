@@ -55,6 +55,8 @@ test.describe('Custom Font Upload', () => {
     // The picker keeps its own value, so removing the font restores it.
     await expect(page.locator(FONT_SELECT)).toHaveValue('Arial Narrow');
 
+    await expect(page.locator('.source-file-links')).toContainText('MetalMania.ttf');
+
     await page.reload();
     await openFontSettings(page);
 
