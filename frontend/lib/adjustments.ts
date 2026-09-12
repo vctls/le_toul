@@ -1,15 +1,19 @@
-import { adjustScreenTimestamps, LyricSegment, LyricsScreen, LyricsLine, Timestamp, denormalizeTimestamps, KaraokeOptions } from "./timing";
-import { TITLE_SCREEN_DURATION as TITLE_SCREEN_DURATION, INSTRUMENTAL_SCREEN_THRESHOLD } from "../constants";
-import { concat } from "lodash-es";
+import {
+    adjustScreenTimestamps,
+    LyricSegment,
+    LyricsScreen,
+    LyricsLine,
+    Timestamp,
+    denormalizeTimestamps,
+    KaraokeOptions
+} from "./timing";
+import {TITLE_SCREEN_DURATION as TITLE_SCREEN_DURATION, INSTRUMENTAL_SCREEN_THRESHOLD} from "../constants";
+import {concat} from "lodash-es";
 
 const FIRST_SCREEN_QUICK_START_THRESHOLD: Timestamp = 1.0
 const SCREEN_QUICK_START_THRESHOLD: Timestamp = 2.0
-const COUNT_IN_THRESHOLD: Timestamp = 5.0
-const COUNT_IN_DURATION: Timestamp = 2.0
 
-export const COUNT_IN_SEGMENT_TEXT = "*** "
-
-export function addQuickStartCountIn(screens: LyricsScreen[]): LyricsScreen[] {
+export function addQuickStartCountIn(screens: LyricsScreen[], options: KaraokeOptions): LyricsScreen[] {
     const firstSegment = screens[0].lines[0].segments[0];
     if (firstSegment.timestamp > FIRST_SCREEN_QUICK_START_THRESHOLD) {
         return screens;
@@ -20,7 +24,7 @@ export function addQuickStartCountIn(screens: LyricsScreen[]): LyricsScreen[] {
     */
 
     // This is how much time we need to add to the beginning:
-    const addedTime: Timestamp = COUNT_IN_DURATION - firstSegment.timestamp;
+    const addedTime: Timestamp = options.countInDuration - firstSegment.timestamp;
     // Move every timestamp forward by that much
     const adjustedScreens = adjustScreenTimestamps(screens, addedTime)
     // Reset the first screen start time to the non-adjusted value
@@ -29,21 +33,21 @@ export function addQuickStartCountIn(screens: LyricsScreen[]): LyricsScreen[] {
     adjustedScreens[0].audioDelay += addedTime;
     // Add the count-in segment to the beginning
     const newFirstSegment = adjustedScreens[0].lines[0].segments[0];
-    const countInSegment = new LyricSegment(COUNT_IN_SEGMENT_TEXT, 0.0, newFirstSegment.timestamp);
+    const countInSegment = new LyricSegment(options.countInText, 0.0, newFirstSegment.timestamp);
     adjustedScreens[0].lines[0].addSegmentToFront(countInSegment);
 
     return adjustedScreens;
 }
 
-export function addScreenCountIns(screens: LyricsScreen[]): LyricsScreen[] {
+export function addScreenCountIns(screens: LyricsScreen[], options: KaraokeOptions): LyricsScreen[] {
     // Add a count-in to the start of a screen if there's awhile before the
     // singing starts
 
     let prevScreenEnd: Timestamp = 0.0
     screens.forEach((screen, index) => {
         const firstSegment = screen.lines[0].segments[0];
-        if (firstSegment.timestamp - prevScreenEnd > COUNT_IN_THRESHOLD) {
-            const countInSegment = new LyricSegment(COUNT_IN_SEGMENT_TEXT, firstSegment.timestamp - COUNT_IN_DURATION, firstSegment.timestamp);
+        if (firstSegment.timestamp - prevScreenEnd > options.countInThreshold) {
+            const countInSegment = new LyricSegment(options.countInText, firstSegment.timestamp - options.countInDuration, firstSegment.timestamp);
             screen.lines[0].addSegmentToFront(countInSegment);
         }
         prevScreenEnd = screen.endTimestamp;

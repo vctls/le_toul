@@ -33,3 +33,7 @@ export const SUBTITLE_CANVAS = {
 
 export const TITLE_SCREEN_DURATION = 4.0
 export const INSTRUMENTAL_SCREEN_THRESHOLD = 8.0
+
+export const DEFAULT_COUNT_IN_TEXT = "*** "
+export const DEFAULT_COUNT_IN_THRESHOLD = 5.0
+export const DEFAULT_COUNT_IN_DURATION = 2.0

@@ -53,6 +53,11 @@ const BOOLEAN_OPTIONS = [
   "useBackgroundVideo",
 ] as const;
 
+const POSITIVE_NUMBER_OPTIONS = [
+  "countInThreshold",
+  "countInDuration",
+] as const;
+
 // The exporter writes the enum's numeric value, but a hand-written file is much clearer
 // with a name, so accept either.
 const ALIGNMENT_NAMES: Record<string, VerticalAlignment> = {
@@ -63,6 +68,8 @@ const ALIGNMENT_NAMES: Record<string, VerticalAlignment> = {
 
 const KNOWN_VIDEO_OPTIONS = [
   ...BOOLEAN_OPTIONS,
+  ...POSITIVE_NUMBER_OPTIONS,
+  "countInText",
   "verticalAlignment",
   "font",
   "color",
@@ -91,6 +98,16 @@ function readNumber(value: unknown, path: string, warnings: string[]): number | 
     return undefined;
   }
   return value;
+}
+
+function readPositiveNumber(value: unknown, path: string, warnings: string[]): number | undefined {
+  const parsed = readNumber(value, path, warnings);
+  if (parsed === undefined) return undefined;
+  if (parsed <= 0) {
+    warnings.push(`${path}: expected a number of seconds above zero, ignoring ${JSON.stringify(value)}`);
+    return undefined;
+  }
+  return parsed;
 }
 
 function readBoolean(value: unknown, path: string, warnings: string[]): boolean | undefined {
@@ -193,6 +210,14 @@ function parseVideoOptions(raw: unknown, warnings: string[]): Partial<VideoSetti
     const value = readBoolean(raw[key], `videoOptions.${key}`, warnings);
     if (value !== undefined) options[key] = value;
   }
+
+  for (const key of POSITIVE_NUMBER_OPTIONS) {
+    const value = readPositiveNumber(raw[key], `videoOptions.${key}`, warnings);
+    if (value !== undefined) options[key] = value;
+  }
+
+  const countInText = readString(raw.countInText, "videoOptions.countInText", warnings);
+  if (countInText !== undefined) options.countInText = countInText;
 
   const alignment = readAlignment(raw.verticalAlignment, "videoOptions.verticalAlignment", warnings);
   if (alignment !== undefined) options.verticalAlignment = alignment;

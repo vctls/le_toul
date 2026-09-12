@@ -17,6 +17,9 @@ const EXPORTED_FILE = yaml.dump({
   videoOptions: {
     addTitleScreen: false,
     addCountIns: false,
+    countInText: '1 2 3 ',
+    countInThreshold: 6.5,
+    countInDuration: 1.5,
     addInstrumentalScreens: true,
     addStaggeredLines: true,
     useBackgroundVideo: true,
@@ -44,6 +47,9 @@ describe('parseSettingsYaml', () => {
 
     expect(parsed.videoOptions.addTitleScreen).toBe(false);
     expect(parsed.videoOptions.addCountIns).toBe(false);
+    expect(parsed.videoOptions.countInText).toBe('1 2 3 ');
+    expect(parsed.videoOptions.countInThreshold).toBe(6.5);
+    expect(parsed.videoOptions.countInDuration).toBe(1.5);
     expect(parsed.videoOptions.addInstrumentalScreens).toBe(true);
     expect(parsed.videoOptions.addStaggeredLines).toBe(true);
     expect(parsed.videoOptions.useBackgroundVideo).toBe(true);
@@ -70,6 +76,15 @@ describe('parseSettingsYaml', () => {
     expect(parsed.song).toEqual({});
     expect(parsed.separationModel).toBeUndefined();
     expect(parsed.voiceStyles).toBeUndefined();
+  });
+
+  test('ignores count-in times that are not positive numbers', () => {
+    const parsed = parseSettingsYaml('videoOptions:\n  countInThreshold: 0\n  countInDuration: soon\n');
+
+    expect(parsed.videoOptions.countInThreshold).toBeUndefined();
+    expect(parsed.videoOptions.countInDuration).toBeUndefined();
+    expect(parsed.warnings.join('\n')).toContain('videoOptions.countInThreshold');
+    expect(parsed.warnings.join('\n')).toContain('videoOptions.countInDuration');
   });
 
   test('accepts named vertical alignments for hand-written files', () => {

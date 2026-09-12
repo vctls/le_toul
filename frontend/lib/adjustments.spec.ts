@@ -1,12 +1,15 @@
-import { addTitleScreen, addInstrumentalScreens, displayQuickLinesEarly, deferScreenStarts } from "./adjustments";
+import { addTitleScreen, addInstrumentalScreens, addQuickStartCountIn, addScreenCountIns, displayQuickLinesEarly, deferScreenStarts } from "./adjustments";
 import { compileLyricTimings, denormalizeTimestamps, LyricEvent, LyricSegment, LyricsLine, LyricsScreen, KaraokeOptions, VerticalAlignment } from "./timing";
 import { testLyrics, shortIntroTestEvents } from "./timing.spec";
-import { LYRIC_MARKERS } from "@/constants";
+import { LYRIC_MARKERS, DEFAULT_COUNT_IN_TEXT, DEFAULT_COUNT_IN_THRESHOLD, DEFAULT_COUNT_IN_DURATION } from "@/constants";
 import { default as BuefyColor } from "buefy/src/utils/color";
 
 const DEFAULT_OPTIONS: KaraokeOptions = {
     addTitleScreen: true,
     addCountIns: true,
+    countInText: DEFAULT_COUNT_IN_TEXT,
+    countInThreshold: DEFAULT_COUNT_IN_THRESHOLD,
+    countInDuration: DEFAULT_COUNT_IN_DURATION,
     addInstrumentalScreens: true,
     addStaggeredLines: true,
     useBackgroundVideo: false,
@@ -36,6 +39,42 @@ Dialogue: 0,0:00:00.00,0:00:04.00,Default,Singer,0,0,144,,{\\k200}{\\kf200}The T
     expect(screensWithTitle.length).toBe(3);
     expect(screensWithTitle[0].toAssEvents(DEFAULT_ASS_OPTIONS, DEFAULT_OPTIONS)).toBe(titleScreenAss);
     expect(screensWithTitle[0].audioDelay).toBe(4);
+});
+
+test('screen count-ins use the configured text, threshold and duration', () => {
+    const lyrics = "That was a long intro"
+    const timings: LyricEvent[] = [[30.0, LYRIC_MARKERS.SEGMENT_START], [35.0, LYRIC_MARKERS.SEGMENT_END]]
+    const options: KaraokeOptions = { ...DEFAULT_OPTIONS, countInText: "1 2 3 ", countInThreshold: 5.0, countInDuration: 3.0 }
+
+    const screens = addScreenCountIns(denormalizeTimestamps(compileLyricTimings(lyrics, timings), 60.0), options);
+
+    const countIn = screens[0].lines[0].segments[0];
+    expect(countIn.text).toBe("1 2 3 ");
+    expect(countIn.timestamp).toBe(27.0);
+    expect(countIn.endTimestamp).toBe(30.0);
+});
+
+test('no screen count-in when the gap is within the threshold', () => {
+    const lyrics = "That was a long intro"
+    const timings: LyricEvent[] = [[30.0, LYRIC_MARKERS.SEGMENT_START], [35.0, LYRIC_MARKERS.SEGMENT_END]]
+    const options: KaraokeOptions = { ...DEFAULT_OPTIONS, countInThreshold: 40.0, countInDuration: 3.0 }
+
+    const screens = addScreenCountIns(denormalizeTimestamps(compileLyricTimings(lyrics, timings), 60.0), options);
+
+    expect(screens[0].lines[0].segments[0].text).toBe(lyrics);
+});
+
+test('quick start count-in uses the configured text and duration', () => {
+    const options: KaraokeOptions = { ...DEFAULT_OPTIONS, countInText: "go! ", countInDuration: 3.0 }
+    const screens = denormalizeTimestamps(compileLyricTimings(testLyrics, shortIntroTestEvents), 60.0);
+
+    const adjusted = addQuickStartCountIn(screens, options);
+
+    const countIn = adjusted[0].lines[0].segments[0];
+    expect(countIn.text).toBe("go! ");
+    expect(countIn.timestamp).toBe(0.0);
+    expect(countIn.endTimestamp).toBe(3.0);
+    expect(adjusted[0].audioDelay).toBe(3.0 - shortIntroTestEvents[0][0]);
 });
 
 test('addInstrumentalScreen', () => {

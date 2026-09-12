@@ -2,19 +2,11 @@ import { test, expect, Page } from '@playwright/test';
 import {
   setupTestEnvironment,
   navigateToTab,
+  fieldFor,
+  switchFor,
   TabId,
 } from './utils';
 import { getFixturePath } from './utils/setupHelpers';
-
-// The Submit tab's options live in horizontal fields labelled with the option name. The
-// labels also carry a tooltip, so match on the name as a substring.
-function fieldFor(page: Page, label: string) {
-  return page.locator('.field.is-horizontal', { hasText: label });
-}
-
-function switchFor(page: Page, label: string) {
-  return fieldFor(page, label).locator('input[type="checkbox"]');
-}
 
 async function uploadSettingsFile(page: Page, files: Parameters<ReturnType<Page['locator']>['setInputFiles']>[0]) {
   await navigateToTab(page, TabId.SongInfo);

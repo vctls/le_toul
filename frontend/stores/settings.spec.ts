@@ -170,6 +170,20 @@ describe('Settings Store', () => {
     expect(savedOptions.addTitleScreen).toBe(true);
   });
 
+  test('count-in duration is capped by the threshold', async () => {
+    window.localStorage.clear();
+    const settingsStore = useSettingsStore();
+
+    settingsStore.videoOptions.countInDuration = 4;
+    settingsStore.videoOptions.countInThreshold = 3;
+    await nextTick();
+    expect(settingsStore.videoOptions.countInDuration).toBe(3);
+
+    settingsStore.applyVideoOptions({ countInDuration: 10 });
+    await nextTick();
+    expect(settingsStore.videoOptions.countInDuration).toBe(3);
+  });
+
   test('applyVideoOptions merges partial options over the current ones', async () => {
     window.localStorage.clear();
     const settingsStore = useSettingsStore();

@@ -11,6 +11,41 @@
             </b-tooltip>
           </template>
           <b-switch v-model="videoOptions.addCountIns"></b-switch></b-field>
+        <template v-if="videoOptions.addCountIns">
+          <b-field horizontal>
+            <template #label>
+              Count-In Text
+              <b-tooltip label="What a count-in shows before the singing starts">
+                <b-icon size="is-small" icon="circle-question"></b-icon>
+              </b-tooltip>
+            </template>
+            <b-input :model-value="videoOptions.countInText"
+              @update:model-value="(v: string | number | undefined) => (videoOptions.countInText = String(v ?? ''))"></b-input>
+          </b-field>
+          <b-field horizontal>
+            <template #label>
+              Count-In Gap
+              <b-tooltip label="Add a count-in when the singing starts more than this many seconds after the previous screen ends">
+                <b-icon size="is-small" icon="circle-question"></b-icon>
+              </b-tooltip>
+            </template>
+            <b-numberinput :model-value="videoOptions.countInThreshold" :min="0.5" :step="0.5"
+              @update:model-value="(v: number | null | undefined) => (videoOptions.countInThreshold = Number(v ?? videoOptions.countInThreshold))"
+              controls-position="compact"></b-numberinput>
+          </b-field>
+          <b-field horizontal>
+            <template #label>
+              Count-In Length
+              <b-tooltip label="How many seconds a count-in lasts. Can't be longer than the gap above.">
+                <b-icon size="is-small" icon="circle-question"></b-icon>
+              </b-tooltip>
+            </template>
+            <b-numberinput :model-value="videoOptions.countInDuration" :min="0.5" :max="videoOptions.countInThreshold"
+              :step="0.5"
+              @update:model-value="(v: number | null | undefined) => (videoOptions.countInDuration = Number(v ?? videoOptions.countInDuration))"
+              controls-position="compact"></b-numberinput>
+          </b-field>
+        </template>
         <b-field horizontal>
           <template #label>
             Add Instrumental Breaks

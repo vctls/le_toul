@@ -147,3 +147,18 @@ export async function toggleMagicSlashes(page: Page, enable: boolean): Promise<v
     await page.click('.lyric-input-tab .level-item .checkbox');
   }
 }
+
+/**
+ * The Submit tab's options live in horizontal fields labelled with the option name. The
+ * labels also carry a tooltip, so match on the name as a substring.
+ */
+export function fieldFor(page: Page, label: string) {
+  return page.locator('.field.is-horizontal', { hasText: label });
+}
+
+/**
+ * The switch inside one of those fields.
+ */
+export function switchFor(page: Page, label: string) {
+  return fieldFor(page, label).locator('input[type="checkbox"]');
+}

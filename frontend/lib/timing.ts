@@ -1,4 +1,4 @@
-import { LYRIC_MARKERS, SUBTITLE_CANVAS } from "@/constants";
+import { LYRIC_MARKERS, SUBTITLE_CANVAS, DEFAULT_COUNT_IN_TEXT, DEFAULT_COUNT_IN_THRESHOLD, DEFAULT_COUNT_IN_DURATION } from "@/constants";
 import { addQuickStartCountIn, addScreenCountIns, addTitleScreen, addInstrumentalScreens, displayQuickLinesEarly, deferScreenStarts } from "./adjustments";
 import { map, method, isNumber } from "lodash-es";
 import { default as BuefyColor } from "buefy/src/utils/color";
@@ -7,6 +7,11 @@ import { default as BuefyColor } from "buefy/src/utils/color";
 export interface KaraokeOptions {
   addTitleScreen: boolean,
   addCountIns: boolean,
+  countInText: string,
+  // A screen gets a count-in when its first line starts more than this many seconds after
+  // the previous screen ends. Must stay at or above countInDuration.
+  countInThreshold: number,
+  countInDuration: number,
   addInstrumentalScreens: boolean,
   addStaggeredLines: boolean,
   useBackgroundVideo: boolean,
@@ -31,6 +36,9 @@ export enum VerticalAlignment {
 export const DEFAULT_KARAOKE_OPTIONS: KaraokeOptions = {
   addTitleScreen: true,
   addCountIns: true,
+  countInText: DEFAULT_COUNT_IN_TEXT,
+  countInThreshold: DEFAULT_COUNT_IN_THRESHOLD,
+  countInDuration: DEFAULT_COUNT_IN_DURATION,
   addInstrumentalScreens: true,
   addStaggeredLines: true,
   useBackgroundVideo: false,
@@ -632,8 +640,8 @@ export function createScreens(lyrics: string, lyricEvents: LyricEvent[], songDur
   }
   screens = denormalizeTimestamps(screens, songDuration);
   if (options.addCountIns) {
-    screens = addQuickStartCountIn(screens);
-    screens = addScreenCountIns(screens);
+    screens = addQuickStartCountIn(screens, options);
+    screens = addScreenCountIns(screens, options);
   }
   if (options.addTitleScreen) {
     screens = addTitleScreen(screens, title, artist);

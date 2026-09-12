@@ -8,6 +8,7 @@ import { VoiceStyleOverride, serializeVoiceStyle, deserializeVoiceStyle } from '
 import { VoiceId } from '@/lib/voices';
 import { persistBlobRef } from '@/lib/persistence';
 import { readFontFamilyName } from '@/lib/fontFile';
+import { DEFAULT_COUNT_IN_TEXT, DEFAULT_COUNT_IN_THRESHOLD, DEFAULT_COUNT_IN_DURATION } from '@/constants';
 
 const VOICE_STYLES_STORAGE_KEY = 'voiceStyles';
 
@@ -31,6 +32,9 @@ export type VideoSettings = {
   vocalSeparationModel: SeparationModel;
   addTitleScreen: boolean;
   addCountIns: boolean;
+  countInText: string;
+  countInThreshold: number;
+  countInDuration: number;
   addInstrumentalScreens: boolean;
   addStaggeredLines: boolean;
   useBackgroundVideo: boolean;
@@ -61,6 +65,9 @@ type StoredSettings = Omit<VideoSettings, 'color'> & {
 const DEFAULT_SETTINGS: VideoSettings = {
   addTitleScreen: true,
   addCountIns: true,
+  countInText: DEFAULT_COUNT_IN_TEXT,
+  countInThreshold: DEFAULT_COUNT_IN_THRESHOLD,
+  countInDuration: DEFAULT_COUNT_IN_DURATION,
   addInstrumentalScreens: true,
   addStaggeredLines: true,
   useBackgroundVideo: false,
@@ -106,6 +113,15 @@ export const useSettingsStore = defineStore('settings', () => {
 
   // Load saved settings when the store is initialized
   loadSettings();
+
+  // A count-in longer than the gap that triggers it would start before the previous screen
+  // ends, so the threshold caps the duration. Enforced here because a loaded settings file
+  // and stored settings bypass the Submit tab's own bounds.
+  watch(() => [videoOptions.countInThreshold, videoOptions.countInDuration], ([threshold, duration]) => {
+    if (duration > threshold) {
+      videoOptions.countInDuration = threshold;
+    }
+  }, { immediate: true });
 
   // Automatically save settings when they change
   watch(videoOptions, () => {
