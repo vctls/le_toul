@@ -9,6 +9,7 @@
     </b-message>
     <subtitle-display
       ref="subtitleDisplay"
+      @click="togglePlayback"
       :subtitles="subtitles"
       :audioDelay="audioDelay"
       :fonts="fonts"
@@ -136,6 +137,22 @@ export default defineComponent({
     },
     subtitleDisplayRef() {
       return this.$refs.subtitleDisplay as InstanceType<typeof SubtitleDisplay> | undefined;
+    },
+    togglePlayback() {
+      const audio = this.playerRef()?.audioPlayer as
+        | HTMLAudioElement
+        | undefined;
+      if (!audio) {
+        return;
+      }
+      audio.focus();
+      if (audio.paused) {
+        audio.play().catch((error) => {
+          console.error("Could not start playback:", error);
+        });
+      } else {
+        audio.pause();
+      }
     },
     scheduleAudioUpdate(audioData: Blob, silence: number) {
       if (!this.view.isDisplayed) {
@@ -309,5 +326,9 @@ export default defineComponent({
 
 .preview-container :deep(audio) {
   width: 100%;
+}
+
+.preview-container :deep(.video-container) {
+  cursor: pointer;
 }
 </style>
