@@ -59,11 +59,11 @@ export default defineComponent({
       regionsPlugin: markRaw(RegionsPlugin.create()),
       isVisible: false,
       _observer: null as IntersectionObserver | null,
+      _resizeObserver: null as ResizeObserver | null,
       _zoomAnchor: null as { time: number; cursorX: number } | null,
-      // Set when a drag/resize updates a region. The drag has already moved the
-      // region's DOM to its final position, so when the resulting timings
-      // round-trip back through the `regions` prop we skip the (expensive)
-      // teardown-and-rebuild of every region for that one update.
+      // Set when a drag/resize updates a region.
+      // The drag has already moved the region's DOM to its final position, so when the resulting timings round-trip
+      // back through the `regions` prop we skip the expensive teardown-and-rebuild of every region for that one update.
       _skipNextRegionsUpdate: false,
     };
   },
@@ -89,6 +89,13 @@ export default defineComponent({
 
     // Start observing the container
     this._observer.observe(this.$refs["wavesurfer-container"] as HTMLElement);
+
+    // Hiding the container (display: none) drops its scroll box, so the browser
+    // resets the scroll offset and the playhead comes back off-screen. Nothing
+    // re-asserts it while playback is paused, so do it whenever the container
+    // is laid out again.
+    this._resizeObserver = new ResizeObserver(() => this.scrollPlayheadIntoView());
+    this._resizeObserver.observe(this.$refs["wavesurfer-container"] as HTMLElement);
 
     this.wavesurfer = WaveSurfer.create({
       container: this.$refs["wavesurfer-container"] as HTMLElement,
@@ -205,6 +212,11 @@ export default defineComponent({
     isReady() {
       return this.wavesurfer && this.wavesurfer.getDecodedData();
     },
+    scrollPlayheadIntoView() {
+      if (this.wavesurfer && this.isReady()) {
+        this.wavesurfer.setTime(this.wavesurfer.getCurrentTime());
+      }
+    },
     updateRegions(regions: RegionParams[]) {
       if (!this.wavesurfer || !this.isVisible) return;
 
@@ -227,6 +239,7 @@ export default defineComponent({
   },
   beforeUnmount() {
     this._observer?.disconnect();
+    this._resizeObserver?.disconnect();
     if (this.wavesurfer) {
       this.wavesurfer.destroy();
     }
