@@ -73,6 +73,7 @@ export default defineComponent({
         isDisplayed: true,
         pendingSubtitles: null as string | null,
         visibilityObserver: null as IntersectionObserver | null,
+        resizeObserver: null as ResizeObserver | null,
       }),
     };
   },
@@ -92,8 +93,13 @@ export default defineComponent({
     this.setVideoPlayhead = throttle(this.setVideoPlayhead, 1000 / 15);
   },
   mounted() {
+    // The worker renders at the canvas's bitmap size, fixed when it starts,
+    // so size the canvas before creating the renderer.
+    this.syncCanvasSize();
     this.createRenderer();
     this.currentTime = 0.0;
+    this.view.resizeObserver = new ResizeObserver(() => this.syncCanvasSize());
+    this.view.resizeObserver.observe(this.$el);
     this.view.visibilityObserver = new IntersectionObserver((entries) => {
       this.view.isDisplayed = entries[entries.length - 1].isIntersecting;
       if (this.view.isDisplayed && this.view.pendingSubtitles !== null) {
@@ -105,6 +111,7 @@ export default defineComponent({
   },
   beforeUnmount() {
     this.view.visibilityObserver?.disconnect();
+    this.view.resizeObserver?.disconnect();
     this.destroyRenderer();
   },
   watch: {
@@ -129,6 +136,28 @@ export default defineComponent({
     },
   },
   methods: {
+    syncCanvasSize() {
+      const canvas = this.$refs.subtitleCanvas as HTMLCanvasElement | undefined;
+      if (!canvas) {
+        return;
+      }
+      const ratio = window.devicePixelRatio || 1;
+      const width = Math.round(canvas.clientWidth * ratio);
+      const height = Math.round(canvas.clientHeight * ratio);
+      // Zero while the tab is hidden. The observer fires again when it is shown.
+      if (!width || !height) {
+        return;
+      }
+      if (canvas.width === width && canvas.height === height) {
+        return;
+      }
+      if (this.subtitleManager) {
+        this.subtitleManager.resize(width, height);
+      } else {
+        canvas.width = width;
+        canvas.height = height;
+      }
+    },
     createRenderer() {
       const canvas = this.$refs.subtitleCanvas as HTMLCanvasElement;
       // SubtitleOctopus expects font names to be lowercase
@@ -183,8 +212,8 @@ export default defineComponent({
 <style scoped>
 .video-container {
   position: relative;
-  height: 240px;
-  width: 320px;
+  width: 100%;
+  aspect-ratio: 4 / 3;
 }
 
 .background-video {

@@ -304,6 +304,10 @@ export default defineComponent({
 <style scoped>
 .preview-container {
   text-align: center;
-  width: 320px;
+  width: 100%;
+}
+
+.preview-container :deep(audio) {
+  width: 100%;
 }
 </style>
