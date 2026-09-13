@@ -118,7 +118,7 @@
           <voice-style-settings v-if="voices.length > 1" :fonts="fonts" />
         </b-collapse>
       </div>
-      <div class="column is-narrow">
+      <div class="column">
         <h3 class="title">Video Preview:</h3>
         <b-field v-if="backingTrack" label="Preview audio" horizontal style="margin-bottom: 0.5em;">
           <b-select v-model="previewTrack">
@@ -527,10 +527,6 @@ export default defineComponent({
 .submit-tab {
   overflow-x: hidden;
   overflow-y: auto;
-}
-
-.settings-column {
-  margin: 0 10%;
 }
 
 .submit-tab .column {

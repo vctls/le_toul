@@ -16,6 +16,7 @@ declare module "libass-wasm" {
     setTrack(content: string): void;
     setCurrentTime(time: number): void;
     setIsPaused(isPaused: boolean, currentTime?: number | null): void;
+    resize(width?: number, height?: number, top?: number, left?: number): void;
     dispose?(): void;
   }
 }

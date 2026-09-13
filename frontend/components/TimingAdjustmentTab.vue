@@ -326,5 +326,6 @@ export default defineComponent({
 
 .subtitle-display {
   align-self: center;
+  width: 320px;
 }
 </style>
