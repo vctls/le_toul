@@ -19,10 +19,12 @@
             </b-button>
             <b-button v-if="DONATE_URL" tag="a" :href="DONATE_URL" type="is-text" target="_blank">
               <b-icon icon="circle-dollar-to-slot" size="is-large" title="Buy Me A Coffee">
-              </b-icon></b-button>
+              </b-icon>
+            </b-button>
             <b-button tag="a" href="https://github.com/vctls/the_tuul" type="is-text">
               <b-icon pack="fab" icon="github" size="is-large" title="GitHub">
-              </b-icon></b-button>
+              </b-icon>
+            </b-button>
           </div>
         </b-navbar-item>
       </template>
@@ -32,17 +34,17 @@
       <song-info-tab></song-info-tab>
       <lyric-input-tab></lyric-input-tab>
       <song-timing-tab></song-timing-tab>
-      <timing-adjustment-tab />
-      <timing-edit-tab />
+      <timing-adjustment-tab/>
+      <timing-edit-tab/>
       <submit-tab></submit-tab>
     </b-tabs>
   </div>
 </template>
 
 <script lang="ts">
-import { defineComponent } from "vue";
-import { isMobile } from "@/lib/device";
-import { DONATE_URL } from "@/constants";
+import {defineComponent} from "vue";
+import {isMobile} from "@/lib/device";
+import {DONATE_URL} from "@/constants";
 import HelpTab from "@/components/HelpTab.vue";
 import SongInfoTab from "@/components/SongInfoTab.vue";
 import LyricInputTab from "@/components/LyricInputTab.vue";
@@ -50,9 +52,9 @@ import SongTimingTab from "@/components/SongTimingTab.vue";
 import TimingAdjustmentTab from "@/components/TimingAdjustmentTab.vue";
 import TimingEditTab from "@/components/TimingEditTab.vue";
 import SubmitTab from "@/components/SubmitTab.vue";
-import { useMediaStore } from "@/stores/media";
-import { useLyricsStore } from "@/stores/lyrics";
-import { useTimingsStore } from "@/stores/timings";
+import {useMediaStore} from "@/stores/media";
+import {useLyricsStore} from "@/stores/lyrics";
+import {useTimingsStore} from "@/stores/timings";
 
 export default defineComponent({
   components: {
@@ -82,7 +84,7 @@ export default defineComponent({
       this.$buefy.dialog.confirm({
         title: "Start over?",
         message:
-          "This will discard the current song, lyrics, and timings. Settings will be kept. Continue?",
+            "This will discard the current song, lyrics, and timings. Settings will be kept. Continue?",
         confirmText: "Start over",
         type: "is-danger",
         hasIcon: true,
@@ -98,6 +100,10 @@ export default defineComponent({
 </script>
 
 <style scoped>
+.wrapper > .navbar {
+  flex-shrink: 0;
+}
+
 .main-tabs {
   display: flex;
   flex-direction: column;
