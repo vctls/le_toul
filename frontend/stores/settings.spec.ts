@@ -30,6 +30,7 @@ describe('Settings Store', () => {
     expect(settingsStore.videoOptions.addInstrumentalScreens).toBe(true);
     expect(settingsStore.videoOptions.addStaggeredLines).toBe(true);
     expect(settingsStore.videoOptions.useBackgroundVideo).toBe(false);
+    expect(settingsStore.videoOptions.outputFormat).toBe('mp4');
     expect(settingsStore.videoOptions.verticalAlignment).toBe(VerticalAlignment.Middle);
     expect(settingsStore.videoOptions.vocalSeparationModel).toBe(BACKING_VOCALS_SEPARATOR_MODEL);
 

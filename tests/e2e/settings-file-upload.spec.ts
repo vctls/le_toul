@@ -2,11 +2,12 @@ import { test, expect, Page } from '@playwright/test';
 import {
   setupTestEnvironment,
   navigateToTab,
+  exactFieldFor,
   fieldFor,
   switchFor,
   TabId,
+  getFixturePath,
 } from './utils';
-import { getFixturePath } from './utils/setupHelpers';
 
 async function uploadSettingsFile(page: Page, files: Parameters<ReturnType<Page['locator']>['setInputFiles']>[0]) {
   await navigateToTab(page, TabId.SongInfo);
@@ -35,9 +36,10 @@ test.describe('Settings File Upload', () => {
     await navigateToTab(page, TabId.Submit);
     await expect(switchFor(page, 'Add Count-Ins')).not.toBeChecked();
     await expect(switchFor(page, 'Add Instrumental Breaks')).toBeChecked();
+    await expect(fieldFor(page, 'Video Format').locator('select')).toHaveValue('mkv');
 
     await page.click("a:has-text('Fonts and Colors')");
-    await expect(page.locator('.settings-column select')).toHaveValue('Impact');
+    await expect(exactFieldFor(page, 'Font').locator('select')).toHaveValue('Impact');
     await expect(fieldFor(page, 'Font Size').locator('input[type="number"]')).toHaveValue('30');
     await expect(page.getByLabel('primary color hex code')).toHaveValue('#ff8800');
     await expect(page.getByLabel('secondary color hex code')).toHaveValue('#0088ff');

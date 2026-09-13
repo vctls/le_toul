@@ -4,6 +4,10 @@ import { map, method, isNumber } from "lodash-es";
 import { default as BuefyColor } from "buefy/src/utils/color";
 
 
+// "mkv" also carries the vocals and the original mix as extra audio tracks.
+export const OUTPUT_FORMATS = ["mp4", "mkv"] as const;
+export type OutputFormat = (typeof OUTPUT_FORMATS)[number];
+
 export interface KaraokeOptions {
   addTitleScreen: boolean,
   addCountIns: boolean,
@@ -15,6 +19,7 @@ export interface KaraokeOptions {
   addInstrumentalScreens: boolean,
   addStaggeredLines: boolean,
   useBackgroundVideo: boolean,
+  outputFormat: OutputFormat,
   verticalAlignment: VerticalAlignment,
   font: {
     size: number,
@@ -42,6 +47,7 @@ export const DEFAULT_KARAOKE_OPTIONS: KaraokeOptions = {
   addInstrumentalScreens: true,
   addStaggeredLines: true,
   useBackgroundVideo: false,
+  outputFormat: "mp4",
   verticalAlignment: VerticalAlignment.Middle,
   font: {
     size: 20,

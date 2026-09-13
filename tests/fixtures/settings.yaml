@@ -10,6 +10,7 @@ videoOptions:
   addInstrumentalScreens: true
   addStaggeredLines: true
   useBackgroundVideo: false
+  outputFormat: mkv
   verticalAlignment: 0
   font:
     size: 30
