@@ -1,6 +1,59 @@
 // Buefy and other global style adjustments
 
-@import 'buefy/dist/buefy.css';
+@import 'buefy/dist/css/buefy.css';
+
+// Buefy's palette from before Bulma 1. The `-invert` lightnesses (the text drawn
+// on the colour) stay fixed at Bulma's own defaults, so white has to be restated.
+// Primary is #7957d5; keep in sync with SELECTION_COLOR in
+// lib/wavesurferPlugins/OpenEndedRegionPlugin.ts.
+:root {
+    --bulma-primary-h: 256.19deg;
+    --bulma-primary-s: 60%;
+    --bulma-primary-l: 58.8%;
+    --bulma-primary-rgb: 121, 87, 213;
+    --bulma-primary-invert-l: 100%;
+
+    --bulma-link-h: 256.19deg;
+    --bulma-link-s: 60%;
+    --bulma-link-l: 58.8%;
+    --bulma-link-rgb: 121, 87, 213;
+    --bulma-link-invert-l: 100%;
+
+    --bulma-info-h: 211.65deg;
+    --bulma-info-s: 87.9%;
+    --bulma-info-l: 51.4%;
+    --bulma-info-rgb: 22, 125, 240;
+    --bulma-info-invert-l: 100%;
+
+    --bulma-success-invert-l: 100%;
+
+    --bulma-warning-h: 44deg;
+    --bulma-warning-s: 100%;
+    --bulma-warning-l: 77%;
+    --bulma-warning-rgb: 255, 224, 138;
+
+    --bulma-danger-h: 348deg;
+    --bulma-danger-s: 86%;
+    --bulma-danger-l: 61%;
+    --bulma-danger-rgb: 241, 70, 104;
+    --bulma-danger-invert-l: 100%;
+}
+
+// Bulma 1 switched to an Inter-first stack and extrabold headings. It declares
+// the weight variables on the headings themselves, out of reach of :root.
+:root {
+    --bulma-family-primary: BlinkMacSystemFont, -apple-system, "Segoe UI", "Roboto", "Oxygen", "Ubuntu", "Cantarell", "Fira Sans", "Droid Sans", "Helvetica Neue", "Helvetica", "Arial", sans-serif;
+    --bulma-family-secondary: var(--bulma-family-primary);
+}
+
+.title,
+.subtitle {
+    --bulma-title-weight: var(--bulma-weight-semibold);
+}
+
+.content {
+    --bulma-content-heading-weight: var(--bulma-weight-semibold);
+}
 
 // Icon sizing fix
 .icon svg {

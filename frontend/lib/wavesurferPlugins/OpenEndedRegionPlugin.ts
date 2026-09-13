@@ -109,7 +109,7 @@ export type RegionParams = {
     contentEditable?: boolean
 }
 
-// Buefy's primary, spelled out because it exposes no custom property for it.
+// Keep in sync with --bulma-primary in main.scss.
 const SELECTION_COLOR = '#7957d5'
 
 const CONTENT_STYLE = {

@@ -72,7 +72,7 @@ services:
   # API. Side effect: the HTML report at :9323 is published via the vite
   # service's ports, not here.
   playwright:
-    image: mcr.microsoft.com/playwright:v1.51.1-jammy
+    image: mcr.microsoft.com/playwright:v1.60.0-jammy
     working_dir: /app
     environment:
       BASE_URL: http://localhost:5173
