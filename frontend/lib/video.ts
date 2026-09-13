@@ -14,6 +14,26 @@ interface VideoMetadata {
     title?: string;
 }
 
+// The additional audio tracks an MKV render carries alongside the backing track.
+export interface AlternateAudioTracks {
+    vocals?: Blob | null;
+    original?: Blob | null;
+}
+
+interface EncodedTrack {
+    fileName: string;
+    title: string;
+}
+
+const RENDERED_VIDEO_FILE = "karaoke.mp4";
+const MKV_FILE = "karaoke.mkv";
+const BACKING_TRACK_TITLE = "Backing track";
+
+const ALTERNATE_TRACKS = [
+    {key: "vocals", title: "Vocals"},
+    {key: "original", title: "Original mix"},
+] as const satisfies readonly {key: keyof AlternateAudioTracks; title: string}[];
+
 class ApiError extends Error {
     public path: string;
     public status?: number;
@@ -81,44 +101,187 @@ function getFfmpegParams(hasVideo: boolean, backgroundColor: string, audioDelayM
         "-threads",
         "3",
         ...videoMetadata,
-        "karaoke.mp4"
+        RENDERED_VIDEO_FILE
     ]
 }
 
-type ProgressCallback = (progress: number) => void;
-
-function getProgressParser(fps: number, videoDuration: number, onProgress?: ProgressCallback): (message: LogEvent) => void {
-    // Return a message handler function that can parse logs and call the progress callback
-    let totalFrames = fps * videoDuration;
-    var framesFinished = 0;
-
-    return ({ message }) => {
-        console.log("ffmpeg output", message);
-        if (!onProgress || totalFrames === 0) return;
-
-        if (typeof message === 'string' && message.startsWith("frame=")) {
-            const match = message.match(/frame=\s*(\d+)/);
-            if (match && match.length > 0) {
-                framesFinished = parseFloat(match[1]);
-                const progress = Math.min(framesFinished / totalFrames, 1);
-                onProgress(progress);
-            }
-        }
-    };
+// One alternate per run: two audio encoders in one ffmpeg run deadlock the WASM core above
+// one thread.
+export function getAlternateTrackParams(inputFile: string, audioDelayMs: number, outputFile: string) {
+    return [
+        "-i",
+        inputFile,
+        // Cover art would otherwise come in as a video stream the m4a muxer rejects.
+        "-map",
+        "0:a:0",
+        "-af",
+        `adelay=delays=${audioDelayMs}:all=1`,
+        "-c:a",
+        "aac",
+        "-b:a",
+        "192k",
+        "-threads",
+        "1",
+        "-y",
+        outputFile,
+    ]
 }
 
-async function createVideo(
-    accompanimentDataUrl: string | Blob,
-    videoBlob: Blob | null = null,
-    subtitles: string,
-    audioDelay: number = 0,
-    videoOptions: KaraokeOptions,
-    metadata: VideoMetadata,
-    fontMap: Record<string, string>,
-    onProgress?: ProgressCallback
-): Promise<Uint8Array> {
+// Copy only: nothing here re-encodes.
+export function getMkvMuxParams(alternates: EncodedTrack[], metadata: VideoMetadata) {
+    const titles = [BACKING_TRACK_TITLE, ...alternates.map(({title}) => title)];
+    return [
+        "-i",
+        RENDERED_VIDEO_FILE,
+        ...alternates.flatMap(({fileName}) => ["-i", fileName]),
+        "-map",
+        "0:v",
+        "-map",
+        "0:a",
+        ...alternates.flatMap((_track, index) => ["-map", `${index + 1}:a`]),
+        "-c",
+        "copy",
+        // Setting any disposition turns off ffmpeg's automatic ones, video included.
+        "-disposition:v:0",
+        "default",
+        ...titles.flatMap((title, index) => [
+            `-metadata:s:a:${index}`, `title=${title}`,
+            `-disposition:a:${index}`, index === 0 ? "default" : "0",
+        ]),
+        ...ffmpegMetadataArgs(metadata),
+        "-y",
+        MKV_FILE,
+    ]
+}
+
+// ffmpeg picks a demuxer partly by extension, so a named source keeps its own.
+function withSourceExtension(baseName: string, source: Blob): string {
+    const sourceName = source instanceof File ? source.name : "";
+    const extension = sourceName.match(/\.([A-Za-z0-9]{1,5})$/)?.[1];
+    return extension ? `${baseName}.${extension}` : baseName;
+}
+
+// A failed run otherwise surfaces as an FS error when its missing output is read back.
+async function runFfmpeg(
+    ffmpeg: FFmpeg,
+    args: string[],
+    step: RenderStep,
+    progress: RenderProgress | null
+): Promise<void> {
+    progress?.begin(step);
+    const code = await ffmpeg.exec(args);
+    if (code !== 0) {
+        throw new Error(`FFmpeg failed while ${step.phrase} (exit code ${code})`);
+    }
+    progress?.end();
+}
+
+export type ProgressCallback = (progress: number, step: string) => void;
+
+export interface RenderStep {
+    // Names the step in the progress bar, and in the error if the step fails.
+    phrase: string;
+    // Relative to the other steps in the plan, not a fraction of the bar.
+    weight: number;
+}
+
+// From the encode speeds the WASM core reports.
+const STEP_WEIGHTS = {
+    render: 0.85,
+    alternateTrack: 0.06,
+    mux: 0.03,
+};
+
+const ASSUMED_SONG_SECONDS = 300;
+
+// Each run reports the media time it has reached, so its own progress is that against the
+// length of what it produces.
+export class RenderProgress {
+    private readonly totalWeight: number;
+    private readonly mediaSeconds: number;
+    private readonly onProgress: ProgressCallback;
+    private finishedShare = 0;
+    private currentShare = 0;
+    private phrase = "";
+
+    constructor(plan: RenderStep[], mediaSeconds: number, onProgress: ProgressCallback) {
+        this.totalWeight = plan.reduce((total, {weight}) => total + weight, 0) || 1;
+        this.mediaSeconds = mediaSeconds > 0 ? mediaSeconds : ASSUMED_SONG_SECONDS;
+        this.onProgress = onProgress;
+    }
+
+    begin(step: RenderStep) {
+        this.currentShare = step.weight / this.totalWeight;
+        this.phrase = step.phrase;
+        this.report(0);
+    }
+
+    handleLog = ({message}: LogEvent) => {
+        if (typeof message !== "string") return;
+        const timestamp = message.match(/time=\s*(\d+):(\d\d):(\d\d(?:\.\d+)?)/);
+        if (!timestamp) return;
+        const [, hours, minutes, seconds] = timestamp;
+        const reached = Number(hours) * 3600 + Number(minutes) * 60 + Number(seconds);
+        this.report(Math.min(reached / this.mediaSeconds, 1));
+    };
+
+    end() {
+        this.finishedShare += this.currentShare;
+        this.currentShare = 0;
+        this.report(0);
+    }
+
+    private report(stepProgress: number) {
+        const total = this.finishedShare + this.currentShare * stepProgress;
+        this.onProgress(Math.min(total, 1), this.phrase);
+    }
+}
+
+interface AlternateSource {
+    source: Blob;
+    baseName: string;
+    title: string;
+}
+
+function usableAlternates(tracks: AlternateAudioTracks | null): AlternateSource[] {
+    const usable: AlternateSource[] = [];
+    for (const {key, title} of ALTERNATE_TRACKS) {
+        const source = tracks?.[key];
+        if (!source || source.size === 0) {
+            console.warn(`No ${title.toLowerCase()} track available, leaving it out of the MKV`);
+            continue;
+        }
+        usable.push({source, baseName: key, title});
+    }
+    return usable;
+}
+
+export interface CreateVideoOptions {
+    accompaniment: string | Blob;
+    subtitles: string;
+    videoOptions: KaraokeOptions;
+    metadata: VideoMetadata;
+    fontMap: Record<string, string>;
+    backgroundVideo?: Blob | null;
+    audioDelay?: number;
+    alternateTracks?: AlternateAudioTracks | null;
+    onProgress?: ProgressCallback;
+}
+
+async function createVideo({
+    accompaniment,
+    subtitles,
+    videoOptions,
+    metadata,
+    fontMap,
+    backgroundVideo = null,
+    audioDelay = 0,
+    alternateTracks = null,
+    onProgress,
+}: CreateVideoOptions): Promise<Uint8Array> {
     // Create the video using ffmpeg.wasm v0.12
     const songFileName = "audio.mp4";
+    const isMkv = videoOptions.outputFormat === "mkv";
     const backgroundColor =
         "0x" + videoOptions.color.background.toString().substring(1);
     const audioDelayMs = audioDelay * 1000;
@@ -148,17 +311,29 @@ async function createVideo(
     ]);
     await ffmpeg.load({ coreURL, wasmURL, workerURL, classWorkerURL: `${workerBaseUrl}/worker.js` });
 
-    // Configure progress handler if needed
-    const fps = 20; // Using default fps from color generator
-    const videoDuration = metadata.duration || 300; // Default to 5 minutes, could be calculated from metadata
-    if (onProgress) {
-        ffmpeg.on('log', getProgressParser(fps, videoDuration, onProgress));
+    ffmpeg.on('log', ({message}) => console.log("ffmpeg output", message));
+
+    // Planned before anything runs, so the bar can weigh the whole job rather than restart
+    // at each run.
+    const alternates = isMkv ? usableAlternates(alternateTracks) : [];
+    const renderStep: RenderStep = {phrase: "rendering the video", weight: STEP_WEIGHTS.render};
+    const trackSteps: RenderStep[] = alternates.map(({title}) => ({
+        phrase: `encoding the ${title.toLowerCase()} track`,
+        weight: STEP_WEIGHTS.alternateTrack,
+    }));
+    const muxStep: RenderStep = {phrase: "writing the MKV", weight: STEP_WEIGHTS.mux};
+    const plan = isMkv ? [renderStep, ...trackSteps, muxStep] : [renderStep];
+    const progress = onProgress
+        ? new RenderProgress(plan, (metadata.duration ?? 0) + audioDelay, onProgress)
+        : null;
+    if (progress) {
+        ffmpeg.on('log', progress.handleLog);
     }
 
     // Write audio to ffmpeg filesystem
     await ffmpeg.writeFile(
         songFileName,
-        await fetchFile(accompanimentDataUrl)
+        await fetchFile(accompaniment)
     );
 
     // The ass filter indexes fontsdir by the family name inside each file, so the filename
@@ -175,17 +350,36 @@ async function createVideo(
 
     await ffmpeg.writeFile("subtitles.ass", subtitles);
 
-    if (videoBlob) {
+    if (backgroundVideo) {
         await ffmpeg.writeFile(
             "video.mp4",
-            await fetchFile(videoBlob)
+            await fetchFile(backgroundVideo)
         );
     }
 
-    const ffmpegParams = getFfmpegParams(Boolean(videoBlob), backgroundColor, audioDelayMs, metadata);
-    await ffmpeg.exec(ffmpegParams);
+    const ffmpegParams = getFfmpegParams(Boolean(backgroundVideo), backgroundColor, audioDelayMs, metadata);
+    await runFfmpeg(ffmpeg, ffmpegParams, renderStep, progress);
 
-    return (await ffmpeg.readFile("karaoke.mp4")) as Uint8Array;
+    if (!isMkv) {
+        return (await ffmpeg.readFile(RENDERED_VIDEO_FILE)) as Uint8Array;
+    }
+
+    const encoded: EncodedTrack[] = [];
+    for (const [index, {source, baseName, title}] of alternates.entries()) {
+        const inputFile = withSourceExtension(baseName, source);
+        const fileName = `${baseName}.m4a`;
+        await ffmpeg.writeFile(inputFile, await fetchFile(source));
+        await runFfmpeg(
+            ffmpeg,
+            getAlternateTrackParams(inputFile, audioDelayMs, fileName),
+            trackSteps[index],
+            progress
+        );
+        encoded.push({fileName, title});
+    }
+    await runFfmpeg(ffmpeg, getMkvMuxParams(encoded, metadata), muxStep, progress);
+
+    return (await ffmpeg.readFile(MKV_FILE)) as Uint8Array;
 }
 
 interface DownloadPollResponse {
@@ -315,4 +509,4 @@ function ffmpegMetadataArgs(metadata: VideoMetadata): string[] {
     return ffmpegArgs;
 }
 
-export default { createVideo, fetchYouTubeVideo, parseYouTubeTitle, getProgressParser };
+export default { createVideo, fetchYouTubeVideo, parseYouTubeTitle };

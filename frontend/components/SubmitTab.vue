@@ -25,7 +25,8 @@
           <b-field horizontal>
             <template #label>
               Count-In Gap
-              <b-tooltip label="Add a count-in when the singing starts more than this many seconds after the previous screen ends">
+              <b-tooltip multilined
+                label="Add a count-in when the singing starts more than this many seconds after the previous screen ends">
                 <b-icon size="is-small" icon="circle-question"></b-icon>
               </b-tooltip>
             </template>
@@ -62,6 +63,19 @@
             </b-tooltip> </template><b-switch v-model="videoOptions.addStaggeredLines"></b-switch></b-field>
         <b-field v-if="videoBlob" horizontal label="Use Background Video">
           <b-switch v-model="videoOptions.useBackgroundVideo"></b-switch></b-field>
+        <b-field horizontal>
+          <template #label>
+            Video Format
+            <b-tooltip multilined
+              label="MKV also carries the vocals and the original mix as extra audio tracks, for players that can switch between them">
+              <b-icon size="is-small" icon="circle-question"></b-icon>
+            </b-tooltip>
+          </template>
+          <b-select :model-value="videoOptions.outputFormat"
+            @update:model-value="(v: string) => (videoOptions.outputFormat = v as OutputFormat)">
+            <option v-for="(label, format) in outputFormatLabels" :key="format" :value="format">{{ label }}</option>
+          </b-select>
+        </b-field>
         <b-collapse v-model="isShowingFontsAndColors">
           <template #trigger="props">
             <a aria-controls="contentIdForA11y4" :aria-expanded="props.open">
@@ -128,7 +142,7 @@
         </b-field>
         <video-preview v-if="songFile" :song-file="songFile" :backing-track="backingTrack ?? undefined"
           :preview-track="previewTrack" :subtitles="allVoicesSubtitles()" :audio-delay="audioDelay" :fonts="fontMap"
-          :background-color="videoOptions.color.background.toString()"
+          :background-color="videoOptions.color.background.toString()" :output-format="videoOptions.outputFormat"
           :video-blob="videoOptions.useBackgroundVideo ? (videoBlob ?? undefined) : undefined" />
         <b-message v-else type="is-info" :closable="false">Upload a song to see the preview.</b-message>
       </div>
@@ -141,7 +155,7 @@
         email me?
       </b-message>
       <video-creation-progress-indicator v-if="isSubmitting" :song-duration="songDuration ?? undefined" :phase="creationPhase"
-        :progress="videoProgress" :elapsed-time="elapsedSubmissionTime ?? undefined" />
+        :progress="videoProgress" :step="creationStep" :elapsed-time="elapsedSubmissionTime ?? undefined" />
       <b-message v-if="!canCreateVideo" type="is-info" :closable="false">
         {{ missingStepsMessage }}
       </b-message>
@@ -162,7 +176,7 @@
 import {map, sum} from "lodash-es";
 import {defineComponent} from "vue";
 import {storeToRefs} from "pinia";
-import {createScreens, VerticalAlignment} from "@/lib/timing";
+import {createScreens, OutputFormat, VerticalAlignment} from "@/lib/timing";
 import VideoPreview from "@/components/VideoPreview.vue";
 import SourceFileDownloadLinks from "@/components/SourceFileDownloadLinks.vue";
 import VideoCreationProgressIndicator from "@/components/VideoCreationProgressIndicator.vue";
@@ -178,6 +192,14 @@ import {useSettingsStore, VideoSettings} from "@/stores/settings";
 import {isEmptyOverride, serializeVoiceStyle} from "@/lib/voiceStyle";
 import {useTimingsStore} from "@/stores/timings";
 import {useLyricsStore} from "@/stores/lyrics";
+
+// The rest of the bar is the zip, which carries both separated tracks.
+const RENDER_SHARE = 0.95;
+
+const outputFormatLabels: Record<OutputFormat, string> = {
+  mp4: "MP4",
+  mkv: "MKV, with vocal and original tracks",
+};
 
 const fonts = {
   "Andale Mono": "/static/fonts/AndaleMono.ttf",
@@ -223,11 +245,13 @@ export default defineComponent({
   data() {
     return {
       fonts,
+      outputFormatLabels,
       VerticalAlignment,
       isSubmitting: false,
       elapsedSubmissionTime: null as number | null,
       creationPhase: CreationPhase.NotStarted,
       videoProgress: 0,
+      creationStep: "",
       submitError: null as string | null,
       // Which track the preview plays: "full" (with vocals) or "backing".
       previewTrack: "full",
@@ -321,10 +345,11 @@ export default defineComponent({
       return `${this.videoFileName}.zip`;
     },
     videoFileName(): string {
+      const extension = this.videoOptions.outputFormat;
       if (this.mediaStore.songArtist && this.mediaStore.songTitle) {
-        return `${this.mediaStore.songArtist} - ${this.mediaStore.songTitle} [karaoke].mp4`;
+        return `${this.mediaStore.songArtist} - ${this.mediaStore.songTitle} [karaoke].${extension}`;
       }
-      return "karaoke.mp4";
+      return `karaoke.${extension}`;
     },
     timings() {
       return this.timingsStore.rawTimings;
@@ -364,15 +389,6 @@ export default defineComponent({
         );
       }
       return yaml.dump(document);
-    },
-    videoDuration(): number {
-      return (this.mediaStore.songDuration ?? 0) + this.audioDelay;
-    },
-    videoFps(): number {
-      return this.videoOptions.useBackgroundVideo ? 30 : 20;
-    },
-    ffmpegLogParser() {
-      return video.getProgressParser(this.videoFps, this.videoDuration);
     },
   },
   methods: {
@@ -433,12 +449,12 @@ export default defineComponent({
       if (!songFile) {
         return;
       }
-      let self = this;
       let elapsedTimeInterval: ReturnType<typeof setInterval> | undefined;
       this.isSubmitting = true;
       try {
         this.creationPhase = CreationPhase.SeparatingVocals;
         this.videoProgress = 0;
+        this.creationStep = "";
         elapsedTimeInterval = setInterval(() => {
           if (!this.mediaStore.separationStartTime) {
             return;
@@ -453,22 +469,24 @@ export default defineComponent({
         );
         this.creationPhase = CreationPhase.CreatingVideo;
         const videoOptions = { createTitleScreens: true, ...this.renderOptions };
-        const videoFile: Uint8Array = await video.createVideo(
-          separatedTrack.backing,
-          videoOptions.useBackgroundVideo ? this.videoBlob : null,
-          this.allVoicesSubtitles(),
-          this.audioDelay,
+        const videoFile: Uint8Array = await video.createVideo({
+          accompaniment: separatedTrack.backing,
+          backgroundVideo: videoOptions.useBackgroundVideo ? this.videoBlob : null,
+          subtitles: this.allVoicesSubtitles(),
+          audioDelay: this.audioDelay,
           videoOptions,
-          {
+          metadata: {
             artist: this.mediaStore.songArtist ?? undefined,
             title: this.mediaStore.songTitle ?? undefined,
             duration: this.mediaStore.songDuration ?? undefined,
           },
-          this.fontMap,
-          (progress) => {
-            self.videoProgress = progress;
-          }
-        );
+          fontMap: this.fontMap,
+          alternateTracks: {vocals: separatedTrack.vocals, original: songFile},
+          onProgress: (progress, step) => {
+            this.videoProgress = progress * RENDER_SHARE;
+            this.creationStep = step;
+          },
+        });
         await this.zipAndSendFiles(videoFile);
       } catch (e) {
         console.error(e);
@@ -478,6 +496,7 @@ export default defineComponent({
         clearInterval(elapsedTimeInterval);
         this.elapsedSubmissionTime = null;
         this.creationPhase = CreationPhase.NotStarted;
+        this.creationStep = "";
       }
     },
 
@@ -509,7 +528,10 @@ export default defineComponent({
         zip.file("accompaniment.wav", separated.backing);
       }
 
-      const zipBlob = await zip.generateAsync({ type: "blob" });
+      this.creationStep = "packaging the files";
+      const zipBlob = await zip.generateAsync({ type: "blob" }, ({ percent }) => {
+        this.videoProgress = RENDER_SHARE + (percent / 100) * (1 - RENDER_SHARE);
+      });
       await this.sendZipFile(zipBlob);
     },
   },
@@ -531,5 +553,9 @@ export default defineComponent({
 
 .submit-tab .column {
   text-align: center;
+}
+
+.settings-column :deep(.b-tooltip.is-multiline .tooltip-content) {
+  width: 24rem;
 }
 </style>

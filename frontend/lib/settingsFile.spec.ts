@@ -23,6 +23,7 @@ const EXPORTED_FILE = yaml.dump({
     addInstrumentalScreens: true,
     addStaggeredLines: true,
     useBackgroundVideo: true,
+    outputFormat: 'mkv',
     verticalAlignment: VerticalAlignment.Top,
     font: { size: 30, name: 'Impact' },
     color: { background: '#111111', primary: '#222222', secondary: '#333333' },
@@ -53,6 +54,7 @@ describe('parseSettingsYaml', () => {
     expect(parsed.videoOptions.addInstrumentalScreens).toBe(true);
     expect(parsed.videoOptions.addStaggeredLines).toBe(true);
     expect(parsed.videoOptions.useBackgroundVideo).toBe(true);
+    expect(parsed.videoOptions.outputFormat).toBe('mkv');
     expect(parsed.videoOptions.verticalAlignment).toBe(VerticalAlignment.Top);
     expect(parsed.videoOptions.font).toEqual({ size: 30, name: 'Impact' });
     expect(parsed.videoOptions.color?.background).toBeInstanceOf(Color);
@@ -138,6 +140,13 @@ describe('parseSettingsYaml', () => {
       'nonsense: unknown setting, ignoring it',
       'videoOptions.addCountIn: unknown setting, ignoring it',
     ]);
+  });
+
+  test('rejects an output format no muxer is wired up for', () => {
+    const parsed = parseSettingsYaml('videoOptions:\n  outputFormat: avi\n');
+
+    expect(parsed.videoOptions.outputFormat).toBeUndefined();
+    expect(parsed.warnings).toEqual(['videoOptions.outputFormat: expected mp4 or mkv, ignoring "avi"']);
   });
 
   test('rejects an unknown separation model', () => {

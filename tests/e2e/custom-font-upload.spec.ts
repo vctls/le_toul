@@ -8,12 +8,16 @@ import {
   defaultTestConfig,
   setupBasicInputs,
   uploadTimingsFile,
+  exactFieldFor,
 } from './utils';
 
 const FONT_UPLOAD = '[name="custom-font-upload"] input[type="file"]';
-const FONT_SELECT = '.settings-column select';
 // The Adjust tab mounts a subtitle display of its own, so stay inside the Submit tab.
 const SUBTITLE_CANVAS = '.submit-tab canvas.subtitle-canvas';
+
+function fontSelect(page: Page) {
+  return exactFieldFor(page, 'Font').locator('select');
+}
 
 // A bundled font stands in for the user's own file; its family name ("Metal Mania")
 // deliberately differs from the file name.
@@ -46,14 +50,14 @@ test.describe('Custom Font Upload', () => {
 
   test('an uploaded font overrides the picked one and survives a reload', async ({ page }) => {
     await openFontSettings(page);
-    await expect(page.locator(FONT_SELECT)).toHaveValue('Arial Narrow');
+    await expect(fontSelect(page)).toHaveValue('Arial Narrow');
 
     await page.locator(FONT_UPLOAD).setInputFiles(bundledFontPath());
 
     await expect(page.locator('.toast:has-text("Metal Mania")')).toBeVisible();
     await expect(page.locator('.custom-font-help')).toContainText('Metal Mania');
     // The picker keeps its own value, so removing the font restores it.
-    await expect(page.locator(FONT_SELECT)).toHaveValue('Arial Narrow');
+    await expect(fontSelect(page)).toHaveValue('Arial Narrow');
 
     await expect(page.locator('.source-file-links')).toContainText('MetalMania.ttf');
 
@@ -65,14 +69,14 @@ test.describe('Custom Font Upload', () => {
 
   test('removing the font falls back to the picked one', async ({ page }) => {
     await openFontSettings(page);
-    await page.locator(FONT_SELECT).selectOption('Impact');
+    await fontSelect(page).selectOption('Impact');
     await page.locator(FONT_UPLOAD).setInputFiles(bundledFontPath());
     await expect(page.locator('.custom-font-help')).toContainText('Metal Mania');
 
     await page.locator('[name="custom-font-upload"] button.is-danger').click();
 
     await expect(page.locator('.custom-font-help')).toHaveCount(0);
-    await expect(page.locator(FONT_SELECT)).toHaveValue('Impact');
+    await expect(fontSelect(page)).toHaveValue('Impact');
   });
 
   test('the preview redraws the lyrics in the uploaded font', async ({ page }) => {
@@ -115,6 +119,6 @@ test.describe('Custom Font Upload', () => {
 
     await expect(page.locator('.toast.is-danger')).toBeVisible();
     await expect(page.locator('.custom-font-help')).toHaveCount(0);
-    await expect(page.locator(FONT_SELECT)).toHaveValue('Arial Narrow');
+    await expect(fontSelect(page)).toHaveValue('Arial Narrow');
   });
 });

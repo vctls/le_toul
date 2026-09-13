@@ -1,7 +1,137 @@
-import { parseYouTubeTitle, fetchYouTubeVideo } from './video';
+import { RenderProgress, getAlternateTrackParams, getMkvMuxParams, parseYouTubeTitle, fetchYouTubeVideo } from './video';
 
 // Mock fetch globally
 global.fetch = vi.fn();
+
+const METADATA = { artist: 'The Bolks', title: 'Squibble Doo Dah' };
+const ALTERNATES = [
+    { fileName: 'vocals.m4a', title: 'Vocals' },
+    { fileName: 'original.m4a', title: 'Original mix' },
+];
+
+// The value ffmpeg would read for an argument, e.g. valueOf(args, '-c:a').
+function valueOf(args: string[], flag: string): string | undefined {
+    const index = args.indexOf(flag);
+    return index === -1 ? undefined : args[index + 1];
+}
+
+describe('getAlternateTrackParams', () => {
+    it('encodes one delayed track on a single thread', () => {
+        const args = getAlternateTrackParams('vocals.wav', 2000, 'vocals.m4a');
+
+        expect(valueOf(args, '-i')).toBe('vocals.wav');
+        // Cover art would otherwise come along as a video stream the m4a muxer rejects.
+        expect(valueOf(args, '-map')).toBe('0:a:0');
+        expect(valueOf(args, '-af')).toBe('adelay=delays=2000:all=1');
+        expect(valueOf(args, '-c:a')).toBe('aac');
+        // A second audio encoder in one run deadlocks the WASM core above one thread.
+        expect(valueOf(args, '-threads')).toBe('1');
+        expect(args.at(-1)).toBe('vocals.m4a');
+    });
+});
+
+describe('getMkvMuxParams', () => {
+    it('copies the rendered video and labels every audio track', () => {
+        const args = getMkvMuxParams(ALTERNATES, METADATA);
+
+        expect(args.at(-1)).toBe('karaoke.mkv');
+        expect(args.join(' ')).toContain('-i karaoke.mp4 -i vocals.m4a -i original.m4a');
+        expect(args.join(' ')).toContain('-map 0:v -map 0:a -map 1:a -map 2:a');
+        expect(valueOf(args, '-c')).toBe('copy');
+        expect(valueOf(args, '-metadata:s:a:0')).toBe('title=Backing track');
+        expect(valueOf(args, '-metadata:s:a:1')).toBe('title=Vocals');
+        expect(valueOf(args, '-metadata:s:a:2')).toBe('title=Original mix');
+        expect(valueOf(args, '-disposition:a:0')).toBe('default');
+        expect(valueOf(args, '-disposition:a:1')).toBe('0');
+        expect(valueOf(args, '-disposition:a:2')).toBe('0');
+        expect(valueOf(args, '-disposition:v:0')).toBe('default');
+        expect(valueOf(args, '-metadata')).toBe('artist=The Bolks');
+    });
+
+    it('leaves out an alternate that never arrived', () => {
+        const args = getMkvMuxParams([ALTERNATES[0]], METADATA);
+
+        expect(args.join(' ')).toContain('-map 0:v -map 0:a -map 1:a');
+        expect(args).not.toContain('-map 2:a');
+        expect(args).not.toContain('-metadata:s:a:2');
+    });
+});
+
+describe('RenderProgress', () => {
+    const RENDER = { phrase: 'rendering the video', weight: 0.85 };
+    const VOCALS = { phrase: 'encoding the vocals track', weight: 0.06 };
+    const MUX = { phrase: 'writing the MKV', weight: 0.09 };
+
+    // What a run prints once it has encoded `seconds` of media.
+    function atSecond(seconds: number) {
+        const stamp = new Date(seconds * 1000).toISOString().substring(11, 22);
+        return { type: 'stdout', message: `size=     468kB time=${stamp} bitrate= 150.0kbits/s` } as any;
+    }
+
+    function record(plan: { phrase: string; weight: number }[], mediaSeconds = 100) {
+        const reported: [number, string][] = [];
+        const progress = new RenderProgress(plan, mediaSeconds, (value, step) => reported.push([value, step]));
+        return { progress, reported, latest: () => reported[reported.length - 1] };
+    }
+
+    it('reports a single run against the length it produces', () => {
+        const { progress, latest } = record([RENDER]);
+
+        progress.begin(RENDER);
+        progress.handleLog(atSecond(50));
+
+        // The only step owns the whole bar, however small its weight reads.
+        expect(latest()).toEqual([0.5, 'rendering the video']);
+    });
+
+    it('carries later runs on from where the earlier ones finished', () => {
+        const { progress, latest } = record([RENDER, VOCALS, MUX]);
+
+        progress.begin(RENDER);
+        progress.handleLog(atSecond(100));
+        progress.end();
+        expect(latest()[0]).toBeCloseTo(0.85);
+        expect(latest()[1]).toBe('rendering the video');
+
+        progress.begin(VOCALS);
+        progress.handleLog(atSecond(50));
+        expect(latest()[0]).toBeCloseTo(0.88);
+        expect(latest()[1]).toBe('encoding the vocals track');
+
+        progress.end();
+        progress.begin(MUX);
+        progress.handleLog(atSecond(100));
+        expect(latest()[0]).toBeCloseTo(1);
+    });
+
+    it('ignores log lines that carry no timestamp', () => {
+        const { progress, reported } = record([RENDER]);
+
+        progress.begin(RENDER);
+        reported.length = 0;
+        progress.handleLog({ type: 'stdout', message: '[libx264 @ 0x1] using SAR=1/1' } as any);
+
+        expect(reported).toEqual([]);
+    });
+
+    it('stops at full even when a run overruns the expected length', () => {
+        const { progress, latest } = record([RENDER], 10);
+
+        progress.begin(RENDER);
+        progress.handleLog(atSecond(30));
+
+        expect(latest()[0]).toBe(1);
+    });
+
+    it('still moves when the song duration is unknown', () => {
+        const { progress, latest } = record([RENDER], 0);
+
+        progress.begin(RENDER);
+        progress.handleLog(atSecond(150));
+
+        expect(latest()[0]).toBeCloseTo(0.5);
+    });
+});
 
 describe('Video Library', () => {
 

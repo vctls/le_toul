@@ -27,6 +27,8 @@ export default defineComponent({
     elapsedTime: Number,
     // Duration of the song in seconds
     songDuration: Number,
+    // What the CreatingVideo phase is doing right now, e.g. "encoding the vocals track"
+    step: String,
     phase: Number as PropType<CreationPhase>,
   },
   data() {
@@ -37,7 +39,8 @@ export default defineComponent({
   computed: {
     progressMessage() {
       if (this.phase == CreationPhase.CreatingVideo) {
-        return `Creating video: ${Math.round(this.phaseProgress * 100)}%`;
+        const step = this.step ? this.step[0].toUpperCase() + this.step.slice(1) : "Creating video";
+        return `${step}: ${Math.round(this.phaseProgress * 100)}%`;
       } else if (this.phase == CreationPhase.SeparatingVocals) {
         return `Creating instrumental track: ${Math.round(
           this.phaseProgress * 100

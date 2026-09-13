@@ -7,7 +7,7 @@
 
 import yaml from "js-yaml";
 import Color from "buefy/src/utils/color";
-import { VerticalAlignment } from "@/lib/timing";
+import { OutputFormat, OUTPUT_FORMATS, VerticalAlignment } from "@/lib/timing";
 import { VoiceStyleOverride, VOICE_STYLE_COLOR_FIELDS } from "@/lib/voiceStyle";
 import { VoiceId } from "@/lib/voices";
 import { SeparationModel } from "@/types";
@@ -70,6 +70,7 @@ const KNOWN_VIDEO_OPTIONS = [
   ...BOOLEAN_OPTIONS,
   ...POSITIVE_NUMBER_OPTIONS,
   "countInText",
+  "outputFormat",
   "verticalAlignment",
   "font",
   "color",
@@ -154,6 +155,21 @@ function readAlignment(
   return undefined;
 }
 
+function readOutputFormat(
+  value: unknown,
+  path: string,
+  warnings: string[]
+): OutputFormat | undefined {
+  const name = readString(value, path, warnings);
+  if (name === undefined) return undefined;
+  const normalized = name.trim().toLowerCase();
+  if (!OUTPUT_FORMATS.some((format) => format === normalized)) {
+    warnings.push(`${path}: expected ${OUTPUT_FORMATS.join(" or ")}, ignoring ${JSON.stringify(value)}`);
+    return undefined;
+  }
+  return normalized as OutputFormat;
+}
+
 function readSeparationModel(
   value: unknown,
   path: string,
@@ -221,6 +237,9 @@ function parseVideoOptions(raw: unknown, warnings: string[]): Partial<VideoSetti
 
   const alignment = readAlignment(raw.verticalAlignment, "videoOptions.verticalAlignment", warnings);
   if (alignment !== undefined) options.verticalAlignment = alignment;
+
+  const outputFormat = readOutputFormat(raw.outputFormat, "videoOptions.outputFormat", warnings);
+  if (outputFormat !== undefined) options.outputFormat = outputFormat;
 
   // The exporter writes the separation model at the top level, but accept the store's
   // own field name too, since that is what a settings dump from localStorage looks like.

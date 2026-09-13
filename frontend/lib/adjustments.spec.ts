@@ -13,6 +13,7 @@ const DEFAULT_OPTIONS: KaraokeOptions = {
     addInstrumentalScreens: true,
     addStaggeredLines: true,
     useBackgroundVideo: false,
+    outputFormat: "mp4",
     verticalAlignment: VerticalAlignment.Middle,
     font: {
         size: 22,

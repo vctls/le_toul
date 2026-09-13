@@ -1,6 +1,6 @@
 import { defineStore } from 'pinia';
 import { reactive, watch, ref, computed } from 'vue';
-import { VerticalAlignment } from '@/lib/timing';
+import { OutputFormat, VerticalAlignment } from '@/lib/timing';
 import { NO_VOCALS_SEPARATOR_MODEL, BACKING_VOCALS_SEPARATOR_MODEL } from './media';
 import Color from 'buefy/src/utils/color';
 import { SeparationModel } from '@/types';
@@ -38,6 +38,7 @@ export type VideoSettings = {
   addInstrumentalScreens: boolean;
   addStaggeredLines: boolean;
   useBackgroundVideo: boolean;
+  outputFormat: OutputFormat;
   verticalAlignment: VerticalAlignment;
   font: {
     size: number;
@@ -71,6 +72,7 @@ const DEFAULT_SETTINGS: VideoSettings = {
   addInstrumentalScreens: true,
   addStaggeredLines: true,
   useBackgroundVideo: false,
+  outputFormat: 'mp4',
   verticalAlignment: VerticalAlignment.Middle,
   vocalSeparationModel: BACKING_VOCALS_SEPARATOR_MODEL,
   font: {
