@@ -6,14 +6,10 @@
       headerClass="song-timing-tab-header"
       :disabled="!songFile || lyricSegments.length == 0">
     <div class="title-row">
-      <h2 class="title">
-        Song Timing
-        <b-button v-if="isMobile" icon-right="circle-question" :type="isShowingHelp ? 'is-primary' : ''"
-                  @click="isShowingHelp = !isShowingHelp"/>
-      </h2>
+      <h2 class="title">Song Timing</h2>
       <voice-selector/>
     </div>
-    <b-collapse v-model="isShowingHelp" class="content">
+    <help-section>
       <p>
         Press <kbd>spacebar</kbd> when the singer starts the highlighted
         segment.
@@ -26,7 +22,7 @@
         Adjust the playback speed to slow down fast parts or skip through long
         instrumentals.
       </p>
-    </b-collapse>
+    </help-section>
     <b-message v-model="warningMessageVisible" type="is-warning" has-icon icon="warning" icon-size="is-small">
       Almost done! Press <kbd>Enter</kbd> when the last line ends.
     </b-message>
@@ -84,6 +80,7 @@ import {storeToRefs} from "pinia";
 import {KEY_CODES, TIMING_KEY_CODES} from "@/constants";
 import {isMobile} from "@/lib/device";
 import {Segment} from "@/lib/timing";
+import HelpSection from "@/components/HelpSection.vue";
 import LyricDisplay from "@/components/LyricDisplay.vue";
 import TimingButtons from "@/components/TimingButtons.vue";
 import VoiceSelector from "@/components/VoiceSelector.vue";
@@ -103,7 +100,7 @@ function defaultVoiceState(): VoiceTimingState {
 }
 
 export default defineComponent({
-  components: {LyricDisplay, TimingButtons, VoiceSelector},
+  components: {HelpSection, LyricDisplay, TimingButtons, VoiceSelector},
   setup() {
     const timingsStore = useTimingsStore();
     const lyricsStore = useLyricsStore();
@@ -117,7 +114,6 @@ export default defineComponent({
       // context (current segment, playback speed, playhead).
       voiceState: {} as Record<VoiceId, VoiceTimingState>,
       isPlaying: false,
-      isShowingHelp: !isMobile(),
       showButtonKeyboard: isMobile(),
       currentTime: 0,
       duration: 0,

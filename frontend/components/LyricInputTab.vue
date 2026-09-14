@@ -1,7 +1,7 @@
 <template>
   <b-tab-item label="Lyrics" icon="align-left" class="lyric-input-tab" headerClass="lyric-input-tab-header">
     <h2 class="title">Song Lyrics</h2>
-    <div class="content">
+    <help-section>
       <div class="columns is-variable is-5">
         <div class="column">
           <p>
@@ -20,7 +20,7 @@
           <pre>{{ multiVoiceExample }}</pre>
         </div>
       </div>
-    </div>
+    </help-section>
     <div class="level is-mobile">
       <div class="level-item">
         <b-tooltip position="is-right" label="Convert all spaces to underscores">
@@ -42,9 +42,11 @@ import { defineComponent } from "vue";
 import { storeToRefs } from "pinia";
 import { useLyricsStore } from "@/stores/lyrics";
 import LyricEditor from "@/components/LyricEditor.vue";
+import HelpSection from "@/components/HelpSection.vue";
 
 export default defineComponent({
   components: {
+    HelpSection,
     LyricEditor,
   },
   setup() {

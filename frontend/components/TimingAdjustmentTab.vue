@@ -1,11 +1,12 @@
 <template>
-  <b-tab-item icon="flask" label="Adjust" :disabled="!isEnabled" class="timing-adjustment-tab"
-    headerClass="timing-adjustment-tab-header">
+  <b-tab-item
+      icon="flask" label="Adjust" :disabled="!isEnabled" class="timing-adjustment-tab"
+      headerClass="timing-adjustment-tab-header">
     <div class="title-row">
       <h2 class="title">Adjust Timings</h2>
-      <voice-selector />
+      <voice-selector/>
     </div>
-    <div class="content">
+    <help-section>
       <p>
         Use this tab to adjust lyric timings by dragging the start of the
         lyric's rectangle. Drag the end of the rectangle to adjust the release.
@@ -27,51 +28,69 @@
         by clicking the waveform, using the arrow keys, or dragging a timing.
         Scroll up and down on the waveform to zoom in and out on the area under the cursor.
       </p>
-    </div>
+    </help-section>
     <div class="adjustment-form">
       <b-field label="Waveform zoom" horizontal style="margin-bottom: 0.5em;">
-        <b-numberinput :model-value="zoom" @update:model-value="(v: number | null | undefined) => (zoom = Number(v ?? zoom))" :min="10" :max="500" :step="10" controls-position="compact" style="width: 10em;" />
+        <b-numberinput
+            :model-value="zoom"
+            @update:model-value="(v: number | null | undefined) => (zoom = Number(v ?? zoom))" :min="10"
+            :max="500" :step="10" controls-position="compact"/>
       </b-field>
       <b-field label="Playback rate" horizontal style="margin-bottom: 0.5em;">
-        <b-numberinput :model-value="playbackRate" @update:model-value="(v: number | null | undefined) => (playbackRate = Number(v ?? playbackRate))" :min="0.25" :max="2" :step="0.25" controls-position="compact" style="width: 10em;" />
+        <b-numberinput
+            :model-value="playbackRate"
+            @update:model-value="(v: number | null | undefined) => (playbackRate = Number(v ?? playbackRate))"
+            :min="0.25" :max="2" :step="0.25" controls-position="compact"/>
       </b-field>
       <b-field label="Shift all timings (ms)" horizontal style="margin-bottom: 0.5em;">
-        <b-numberinput :model-value="shiftMs" @update:model-value="(v: number | null | undefined) => (shiftMs = Number(v ?? shiftMs))" :step="1" controls-position="compact" style="width: 10em;" />
-        <b-button label="Apply" @click="applyShift" style="margin-left: 0.5em;" />
+        <b-numberinput
+            :model-value="shiftMs"
+            @update:model-value="(v: number | null | undefined) => (shiftMs = Number(v ?? shiftMs))"
+            :step="1" controls-position="compact"/>
+        <b-button label="Apply" @click="applyShift" style="margin-left: 0.5em;"/>
       </b-field>
       <b-field label="Playhead preroll (seconds)" horizontal style="margin-bottom: 0.5em;">
-        <b-numberinput :model-value="prerollSeconds" @update:model-value="(v: number | null | undefined) => (prerollSeconds = Number(v ?? prerollSeconds))" :min="0" :max="30" :step="1" controls-position="compact" style="width: 8em;" />
+        <b-numberinput
+            :model-value="prerollSeconds"
+            @update:model-value="(v: number | null | undefined) => (prerollSeconds = Number(v ?? prerollSeconds))"
+            :min="0" :max="30" :step="1" controls-position="compact"/>
       </b-field>
       <b-field v-if="vocalTrack" label="Playback track" horizontal style="margin-bottom: 0.5em;">
-        <b-select v-model="playbackTrackChoice" style="width: 10em;">
+        <b-select v-model="playbackTrackChoice">
           <option value="full">Full track</option>
           <option value="vocals">Vocals only</option>
         </b-select>
       </b-field>
     </div>
-    <subtitle-display class="subtitle-display" v-if="songFile && debouncedSubtitles" ref="subtitleDisplay" :subtitles="debouncedSubtitles"
-      :fonts="{}" :backgroundColor="settingsStore.videoOptions.color.background.toString()" />
-    <timing-adjuster v-if="songFile && adjustmentSubtitles" ref="timing-adjuster" :lyrics="voiceLyrics"
-      :timings="timingsStore.rawTimings" :audioData="songFile ?? undefined" :vocalTrack="vocalTrack ?? undefined" :playbackTrack="playbackTrack ?? undefined"
-      :prerollSeconds="prerollSeconds" :zoom="zoom" :playbackRate="playbackRate" @timingschange="onTimingsChange" @zoom-change="onZoomChange"
-      @timeupdate="onPlayheadUpdate" @seeking="onSeek" />
+    <subtitle-display
+        class="subtitle-display" v-if="songFile && debouncedSubtitles" ref="subtitleDisplay"
+        :subtitles="debouncedSubtitles"
+        :fonts="{}" :backgroundColor="settingsStore.videoOptions.color.background.toString()"/>
+    <timing-adjuster
+        v-if="songFile && adjustmentSubtitles" ref="timing-adjuster" :lyrics="voiceLyrics"
+        :timings="timingsStore.rawTimings" :audioData="songFile ?? undefined"
+        :vocalTrack="vocalTrack ?? undefined" :playbackTrack="playbackTrack ?? undefined"
+        :prerollSeconds="prerollSeconds" :zoom="zoom" :playbackRate="playbackRate"
+        @timingschange="onTimingsChange" @zoom-change="onZoomChange"
+        @timeupdate="onPlayheadUpdate" @seeking="onSeek"/>
   </b-tab-item>
 </template>
 
 <script lang="ts">
-import { defineComponent } from "vue";
-import { LyricEvent } from "@/lib/timing";
+import {defineComponent} from "vue";
+import {LyricEvent} from "@/lib/timing";
+import HelpSection from "@/components/HelpSection.vue";
 import TimingAdjuster from "@/components/TimingAdjuster.vue";
 import SubtitleDisplay from "./SubtitleDisplay.vue";
 import VoiceSelector from "@/components/VoiceSelector.vue";
-import { useMediaStore } from "@/stores/media";
-import { useTimingsStore } from "@/stores/timings";
-import { useLyricsStore } from "@/stores/lyrics";
-import { useSettingsStore } from "@/stores/settings";
-import { storeToRefs } from "pinia";
-import { BButton, BField, BNumberinput, BSelect } from "buefy";
-import { VoiceId } from "@/lib/voices";
-import { clampTimingOverlaps } from "@/lib/timingValidation";
+import {useMediaStore} from "@/stores/media";
+import {useTimingsStore} from "@/stores/timings";
+import {useLyricsStore} from "@/stores/lyrics";
+import {useSettingsStore} from "@/stores/settings";
+import {storeToRefs} from "pinia";
+import {BButton, BField, BNumberinput, BSelect} from "buefy";
+import {VoiceId} from "@/lib/voices";
+import {clampTimingOverlaps} from "@/lib/timingValidation";
 
 // The arrow keys step by the playhead preroll, so stepping and the preview jump
 // after a drag agree on what one step is worth. Shift takes five of them.
@@ -88,17 +107,25 @@ interface AdjustVoiceState {
 }
 
 function defaultAdjustState(): AdjustVoiceState {
-  return { playhead: 0.0, manualPlayhead: 0.0, prerollSeconds: 1, shiftMs: 0, zoom: 50, playbackRate: 1, playbackTrackChoice: "full" };
+  return {
+    playhead: 0.0,
+    manualPlayhead: 0.0,
+    prerollSeconds: 1,
+    shiftMs: 0,
+    zoom: 50,
+    playbackRate: 1,
+    playbackTrackChoice: "full"
+  };
 }
 
 export default defineComponent({
-  components: { BButton, BField, BNumberinput, BSelect, TimingAdjuster, SubtitleDisplay, VoiceSelector },
+  components: {BButton, BField, BNumberinput, BSelect, HelpSection, TimingAdjuster, SubtitleDisplay, VoiceSelector},
   setup() {
     const mediaStore = useMediaStore();
     const timingsStore = useTimingsStore();
     const lyricsStore = useLyricsStore();
     const settingsStore = useSettingsStore();
-    const { subtitles } = storeToRefs(timingsStore);
+    const {subtitles} = storeToRefs(timingsStore);
     return {
       mediaStore,
       timingsStore,
@@ -111,9 +138,9 @@ export default defineComponent({
     return {
       // Controls playhead in video and adjuster (in seconds)
       playhead: 0.0,
-      // Last playhead position the user set on purpose (waveform click, player
-      // seek, or the preroll jump after a timing drag), as opposed to one
-      // reached by playback running on. Enter replays from here.
+      // Last playhead position the user set on purpose (waveform click, player seek,
+      // or the preroll jump after a timing drag), as opposed to one reached by playback running on.
+      // Enter replays from here.
       manualPlayhead: 0.0,
       prerollSeconds: 1,
       shiftMs: 0,
@@ -121,12 +148,13 @@ export default defineComponent({
       playbackRate: 1,
       // Which track to play back; the waveform always stays on the vocals.
       playbackTrackChoice: "full" as "full" | "vocals",
-      // Per-voice control state. The flat fields above are the *active* voice's values;
-      // on a voice switch they are saved here and the incoming voice's values are loaded.
+      // Per-voice control state.
+      // The flat fields above are the *active* voice's values.
+      // On a voice switch they are saved here and the incoming voice's values are loaded.
       voiceState: {} as Record<VoiceId, AdjustVoiceState>,
       // Debounced copy of `adjustmentSubtitles` fed to the SubtitleDisplay.
-      // Regenerating the ASS file and re-rendering it (SubtitlesOctopus.setTrack,
-      // a WASM re-parse) is expensive, so we defer it until dragging settles.
+      // Regenerating the ASS file and re-rendering it (SubtitlesOctopus.setTrack, a WASM re-parse) is expensive,
+      // so we defer it until dragging settles.
       debouncedSubtitles: "",
       _subtitleDebounceTimer: null as ReturnType<typeof setTimeout> | null,
     };
@@ -142,8 +170,8 @@ export default defineComponent({
       return this.mediaStore.songFile;
     },
     vocalTrack(): Blob | null {
-      // setBackingTrack() uses an empty Blob as a "no vocals" placeholder, so
-      // an empty blob means there is no usable vocal track.
+      // setBackingTrack() uses an empty Blob as a "no vocals" placeholder,
+      // so an empty blob means there is no usable vocal track.
       const vocals = this.mediaStore.separatedTrack?.vocals;
       return vocals && vocals.size > 0 ? vocals : null;
     },
@@ -157,13 +185,13 @@ export default defineComponent({
       return this.timingsStore.length > 0;
     },
     adjustmentSubtitles(): string {
-      return this.subtitles({ addTitleScreen: false, addCountIns: false });
+      return this.subtitles({addTitleScreen: false, addCountIns: false});
     },
   },
   mounted() {
-    // Capture phase: the audio element's built-in controls handle these same
-    // keys when they have focus, so we have to get in ahead of them and cancel
-    // the native behavior. A bubble-phase listener runs too late and both act.
+    // Capture phase: the audio element's built-in controls handle these same keys when they have focus,
+    // so we have to get in ahead of them and cancel the native behavior.
+    // A bubble-phase listener runs too late and both act.
     window.addEventListener('keydown', this.onKeyDown, true);
   },
   beforeUnmount() {
@@ -176,7 +204,7 @@ export default defineComponent({
     activeVoice(newVoice: VoiceId, oldVoice?: VoiceId) {
       // Save the outgoing voice's control state and load the incoming voice's.
       if (oldVoice) {
-        this.voiceState = { ...this.voiceState, [oldVoice]: this.snapshotState() };
+        this.voiceState = {...this.voiceState, [oldVoice]: this.snapshotState()};
       }
       this.loadState(newVoice);
     },
@@ -185,8 +213,8 @@ export default defineComponent({
     },
     adjustmentSubtitles: {
       handler(newSubs: string) {
-        // First population (and clearing) should be immediate so the preview
-        // appears without delay; rapid edits while dragging are debounced.
+        // First population (and clearing) should be immediate so the preview appears without delay.
+        // Rapid edits while dragging are debounced.
         if (!this.debouncedSubtitles || !newSubs) {
           if (this._subtitleDebounceTimer) {
             clearTimeout(this._subtitleDebounceTimer);
@@ -245,8 +273,8 @@ export default defineComponent({
       const target = event.target as HTMLElement | null;
       // Form controls need these keys for themselves.
       if (target && ['INPUT', 'TEXTAREA', 'SELECT'].includes(target.tagName)) return;
-      // Enter is also how a focused button or link is activated, so leave those
-      // to the browser rather than hijacking the key.
+      // Enter is also how a focused button or link is activated,
+      // so leave those to the browser rather than hijacking the key.
       if (isEnter && target?.closest?.('button, a')) return;
       if (this.$el.offsetParent === null) return;
       event.preventDefault();
@@ -255,8 +283,8 @@ export default defineComponent({
       } else if (isArrow) {
         const direction = event.code === 'ArrowLeft' ? -1 : 1;
         const step = event.shiftKey
-          ? this.prerollSeconds * COARSE_STEP_MULTIPLIER
-          : this.prerollSeconds;
+            ? this.prerollSeconds * COARSE_STEP_MULTIPLIER
+            : this.prerollSeconds;
         this.timingAdjusterRef()?.seekBy(direction * step);
       } else {
         this.timingAdjusterRef()?.togglePlayPause();
@@ -265,7 +293,7 @@ export default defineComponent({
     applyShift() {
       const deltaSeconds = this.shiftMs / 1000;
       const shifted = this.timingsStore.rawTimings.map(
-        ([time, marker]): LyricEvent => [Math.max(0, time + deltaSeconds), marker]
+          ([time, marker]): LyricEvent => [Math.max(0, time + deltaSeconds), marker]
       );
       this.timingsStore.resetTimings(clampTimingOverlaps(shifted));
     },
@@ -309,19 +337,61 @@ export default defineComponent({
   flex-shrink: 0;
 }
 
-/* Single column on small screens; two columns from the tablet breakpoint
-   (medium) up. The fields stay a flat list in the markup and flow into
-   whatever number of columns the viewport allows. */
+/* Two columns for as long as they fit, in labels-beside-control form while there is room for that and stacked below.
+Bulma keys the same switch off the viewport, which overshoots here: the tab strip takes a fixed slice of it. */
 .adjustment-form {
-  display: grid;
-  grid-template-columns: 1fr;
+  display: flex;
+  flex-wrap: wrap;
   column-gap: 1.5rem;
+  container-type: inline-size;
 }
 
-@media screen and (min-width: 769px) {
-  .adjustment-form {
-    grid-template-columns: 1fr 1fr;
+.adjustment-form > :deep(.field) {
+  flex: 1 1 calc(50% - 0.75rem);
+  min-width: min(13rem, 100%);
+}
+
+.adjustment-form :deep(.field.is-horizontal) {
+  display: block;
+}
+
+.adjustment-form :deep(.field-label) {
+  margin: 0 0 0.25rem;
+}
+
+.adjustment-form :deep(.field-body) {
+  display: flex;
+}
+
+.adjustment-form :deep(.field-body .field) {
+  margin-bottom: 0;
+}
+
+/* Two columns of label-beside-control need 23rem each, plus the column gap. */
+@container (min-width: 47.5rem) {
+  .adjustment-form > :deep(.field) {
+    min-width: min(23rem, 100%);
   }
+
+  .adjustment-form :deep(.field.is-horizontal) {
+    display: flex;
+  }
+
+  .adjustment-form :deep(.field-label) {
+    margin: 0 0.75rem 0 0;
+  }
+}
+
+.adjustment-form :deep(.b-numberinput),
+.adjustment-form :deep(.select) {
+  width: 100%;
+  min-width: 6em;
+  max-width: 10em;
+}
+
+/* Bulma's input padding alone is wider than the value at the narrowest column. */
+.adjustment-form :deep(.b-numberinput input) {
+  padding-inline: 0.25em;
 }
 
 .subtitle-display {

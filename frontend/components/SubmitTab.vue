@@ -261,7 +261,7 @@ export default defineComponent({
       submitError: null as string | null,
       // Which track the preview plays: "full" (with vocals) or "backing".
       previewTrack: "full",
-      isShowingFontsAndColors: false,
+      isShowingFontsAndColors: true,
       // Vue would proxy the controller, whose methods need the instance itself.
       creation: markRaw({abort: null as AbortController | null}),
     };
