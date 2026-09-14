@@ -36,9 +36,14 @@ function isCanvasBlank(page: Page): Promise<boolean> {
   });
 }
 
+// The panel starts open, so clicking the trigger unconditionally would close it.
 async function openFontSettings(page: Page): Promise<void> {
   await navigateToTab(page, TabId.Submit);
-  await page.click("a:has-text('Fonts and Colors')");
+  const trigger = page.locator(".collapse-trigger a", { hasText: "Fonts and Colors" });
+  if ((await trigger.getAttribute("aria-expanded")) !== "true") {
+    await trigger.click();
+  }
+  await expect(fontSelect(page)).toBeVisible();
 }
 
 test.describe("Custom Font Upload", () => {
