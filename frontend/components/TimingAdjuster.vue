@@ -50,6 +50,7 @@ export default defineComponent({
     prerollSeconds: { type: Number, default: 5 },
     zoom: { type: Number, default: 50 },
     playbackRate: { type: Number, default: 1 },
+    preservePitch: { type: Boolean, default: false },
   },
   data() {
     return {
@@ -80,6 +81,7 @@ export default defineComponent({
     if (playbackBlob) {
       this.audioSource = this.trackUrl(playbackBlob);
     }
+    this.applyPlaybackSettings();
   },
   watch: {
     timings: {
@@ -91,9 +93,11 @@ export default defineComponent({
     lyrics() {
       this.regions = this.createRegions(this.timings ?? [], this.splitLyrics);
     },
-    playbackRate(value: number) {
-      const player = this.audioPlayerRef();
-      if (player) player.playbackRate = value;
+    playbackRate() {
+      this.applyPlaybackSettings();
+    },
+    preservePitch() {
+      this.applyPlaybackSettings();
     },
     playbackTrack(newTrack: Blob) {
       this.swapPlaybackSource(newTrack || this.audioData);
@@ -102,8 +106,14 @@ export default defineComponent({
   methods: {
     audioPlayerRef() {
       return this.$refs.audioPlayer as
-        | (InstanceType<typeof SmoothAudioPlayer> & { currentTime: number; playbackRate: number })
+        | (InstanceType<typeof SmoothAudioPlayer> & { currentTime: number; playbackRate: number; preservesPitch: boolean })
         | undefined;
+    },
+    applyPlaybackSettings() {
+      const player = this.audioPlayerRef();
+      if (!player) return;
+      player.preservesPitch = this.preservePitch;
+      player.playbackRate = this.playbackRate;
     },
     wavesurferRef() {
       return this.$refs.wavesurfer as InstanceType<typeof Wavesurfer> | undefined;

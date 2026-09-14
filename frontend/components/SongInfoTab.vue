@@ -120,9 +120,10 @@
         </div>
       </b-collapse>
 
-      <div class="buttons" v-if="!mediaStore.backingTrackFile">
+      <div class="buttons">
         <b-tooltip position="is-right" :label="separatingTrackMessage" :always="isSeparatingTrack">
-          <b-button label="Separate Track" type="is-primary" :disabled="!mediaStore.songFile"
+          <b-button label="Separate Track" type="is-primary"
+                    :disabled="!mediaStore.songFile || !!mediaStore.backingTrackFile"
                     :loading="isSeparatingTrack"
                     @click="separateTrack"/>
         </b-tooltip>
@@ -225,6 +226,9 @@ export default defineComponent({
     separatingTrackMessage() {
       if (this.isSeparatingTrack) {
         return "Separating track...head to the Lyrics tab to keep working on the song!";
+      }
+      if (this.mediaStore.backingTrackFile) {
+        return "You already loaded a backing track, so there's nothing to separate.";
       }
       return "Start separating the track while you work on the song timings. It's faster!";
     },
@@ -482,8 +486,8 @@ export default defineComponent({
   max-width: 100%;
 }
 
-/* Content sizing drops the browser's default 20-character box, which is the
-   width of the YouTube field above; 14rem restores it as the floor. */
+/* Content sizing drops the browser's default 20-character box,
+  which is the width of the YouTube field above; 14rem restores it as the floor. */
 @supports (field-sizing: content) {
   .metadata-input :deep(.input) {
     min-width: 14rem;
@@ -493,6 +497,11 @@ export default defineComponent({
 
 .buttons {
   margin-top: 1.5rem;
+}
+
+/* A disabled button eats its own hover events, so the tooltip wrapper around it would never see them. */
+.buttons :deep(button[disabled]) {
+  pointer-events: none;
 }
 
 .separation-progress {
