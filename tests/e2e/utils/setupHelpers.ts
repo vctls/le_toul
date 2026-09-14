@@ -79,7 +79,7 @@ export function setupConsoleErrorListener(page: Page): void {
  */
 export async function initAppSetup(page: Page): Promise<void> {
   await page.goto("/");
-  await expect(page).toHaveTitle("The Tuul");
+  await expect(page).toHaveTitle("The Tüüler");
 }
 
 /**
