@@ -59,6 +59,17 @@
           </b-field>
         </b-field>
       </div>
+      <div class="level-item">
+        <b-field horizontal class="preserve-pitch">
+          <template #label>
+            Preserve pitch
+            <b-tooltip multilined label="Hold the original key at other speeds. The stretching it needs sounds rough well below 1x.">
+              <b-icon size="is-small" icon="circle-question"></b-icon>
+            </b-tooltip>
+          </template>
+          <b-switch v-model="preservePitch" :size="isMobile ? 'is-small' : ''"></b-switch>
+        </b-field>
+      </div>
     </div>
 
     <div class="seek-bar">
@@ -114,6 +125,9 @@ export default defineComponent({
       // context (current segment, playback speed, playhead).
       voiceState: {} as Record<VoiceId, VoiceTimingState>,
       isPlaying: false,
+      // Default off: the browser's stretcher warbles at slow rates,
+      // and a dropped key costs nothing while tapping timings.
+      preservePitch: false,
       showButtonKeyboard: isMobile(),
       currentTime: 0,
       duration: 0,
@@ -191,11 +205,11 @@ export default defineComponent({
         this.audioElement()?.pause();
       }
     },
-    playbackRate(newRate: number | string) {
-      const audio = this.audioElement();
-      if (audio) {
-        audio.playbackRate = parseFloat(String(newRate));
-      }
+    playbackRate() {
+      this.applyPlaybackSettings();
+    },
+    preservePitch() {
+      this.applyPlaybackSettings();
     },
     activeVoice: {
       immediate: true,
@@ -211,7 +225,7 @@ export default defineComponent({
           const incoming = this.audioElement();
           if (incoming) {
             incoming.currentTime = this.voiceState[newVoice].playhead;
-            incoming.playbackRate = parseFloat(String(this.voiceState[newVoice].playbackRate));
+            this.applyPlaybackSettings();
           }
         });
       },
@@ -220,6 +234,12 @@ export default defineComponent({
   methods: {
     audioElement(): HTMLAudioElement | undefined {
       return this.$refs.audio as HTMLAudioElement | undefined;
+    },
+    applyPlaybackSettings() {
+      const audio = this.audioElement();
+      if (!audio) return;
+      audio.preservesPitch = this.preservePitch;
+      audio.playbackRate = parseFloat(String(this.playbackRate));
     },
     ensureVoiceState(voice: VoiceId): VoiceTimingState {
       if (!this.voiceState[voice]) {
@@ -261,6 +281,7 @@ export default defineComponent({
     },
     onLoadedMetadata() {
       this.duration = this.audioElement()?.duration ?? 0;
+      this.applyPlaybackSettings();
     },
     onSeek(e: Event) {
       const audio = this.audioElement();
@@ -356,6 +377,10 @@ export default defineComponent({
   display: flex;
   flex-direction: row;
   flex-wrap: nowrap;
+}
+
+.preserve-pitch :deep(.field-label) {
+  white-space: nowrap;
 }
 
 .is-flex-shrink-0 {

@@ -25,6 +25,14 @@ export default defineComponent({
         }
       }
     });
+    Object.defineProperty(this, 'preservesPitch', {
+      get: () => this.audioPlayer?.preservesPitch ?? true,
+      set: (value) => {
+        if (this.audioPlayer) {
+          this.audioPlayer.preservesPitch = value;
+        }
+      }
+    });
     Object.defineProperty(this, 'currentTime', {
       get: () => this.audioPlayer?.currentTime || 0,
       set: (value) => {

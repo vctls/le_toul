@@ -30,37 +30,55 @@
       </p>
     </help-section>
     <div class="adjustment-form">
-      <b-field label="Waveform zoom" horizontal style="margin-bottom: 0.5em;">
-        <b-numberinput
-            :model-value="zoom"
-            @update:model-value="(v: number | null | undefined) => (zoom = Number(v ?? zoom))" :min="10"
-            :max="500" :step="10" controls-position="compact"/>
-      </b-field>
-      <b-field label="Playback rate" horizontal style="margin-bottom: 0.5em;">
-        <b-numberinput
-            :model-value="playbackRate"
-            @update:model-value="(v: number | null | undefined) => (playbackRate = Number(v ?? playbackRate))"
-            :min="0.25" :max="2" :step="0.25" controls-position="compact"/>
-      </b-field>
-      <b-field label="Shift all timings (ms)" horizontal style="margin-bottom: 0.5em;">
-        <b-numberinput
-            :model-value="shiftMs"
-            @update:model-value="(v: number | null | undefined) => (shiftMs = Number(v ?? shiftMs))"
-            :step="1" controls-position="compact"/>
-        <b-button label="Apply" @click="applyShift" style="margin-left: 0.5em;"/>
-      </b-field>
-      <b-field label="Playhead preroll (seconds)" horizontal style="margin-bottom: 0.5em;">
-        <b-numberinput
-            :model-value="prerollSeconds"
-            @update:model-value="(v: number | null | undefined) => (prerollSeconds = Number(v ?? prerollSeconds))"
-            :min="0" :max="30" :step="1" controls-position="compact"/>
-      </b-field>
-      <b-field v-if="vocalTrack" label="Playback track" horizontal style="margin-bottom: 0.5em;">
-        <b-select v-model="playbackTrackChoice">
-          <option value="full">Full track</option>
-          <option value="vocals">Vocals only</option>
-        </b-select>
-      </b-field>
+      <div class="adjustment-fields">
+        <b-field label="Playback rate" horizontal>
+          <b-numberinput expanded
+              :model-value="playbackRate"
+              @update:model-value="(v: number | null | undefined) => (playbackRate = Number(v ?? playbackRate))"
+              :min="0.25" :max="2" :step="0.25" controls-position="compact"/>
+        </b-field>
+        <b-field horizontal>
+          <template #label>
+            Preserve pitch
+            <b-tooltip
+                multilined
+                label="Hold the original key at other speeds. The stretching it needs sounds rough well below 1x.">
+              <b-icon size="is-small" icon="circle-question"></b-icon>
+            </b-tooltip>
+          </template>
+          <b-switch v-model="preservePitch"></b-switch>
+        </b-field>
+        <b-field label="Waveform zoom" horizontal>
+          <b-numberinput expanded
+              :model-value="zoom"
+              @update:model-value="(v: number | null | undefined) => (zoom = Number(v ?? zoom))"
+              :min="10"
+              :max="500" :step="10"
+              controls-position="compact"/>
+        </b-field>
+        <b-field label="Shift all timings (ms)" horizontal>
+          <b-numberinput expanded
+              :model-value="shiftMs"
+              @update:model-value="(v: number | null | undefined) => (shiftMs = Number(v ?? shiftMs))"
+              :step="1"
+              controls-position="compact"/>
+          <b-button label="Apply" @click="applyShift"/>
+        </b-field>
+        <b-field label="Playhead preroll (seconds)" horizontal>
+          <b-numberinput expanded
+              :model-value="prerollSeconds"
+              @update:model-value="(v: number | null | undefined) => (prerollSeconds = Number(v ?? prerollSeconds))"
+              :min="0"
+              :max="30"
+              :step="1" controls-position="compact"/>
+        </b-field>
+        <b-field v-if="vocalTrack" label="Playback track" horizontal>
+          <b-select expanded v-model="playbackTrackChoice">
+            <option value="full">Full track</option>
+            <option value="vocals">Vocals only</option>
+          </b-select>
+        </b-field>
+      </div>
     </div>
     <subtitle-display
         class="subtitle-display" v-if="songFile && debouncedSubtitles" ref="subtitleDisplay"
@@ -70,7 +88,7 @@
         v-if="songFile && adjustmentSubtitles" ref="timing-adjuster" :lyrics="voiceLyrics"
         :timings="timingsStore.rawTimings" :audioData="songFile ?? undefined"
         :vocalTrack="vocalTrack ?? undefined" :playbackTrack="playbackTrack ?? undefined"
-        :prerollSeconds="prerollSeconds" :zoom="zoom" :playbackRate="playbackRate"
+        :prerollSeconds="prerollSeconds" :zoom="zoom" :playbackRate="playbackRate" :preservePitch="preservePitch"
         @timingschange="onTimingsChange" @zoom-change="onZoomChange"
         @timeupdate="onPlayheadUpdate" @seeking="onSeek"/>
   </b-tab-item>
@@ -88,7 +106,7 @@ import {useTimingsStore} from "@/stores/timings";
 import {useLyricsStore} from "@/stores/lyrics";
 import {useSettingsStore} from "@/stores/settings";
 import {storeToRefs} from "pinia";
-import {BButton, BField, BNumberinput, BSelect} from "buefy";
+import {BButton, BField, BNumberinput, BSelect, BSwitch} from "buefy";
 import {VoiceId} from "@/lib/voices";
 import {clampTimingOverlaps} from "@/lib/timingValidation";
 
@@ -119,7 +137,17 @@ function defaultAdjustState(): AdjustVoiceState {
 }
 
 export default defineComponent({
-  components: {BButton, BField, BNumberinput, BSelect, HelpSection, TimingAdjuster, SubtitleDisplay, VoiceSelector},
+  components: {
+    BButton,
+    BField,
+    BNumberinput,
+    BSelect,
+    BSwitch,
+    HelpSection,
+    TimingAdjuster,
+    SubtitleDisplay,
+    VoiceSelector
+  },
   setup() {
     const mediaStore = useMediaStore();
     const timingsStore = useTimingsStore();
@@ -146,6 +174,9 @@ export default defineComponent({
       shiftMs: 0,
       zoom: 50,
       playbackRate: 1,
+      // Default off: the browser's stretcher warbles at slow rates,
+      // and a dropped key costs nothing while tapping timings.
+      preservePitch: false,
       // Which track to play back; the waveform always stays on the vocals.
       playbackTrackChoice: "full" as "full" | "vocals",
       // Per-voice control state.
@@ -331,66 +362,99 @@ export default defineComponent({
   flex-wrap: wrap;
 }
 
-.timing-adjustment-tab :deep(.field-label) {
-  white-space: nowrap;
-  text-align: left;
-  flex-shrink: 0;
-}
-
 /* Two columns for as long as they fit, in labels-beside-control form while there is room for that and stacked below.
-Bulma keys the same switch off the viewport, which overshoots here: the tab strip takes a fixed slice of it. */
+Bulma keys the same switch off the viewport, which overshoots here: the tab strip takes a fixed slice of it.
+The query has to be answered by an ancestor, hence the wrapper around the grid. */
 .adjustment-form {
-  display: flex;
-  flex-wrap: wrap;
-  column-gap: 1.5rem;
   container-type: inline-size;
 }
 
-.adjustment-form > :deep(.field) {
-  flex: 1 1 calc(50% - 0.75rem);
-  min-width: min(13rem, 100%);
+.adjustment-fields {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  column-gap: 1.5rem;
+  row-gap: 0.5rem;
 }
 
-.adjustment-form :deep(.field.is-horizontal) {
-  display: block;
-}
-
-.adjustment-form :deep(.field-label) {
-  margin: 0 0 0.25rem;
-}
-
-.adjustment-form :deep(.field-body) {
-  display: flex;
-}
-
-.adjustment-form :deep(.field-body .field) {
+.adjustment-fields > :deep(.field) {
   margin-bottom: 0;
 }
 
-/* Two columns of label-beside-control need 23rem each, plus the column gap. */
-@container (min-width: 47.5rem) {
-  .adjustment-form > :deep(.field) {
-    min-width: min(23rem, 100%);
-  }
+.adjustment-fields :deep(.field.is-horizontal) {
+  display: block;
+}
 
-  .adjustment-form :deep(.field.is-horizontal) {
-    display: flex;
-  }
+.adjustment-fields :deep(.field-label) {
+  white-space: nowrap;
+  text-align: left;
+  margin: 0 0 0.25rem;
+}
 
-  .adjustment-form :deep(.field-label) {
-    margin: 0 0.75rem 0 0;
+/* Bulma only makes this a row, and only spaces and de-margins its children, from its tablet breakpoint up.
+This tab switches on the container, not the viewport. */
+.adjustment-fields :deep(.field-body) {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+}
+
+.adjustment-fields :deep(.field-body .field) {
+  margin: 0;
+}
+
+/* Bulma's own opt-out for this is .field-body > .field.is-narrow, but BFieldBody
+generates these wrappers itself and forwards no class, so it has to be CSS. */
+.adjustment-fields :deep(.field-body > .field) {
+  flex-grow: 0;
+  min-width: 0;
+}
+
+/* Two columns of label-above-control need 13rem each, the width of the longest label. */
+@container (min-width: 28rem) {
+  .adjustment-fields {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }
 
-.adjustment-form :deep(.b-numberinput),
-.adjustment-form :deep(.select) {
-  width: 100%;
-  min-width: 6em;
-  max-width: 10em;
+/* Labels move beside their control once each column can hold both, plus room for
+the Apply button beside the widest row: 13rem of label and 10em of control. */
+@container (min-width: 62rem) {
+  /* Both columns get the same label and control tracks, so every field is the
+  same width. The floor clears the longest label; max-content grows a longer one
+  rather than clipping it, at the cost of that column no longer matching. */
+  .adjustment-fields {
+    grid-template-columns: repeat(2, minmax(13rem, max-content) minmax(0, 1fr));
+    /* Now between label and control; the gutter between columns is the padding below. */
+    column-gap: 0.75rem;
+  }
+
+  /* Subgrid, so every label in a column is as wide as that column's widest
+  and all its controls start at the same offset. */
+  .adjustment-fields > :deep(.field.is-horizontal) {
+    display: grid;
+    grid-column: span 2;
+    grid-template-columns: subgrid;
+    /* Rows stretch to the tallest control on the line; centering keeps each label on its own control. */
+    align-items: center;
+  }
+
+  .adjustment-fields :deep(.field-label) {
+    margin: 0;
+  }
+
+  /* Widens the single track gap into a gutter between the two field columns. */
+  .adjustment-fields :deep(.field-body) {
+    padding-right: 0.75rem;
+  }
+}
+
+.adjustment-fields :deep(.b-numberinput),
+.adjustment-fields :deep(.select) {
+  width: 10em;
 }
 
 /* Bulma's input padding alone is wider than the value at the narrowest column. */
-.adjustment-form :deep(.b-numberinput input) {
+.adjustment-fields :deep(.b-numberinput input) {
   padding-inline: 0.25em;
 }
 
