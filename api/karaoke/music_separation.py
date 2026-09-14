@@ -4,11 +4,9 @@ import logging
 import subprocess
 from enum import Enum
 from pathlib import Path
-from typing import Optional
 
 import httpx
 
-from api import settings
 from api.karaoke import separation_progress
 from api.karaoke.separation_progress import ProgressCallback
 
@@ -76,7 +74,7 @@ def _split_song_api(
     songfile: Path,
     song_dir: Path,
     model_name: str,
-    on_progress: Optional[ProgressCallback] = None,
+    on_progress: ProgressCallback | None = None,
 ) -> tuple[Path, Path]:
     """Split song using the audio_separator Python API."""
     output_names = {
@@ -260,10 +258,10 @@ def split_song(
     song_dir: Path,
     model_name: str = DEFAULT_MODEL,
     method: SeparationMethod = SeparationMethod.API,
-    host: Optional[str] = None,
-    port: Optional[int] = None,
-    modal_api_url: Optional[str] = None,
-    on_progress: Optional[ProgressCallback] = None,
+    host: str | None = None,
+    port: int | None = None,
+    modal_api_url: str | None = None,
+    on_progress: ProgressCallback | None = None,
 ) -> tuple[Path, Path]:
     """
     Split song into instrumental and vocal tracks.

@@ -1,6 +1,5 @@
-from pathlib import Path
 import zipfile
-import json
+from pathlib import Path
 
 
 def create_zip_file(zip_path: Path, files: list[tuple[Path, str]]) -> Path:

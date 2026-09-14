@@ -7,26 +7,23 @@ The containerized Tuul app communicates with this server via TCP on localhost.
 """
 
 import base64
+import logging
 import subprocess
 import tempfile
 from pathlib import Path
-from typing import Optional
-import logging
 
 import structlog
-
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
 
-from . import app_logging
-from . import settings
+from . import app_logging, settings
 
 # Import model constants and split_song function from the main separation module for DRY
 from .karaoke.music_separation import (
     AVAILABLE_MODELS,
     DEFAULT_MODEL,
-    split_song,
     SeparationMethod,
+    split_song,
 )
 
 # Setup logging
@@ -45,11 +42,11 @@ class SeparationRequest(BaseModel):
 
 class SeparationResponse(BaseModel):
     success: bool
-    vocals_base64: Optional[str] = None
-    accompaniment_base64: Optional[str] = None
-    vocals_filename: Optional[str] = None
-    accompaniment_filename: Optional[str] = None
-    error: Optional[str] = None
+    vocals_base64: str | None = None
+    accompaniment_base64: str | None = None
+    vocals_filename: str | None = None
+    accompaniment_filename: str | None = None
+    error: str | None = None
 
 
 @app.post("/separate", response_model=SeparationResponse)
@@ -76,7 +73,9 @@ async def separate_track(request: SeparationRequest):
         audio_data = base64.b64decode(request.audio_base64)
     except Exception as e:
         logger.error("base64_decode_failed", error=str(e))
-        raise HTTPException(status_code=400, detail=f"Invalid base64 audio data: {e}")
+        raise HTTPException(
+            status_code=400, detail=f"Invalid base64 audio data: {e}"
+        ) from e
 
     with tempfile.TemporaryDirectory() as temp_dir:
         temp_path = Path(temp_dir)

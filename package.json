@@ -79,6 +79,10 @@
     "@rollup/rollup-linux-x64-gnu": "^4.60.4"
   },
   "lint-staged": {
-    "*.{ts,mts,js,mjs,cjs,vue,json,jsonc,css,scss,html,md,yaml,yml}": "prettier --write"
+    "*.{ts,mts,js,mjs,cjs,vue,json,jsonc,css,scss,html,md,yaml,yml}": "prettier --write",
+    "*.py": [
+      "poetry run ruff check --fix",
+      "poetry run ruff format"
+    ]
   }
 }

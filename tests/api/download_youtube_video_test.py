@@ -1,6 +1,5 @@
 import json
 import tempfile
-import zipfile
 from io import BytesIO
 from pathlib import Path
 from unittest import mock
@@ -8,7 +7,6 @@ from unittest import mock
 import pytest
 from fastapi.testclient import TestClient
 
-import pytubefix as pytube
 from api.helpers import youtube_helper
 from api.main import app
 
@@ -30,7 +28,7 @@ class MockYouTubeStream:
         # Load stream info from fixture
         info_path = fixture_dir / "streams_info.json"
         if info_path.exists():
-            with open(info_path, "r") as f:
+            with open(info_path) as f:
                 streams_info = json.load(f)
                 self.__dict__.update(streams_info[stream_type])
 
@@ -87,7 +85,7 @@ class MockYouTube:
 
         # Load metadata from fixture
         metadata_path = self.fixture_dir / "metadata.json"
-        with open(metadata_path, "r") as f:
+        with open(metadata_path) as f:
             metadata = json.load(f)
             self.__dict__.update(metadata)
 
@@ -104,12 +102,11 @@ def test_download_youtube_video_integration(youtube_url, youtube_fixture_dir):
     url = f"/download_video?url={youtube_url}"
 
     # Mock the YouTube class and zip helper to avoid file cleanup issues
-    with mock.patch("api.settings.SEPARATED_TRACKS_BUCKET", None), mock.patch(
-        "api.helpers.youtube_helper.pytube.YouTube"
-    ) as mock_youtube, mock.patch(
-        "api.helpers.zip_helper.create_zip_file"
-    ) as mock_create_zip:
-
+    with (
+        mock.patch("api.settings.SEPARATED_TRACKS_BUCKET", None),
+        mock.patch("api.helpers.youtube_helper.pytube.YouTube") as mock_youtube,
+        mock.patch("api.helpers.zip_helper.create_zip_file") as mock_create_zip,
+    ):
         # Configure the mock to use our fixture data
         mock_youtube.return_value = MockYouTube(
             youtube_url, fixture_dir=youtube_fixture_dir
@@ -168,25 +165,25 @@ def test_download_youtube_video_async_with_storage(youtube_url):
     url = f"/download_video?url={youtube_url}"
 
     # Mock the background task processing
-    with mock.patch(
-        "api.helpers.youtube_helper.process_youtube_download_background"
-    ) as mock_background_task:
+    with (
+        mock.patch(
+            "api.helpers.youtube_helper.process_youtube_download_background"
+        ) as mock_background_task,
+        mock.patch("api.settings.SEPARATED_TRACKS_BUCKET", "test-bucket"),
+    ):
+        response = client.get(url)
 
-        # Test with storage bucket configured
-        with mock.patch("api.settings.SEPARATED_TRACKS_BUCKET", "test-bucket"):
-            response = client.get(url)
+        # Should return JSON with polling URL
+        assert response.status_code == 200
+        assert response.headers["content-type"] == "application/json"
 
-            # Should return JSON with polling URL
-            assert response.status_code == 200
-            assert response.headers["content-type"] == "application/json"
+        response_data = response.json()
+        assert "finishedDownloadURL" in response_data
+        expected_url = "https://storage.googleapis.com/test-bucket/downloaded_videos/gVw-wI1GeqI.zip"
+        assert response_data["finishedDownloadURL"] == expected_url
 
-            response_data = response.json()
-            assert "finishedDownloadURL" in response_data
-            expected_url = "https://storage.googleapis.com/test-bucket/downloaded_videos/gVw-wI1GeqI.zip"
-            assert response_data["finishedDownloadURL"] == expected_url
-
-            # Verify background task was called with correct parameters
-            mock_background_task.assert_called_once_with("gVw-wI1GeqI", youtube_url)
+        # Verify background task was called with correct parameters
+        mock_background_task.assert_called_once_with("gVw-wI1GeqI", youtube_url)
 
 
 def test_download_youtube_video_invalid_url():

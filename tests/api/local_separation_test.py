@@ -50,14 +50,14 @@ def song_files():
             zip_file.write(accomp_path, "accompaniment.wav")
             zip_file.write(vocal_path, "vocals.wav")
 
-        with mock.patch(
-            "api.karaoke.music_separation.split_song",
-            return_value=(accomp_path, vocal_path),
-        ) as mock_split_song:
-            with mock.patch(
-                "api.helpers.zip_helper.create_zip_file", return_value=zip_path
-            ):
-                yield mock_split_song
+        with (
+            mock.patch(
+                "api.karaoke.music_separation.split_song",
+                return_value=(accomp_path, vocal_path),
+            ) as mock_split_song,
+            mock.patch("api.helpers.zip_helper.create_zip_file", return_value=zip_path),
+        ):
+            yield mock_split_song
 
 
 def post_song(client):

@@ -38,7 +38,9 @@ def test_separate_track_with_cache_hit(
     # Setup mocks
     mock_get_cache_hash.return_value = "test_hash"
     # Return URL for cached file
-    mock_fetch_from_cache.return_value = "https://example.com/bucket/separated_tracks/test_hash.zip"
+    mock_fetch_from_cache.return_value = (
+        "https://example.com/bucket/separated_tracks/test_hash.zip"
+    )
 
     # Create the request
     filename, content, content_type = song_file
@@ -64,7 +66,10 @@ def test_separate_track_with_cache_hit(
         assert response.headers["content-type"] == "application/json"
         response_data = response.json()
         assert "finishedTrackURL" in response_data
-        assert response_data["finishedTrackURL"] == "https://example.com/bucket/separated_tracks/test_hash.zip"
+        assert (
+            response_data["finishedTrackURL"]
+            == "https://example.com/bucket/separated_tracks/test_hash.zip"
+        )
 
 
 @mock.patch("api.karaoke.music_separation.split_song")
@@ -87,8 +92,10 @@ def test_separate_track_with_cache_miss(
     # Setup mocks
     mock_get_cache_hash.return_value = "test_hash"
     mock_fetch_from_cache.return_value = None  # Cache miss
-    mock_create_placeholder.return_value = "https://example.com/bucket/separated_tracks/test_hash.zip"
-    
+    mock_create_placeholder.return_value = (
+        "https://example.com/bucket/separated_tracks/test_hash.zip"
+    )
+
     # Mock song splitting process for background task
     with tempfile.TemporaryDirectory() as temp_dir:
         temp_dir_path = Path(temp_dir)
@@ -114,26 +121,35 @@ def test_separate_track_with_cache_miss(
             func(*args, **kwargs)
 
         # Test the view with cache enabled
-        with mock.patch("fastapi.BackgroundTasks.add_task", side_effect=mock_add_task_sync):
-            with mock.patch("api.settings.SEPARATED_TRACKS_BUCKET", "test-bucket"):
-                response = request_factory.post("/separate_track", data=data, files=files)
+        with (
+            mock.patch(
+                "fastapi.BackgroundTasks.add_task", side_effect=mock_add_task_sync
+            ),
+            mock.patch("api.settings.SEPARATED_TRACKS_BUCKET", "test-bucket"),
+        ):
+            response = request_factory.post("/separate_track", data=data, files=files)
 
-                # Assert that the cache was checked and placeholder created
-                mock_get_cache_hash.assert_called_with("UVR_MDXNET_KARA_2.onnx", b"test audio content")
-                mock_fetch_from_cache.assert_called_once_with("test_hash")
-                mock_create_placeholder.assert_called_once_with("test_hash")
+            # Assert that the cache was checked and placeholder created
+            mock_get_cache_hash.assert_called_with(
+                "UVR_MDXNET_KARA_2.onnx", b"test audio content"
+            )
+            mock_fetch_from_cache.assert_called_once_with("test_hash")
+            mock_create_placeholder.assert_called_once_with("test_hash")
 
-                # Assert that the response is JSON with URL
-                assert response.status_code == 200
-                assert response.headers["content-type"] == "application/json"
-                response_data = response.json()
-                assert "finishedTrackURL" in response_data
-                assert response_data["finishedTrackURL"] == "https://example.com/bucket/separated_tracks/test_hash.zip"
+            # Assert that the response is JSON with URL
+            assert response.status_code == 200
+            assert response.headers["content-type"] == "application/json"
+            response_data = response.json()
+            assert "finishedTrackURL" in response_data
+            assert (
+                response_data["finishedTrackURL"]
+                == "https://example.com/bucket/separated_tracks/test_hash.zip"
+            )
 
-                # Assert that the background task executed and called the expected functions
-                mock_split_song.assert_called_once()
-                mock_create_zip.assert_called_once()
-                mock_upload_to_cache.assert_called_once_with("test_hash", zip_path)
+            # Assert that the background task executed and called the expected functions
+            mock_split_song.assert_called_once()
+            mock_create_zip.assert_called_once()
+            mock_upload_to_cache.assert_called_once_with("test_hash", zip_path)
 
 
 @mock.patch("api.helpers.cloud_storage.get_cache_hash")
@@ -148,7 +164,9 @@ def test_separate_track_with_placeholder_found_returns_url(
     # Setup mocks
     mock_get_cache_hash.return_value = "test_hash"
     # Return placeholder URL
-    mock_fetch_from_cache.return_value = "https://example.com/bucket/separated_tracks/test_hash.zip"
+    mock_fetch_from_cache.return_value = (
+        "https://example.com/bucket/separated_tracks/test_hash.zip"
+    )
 
     # Create the request
     filename, content, content_type = song_file
@@ -168,7 +186,10 @@ def test_separate_track_with_placeholder_found_returns_url(
         assert response.headers["content-type"] == "application/json"
         response_data = response.json()
         assert "finishedTrackURL" in response_data
-        assert response_data["finishedTrackURL"] == "https://example.com/bucket/separated_tracks/test_hash.zip"
+        assert (
+            response_data["finishedTrackURL"]
+            == "https://example.com/bucket/separated_tracks/test_hash.zip"
+        )
 
 
 @mock.patch("api.karaoke.music_separation.split_song")

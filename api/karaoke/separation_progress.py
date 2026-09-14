@@ -12,13 +12,13 @@ nothing.
 import contextlib
 import importlib
 import threading
-from typing import Callable, Iterator, Optional
+from collections.abc import Callable, Iterator
 
 from tqdm import tqdm
 
 # A report with no fraction names the stage only, for phases whose progress
 # cannot be read.
-ProgressCallback = Callable[[Optional[float], str], None]
+ProgressCallback = Callable[[float | None, str], None]
 
 LOADING_STAGE = "loading the separation model"
 DOWNLOAD_STAGE = "downloading the separation model"
@@ -87,11 +87,11 @@ class _Tracker:
         self._on_progress(progress, stage)
 
 
-def _tracker() -> Optional[_Tracker]:
+def _tracker() -> _Tracker | None:
     return getattr(_active, "tracker", None)
 
 
-def _fraction(bar: tqdm) -> Optional[float]:
+def _fraction(bar: tqdm) -> float | None:
     if not bar.total:
         return None
     return bar.n / bar.total
@@ -185,12 +185,12 @@ def _remove_patches() -> None:
         _originals.clear()
 
 
-def _ignore(progress: Optional[float], stage: str) -> None:
+def _ignore(progress: float | None, stage: str) -> None:
     pass
 
 
 @contextlib.contextmanager
-def reporting(on_progress: Optional[ProgressCallback]) -> Iterator[_Tracker]:
+def reporting(on_progress: ProgressCallback | None) -> Iterator[_Tracker]:
     """Report separation progress to on_progress for the duration of the block.
 
     Yields the tracker, whose `stage` names the phases that run outside the
