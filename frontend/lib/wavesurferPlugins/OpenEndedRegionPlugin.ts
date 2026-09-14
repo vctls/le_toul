@@ -6,132 +6,132 @@
  * extends to the end of the audio or the start of the next region.
  */
 
-import { createDragStream } from 'wavesurfer.js/dist/reactive/drag-stream';
-import { BasePlugin } from 'wavesurfer.js/dist/base-plugin';
-import { BasePluginEvents } from 'wavesurfer.js/dist/base-plugin';
-import EventEmitter from 'wavesurfer.js/dist/event-emitter'
-import createElement from 'wavesurfer.js/dist/dom'
+import { createDragStream } from "wavesurfer.js/dist/reactive/drag-stream";
+import { BasePlugin } from "wavesurfer.js/dist/base-plugin";
+import { BasePluginEvents } from "wavesurfer.js/dist/base-plugin";
+import EventEmitter from "wavesurfer.js/dist/event-emitter";
+import createElement from "wavesurfer.js/dist/dom";
 
 function makeDraggable(
-    element: HTMLElement,
-    onDrag: (dx: number, dy: number, x: number, y: number) => void,
-    onStart?: (x: number, y: number) => void,
-    onEnd?: (x: number, y: number) => void,
-    threshold?: number,
+  element: HTMLElement,
+  onDrag: (dx: number, dy: number, x: number, y: number) => void,
+  onStart?: (x: number, y: number) => void,
+  onEnd?: (x: number, y: number) => void,
+  threshold?: number,
 ): () => void {
-    const { signal, cleanup } = createDragStream(element, { threshold })
-    const unsubscribe = signal.subscribe((drag) => {
-        if (!drag) return
-        if (drag.type === 'start') onStart?.(drag.x, drag.y)
-        else if (drag.type === 'move') onDrag(drag.deltaX ?? 0, drag.deltaY ?? 0, drag.x, drag.y)
-        else onEnd?.(drag.x, drag.y)
-    })
-    return () => {
-        unsubscribe()
-        cleanup()
-    }
+  const { signal, cleanup } = createDragStream(element, { threshold });
+  const unsubscribe = signal.subscribe((drag) => {
+    if (!drag) return;
+    if (drag.type === "start") onStart?.(drag.x, drag.y);
+    else if (drag.type === "move") onDrag(drag.deltaX ?? 0, drag.deltaY ?? 0, drag.x, drag.y);
+    else onEnd?.(drag.x, drag.y);
+  });
+  return () => {
+    unsubscribe();
+    cleanup();
+  };
 }
 
 export class OverlapError extends Error {
-    constructor(region: Region, otherRegion: Region) {
-        super(`Region ${region.id} overlaps with existing region ${otherRegion.id}`)
-    }
+  constructor(region: Region, otherRegion: Region) {
+    super(`Region ${region.id} overlaps with existing region ${otherRegion.id}`);
+  }
 }
 
-export type RegionsPluginOptions = undefined
+export type RegionsPluginOptions = undefined;
 
 export type RegionsPluginEvents = BasePluginEvents & {
-    /** When a region is created */
-    'region-created': [region: Region]
-    /** When a region is being updated */
-    'region-update': [region: Region, side?: 'start' | 'end']
-    /** When a region is done updating */
-    'region-updated': [region: Region]
-    /** When a selection of regions is done being dragged together */
-    'regions-updated': [regions: Region[]]
-    /** When a region is removed */
-    'region-removed': [region: Region]
-    /** When a region is clicked */
-    'region-clicked': [region: Region, e: MouseEvent]
-    /** When a region is double-clicked */
-    'region-double-clicked': [region: Region, e: MouseEvent]
-    /** When playback enters a region */
-    'region-in': [region: Region]
-    /** When playback leaves a region */
-    'region-out': [region: Region]
-}
+  /** When a region is created */
+  "region-created": [region: Region];
+  /** When a region is being updated */
+  "region-update": [region: Region, side?: "start" | "end"];
+  /** When a region is done updating */
+  "region-updated": [region: Region];
+  /** When a selection of regions is done being dragged together */
+  "regions-updated": [regions: Region[]];
+  /** When a region is removed */
+  "region-removed": [region: Region];
+  /** When a region is clicked */
+  "region-clicked": [region: Region, e: MouseEvent];
+  /** When a region is double-clicked */
+  "region-double-clicked": [region: Region, e: MouseEvent];
+  /** When playback enters a region */
+  "region-in": [region: Region];
+  /** When playback leaves a region */
+  "region-out": [region: Region];
+};
 
 export type RegionEvents = {
-    /** Before the region is removed */
-    remove: []
-    /** When the region's parameters are being updated */
-    update: [side?: 'start' | 'end']
-    /** When dragging or resizing is finished */
-    'update-end': []
-    /** When a drag of the region's body begins */
-    'body-drag-start': []
-    /** While the region's body is being dragged, by a horizontal pixel delta */
-    'body-drag': [dx: number]
-    /** When a drag of the region's body finishes */
-    'body-drag-end': []
-    /** On play */
-    play: []
-    /** On mouse click */
-    click: [event: MouseEvent]
-    /** Double click */
-    dblclick: [event: MouseEvent]
-    /** Mouse over */
-    over: [event: MouseEvent]
-    /** Mouse leave */
-    leave: [event: MouseEvent]
-}
+  /** Before the region is removed */
+  remove: [];
+  /** When the region's parameters are being updated */
+  update: [side?: "start" | "end"];
+  /** When dragging or resizing is finished */
+  "update-end": [];
+  /** When a drag of the region's body begins */
+  "body-drag-start": [];
+  /** While the region's body is being dragged, by a horizontal pixel delta */
+  "body-drag": [dx: number];
+  /** When a drag of the region's body finishes */
+  "body-drag-end": [];
+  /** On play */
+  play: [];
+  /** On mouse click */
+  click: [event: MouseEvent];
+  /** Double click */
+  dblclick: [event: MouseEvent];
+  /** Mouse over */
+  over: [event: MouseEvent];
+  /** Mouse leave */
+  leave: [event: MouseEvent];
+};
 
 export type RegionParams = {
-    /** The id of the region, any string */
-    id?: string
-    /** The start position of the region (in seconds) */
-    start: number
-    /** The end position of the region (in seconds) */
-    end?: number
-    /** Allow/dissallow resizing the region */
-    resize?: boolean
-    /** The color of the region (CSS color) */
-    color?: string
-    /** Content string */
-    content?: string
-    /** Min length when resizing (in seconds) */
-    minLength?: number
-    /** Max length when resizing (in seconds) */
-    maxLength?: number
-    /** The index of the channel */
-    channelIdx?: number
-    /** Allow/Disallow contenteditable property for content */
-    contentEditable?: boolean
-}
+  /** The id of the region, any string */
+  id?: string;
+  /** The start position of the region (in seconds) */
+  start: number;
+  /** The end position of the region (in seconds) */
+  end?: number;
+  /** Allow/dissallow resizing the region */
+  resize?: boolean;
+  /** The color of the region (CSS color) */
+  color?: string;
+  /** Content string */
+  content?: string;
+  /** Min length when resizing (in seconds) */
+  minLength?: number;
+  /** Max length when resizing (in seconds) */
+  maxLength?: number;
+  /** The index of the channel */
+  channelIdx?: number;
+  /** Allow/Disallow contenteditable property for content */
+  contentEditable?: boolean;
+};
 
 // Keep in sync with --bulma-primary in main.scss.
-const SELECTION_COLOR = '#7957d5'
+const SELECTION_COLOR = "#7957d5";
 
 const CONTENT_STYLE = {
-    padding: '0em 0.2em',
-    display: 'inline-block',
-    whiteSpace: 'nowrap',
-    overflow: 'visible',
-    position: 'relative',
-    zIndex: '1',
-}
+  padding: "0em 0.2em",
+  display: "inline-block",
+  whiteSpace: "nowrap",
+  overflow: "visible",
+  position: "relative",
+  zIndex: "1",
+};
 
 function pixelsToSeconds(dx: number, width: number, totalDuration: number): number {
-    if (!width || !totalDuration) return 0
-    return (dx / width) * totalDuration
+  if (!width || !totalDuration) return 0;
+  return (dx / width) * totalDuration;
 }
 
 /** The bits of a region that constrain how far a selection may be shifted. */
 export type ShiftBounds = {
-    start: number
-    end: number
-    isOpenEnded: boolean
-}
+  start: number;
+  end: number;
+  isOpenEnded: boolean;
+};
 
 /**
  * How far a contiguous run of selected regions may shift before it would cross
@@ -139,863 +139,874 @@ export type ShiftBounds = {
  * instead of blocking, so on that side the limit is its start rather than its end.
  */
 export function clampGroupShift(
-    bounds: { first: ShiftBounds; last: ShiftBounds; prev?: ShiftBounds; next?: ShiftBounds },
-    deltaSeconds: number,
-    totalDuration: number,
+  bounds: { first: ShiftBounds; last: ShiftBounds; prev?: ShiftBounds; next?: ShiftBounds },
+  deltaSeconds: number,
+  totalDuration: number,
 ): number {
-    const { first, last, prev, next } = bounds
-    const lowerBound = prev ? (prev.isOpenEnded ? prev.start : prev.end) : 0
-    const upperBound = next ? next.start : totalDuration
-    const trailingEdge = last.isOpenEnded ? last.start : last.end
-    const maxLeft = Math.max(0, first.start - lowerBound)
-    const maxRight = Math.max(0, upperBound - trailingEdge)
-    return Math.min(maxRight, Math.max(-maxLeft, deltaSeconds))
+  const { first, last, prev, next } = bounds;
+  const lowerBound = prev ? (prev.isOpenEnded ? prev.start : prev.end) : 0;
+  const upperBound = next ? next.start : totalDuration;
+  const trailingEdge = last.isOpenEnded ? last.start : last.end;
+  const maxLeft = Math.max(0, first.start - lowerBound);
+  const maxRight = Math.max(0, upperBound - trailingEdge);
+  return Math.min(maxRight, Math.max(-maxLeft, deltaSeconds));
 }
 
 class SingleRegion extends EventEmitter<RegionEvents> implements Region {
-    public element: HTMLElement
-    public id: string
-    public start: number
-    public resize: boolean
-    public color: string
-    public content?: HTMLElement
-    private contentOverlay?: HTMLElement
-    public minLength = 0
-    public maxLength = Infinity
-    public channelIdx: number
-    public contentEditable = false
-    public selected = false
-    public subscriptions: (() => void)[] = []
+  public element: HTMLElement;
+  public id: string;
+  public start: number;
+  public resize: boolean;
+  public color: string;
+  public content?: HTMLElement;
+  private contentOverlay?: HTMLElement;
+  public minLength = 0;
+  public maxLength = Infinity;
+  public channelIdx: number;
+  public contentEditable = false;
+  public selected = false;
+  public subscriptions: (() => void)[] = [];
 
-    private _explicitEnd?: number
-    private _nextRegion?: Region
-    private _prevRegion?: Region
+  private _explicitEnd?: number;
+  private _nextRegion?: Region;
+  private _prevRegion?: Region;
 
-    get end(): number {
-        return this._explicitEnd ?? this._nextRegion?.start ?? this.totalDuration;
+  get end(): number {
+    return this._explicitEnd ?? this._nextRegion?.start ?? this.totalDuration;
+  }
+
+  set end(time: number | undefined) {
+    this._explicitEnd = time;
+  }
+
+  get nextRegion() {
+    return this._nextRegion;
+  }
+
+  set nextRegion(region: Region | undefined) {
+    // Clean up old subscription if it exists
+    if (this._nextRegion) {
+      const index = this.subscriptions.findIndex((sub) =>
+        sub.toString().includes("onNeighborMoved"),
+      );
+      if (index !== -1) {
+        this.subscriptions[index]();
+        this.subscriptions.splice(index, 1);
+      }
     }
 
-    set end(time: number | undefined) {
-        this._explicitEnd = time
+    this._nextRegion = region;
+    if (region) {
+      // Add new subscription
+      this.subscriptions.push(region.on("update", () => this.onNeighborMoved("next")));
+    }
+    this.renderPosition();
+  }
+
+  get prevRegion() {
+    return this._prevRegion;
+  }
+
+  set prevRegion(region: Region | undefined) {
+    this._prevRegion = region;
+  }
+
+  public get isOpenEnded(): boolean {
+    return this._explicitEnd == undefined;
+  }
+
+  public get isMarker(): boolean {
+    return this.start === this.end;
+  }
+
+  constructor(
+    params: RegionParams,
+    private totalDuration: number,
+    private numberOfChannels = 0,
+  ) {
+    super();
+
+    this.subscriptions = [];
+    this.id = params.id || `region-${Math.random().toString(32).slice(2)}`;
+    this.start = this.clampPosition(params.start);
+    this.end = params.end;
+    this.resize = params.resize ?? true;
+    this.color = params.color ?? "rgba(0, 0, 0, 0.1)";
+    this.minLength = params.minLength ?? this.minLength;
+    this.maxLength = params.maxLength ?? this.maxLength;
+    this.channelIdx = params.channelIdx ?? -1;
+    this.contentEditable = params.contentEditable ?? this.contentEditable;
+    this.element = this.initElement();
+    this.setContent(params.content);
+    this.setPart();
+
+    this.renderPosition();
+    this.initMouseEvents();
+  }
+
+  private clampPosition(time: number): number {
+    const maxEndTime = this.nextRegion ? this.nextRegion.start : this.totalDuration;
+    return Math.max(0, Math.min(maxEndTime, time));
+  }
+
+  private setPart() {
+    this.element.setAttribute("part", `${this.isMarker ? "marker" : "region"} ${this.id}`);
+  }
+
+  private addResizeHandles(element: HTMLElement) {
+    const handleStyle = {
+      position: "absolute",
+      zIndex: "2",
+      width: "6px",
+      height: "100%",
+      top: "0",
+      cursor: "ew-resize",
+      wordBreak: "keep-all",
+    };
+
+    const leftHandle = createElement(
+      "div",
+      {
+        part: "region-handle region-handle-left",
+        style: {
+          ...handleStyle,
+          left: "0",
+          borderLeft: "2px solid rgba(0, 0, 0, 0.5)",
+          borderRadius: "2px 0 0 2px",
+        },
+      },
+      element,
+    );
+
+    // Resize
+    const resizeThreshold = 1;
+    this.stopBodyDragFrom(leftHandle);
+    this.subscriptions.push(
+      makeDraggable(
+        leftHandle,
+        (dx) => this.onResize(dx, "start"),
+        () => null,
+        () => this.onEndResizing(),
+        resizeThreshold,
+      ),
+    );
+
+    // Always create a right handle. For open-ended regions it acts as a
+    // "ghost" handle: hidden by default, revealed on hover. Dragging it
+    // materializes the explicit end (introduces a gap before the next region).
+    const rightHandle = createElement(
+      "div",
+      {
+        part: "region-handle region-handle-right",
+        style: {
+          ...handleStyle,
+          right: "0",
+          borderRadius: "0 2px 2px 0",
+          transition: "opacity 0.15s ease",
+        },
+      },
+      element,
+    );
+    this.applyRightHandleAppearance(rightHandle);
+    this.stopBodyDragFrom(rightHandle);
+
+    const showGhost = () => {
+      if (this.isOpenEnded) rightHandle.style.opacity = "0.6";
+    };
+    const hideGhost = () => {
+      if (this.isOpenEnded) rightHandle.style.opacity = "0";
+    };
+    element.addEventListener("mouseenter", showGhost);
+    element.addEventListener("mouseleave", hideGhost);
+    this.subscriptions.push(() => {
+      element.removeEventListener("mouseenter", showGhost);
+      element.removeEventListener("mouseleave", hideGhost);
+    });
+
+    this.subscriptions.push(
+      makeDraggable(
+        rightHandle,
+        (dx) => this.onResize(dx, "end"),
+        () => this.onStartRightResize(),
+        () => this.onEndResizing(),
+        resizeThreshold,
+      ),
+    );
+  }
+
+  // A handle's pointerdown bubbles to the region body, which would start a
+  // group drag on top of the resize. stopPropagation leaves the handle's own
+  // drag listener running and only keeps the body's from firing.
+  private stopBodyDragFrom(handle: HTMLElement) {
+    const stop = (event: PointerEvent) => event.stopPropagation();
+    handle.addEventListener("pointerdown", stop);
+    this.subscriptions.push(() => handle.removeEventListener("pointerdown", stop));
+  }
+
+  private applyRightHandleAppearance(rightHandle: HTMLElement) {
+    if (this.isOpenEnded) {
+      rightHandle.style.borderRight = "2px dashed rgba(0, 0, 0, 0.5)";
+      rightHandle.style.opacity = "0";
+    } else {
+      rightHandle.style.borderRight = "2px solid rgba(0, 0, 0, 0.5)";
+      rightHandle.style.opacity = "1";
+    }
+  }
+
+  private onStartRightResize() {
+    // If this is a ghost handle, materialize the implicit end so the
+    // standard end-resize math works for the rest of the drag. Loose
+    // equality so we catch both `undefined` and `null`. Regions are
+    // commonly constructed with `end: null`.
+    if (this._explicitEnd == null) {
+      this._explicitEnd = this.end;
+      const rightHandle = this.element.querySelector(
+        '[part*="region-handle-right"]',
+      ) as HTMLElement | null;
+      if (rightHandle) this.applyRightHandleAppearance(rightHandle);
+    }
+  }
+
+  private removeResizeHandles(element: HTMLElement) {
+    const leftHandle = element.querySelector('[part*="region-handle-left"]');
+    const rightHandle = element.querySelector('[part*="region-handle-right"]');
+    if (leftHandle) {
+      element.removeChild(leftHandle);
+    }
+    if (rightHandle) {
+      element.removeChild(rightHandle);
+    }
+  }
+
+  private initElement() {
+    const isMarker = this.isMarker;
+
+    let elementTop = 0;
+    let elementHeight = "auto"; // Change to auto to fit content
+
+    if (this.channelIdx >= 0 && this.channelIdx < this.numberOfChannels) {
+      elementHeight = "auto"; // Change to auto to fit content
+      elementTop = (100 / this.numberOfChannels) * this.channelIdx;
     }
 
-    get nextRegion() {
-        return this._nextRegion
+    const element = createElement("div", {
+      style: {
+        position: "absolute",
+        top: `${elementTop}%`,
+        height: elementHeight, // Set height to auto
+        backgroundColor: isMarker ? "none" : this.color,
+        borderLeft: isMarker ? "2px solid " + this.color : "none",
+        borderRadius: "2px",
+        boxSizing: "border-box",
+        transition: "background-color 0.2s ease",
+        cursor: "default",
+        pointerEvents: "all",
+      },
+    });
+
+    // Add resize handles
+    if (!isMarker && this.resize) {
+      this.addResizeHandles(element);
     }
 
-    set nextRegion(region: Region | undefined) {
-        // Clean up old subscription if it exists
-        if (this._nextRegion) {
-            const index = this.subscriptions.findIndex(sub =>
-                sub.toString().includes('onNeighborMoved')
-            );
-            if (index !== -1) {
-                this.subscriptions[index]();
-                this.subscriptions.splice(index, 1);
-            }
-        }
+    // The body drives group moves; the plugin ignores the drag unless this
+    // region is part of the current selection.
+    this.subscriptions.push(
+      makeDraggable(
+        element,
+        (dx) => this.emit("body-drag", dx),
+        () => this.emit("body-drag-start"),
+        () => this.emit("body-drag-end"),
+      ),
+    );
 
-        this._nextRegion = region;
-        if (region) {
-            // Add new subscription
-            this.subscriptions.push(
-                region.on('update', () => this.onNeighborMoved('next'))
-            );
-        }
+    return element;
+  }
+
+  private renderPosition() {
+    const start = this.start / this.totalDuration;
+    const end = (this.totalDuration - this.end) / this.totalDuration;
+    this.element.style.left = `${start * 100}%`;
+    this.element.style.right = `${end * 100}%`;
+  }
+
+  private initMouseEvents() {
+    const { element } = this;
+    if (!element) return;
+
+    element.addEventListener("click", (e) => this.emit("click", e));
+    element.addEventListener("mouseenter", (e) => this.emit("over", e));
+    element.addEventListener("mouseleave", (e) => this.emit("leave", e));
+    element.addEventListener("dblclick", (e) => this.emit("dblclick", e));
+
+    if (this.contentEditable && this.content) {
+      this.content.addEventListener("click", (e) => this.onContentClick(e));
+      this.content.addEventListener("blur", () => this.onContentBlur());
+    }
+  }
+
+  public _onUpdate(dx: number, side: "start" | "end") {
+    if (!this.element.parentElement) return;
+    const { width } = this.element.parentElement.getBoundingClientRect();
+    const deltaSeconds = pixelsToSeconds(dx, width, this.totalDuration);
+    const newStart = side === "start" ? this.start + deltaSeconds : this.start;
+    const newEnd = side === "end" ? (this._explicitEnd ?? this.end) + deltaSeconds : this.end;
+    const length = newEnd - newStart;
+
+    // If previous region is open-ended, we can't resize past its start. Otherwise
+    // we can't resize past its end.
+    const hasBadOverlap =
+      this.prevRegion &&
+      ((newStart < this.prevRegion.end && !this.prevRegion.isOpenEnded) ||
+        (this.prevRegion.isOpenEnded && newStart < this.prevRegion.start));
+    if (
+      !hasBadOverlap &&
+      newStart >= 0 &&
+      newEnd <= this.totalDuration &&
+      (this.nextRegion ? newEnd <= this.nextRegion.start : true) &&
+      newStart <= newEnd &&
+      length >= this.minLength &&
+      length <= this.maxLength
+    ) {
+      this.start = newStart;
+      this._explicitEnd = this._explicitEnd && newEnd;
+
+      this.renderPosition();
+      this.emit("update", side);
+    }
+  }
+
+  private onNeighborMoved(side: "prev" | "next") {
+    if (side === "prev" || !this.isOpenEnded) return;
+
+    const newEnd = this.nextRegion?.start;
+    if (newEnd !== undefined) {
+      this.renderPosition();
+    }
+  }
+
+  private onResize(dx: number, side: "start" | "end") {
+    if (!this.resize) return;
+    this._onUpdate(dx, side);
+  }
+
+  private onEndResizing() {
+    if (!this.resize) return;
+
+    // If the user dragged the end up against the next region's start (or
+    // the end of the audio), drop the explicit end and revert to open-ended.
+    if (this._explicitEnd != null) {
+      const snapThreshold = 0.05;
+      const ceiling = this._nextRegion?.start ?? this.totalDuration;
+      if (this._explicitEnd >= ceiling - snapThreshold) {
+        this._explicitEnd = undefined;
         this.renderPosition();
+        const rightHandle = this.element.querySelector(
+          '[part*="region-handle-right"]',
+        ) as HTMLElement | null;
+        if (rightHandle) this.applyRightHandleAppearance(rightHandle);
+      }
     }
 
-    get prevRegion() {
-        return this._prevRegion
+    this.emit("update-end");
+  }
+
+  private onContentClick(event: MouseEvent) {
+    event.stopPropagation();
+    const contentContainer = event.target as HTMLDivElement;
+    contentContainer.focus();
+    this.emit("click", event);
+  }
+
+  public onContentBlur() {
+    this.emit("update-end");
+  }
+
+  public setSelected(selected: boolean) {
+    this.selected = selected;
+    if (!this.element) return;
+    this.element.style.backgroundColor = selected
+      ? SELECTION_COLOR
+      : this.isMarker
+        ? "none"
+        : this.color;
+    this.element.style.borderLeftColor = selected ? SELECTION_COLOR : this.color;
+    this.element.style.cursor = selected ? "grab" : "default";
+    if (this.contentOverlay) {
+      this.contentOverlay.style.display = selected ? "block" : "none";
+    }
+  }
+
+  /** Slide the region, and its explicit end if it has one, by `deltaSeconds`. */
+  public _shiftBy(deltaSeconds: number) {
+    this.start += deltaSeconds;
+    if (this._explicitEnd != null) {
+      this._explicitEnd += deltaSeconds;
+    }
+    this.renderPosition();
+    this.emit("update");
+  }
+
+  public _setTotalDuration(totalDuration: number) {
+    this.totalDuration = totalDuration;
+    this.renderPosition();
+  }
+
+  /** Play the region from the start */
+  public play() {
+    this.emit("play");
+  }
+
+  /** Set the HTML content of the region */
+  public setContent(content: string | undefined) {
+    this.content?.remove();
+    this.contentOverlay?.remove();
+    this.contentOverlay = undefined;
+    if (!content) {
+      this.content = undefined;
+      return;
+    }
+    const label = (color: string) =>
+      createElement("div", { style: { ...CONTENT_STYLE, color }, textContent: content });
+    this.content = label("black");
+    if (this.contentEditable) {
+      this.content.contentEditable = "true";
+    }
+    this.content.setAttribute("part", "region-content");
+    this.element.appendChild(this.content);
+
+    // A label wider than its region spills onto the bare waveform. A second
+    // copy of it, clipped to the region box, repaints just the part over a
+    // selected region's dark fill in white; the overhang stays black.
+    if (this.contentEditable) return;
+    this.contentOverlay = createElement("div", {
+      style: {
+        position: "absolute",
+        inset: "0",
+        overflow: "hidden",
+        pointerEvents: "none",
+        zIndex: "1",
+        display: this.selected ? "block" : "none",
+      },
+    });
+    this.contentOverlay.appendChild(label("white"));
+    this.element.appendChild(this.contentOverlay);
+  }
+
+  /** Update the region's options */
+  public setOptions(options: Omit<RegionParams, "minLength" | "maxLength">) {
+    if (options.color) {
+      this.color = options.color;
+      this.element.style.backgroundColor = this.color;
     }
 
-    set prevRegion(region: Region | undefined) {
-        this._prevRegion = region
+    if (options.start !== undefined || options.end !== undefined) {
+      const isMarker = this.isMarker;
+      this.start = this.clampPosition(options.start ?? this.start);
+      this._explicitEnd = this.clampPosition(options.end ?? (isMarker ? this.start : this.end));
+      this.renderPosition();
+      this.setPart();
     }
 
-    public get isOpenEnded(): boolean {
-        return this._explicitEnd == undefined
+    if (options.content) {
+      this.setContent(options.content);
     }
 
-    public get isMarker(): boolean {
-        return this.start === this.end
+    if (options.id) {
+      this.id = options.id;
+      this.setPart();
     }
 
-    constructor(params: RegionParams, private totalDuration: number, private numberOfChannels = 0) {
-        super()
-
-        this.subscriptions = []
-        this.id = params.id || `region-${Math.random().toString(32).slice(2)}`
-        this.start = this.clampPosition(params.start)
-        this.end = params.end;
-        this.resize = params.resize ?? true
-        this.color = params.color ?? 'rgba(0, 0, 0, 0.1)'
-        this.minLength = params.minLength ?? this.minLength
-        this.maxLength = params.maxLength ?? this.maxLength
-        this.channelIdx = params.channelIdx ?? -1
-        this.contentEditable = params.contentEditable ?? this.contentEditable
-        this.element = this.initElement()
-        this.setContent(params.content)
-        this.setPart()
-
-        this.renderPosition()
-        this.initMouseEvents()
+    if (options.resize !== undefined && options.resize !== this.resize) {
+      this.resize = options.resize;
+      if (this.resize && !this.isMarker) {
+        this.addResizeHandles(this.element);
+      } else {
+        this.removeResizeHandles(this.element);
+      }
     }
+  }
 
-    private clampPosition(time: number): number {
-        const maxEndTime = this.nextRegion ? this.nextRegion.start : this.totalDuration
-        return Math.max(0, Math.min(maxEndTime, time))
+  /** Remove the region */
+  public remove() {
+    // Clean up subscriptions before removing element
+    this.subscriptions.forEach((unsubscribe) => unsubscribe());
+    this.subscriptions = [];
+
+    // todo: fix firstRegion in plugin
+    if (this.prevRegion) {
+      this.prevRegion.nextRegion = this.nextRegion;
     }
-
-    private setPart() {
-        this.element.setAttribute('part', `${this.isMarker ? 'marker' : 'region'} ${this.id}`)
+    if (this.nextRegion) {
+      this.nextRegion.prevRegion = this.prevRegion;
     }
+    // Clear the region's references
+    this.nextRegion = undefined;
+    this.prevRegion = undefined;
 
-    private addResizeHandles(element: HTMLElement) {
-        const handleStyle = {
-            position: 'absolute',
-            zIndex: '2',
-            width: '6px',
-            height: '100%',
-            top: '0',
-            cursor: 'ew-resize',
-            wordBreak: 'keep-all',
-        }
-
-        const leftHandle = createElement(
-            'div',
-            {
-                part: 'region-handle region-handle-left',
-                style: {
-                    ...handleStyle,
-                    left: '0',
-                    borderLeft: '2px solid rgba(0, 0, 0, 0.5)',
-                    borderRadius: '2px 0 0 2px',
-                },
-            },
-            element,
-        )
-
-        // Resize
-        const resizeThreshold = 1
-        this.stopBodyDragFrom(leftHandle)
-        this.subscriptions.push(
-            makeDraggable(
-                leftHandle,
-                (dx) => this.onResize(dx, 'start'),
-                () => null,
-                () => this.onEndResizing(),
-                resizeThreshold,
-            )
-        )
-
-        // Always create a right handle. For open-ended regions it acts as a
-        // "ghost" handle: hidden by default, revealed on hover. Dragging it
-        // materializes the explicit end (introduces a gap before the next region).
-        const rightHandle = createElement(
-            'div',
-            {
-                part: 'region-handle region-handle-right',
-                style: {
-                    ...handleStyle,
-                    right: '0',
-                    borderRadius: '0 2px 2px 0',
-                    transition: 'opacity 0.15s ease',
-                },
-            },
-            element,
-        )
-        this.applyRightHandleAppearance(rightHandle)
-        this.stopBodyDragFrom(rightHandle)
-
-        const showGhost = () => {
-            if (this.isOpenEnded) rightHandle.style.opacity = '0.6'
-        }
-        const hideGhost = () => {
-            if (this.isOpenEnded) rightHandle.style.opacity = '0'
-        }
-        element.addEventListener('mouseenter', showGhost)
-        element.addEventListener('mouseleave', hideGhost)
-        this.subscriptions.push(() => {
-            element.removeEventListener('mouseenter', showGhost)
-            element.removeEventListener('mouseleave', hideGhost)
-        })
-
-        this.subscriptions.push(
-            makeDraggable(
-                rightHandle,
-                (dx) => this.onResize(dx, 'end'),
-                () => this.onStartRightResize(),
-                () => this.onEndResizing(),
-                resizeThreshold,
-            ),
-        )
+    this.emit("remove");
+    if (this.element) {
+      this.element.remove();
+      // This violates the type but we want to clean up the DOM reference
+      this.element = null as unknown as HTMLElement;
     }
-
-    // A handle's pointerdown bubbles to the region body, which would start a
-    // group drag on top of the resize. stopPropagation leaves the handle's own
-    // drag listener running and only keeps the body's from firing.
-    private stopBodyDragFrom(handle: HTMLElement) {
-        const stop = (event: PointerEvent) => event.stopPropagation()
-        handle.addEventListener('pointerdown', stop)
-        this.subscriptions.push(() => handle.removeEventListener('pointerdown', stop))
-    }
-
-    private applyRightHandleAppearance(rightHandle: HTMLElement) {
-        if (this.isOpenEnded) {
-            rightHandle.style.borderRight = '2px dashed rgba(0, 0, 0, 0.5)'
-            rightHandle.style.opacity = '0'
-        } else {
-            rightHandle.style.borderRight = '2px solid rgba(0, 0, 0, 0.5)'
-            rightHandle.style.opacity = '1'
-        }
-    }
-
-    private onStartRightResize() {
-        // If this is a ghost handle, materialize the implicit end so the
-        // standard end-resize math works for the rest of the drag. Loose
-        // equality so we catch both `undefined` and `null`. Regions are
-        // commonly constructed with `end: null`.
-        if (this._explicitEnd == null) {
-            this._explicitEnd = this.end
-            const rightHandle = this.element.querySelector(
-                '[part*="region-handle-right"]',
-            ) as HTMLElement | null
-            if (rightHandle) this.applyRightHandleAppearance(rightHandle)
-        }
-    }
-
-    private removeResizeHandles(element: HTMLElement) {
-        const leftHandle = element.querySelector('[part*="region-handle-left"]')
-        const rightHandle = element.querySelector('[part*="region-handle-right"]')
-        if (leftHandle) {
-            element.removeChild(leftHandle)
-        }
-        if (rightHandle) {
-            element.removeChild(rightHandle)
-        }
-    }
-
-    private initElement() {
-        const isMarker = this.isMarker;
-
-        let elementTop = 0;
-        let elementHeight = 'auto'; // Change to auto to fit content
-
-        if (this.channelIdx >= 0 && this.channelIdx < this.numberOfChannels) {
-            elementHeight = 'auto'; // Change to auto to fit content
-            elementTop = (100 / this.numberOfChannels) * this.channelIdx;
-        }
-
-        const element = createElement('div', {
-            style: {
-                position: 'absolute',
-                top: `${elementTop}%`,
-                height: elementHeight, // Set height to auto
-                backgroundColor: isMarker ? 'none' : this.color,
-                borderLeft: isMarker ? '2px solid ' + this.color : 'none',
-                borderRadius: '2px',
-                boxSizing: 'border-box',
-                transition: 'background-color 0.2s ease',
-                cursor: 'default',
-                pointerEvents: 'all',
-            },
-        });
-
-        // Add resize handles
-        if (!isMarker && this.resize) {
-            this.addResizeHandles(element);
-        }
-
-        // The body drives group moves; the plugin ignores the drag unless this
-        // region is part of the current selection.
-        this.subscriptions.push(
-            makeDraggable(
-                element,
-                (dx) => this.emit('body-drag', dx),
-                () => this.emit('body-drag-start'),
-                () => this.emit('body-drag-end'),
-            ),
-        );
-
-        return element;
-    }
-
-    private renderPosition() {
-        const start = this.start / this.totalDuration
-        const end = (this.totalDuration - this.end) / this.totalDuration
-        this.element.style.left = `${start * 100}%`
-        this.element.style.right = `${end * 100}%`
-    }
-
-    private initMouseEvents() {
-        const { element } = this
-        if (!element) return
-
-        element.addEventListener('click', (e) => this.emit('click', e))
-        element.addEventListener('mouseenter', (e) => this.emit('over', e))
-        element.addEventListener('mouseleave', (e) => this.emit('leave', e))
-        element.addEventListener('dblclick', (e) => this.emit('dblclick', e))
-
-        if (this.contentEditable && this.content) {
-            this.content.addEventListener('click', (e) => this.onContentClick(e))
-            this.content.addEventListener('blur', () => this.onContentBlur())
-        }
-    }
-
-    public _onUpdate(dx: number, side: 'start' | 'end') {
-        if (!this.element.parentElement) return
-        const { width } = this.element.parentElement.getBoundingClientRect()
-        const deltaSeconds = pixelsToSeconds(dx, width, this.totalDuration)
-        const newStart = side === 'start' ? this.start + deltaSeconds : this.start
-        const newEnd = side === 'end' ? (this._explicitEnd ?? this.end) + deltaSeconds : this.end
-        const length = newEnd - newStart
-
-        // If previous region is open-ended, we can't resize past its start. Otherwise 
-        // we can't resize past its end.
-        const hasBadOverlap = this.prevRegion
-            && ((newStart < this.prevRegion.end && !this.prevRegion.isOpenEnded)
-                || this.prevRegion.isOpenEnded && newStart < this.prevRegion.start);
-        if (
-            !hasBadOverlap &&
-            newStart >= 0 &&
-            newEnd <= this.totalDuration &&
-            (this.nextRegion ? newEnd <= this.nextRegion.start : true) &&
-            newStart <= newEnd &&
-            length >= this.minLength &&
-            length <= this.maxLength
-        ) {
-            this.start = newStart
-            this._explicitEnd = this._explicitEnd && newEnd
-
-            this.renderPosition()
-            this.emit('update', side)
-        }
-    }
-
-    private onNeighborMoved(side: 'prev' | 'next') {
-        if (side === 'prev' || !this.isOpenEnded) return
-
-        const newEnd = this.nextRegion?.start
-        if (newEnd !== undefined) {
-            this.renderPosition()
-        }
-    }
-
-    private onResize(dx: number, side: 'start' | 'end') {
-        if (!this.resize) return
-        this._onUpdate(dx, side)
-    }
-
-    private onEndResizing() {
-        if (!this.resize) return
-
-        // If the user dragged the end up against the next region's start (or
-        // the end of the audio), drop the explicit end and revert to open-ended.
-        if (this._explicitEnd != null) {
-            const snapThreshold = 0.05
-            const ceiling = this._nextRegion?.start ?? this.totalDuration
-            if (this._explicitEnd >= ceiling - snapThreshold) {
-                this._explicitEnd = undefined
-                this.renderPosition()
-                const rightHandle = this.element.querySelector(
-                    '[part*="region-handle-right"]',
-                ) as HTMLElement | null
-                if (rightHandle) this.applyRightHandleAppearance(rightHandle)
-            }
-        }
-
-        this.emit('update-end')
-    }
-
-    private onContentClick(event: MouseEvent) {
-        event.stopPropagation()
-        const contentContainer = event.target as HTMLDivElement
-        contentContainer.focus()
-        this.emit('click', event)
-    }
-
-    public onContentBlur() {
-        this.emit('update-end')
-    }
-
-    public setSelected(selected: boolean) {
-        this.selected = selected
-        if (!this.element) return
-        this.element.style.backgroundColor = selected ? SELECTION_COLOR : this.isMarker ? 'none' : this.color
-        this.element.style.borderLeftColor = selected ? SELECTION_COLOR : this.color
-        this.element.style.cursor = selected ? 'grab' : 'default'
-        if (this.contentOverlay) {
-            this.contentOverlay.style.display = selected ? 'block' : 'none'
-        }
-    }
-
-    /** Slide the region, and its explicit end if it has one, by `deltaSeconds`. */
-    public _shiftBy(deltaSeconds: number) {
-        this.start += deltaSeconds
-        if (this._explicitEnd != null) {
-            this._explicitEnd += deltaSeconds
-        }
-        this.renderPosition()
-        this.emit('update')
-    }
-
-    public _setTotalDuration(totalDuration: number) {
-        this.totalDuration = totalDuration
-        this.renderPosition()
-    }
-
-    /** Play the region from the start */
-    public play() {
-        this.emit('play')
-    }
-
-    /** Set the HTML content of the region */
-    public setContent(content: string | undefined) {
-        this.content?.remove();
-        this.contentOverlay?.remove();
-        this.contentOverlay = undefined;
-        if (!content) {
-            this.content = undefined;
-            return;
-        }
-        const label = (color: string) =>
-            createElement('div', { style: { ...CONTENT_STYLE, color }, textContent: content });
-        this.content = label('black');
-        if (this.contentEditable) {
-            this.content.contentEditable = 'true';
-        }
-        this.content.setAttribute('part', 'region-content');
-        this.element.appendChild(this.content);
-
-        // A label wider than its region spills onto the bare waveform. A second
-        // copy of it, clipped to the region box, repaints just the part over a
-        // selected region's dark fill in white; the overhang stays black.
-        if (this.contentEditable) return;
-        this.contentOverlay = createElement('div', {
-            style: {
-                position: 'absolute',
-                inset: '0',
-                overflow: 'hidden',
-                pointerEvents: 'none',
-                zIndex: '1',
-                display: this.selected ? 'block' : 'none',
-            },
-        });
-        this.contentOverlay.appendChild(label('white'));
-        this.element.appendChild(this.contentOverlay);
-    }
-
-    /** Update the region's options */
-    public setOptions(options: Omit<RegionParams, 'minLength' | 'maxLength'>) {
-        if (options.color) {
-            this.color = options.color
-            this.element.style.backgroundColor = this.color
-        }
-
-        if (options.start !== undefined || options.end !== undefined) {
-            const isMarker = this.isMarker
-            this.start = this.clampPosition(options.start ?? this.start)
-            this._explicitEnd = this.clampPosition(options.end ?? (isMarker ? this.start : this.end))
-            this.renderPosition()
-            this.setPart()
-        }
-
-        if (options.content) {
-            this.setContent(options.content)
-        }
-
-        if (options.id) {
-            this.id = options.id
-            this.setPart()
-        }
-
-        if (options.resize !== undefined && options.resize !== this.resize) {
-            this.resize = options.resize
-            if (this.resize && !this.isMarker) {
-                this.addResizeHandles(this.element)
-            } else {
-                this.removeResizeHandles(this.element)
-            }
-        }
-    }
-
-    /** Remove the region */
-    public remove() {
-        // Clean up subscriptions before removing element
-        this.subscriptions.forEach((unsubscribe) => unsubscribe());
-        this.subscriptions = [];
-
-        // todo: fix firstRegion in plugin
-        if (this.prevRegion) {
-            this.prevRegion.nextRegion = this.nextRegion;
-        }
-        if (this.nextRegion) {
-            this.nextRegion.prevRegion = this.prevRegion;
-        }
-        // Clear the region's references
-        this.nextRegion = undefined;
-        this.prevRegion = undefined;
-
-        this.emit('remove');
-        if (this.element) {
-            this.element.remove();
-            // This violates the type but we want to clean up the DOM reference
-            this.element = null as unknown as HTMLElement;
-        }
-    }
+  }
 }
 
 class RegionsPlugin extends BasePlugin<RegionsPluginEvents, RegionsPluginOptions> {
-    private regions: Region[] = []
-    private regionsContainer: HTMLElement
-    private firstRegion?: Region
-    // Kept as ids rather than references so a selection survives the
-    // teardown-and-rebuild the host does whenever the timings change.
-    private selectedIds = new Set<string>()
-    private anchorId?: string
-    private groupDrag?: Region[]
+  private regions: Region[] = [];
+  private regionsContainer: HTMLElement;
+  private firstRegion?: Region;
+  // Kept as ids rather than references so a selection survives the
+  // teardown-and-rebuild the host does whenever the timings change.
+  private selectedIds = new Set<string>();
+  private anchorId?: string;
+  private groupDrag?: Region[];
 
-    /** Create an instance of RegionsPlugin */
-    constructor(options?: RegionsPluginOptions) {
-        super(options)
-        this.regionsContainer = this.initRegionsContainer()
+  /** Create an instance of RegionsPlugin */
+  constructor(options?: RegionsPluginOptions) {
+    super(options);
+    this.regionsContainer = this.initRegionsContainer();
+  }
+
+  /** Create an instance of RegionsPlugin */
+  public static create(options?: RegionsPluginOptions) {
+    return new RegionsPlugin(options);
+  }
+
+  /** Called by wavesurfer, don't call manually */
+  onInit() {
+    if (!this.wavesurfer) {
+      throw Error("WaveSurfer is not initialized");
     }
+    this.wavesurfer.getWrapper().appendChild(this.regionsContainer);
 
-    /** Create an instance of RegionsPlugin */
-    public static create(options?: RegionsPluginOptions) {
-        return new RegionsPlugin(options)
-    }
+    let activeRegions: Region[] = [];
+    this.subscriptions.push(
+      this.wavesurfer.on("timeupdate", (currentTime) => {
+        // Detect when regions are being played
+        const playedRegions = this.regions.filter(
+          (region) =>
+            region.start <= currentTime &&
+            (region.end === region.start ? region.start + 0.05 : region.end) >= currentTime,
+        );
 
-    /** Called by wavesurfer, don't call manually */
-    onInit() {
-        if (!this.wavesurfer) {
-            throw Error('WaveSurfer is not initialized')
+        // Trigger region-in when activeRegions doesn't include a played regions
+        playedRegions.forEach((region) => {
+          if (!activeRegions.includes(region)) {
+            this.emit("region-in", region);
+          }
+        });
+
+        // Trigger region-out when activeRegions include a un-played regions
+        activeRegions.forEach((region) => {
+          if (!playedRegions.includes(region)) {
+            this.emit("region-out", region);
+          }
+        });
+
+        // Update activeRegions only played regions
+        activeRegions = playedRegions;
+      }),
+    );
+  }
+
+  private initRegionsContainer(): HTMLElement {
+    return createElement("div", {
+      style: {
+        position: "absolute",
+        top: "0",
+        left: "0",
+        width: "100%",
+        height: "100%",
+        zIndex: "3",
+        pointerEvents: "none",
+      },
+    });
+  }
+
+  /** Get all created regions */
+  public getRegions(): Region[] {
+    return this.regions;
+  }
+
+  private avoidOverlapping(newRegion: Region) {
+    // Ensure regions don't overlap
+    this.regions.forEach((reg) => {
+      if (reg.id === newRegion.id) return;
+      if (newRegion.isOpenEnded) {
+        if (reg.isOpenEnded) return;
+        if (reg.start < newRegion.start && newRegion.start < reg.end) {
+          throw new OverlapError(newRegion, reg);
         }
-        this.wavesurfer.getWrapper().appendChild(this.regionsContainer)
-
-        let activeRegions: Region[] = []
-        this.subscriptions.push(
-            this.wavesurfer.on('timeupdate', (currentTime) => {
-                // Detect when regions are being played
-                const playedRegions = this.regions.filter(
-                    (region) =>
-                        region.start <= currentTime &&
-                        (region.end === region.start ? region.start + 0.05 : region.end) >= currentTime,
-                )
-
-                // Trigger region-in when activeRegions doesn't include a played regions
-                playedRegions.forEach((region) => {
-                    if (!activeRegions.includes(region)) {
-                        this.emit('region-in', region)
-                    }
-                })
-
-                // Trigger region-out when activeRegions include a un-played regions
-                activeRegions.forEach((region) => {
-                    if (!playedRegions.includes(region)) {
-                        this.emit('region-out', region)
-                    }
-                })
-
-                // Update activeRegions only played regions
-                activeRegions = playedRegions
-            }),
-        )
-    }
-
-    private initRegionsContainer(): HTMLElement {
-        return createElement('div', {
-            style: {
-                position: 'absolute',
-                top: '0',
-                left: '0',
-                width: '100%',
-                height: '100%',
-                zIndex: '3',
-                pointerEvents: 'none',
-            },
-        })
-    }
-
-    /** Get all created regions */
-    public getRegions(): Region[] {
-        return this.regions
-    }
-
-    private avoidOverlapping(newRegion: Region) {
-        // Ensure regions don't overlap
-        this.regions.forEach((reg) => {
-            if (reg.id === newRegion.id) return
-            if (newRegion.isOpenEnded) {
-                if (reg.isOpenEnded) return
-                if (reg.start < newRegion.start && newRegion.start < reg.end) {
-                    throw new OverlapError(newRegion, reg)
-                }
-            } else {
-                if (reg.isOpenEnded) {
-                    if (newRegion.start < reg.start && newRegion.end > reg.start) {
-                        throw new OverlapError(newRegion, reg)
-                    }
-                } else {
-                    if (reg.start < newRegion.end && newRegion.start < reg.end) {
-                        throw new OverlapError(newRegion, reg)
-                    }
-                }
-            }
-        })
-    }
-
-    private setNextRegion(newRegion: Region) {
-        // Place this region in the doubly-linked list of regions
-        if (!this.firstRegion) {
-            this.firstRegion = newRegion
-            return
-        }
-
-        let region = this.firstRegion;
-        while (region.start < newRegion.start && region.nextRegion) {
-            region = region.nextRegion
-        }
-
-        if (region.start > newRegion.start) {
-            this.firstRegion = newRegion
-            newRegion.nextRegion = region
-            return
-        }
-
-        const nextRegion = region.nextRegion
-        region.nextRegion = newRegion
-        newRegion.prevRegion = region
-
-        if (nextRegion) {
-            newRegion.nextRegion = nextRegion
-            nextRegion.prevRegion = newRegion
-        }
-        this.checkRegions();
-    }
-
-    public checkRegions() {
-        // Ensure linked list integrity and print region contents
-        let region = this.firstRegion
-        while (region) {
-            if (region.prevRegion && region.prevRegion.nextRegion !== region) {
-                console.error(`Invalid linked list: ${region.prevRegion.nextRegion?.id} should be ${region.id}`);
-            }
-            if (region.nextRegion && region.nextRegion.prevRegion !== region) {
-                console.error(`Invalid linked list: ${region.nextRegion.prevRegion?.id} should be ${region.id}`);
-            }
-            if (region.nextRegion && region.nextRegion.start < region.start) {
-                console.error('Invalid linked list')
-            }
-            region = region.nextRegion
-        }
-    }
-
-    private orderedRegions(): Region[] {
-        return [...this.regions].sort((a, b) => a.start - b.start)
-    }
-
-    /** The selected regions, in time order. */
-    private getSelectedRegions(): Region[] {
-        return this.orderedRegions().filter((region) => this.selectedIds.has(region.id))
-    }
-
-    public clearSelection() {
-        this.setSelection([])
-        this.anchorId = undefined
-    }
-
-    private setSelection(regions: Region[]) {
-        const ids = new Set(regions.map((region) => region.id))
-        this.regions.forEach((region) => region.setSelected(ids.has(region.id)))
-        this.selectedIds = ids
-    }
-
-    private onRegionClicked(region: Region) {
-        if (this.selectedIds.has(region.id)) return this.clearSelection()
-
-        const ordered = this.orderedRegions()
-        const anchorIndex = ordered.findIndex((other) => other.id === this.anchorId)
-        if (anchorIndex === -1) {
-            this.anchorId = region.id
-            return this.setSelection([region])
-        }
-
-        const clickedIndex = ordered.findIndex((other) => other.id === region.id)
-        this.setSelection(
-            ordered.slice(Math.min(anchorIndex, clickedIndex), Math.max(anchorIndex, clickedIndex) + 1),
-        )
-    }
-
-    private onGroupDragStart(region: Region) {
-        if (!this.selectedIds.has(region.id)) return
-        this.groupDrag = this.getSelectedRegions()
-    }
-
-    private onGroupDrag(region: Region, dx: number) {
-        const selection = this.groupDrag
-        if (!selection?.length) return
-        const first = selection[0]
-        const last = selection[selection.length - 1]
-        const { width } = this.regionsContainer.getBoundingClientRect()
-        const duration = this.wavesurfer?.getDuration() ?? 0
-        const delta = clampGroupShift(
-            { first, last, prev: first.prevRegion, next: last.nextRegion },
-            pixelsToSeconds(dx, width, duration),
-            duration,
-        )
-        if (!delta) return
-        selection.forEach((selectedRegion) => selectedRegion._shiftBy(delta))
-        this.adjustScroll(region)
-    }
-
-    private onGroupDragEnd() {
-        const selection = this.groupDrag
-        this.groupDrag = undefined
-        if (!selection?.length) return
-        this.emit('regions-updated', selection)
-    }
-
-    private adjustScroll(region: Region) {
-        const scrollContainer = this.wavesurfer?.getWrapper()?.parentElement
-        if (!scrollContainer) return
-        const { clientWidth, scrollWidth } = scrollContainer
-        if (scrollWidth <= clientWidth) return
-        const scrollBbox = scrollContainer.getBoundingClientRect()
-        const bbox = region.element.getBoundingClientRect()
-        const left = bbox.left - scrollBbox.left
-        const right = bbox.right - scrollBbox.left
-        if (left < 0) {
-            scrollContainer.scrollLeft += left
-        } else if (right > clientWidth) {
-            scrollContainer.scrollLeft += right - clientWidth
-        }
-    }
-
-    private virtualAppend(region: Region, container: HTMLElement, element: HTMLElement) {
-        const renderIfVisible = () => {
-            if (!this.wavesurfer) return
-            const clientWidth = this.wavesurfer.getWidth()
-            const scrollLeft = this.wavesurfer.getScroll()
-            const scrollWidth = container.clientWidth
-            const duration = this.wavesurfer.getDuration()
-            const start = Math.round((region.start / duration) * scrollWidth)
-            const width = Math.round(((region.end - region.start) / duration) * scrollWidth) || 1
-
-            // Check if the region is between the scrollLeft and scrollLeft + clientWidth
-            const isVisible = start + width > scrollLeft && start < scrollLeft + clientWidth
-
-            if (isVisible) {
-                container.appendChild(element)
-            } else {
-                element.remove()
-            }
-        }
-
-        setTimeout(() => {
-            if (!this.wavesurfer) return
-            renderIfVisible()
-
-            const unsubscribe = this.wavesurfer.on('scroll', renderIfVisible)
-            this.subscriptions.push(region.once('remove', unsubscribe), unsubscribe)
-        }, 0)
-    }
-
-    private saveRegion(region: Region) {
-        region.setSelected(this.selectedIds.has(region.id))
-        this.virtualAppend(region, this.regionsContainer, region.element)
-        this.avoidOverlapping(region)
-        this.setNextRegion(region)
-        this.regions.push(region)
-
-        const regionSubscriptions = [
-            region.on('update', (side) => {
-                // Undefined side indicates that we are dragging not resizing.
-                // A group drag scrolls once for the region under the cursor
-                // instead, or every member would fight over the scroll position.
-                if (!side && !this.groupDrag) {
-                    this.adjustScroll(region)
-                }
-                this.emit('region-update', region, side)
-            }),
-
-            region.on('update-end', () => {
-                this.avoidOverlapping(region)
-                this.emit('region-updated', region)
-            }),
-
-            region.on('play', () => {
-                this.wavesurfer?.play()
-                this.wavesurfer?.setTime(region.start)
-            }),
-
-            region.on('click', (e) => {
-                this.onRegionClicked(region)
-                this.emit('region-clicked', region, e)
-            }),
-
-            region.on('body-drag-start', () => this.onGroupDragStart(region)),
-
-            region.on('body-drag', (dx) => this.onGroupDrag(region, dx)),
-
-            region.on('body-drag-end', () => this.onGroupDragEnd()),
-
-            region.on('dblclick', (e) => {
-                this.emit('region-double-clicked', region, e)
-            }),
-
-            // Remove the region from the list when it's removed
-            region.once('remove', () => {
-                regionSubscriptions.forEach((unsubscribe) => unsubscribe())
-                this.regions = this.regions.filter((reg) => reg !== region)
-                this.emit('region-removed', region)
-            }),
-        ]
-
-        this.subscriptions.push(...regionSubscriptions)
-
-        this.emit('region-created', region)
-    }
-
-    /** Create a region with given parameters */
-    public addRegion(options: RegionParams): Region {
-        if (!this.wavesurfer) {
-            throw Error('WaveSurfer is not initialized')
-        }
-
-        const duration = this.wavesurfer.getDuration()
-        const numberOfChannels = 5; // this.wavesurfer?.getDecodedData()?.numberOfChannels
-        const region = new SingleRegion(options, duration, numberOfChannels)
-
-        if (!duration) {
-            this.subscriptions.push(
-                this.wavesurfer.once('ready', (duration) => {
-                    region._setTotalDuration(duration)
-                    this.saveRegion(region)
-                }),
-            )
+      } else {
+        if (reg.isOpenEnded) {
+          if (newRegion.start < reg.start && newRegion.end > reg.start) {
+            throw new OverlapError(newRegion, reg);
+          }
         } else {
-            this.saveRegion(region)
+          if (reg.start < newRegion.end && newRegion.start < reg.end) {
+            throw new OverlapError(newRegion, reg);
+          }
         }
+      }
+    });
+  }
 
-        return region
+  private setNextRegion(newRegion: Region) {
+    // Place this region in the doubly-linked list of regions
+    if (!this.firstRegion) {
+      this.firstRegion = newRegion;
+      return;
     }
 
-    /** Remove all regions */
-    public clearRegions() {
-        this.regions.forEach((region) => region.remove())
-        this.regions = []
-        this.firstRegion = undefined;
+    let region = this.firstRegion;
+    while (region.start < newRegion.start && region.nextRegion) {
+      region = region.nextRegion;
     }
 
-    /** Destroy the plugin and clean up */
-    public destroy() {
-        this.clearRegions()
-        super.destroy()
-        this.regionsContainer.remove()
+    if (region.start > newRegion.start) {
+      this.firstRegion = newRegion;
+      newRegion.nextRegion = region;
+      return;
     }
+
+    const nextRegion = region.nextRegion;
+    region.nextRegion = newRegion;
+    newRegion.prevRegion = region;
+
+    if (nextRegion) {
+      newRegion.nextRegion = nextRegion;
+      nextRegion.prevRegion = newRegion;
+    }
+    this.checkRegions();
+  }
+
+  public checkRegions() {
+    // Ensure linked list integrity and print region contents
+    let region = this.firstRegion;
+    while (region) {
+      if (region.prevRegion && region.prevRegion.nextRegion !== region) {
+        console.error(
+          `Invalid linked list: ${region.prevRegion.nextRegion?.id} should be ${region.id}`,
+        );
+      }
+      if (region.nextRegion && region.nextRegion.prevRegion !== region) {
+        console.error(
+          `Invalid linked list: ${region.nextRegion.prevRegion?.id} should be ${region.id}`,
+        );
+      }
+      if (region.nextRegion && region.nextRegion.start < region.start) {
+        console.error("Invalid linked list");
+      }
+      region = region.nextRegion;
+    }
+  }
+
+  private orderedRegions(): Region[] {
+    return [...this.regions].sort((a, b) => a.start - b.start);
+  }
+
+  /** The selected regions, in time order. */
+  private getSelectedRegions(): Region[] {
+    return this.orderedRegions().filter((region) => this.selectedIds.has(region.id));
+  }
+
+  public clearSelection() {
+    this.setSelection([]);
+    this.anchorId = undefined;
+  }
+
+  private setSelection(regions: Region[]) {
+    const ids = new Set(regions.map((region) => region.id));
+    this.regions.forEach((region) => region.setSelected(ids.has(region.id)));
+    this.selectedIds = ids;
+  }
+
+  private onRegionClicked(region: Region) {
+    if (this.selectedIds.has(region.id)) return this.clearSelection();
+
+    const ordered = this.orderedRegions();
+    const anchorIndex = ordered.findIndex((other) => other.id === this.anchorId);
+    if (anchorIndex === -1) {
+      this.anchorId = region.id;
+      return this.setSelection([region]);
+    }
+
+    const clickedIndex = ordered.findIndex((other) => other.id === region.id);
+    this.setSelection(
+      ordered.slice(Math.min(anchorIndex, clickedIndex), Math.max(anchorIndex, clickedIndex) + 1),
+    );
+  }
+
+  private onGroupDragStart(region: Region) {
+    if (!this.selectedIds.has(region.id)) return;
+    this.groupDrag = this.getSelectedRegions();
+  }
+
+  private onGroupDrag(region: Region, dx: number) {
+    const selection = this.groupDrag;
+    if (!selection?.length) return;
+    const first = selection[0];
+    const last = selection[selection.length - 1];
+    const { width } = this.regionsContainer.getBoundingClientRect();
+    const duration = this.wavesurfer?.getDuration() ?? 0;
+    const delta = clampGroupShift(
+      { first, last, prev: first.prevRegion, next: last.nextRegion },
+      pixelsToSeconds(dx, width, duration),
+      duration,
+    );
+    if (!delta) return;
+    selection.forEach((selectedRegion) => selectedRegion._shiftBy(delta));
+    this.adjustScroll(region);
+  }
+
+  private onGroupDragEnd() {
+    const selection = this.groupDrag;
+    this.groupDrag = undefined;
+    if (!selection?.length) return;
+    this.emit("regions-updated", selection);
+  }
+
+  private adjustScroll(region: Region) {
+    const scrollContainer = this.wavesurfer?.getWrapper()?.parentElement;
+    if (!scrollContainer) return;
+    const { clientWidth, scrollWidth } = scrollContainer;
+    if (scrollWidth <= clientWidth) return;
+    const scrollBbox = scrollContainer.getBoundingClientRect();
+    const bbox = region.element.getBoundingClientRect();
+    const left = bbox.left - scrollBbox.left;
+    const right = bbox.right - scrollBbox.left;
+    if (left < 0) {
+      scrollContainer.scrollLeft += left;
+    } else if (right > clientWidth) {
+      scrollContainer.scrollLeft += right - clientWidth;
+    }
+  }
+
+  private virtualAppend(region: Region, container: HTMLElement, element: HTMLElement) {
+    const renderIfVisible = () => {
+      if (!this.wavesurfer) return;
+      const clientWidth = this.wavesurfer.getWidth();
+      const scrollLeft = this.wavesurfer.getScroll();
+      const scrollWidth = container.clientWidth;
+      const duration = this.wavesurfer.getDuration();
+      const start = Math.round((region.start / duration) * scrollWidth);
+      const width = Math.round(((region.end - region.start) / duration) * scrollWidth) || 1;
+
+      // Check if the region is between the scrollLeft and scrollLeft + clientWidth
+      const isVisible = start + width > scrollLeft && start < scrollLeft + clientWidth;
+
+      if (isVisible) {
+        container.appendChild(element);
+      } else {
+        element.remove();
+      }
+    };
+
+    setTimeout(() => {
+      if (!this.wavesurfer) return;
+      renderIfVisible();
+
+      const unsubscribe = this.wavesurfer.on("scroll", renderIfVisible);
+      this.subscriptions.push(region.once("remove", unsubscribe), unsubscribe);
+    }, 0);
+  }
+
+  private saveRegion(region: Region) {
+    region.setSelected(this.selectedIds.has(region.id));
+    this.virtualAppend(region, this.regionsContainer, region.element);
+    this.avoidOverlapping(region);
+    this.setNextRegion(region);
+    this.regions.push(region);
+
+    const regionSubscriptions = [
+      region.on("update", (side) => {
+        // Undefined side indicates that we are dragging not resizing.
+        // A group drag scrolls once for the region under the cursor
+        // instead, or every member would fight over the scroll position.
+        if (!side && !this.groupDrag) {
+          this.adjustScroll(region);
+        }
+        this.emit("region-update", region, side);
+      }),
+
+      region.on("update-end", () => {
+        this.avoidOverlapping(region);
+        this.emit("region-updated", region);
+      }),
+
+      region.on("play", () => {
+        this.wavesurfer?.play();
+        this.wavesurfer?.setTime(region.start);
+      }),
+
+      region.on("click", (e) => {
+        this.onRegionClicked(region);
+        this.emit("region-clicked", region, e);
+      }),
+
+      region.on("body-drag-start", () => this.onGroupDragStart(region)),
+
+      region.on("body-drag", (dx) => this.onGroupDrag(region, dx)),
+
+      region.on("body-drag-end", () => this.onGroupDragEnd()),
+
+      region.on("dblclick", (e) => {
+        this.emit("region-double-clicked", region, e);
+      }),
+
+      // Remove the region from the list when it's removed
+      region.once("remove", () => {
+        regionSubscriptions.forEach((unsubscribe) => unsubscribe());
+        this.regions = this.regions.filter((reg) => reg !== region);
+        this.emit("region-removed", region);
+      }),
+    ];
+
+    this.subscriptions.push(...regionSubscriptions);
+
+    this.emit("region-created", region);
+  }
+
+  /** Create a region with given parameters */
+  public addRegion(options: RegionParams): Region {
+    if (!this.wavesurfer) {
+      throw Error("WaveSurfer is not initialized");
+    }
+
+    const duration = this.wavesurfer.getDuration();
+    const numberOfChannels = 5; // this.wavesurfer?.getDecodedData()?.numberOfChannels
+    const region = new SingleRegion(options, duration, numberOfChannels);
+
+    if (!duration) {
+      this.subscriptions.push(
+        this.wavesurfer.once("ready", (duration) => {
+          region._setTotalDuration(duration);
+          this.saveRegion(region);
+        }),
+      );
+    } else {
+      this.saveRegion(region);
+    }
+
+    return region;
+  }
+
+  /** Remove all regions */
+  public clearRegions() {
+    this.regions.forEach((region) => region.remove());
+    this.regions = [];
+    this.firstRegion = undefined;
+  }
+
+  /** Destroy the plugin and clean up */
+  public destroy() {
+    this.clearRegions();
+    super.destroy();
+    this.regionsContainer.remove();
+  }
 }
 
-export default RegionsPlugin
-export type Region = SingleRegion
+export default RegionsPlugin;
+export type Region = SingleRegion;

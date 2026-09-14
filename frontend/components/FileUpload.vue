@@ -7,10 +7,16 @@
       </b-tooltip>
     </template>
     <b-upload
-        :expanded="expanded"
-        :model-value="file ?? undefined"
-        @update:model-value="(v: File | File[] | null) => { file = Array.isArray(v) ? (v[0] ?? null) : v; }"
-        class="file-label" :accept="acceptAttribute">
+      :expanded="expanded"
+      :model-value="file ?? undefined"
+      @update:model-value="
+        (v: File | File[] | null) => {
+          file = Array.isArray(v) ? (v[0] ?? null) : v;
+        }
+      "
+      class="file-label"
+      :accept="acceptAttribute"
+    >
       <span class="file-cta">
         <b-icon class="file-icon" icon="upload"></b-icon>
         <span class="file-label">Choose File</span>
@@ -20,20 +26,14 @@
       </span>
     </b-upload>
     <p class="control">
-      <b-button
-          type="is-danger is-light"
-          @click="file = null"
-          v-if="file"
-          icon-left="trash-can"
-      >
+      <b-button type="is-danger is-light" @click="file = null" v-if="file" icon-left="trash-can">
       </b-button>
-    </p
-    >
+    </p>
   </b-field>
 </template>
 
 <script lang="ts">
-import {defineComponent, PropType} from "vue";
+import { defineComponent, PropType } from "vue";
 
 export default defineComponent({
   emits: ["update:modelValue"],
@@ -41,7 +41,7 @@ export default defineComponent({
     label: String,
     tooltip: String,
     expanded: Boolean,
-    modelValue: {type: File as unknown as PropType<File | null>, default: null},
+    modelValue: { type: File as unknown as PropType<File | null>, default: null },
     // Extensions or MIME types to filter the file picker with,
     // either as a list of entries or as a ready-made accept string.
     accept: [String, Array],

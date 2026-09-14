@@ -1,41 +1,55 @@
-import { LYRIC_MARKERS, SUBTITLE_CANVAS, DEFAULT_COUNT_IN_TEXT, DEFAULT_COUNT_IN_THRESHOLD, DEFAULT_COUNT_IN_DURATION } from "@/constants";
-import { addQuickStartCountIn, addScreenCountIns, addTitleScreen, addInstrumentalScreens, displayQuickLinesEarly, deferScreenStarts } from "./adjustments";
+import {
+  LYRIC_MARKERS,
+  SUBTITLE_CANVAS,
+  DEFAULT_COUNT_IN_TEXT,
+  DEFAULT_COUNT_IN_THRESHOLD,
+  DEFAULT_COUNT_IN_DURATION,
+} from "@/constants";
+import {
+  addQuickStartCountIn,
+  addScreenCountIns,
+  addTitleScreen,
+  addInstrumentalScreens,
+  displayQuickLinesEarly,
+  deferScreenStarts,
+} from "./adjustments";
 import { map, method, isNumber } from "lodash-es";
 import { default as BuefyColor } from "buefy/src/utils/color";
-
 
 // "mkv" also carries the vocals and the original mix as extra audio tracks.
 export const OUTPUT_FORMATS = ["mp4", "mkv"] as const;
 export type OutputFormat = (typeof OUTPUT_FORMATS)[number];
 
 export interface KaraokeOptions {
-  addTitleScreen: boolean,
-  addCountIns: boolean,
-  countInText: string,
+  addTitleScreen: boolean;
+  addCountIns: boolean;
+  countInText: string;
   // A screen gets a count-in when its first line starts more than this many seconds after
   // the previous screen ends. Must stay at or above countInDuration.
-  countInThreshold: number,
-  countInDuration: number,
-  addInstrumentalScreens: boolean,
-  addStaggeredLines: boolean,
-  useBackgroundVideo: boolean,
-  outputFormat: OutputFormat,
-  verticalAlignment: VerticalAlignment,
+  countInThreshold: number;
+  countInDuration: number;
+  addInstrumentalScreens: boolean;
+  addStaggeredLines: boolean;
+  useBackgroundVideo: boolean;
+  outputFormat: OutputFormat;
+  verticalAlignment: VerticalAlignment;
   font: {
-    size: number,
-    name: string,
-    bold?: boolean,
-    italic?: boolean
-  }
+    size: number;
+    name: string;
+    bold?: boolean;
+    italic?: boolean;
+  };
   color: {
-    background: BuefyColor,
-    primary: BuefyColor,
-    secondary: BuefyColor
-  }
+    background: BuefyColor;
+    primary: BuefyColor;
+    secondary: BuefyColor;
+  };
 }
 
 export enum VerticalAlignment {
-  Top, Middle, Bottom
+  Top,
+  Middle,
+  Bottom,
 }
 
 export const DEFAULT_KARAOKE_OPTIONS: KaraokeOptions = {
@@ -58,34 +72,36 @@ export const DEFAULT_KARAOKE_OPTIONS: KaraokeOptions = {
     primary: BuefyColor.parse("#FF00FF"),
     secondary: BuefyColor.parse("#00FFFF"),
   },
-}
+};
 
 export interface Segment {
   text: string;
 }
 
 interface AssEvent {
-  type: string,
-  Layer: number,
-  Start: string,
-  End: string,
-  Style: string,
-  Name: string,
-  MarginL: number,
-  MarginR: number,
-  MarginV: number,
-  Effect: string,
-  Text: string
+  type: string;
+  Layer: number;
+  Start: string;
+  End: string;
+  Style: string;
+  Name: string;
+  MarginL: number;
+  MarginR: number;
+  MarginV: number;
+  Effect: string;
+  Text: string;
 }
 
 //
 // ASS Formatting helpers
 //
 
-type Color = [number, number, number, number] // RGBA?
+type Color = [number, number, number, number]; // RGBA?
 type Seconds = number;
 
-function toHex(n: number) { return n.toString(16).toUpperCase().padStart(2, "0") }
+function toHex(n: number) {
+  return n.toString(16).toUpperCase().padStart(2, "0");
+}
 
 function colorToString(color: Color): string {
   // ASS color format is AABBGGRR for some reason, and alpha 0 is opaque
@@ -96,13 +112,17 @@ export function floatToTimecode(t: number): string {
   // Format t (seconds) as HH:MM:SS.ms
   const timecodeParts = [
     Math.floor(t / 3600).toString(),
-    Math.floor(t / 60 % 60).toString().padStart(2, "0"),
+    Math.floor((t / 60) % 60)
+      .toString()
+      .padStart(2, "0"),
     [
-      Math.floor(t % 60).toString().padStart(2, "0"),
-      (t - Math.floor(t)).toFixed(2).slice(2, 4)
-    ].join(".")
+      Math.floor(t % 60)
+        .toString()
+        .padStart(2, "0"),
+      (t - Math.floor(t)).toFixed(2).slice(2, 4),
+    ].join("."),
   ];
-  return timecodeParts.join(":")
+  return timecodeParts.join(":");
 }
 
 //
@@ -127,7 +147,7 @@ export function parseLyrics(lyricsText: string, includeMarkup: boolean = false):
         if (char == "/") {
           char = "";
         } else if (char == "_") {
-          char = " "
+          char = " ";
         }
       }
     }
@@ -161,7 +181,11 @@ export class LyricSegmentIterator {
   }
 }
 
-export function adjustSegmentTiming(segment: number, timings: Array<LyricEvent>, newValues: { start: number, end?: number }): Array<LyricEvent> {
+export function adjustSegmentTiming(
+  segment: number,
+  timings: Array<LyricEvent>,
+  newValues: { start: number; end?: number },
+): Array<LyricEvent> {
   // Adjust the timing of a segment. When newValues.end is a number, the
   // segment is given an explicit SEGMENT_END marker (creating one if needed);
   // when it's undefined, any existing SEGMENT_END marker is dropped so the
@@ -234,7 +258,7 @@ export class LyricSegment {
   toAss() {
     // Render this segment as part of an ASS event line
     const durationInCentiseconds = Math.floor(((this.endTimestamp ?? 0) - this.timestamp) * 100);
-    return `{\\kf${durationInCentiseconds}}${this.text}`
+    return `{\\kf${durationInCentiseconds}}${this.text}`;
   }
 }
 
@@ -275,10 +299,14 @@ export class LyricsScreen {
   }
 
   get segments(): LyricSegment[] {
-    return this.lines.flatMap(l => l.segments);
+    return this.lines.flatMap((l) => l.segments);
   }
 
-  getLineY(lineInScreen: number, fontSize: number, alignment: VerticalAlignment = VerticalAlignment.Middle): number {
+  getLineY(
+    lineInScreen: number,
+    fontSize: number,
+    alignment: VerticalAlignment = VerticalAlignment.Middle,
+  ): number {
     // Get the Y coordinate of the top of the given line in the screen
     // Pad screen with 1 line height
     const lineHeight = fontSize * 1.5;
@@ -290,7 +318,7 @@ export class LyricsScreen {
     // lane regardless of the global alignment, so each voice stays a contiguous block.
     if (this.verticalZone) {
       const laneMiddle = this.verticalZone.top + this.verticalZone.height / 2;
-      firstLineTopMargin = laneMiddle - (lineCount * lineHeight / 2);
+      firstLineTopMargin = laneMiddle - (lineCount * lineHeight) / 2;
     } else {
       switch (alignment) {
         case VerticalAlignment.Top:
@@ -298,23 +326,38 @@ export class LyricsScreen {
           break;
         case VerticalAlignment.Middle:
           const screenMiddle = SUBTITLE_CANVAS.height / 2;
-          firstLineTopMargin = screenMiddle - (lineCount * lineHeight / 2)
+          firstLineTopMargin = screenMiddle - (lineCount * lineHeight) / 2;
           break;
         case VerticalAlignment.Bottom:
-          firstLineTopMargin = SUBTITLE_CANVAS.height - ((lineCount + 1) * lineHeight);
+          firstLineTopMargin = SUBTITLE_CANVAS.height - (lineCount + 1) * lineHeight;
           break;
       }
     }
-    return Math.round(firstLineTopMargin + (lineInScreen * lineHeight))
+    return Math.round(firstLineTopMargin + lineInScreen * lineHeight);
   }
 
-  toAssEvents(formatParams: Record<string, unknown>, videoOptions: KaraokeOptions, styleName: string = "Default") {
+  toAssEvents(
+    formatParams: Record<string, unknown>,
+    videoOptions: KaraokeOptions,
+    styleName: string = "Default",
+  ) {
     const self = this;
-    return this.lines.map((l, i) => l.toAssEvent(self.startTimestamp ?? 0, self.endTimestamp, styleName, self.getLineY(i, formatParams["Fontsize"] as number, videoOptions.verticalAlignment))).join("\n") + "\n";
+    return (
+      this.lines
+        .map((l, i) =>
+          l.toAssEvent(
+            self.startTimestamp ?? 0,
+            self.endTimestamp,
+            styleName,
+            self.getLineY(i, formatParams["Fontsize"] as number, videoOptions.verticalAlignment),
+          ),
+        )
+        .join("\n") + "\n"
+    );
   }
 
   adjustTimestamps(adjustment: number): LyricsScreen {
-    const lines = map(this.lines, method('adjustTimestamps', adjustment));
+    const lines = map(this.lines, method("adjustTimestamps", adjustment));
     const screen = new LyricsScreen(lines, this.audioDelay);
     screen.startTimestamp = this.startTimestamp;
     if (isNumber(this.startTimestamp)) {
@@ -330,7 +373,9 @@ export class LyricsScreen {
     // Adjust the start of this screen's display by [adjustment]
     const newStartTime = this.startTimestamp ? this.startTimestamp + adjustment : adjustment;
     if (newStartTime > this.lines[0].timestamp) {
-      throw Error(`Cannot adjust screen display start by ${adjustment}s: display start is ${this.startTimestamp}, first line animates at ${this.lines[0].timestamp}`);
+      throw Error(
+        `Cannot adjust screen display start by ${adjustment}s: display start is ${this.startTimestamp}, first line animates at ${this.lines[0].timestamp}`,
+      );
     }
     const trimmedScreen = new LyricsScreen(this.lines, this.audioDelay);
     trimmedScreen.startTimestamp = newStartTime;
@@ -339,7 +384,6 @@ export class LyricsScreen {
 }
 
 export class LyricsLine {
-
   segments: LyricSegment[];
 
   // Times to start/end display of the line, as opposed to animation.
@@ -354,7 +398,7 @@ export class LyricsLine {
   }
 
   toString(): string {
-    return `LyricsLine(${this.segments.map(s => s.toString()).join(" ")})`;
+    return `LyricsLine(${this.segments.map((s) => s.toString()).join(" ")})`;
   }
 
   get timestamp(): Timestamp {
@@ -397,16 +441,21 @@ export class LyricsLine {
     for (const s of segments) {
       if (previousEnd !== undefined && previousEnd < s.timestamp) {
         // Insert a blank segment to represent a gap between segments
-        const blankSegment = new LyricSegment("", previousEnd, s.timestamp)
-        line += blankSegment.toAss()
+        const blankSegment = new LyricSegment("", previousEnd, s.timestamp);
+        line += blankSegment.toAss();
       }
-      line += s.toAss()
+      line += s.toAss();
       previousEnd = s.endTimestamp;
     }
     return this.addAssFades(line);
   }
 
-  toAssEvent(screenStart: Timestamp, screenEnd: Timestamp, style: string, topMargin: number): string {
+  toAssEvent(
+    screenStart: Timestamp,
+    screenEnd: Timestamp,
+    style: string,
+    topMargin: number,
+  ): string {
     if (isNaN(this.timestamp) || isNaN(screenStart) || isNaN(screenEnd)) {
       console.error("NaN value for line", this.toString(), screenStart, screenEnd);
       throw Error("NaN value for timestamp");
@@ -424,32 +473,52 @@ export class LyricsLine {
       MarginR: 0,
       MarginV: topMargin,
       Effect: "",
-      Text: this.decorateAssLine(this.segments, displayStart)
-    }
-    return `${e.type}: ` + (["Layer", "Start", "End", "Style", "Name", "MarginL", "MarginR", "MarginV", "Effect", "Text"] as (keyof AssEvent)[]).map(k => e[k]).join(",");
+      Text: this.decorateAssLine(this.segments, displayStart),
+    };
+    return (
+      `${e.type}: ` +
+      (
+        [
+          "Layer",
+          "Start",
+          "End",
+          "Style",
+          "Name",
+          "MarginL",
+          "MarginR",
+          "MarginV",
+          "Effect",
+          "Text",
+        ] as (keyof AssEvent)[]
+      )
+        .map((k) => e[k])
+        .join(",")
+    );
   }
 
   addAssFades(assLine: string): string {
     if (this.fadeInDuration == 0 && this.fadeOutDuration == 0) {
       return assLine;
     }
-    return `{\\fad(${Math.floor(this.fadeInDuration * 1000)},${Math.floor(this.fadeOutDuration * 1000)})}` + assLine
+    return (
+      `{\\fad(${Math.floor(this.fadeInDuration * 1000)},${Math.floor(this.fadeOutDuration * 1000)})}` +
+      assLine
+    );
   }
 
   adjustTimestamps(adjustment: number): LyricsLine {
-    const segments = map(this.segments, method('adjustTimestamps', adjustment))
+    const segments = map(this.segments, method("adjustTimestamps", adjustment));
     return new LyricsLine(segments);
   }
-
 }
 
-export type LyricEvent = [number, number]
-export type Timestamp = number
+export type LyricEvent = [number, number];
+export type Timestamp = number;
 
 export function compileLyricTimings(lyrics: string, events: LyricEvent[]): LyricsScreen[] {
   // Read keyboard events in the order they were pressed and construct
   // objects for screens and lines that include the given timing information.
-  const segments = (new LyricSegmentIterator(lyrics))[Symbol.iterator]();
+  const segments = new LyricSegmentIterator(lyrics)[Symbol.iterator]();
   const screens = [];
   let previousSegment = null;
   let line = null;
@@ -466,9 +535,14 @@ export function compileLyricTimings(lyrics: string, events: LyricEvent[]): Lyric
       if (marker == LYRIC_MARKERS.SEGMENT_START) {
         const nextSegment = segments.next();
         if (nextSegment.done) {
-          console.error("compileLyricTimings: More SEGMENT_START events than lyric segments available", {
-            lyrics, totalEvents: events.length, currentScreens: screens.length
-          });
+          console.error(
+            "compileLyricTimings: More SEGMENT_START events than lyric segments available",
+            {
+              lyrics,
+              totalEvents: events.length,
+              currentScreens: screens.length,
+            },
+          );
           break;
         }
         const segmentText = nextSegment.value.text;
@@ -516,7 +590,7 @@ export function setSegmentEndTimes(screens: LyricsScreen[], songDuration: number
   // so a segment can't extend past the next one. Within a single voice you can't sing two
   // segments at once, so an end later than the next segment's start (e.g. a release dragged
   // too far in the Adjust tab) would otherwise double-colour two lines at the same time.
-  const segments: LyricSegment[] = screens.flatMap(s => s.lines.flatMap(l => l.segments));
+  const segments: LyricSegment[] = screens.flatMap((s) => s.lines.flatMap((l) => l.segments));
   segments.forEach((segment, i) => {
     const nextStart = i < segments.length - 1 ? segments[i + 1].timestamp : songDuration;
     if (!segment.endTimestamp) {
@@ -542,12 +616,18 @@ export function setScreenStartTimes(screens: LyricsScreen[]): LyricsScreen[] {
   return screens;
 }
 
-export function adjustScreenTimestamps(screens: LyricsScreen[], adjustment: number): LyricsScreen[] {
+export function adjustScreenTimestamps(
+  screens: LyricsScreen[],
+  adjustment: number,
+): LyricsScreen[] {
   // Adjust all timings in [screens] forward by [adjustment] seconds.
-  return map(screens, method('adjustTimestamps', adjustment));
+  return map(screens, method("adjustTimestamps", adjustment));
 }
 
-export function denormalizeTimestamps(screens: LyricsScreen[], songDuration: number): LyricsScreen[] {
+export function denormalizeTimestamps(
+  screens: LyricsScreen[],
+  songDuration: number,
+): LyricsScreen[] {
   // Explicitly set various timestamps
   return setScreenStartTimes(setSegmentEndTimes(screens, songDuration));
 }
@@ -578,7 +658,7 @@ function buildDisplayParams(formatParams: Object, styleName: string): Record<str
     MarginR: 0,
     MarginV: 0,
     Encoding: 0,
-    ...formatParams
+    ...formatParams,
   };
 
   for (const key of ["PrimaryColour", "SecondaryColour", "OutlineColour", "BackColour"]) {
@@ -623,21 +703,32 @@ ${styleLines}
 
 [Events]
 Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
-`
+`;
   for (const track of tracks) {
     for (const screen of track.screens) {
-      assText += screen.toAssEvents(track.displayParams, track.options, track.styleName)
+      assText += screen.toAssEvents(track.displayParams, track.options, track.styleName);
     }
   }
   return assText;
 }
 
-function createSubtitles(screens: LyricsScreen[], options: KaraokeOptions, formatParams: Object): string {
+function createSubtitles(
+  screens: LyricsScreen[],
+  options: KaraokeOptions,
+  formatParams: Object,
+): string {
   const displayParams = buildDisplayParams(formatParams, "Default");
   return renderAssDocument([{ styleName: "Default", displayParams, screens, options }]);
 }
 
-export function createScreens(lyrics: string, lyricEvents: LyricEvent[], songDuration: number, title: string, artist: string, options: KaraokeOptions): LyricsScreen[] {
+export function createScreens(
+  lyrics: string,
+  lyricEvents: LyricEvent[],
+  songDuration: number,
+  title: string,
+  artist: string,
+  options: KaraokeOptions,
+): LyricsScreen[] {
   let screens = compileLyricTimings(lyrics, lyricEvents);
   if (screens.length === 0) {
     // No lyrics yet (e.g. a timings file was loaded before lyrics were
@@ -658,7 +749,7 @@ export function createScreens(lyrics: string, lyricEvents: LyricEvent[], songDur
   if (options.addInstrumentalScreens) {
     screens = addInstrumentalScreens(screens);
   }
-  return screens
+  return screens;
 }
 
 // Derive the ASS style format params (font + colors + bold/italic) from karaoke options.
@@ -668,14 +759,14 @@ function optionsToFormatParams(options: KaraokeOptions): Record<string, unknown>
   const outlineColor = options.color.background;
 
   const formatParams: Record<string, unknown> = {
-    "Fontname": options.font.name,
-    "Fontsize": options.font.size,
-    "PrimaryColour": [primaryColor.red, primaryColor.green, primaryColor.blue, 0],
-    "SecondaryColour": [secondaryColor.red, secondaryColor.green, secondaryColor.blue, 0],
-    "OutlineColour": [outlineColor.red, outlineColor.green, outlineColor.blue, 0],
-    "BorderStyle": 1,
-    "Outline": 1,
-    "Shadow": 0,
+    Fontname: options.font.name,
+    Fontsize: options.font.size,
+    PrimaryColour: [primaryColor.red, primaryColor.green, primaryColor.blue, 0],
+    SecondaryColour: [secondaryColor.red, secondaryColor.green, secondaryColor.blue, 0],
+    OutlineColour: [outlineColor.red, outlineColor.green, outlineColor.blue, 0],
+    BorderStyle: 1,
+    Outline: 1,
+    Shadow: 0,
   };
   // Only override Bold/Italic when explicitly set, so default output is unchanged.
   // ASS uses -1 for bold-on and 1 for italic-on.
@@ -688,7 +779,14 @@ function optionsToFormatParams(options: KaraokeOptions): Record<string, unknown>
   return formatParams;
 }
 
-export function createAssFile(lyrics: string, lyricEvents: LyricEvent[], songDuration: number, title: string, artist: string, options: KaraokeOptions) {
+export function createAssFile(
+  lyrics: string,
+  lyricEvents: LyricEvent[],
+  songDuration: number,
+  title: string,
+  artist: string,
+  options: KaraokeOptions,
+) {
   // Entry point to subtitles. Creates an .ass file from the given info.
   const screensWithTitle = createScreens(lyrics, lyricEvents, songDuration, title, artist, options);
   return createSubtitles(screensWithTitle, options, optionsToFormatParams(options));
@@ -741,7 +839,7 @@ function assignVoiceLanes(renders: VoiceTrackRender[]): void {
     for (const screen of render.screens) {
       const overlapsOtherVoice = renders.some(
         (other, otherIndex) =>
-          otherIndex !== index && other.screens.some((os) => screensOverlapInTime(screen, os))
+          otherIndex !== index && other.screens.some((os) => screensOverlapInTime(screen, os)),
       );
       if (overlapsOtherVoice) {
         screen.verticalZone = { top: index * laneHeight, height: laneHeight };
@@ -750,7 +848,12 @@ function assignVoiceLanes(renders: VoiceTrackRender[]): void {
   });
 }
 
-export function createMultiVoiceAssFile(tracks: VoiceTrack[], songDuration: number, title: string, artist: string): string {
+export function createMultiVoiceAssFile(
+  tracks: VoiceTrack[],
+  songDuration: number,
+  title: string,
+  artist: string,
+): string {
   if (tracks.length === 0) {
     return "";
   }

@@ -62,9 +62,9 @@ import type {
   BToast,
   BTooltip,
   BUpload,
-} from 'buefy';
+} from "buefy";
 
-declare module 'vue' {
+declare module "vue" {
   interface GlobalComponents {
     BAutocomplete: typeof BAutocomplete;
     BBreadcrumb: typeof BBreadcrumb;

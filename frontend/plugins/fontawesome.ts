@@ -1,5 +1,5 @@
-import { library } from '@fortawesome/fontawesome-svg-core';
-import { FontAwesomeIcon } from '@fortawesome/vue-fontawesome';
+import { library } from "@fortawesome/fontawesome-svg-core";
+import { FontAwesomeIcon } from "@fortawesome/vue-fontawesome";
 
 // Import only the specific icons we need
 import {
@@ -30,12 +30,10 @@ import {
   faWandMagicSparkles,
   faArrowRotateLeft,
   faPenToSquare,
-} from '@fortawesome/free-solid-svg-icons';
+} from "@fortawesome/free-solid-svg-icons";
 
 // Import from brands
-import {
-  faGithub
-} from '@fortawesome/free-brands-svg-icons';
+import { faGithub } from "@fortawesome/free-brands-svg-icons";
 
 // Add only the imported icons to the library
 library.add(
@@ -69,7 +67,7 @@ library.add(
   faArrowRotateLeft,
 
   // Brand icons
-  faGithub
+  faGithub,
 );
 
 export default FontAwesomeIcon;

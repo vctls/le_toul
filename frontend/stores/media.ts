@@ -1,339 +1,344 @@
-import {defineStore} from 'pinia';
-import {ref, shallowRef, watch} from 'vue';
+import { defineStore } from "pinia";
+import { ref, shallowRef, watch } from "vue";
 
-import {separateTrack} from '@/lib/audio';
-import {SeparationModel} from '@/types';
+import { separateTrack } from "@/lib/audio";
+import { SeparationModel } from "@/types";
 import jsmediatags from "@/jsmediatags.min.js";
-import {clearPersistence, persistBlobRef, persistJsonRef} from '@/lib/persistence';
+import { clearPersistence, persistBlobRef, persistJsonRef } from "@/lib/persistence";
 
 const MEDIA_LOCALSTORAGE_KEYS = [
-    'media.youtubeUrl',
-    'media.separationModel',
-    'media.songTitle',
-    'media.songArtist',
-    'media.songDuration',
+  "media.youtubeUrl",
+  "media.separationModel",
+  "media.songTitle",
+  "media.songArtist",
+  "media.songDuration",
 ];
 const MEDIA_IDB_KEYS = [
-    'media.songFile',
-    'media.backgroundVideo',
-    'media.separatedTrack',
-    'media.timingsFile',
-    'media.lyricsFile',
-    'media.backingTrackFile',
-    'media.vocalTrackFile',
-    'media.settingsFile',
+  "media.songFile",
+  "media.backgroundVideo",
+  "media.separatedTrack",
+  "media.timingsFile",
+  "media.lyricsFile",
+  "media.backingTrackFile",
+  "media.vocalTrackFile",
+  "media.settingsFile",
 ];
 
-
 export interface SeparatedTrack {
-    // Blob URL of the separated backing track
-    backing: Blob;
-    // Blob URL of the separated vocals track
-    vocals: Blob;
+  // Blob URL of the separated backing track
+  backing: Blob;
+  // Blob URL of the separated vocals track
+  vocals: Blob;
 }
 
 export const BACKING_VOCALS_SEPARATOR_MODEL = "UVR_MDXNET_KARA_2.onnx";
 export const NO_VOCALS_SEPARATOR_MODEL = "UVR-MDX-NET-Inst_HQ_3.onnx";
 // Keep backing vocals, higher quality. Minutes per song on CPU, fast on GPU.
-export const BACKING_VOCALS_HQ_SEPARATOR_MODEL = "mel_band_roformer_karaoke_aufr33_viperx_sdr_10.1956.ckpt";
+export const BACKING_VOCALS_HQ_SEPARATOR_MODEL =
+  "mel_band_roformer_karaoke_aufr33_viperx_sdr_10.1956.ckpt";
 export const BACKING_VOCALS_HQ_ALT_SEPARATOR_MODEL = "mel_band_roformer_karaoke_becruily.ckpt";
 // Remove backing vocals, highest reported SDR. Heaviest model.
 export const NO_VOCALS_HQ_SEPARATOR_MODEL = "model_bs_roformer_ep_317_sdr_12.9755.ckpt";
 
-export const useMediaStore = defineStore('media', () => {
-    // The mixed song file (uploaded by user)
-    const songFile = shallowRef<File | null>(null);
+export const useMediaStore = defineStore("media", () => {
+  // The mixed song file (uploaded by user)
+  const songFile = shallowRef<File | null>(null);
 
-    // Background video (if the song is from YouTube)
-    const backgroundVideo = shallowRef<Blob | null>(null);
+  // Background video (if the song is from YouTube)
+  const backgroundVideo = shallowRef<Blob | null>(null);
 
-    // Files surfaced in the "Advanced" section of SongInfoTab. The semantic
-    // state they map to (timings array, lyric text, separatedTrack.backing) is held
-    // elsewhere; these refs exist so the FileUpload widgets can re-display the
-    // user's selection after a reload.
-    const timingsFile = shallowRef<File | null>(null);
-    const lyricsFile = shallowRef<File | null>(null);
-    const backingTrackFile = shallowRef<File | null>(null);
-    const vocalTrackFile = shallowRef<File | null>(null);
-    const settingsFile = shallowRef<File | null>(null);
+  // Files surfaced in the "Advanced" section of SongInfoTab. The semantic
+  // state they map to (timings array, lyric text, separatedTrack.backing) is held
+  // elsewhere; these refs exist so the FileUpload widgets can re-display the
+  // user's selection after a reload.
+  const timingsFile = shallowRef<File | null>(null);
+  const lyricsFile = shallowRef<File | null>(null);
+  const backingTrackFile = shallowRef<File | null>(null);
+  const vocalTrackFile = shallowRef<File | null>(null);
+  const settingsFile = shallowRef<File | null>(null);
 
-    // Song metadata
-    const songTitle = ref<string | null>(null);
-    const songDuration = ref<number | null>(null);
-    const songArtist = ref<string | null>(null);
-    const youtubeUrl = ref<string | null>(null);
+  // Song metadata
+  const songTitle = ref<string | null>(null);
+  const songDuration = ref<number | null>(null);
+  const songArtist = ref<string | null>(null);
+  const youtubeUrl = ref<string | null>(null);
 
-    // Track separation state
-    const isProcessing = ref(false);
-    const separationModel = ref<SeparationModel>(BACKING_VOCALS_SEPARATOR_MODEL);
-    const separatedTrack = shallowRef<SeparatedTrack | null>(null);
-    const error = ref<string | null>(null);
-    const separationStartTime = shallowRef<Date | null>(null);
+  // Track separation state
+  const isProcessing = ref(false);
+  const separationModel = ref<SeparationModel>(BACKING_VOCALS_SEPARATOR_MODEL);
+  const separatedTrack = shallowRef<SeparatedTrack | null>(null);
+  const error = ref<string | null>(null);
+  const separationStartTime = shallowRef<Date | null>(null);
 
-    // Fraction of the running separation that is done, null while the backend reports no figure
-    // (e.g. a GCS-cached job, or an architecture whose progress can't be read)
-    // Consumers fall back to an elapsed-time estimate.
-    const separationProgress = ref<number | null>(null);
-    const separationStage = ref<string | null>(null);
+  // Fraction of the running separation that is done, null while the backend reports no figure
+  // (e.g. a GCS-cached job, or an architecture whose progress can't be read)
+  // Consumers fall back to an elapsed-time estimate.
+  const separationProgress = ref<number | null>(null);
+  const separationStage = ref<string | null>(null);
 
-    // Held outside the store state: Vue would proxy the controller, whose methods need the instance itself.
-    let activeSeparation: AbortController | null = null;
-    let pendingSeparation: Promise<SeparatedTrack | undefined> | null = null;
+  // Held outside the store state: Vue would proxy the controller, whose methods need the instance itself.
+  let activeSeparation: AbortController | null = null;
+  let pendingSeparation: Promise<SeparatedTrack | undefined> | null = null;
 
-    // Resolves with the separated track, or undefined if the separation failed
-    // (the reason is in `error`) or was cancelled.
-    // A separation already in flight is joined rather than started again.
-    async function startSeparation(inputData: any, modelName: SeparationModel): Promise<SeparatedTrack | undefined> {
-        if (pendingSeparation) {
-            return pendingSeparation;
+  // Resolves with the separated track, or undefined if the separation failed
+  // (the reason is in `error`) or was cancelled.
+  // A separation already in flight is joined rather than started again.
+  async function startSeparation(
+    inputData: any,
+    modelName: SeparationModel,
+  ): Promise<SeparatedTrack | undefined> {
+    if (pendingSeparation) {
+      return pendingSeparation;
+    }
+    const abort = new AbortController();
+    activeSeparation = abort;
+    isProcessing.value = true;
+    error.value = null;
+    separationStartTime.value = new Date();
+    separationProgress.value = null;
+    separationStage.value = null;
+    pendingSeparation = (async () => {
+      try {
+        separatedTrack.value = await separateTrack(
+          inputData,
+          modelName,
+          ({ progress, stage }) => {
+            separationProgress.value = progress;
+            separationStage.value = stage;
+          },
+          abort.signal,
+        );
+        return separatedTrack.value;
+      } catch (err) {
+        if (abort.signal.aborted) {
+          return undefined;
         }
-        const abort = new AbortController();
-        activeSeparation = abort;
-        isProcessing.value = true;
-        error.value = null;
-        separationStartTime.value = new Date();
-        separationProgress.value = null;
-        separationStage.value = null;
-        pendingSeparation = (async () => {
-            try {
-                separatedTrack.value = await separateTrack(inputData, modelName, ({progress, stage}) => {
-                    separationProgress.value = progress;
-                    separationStage.value = stage;
-                }, abort.signal);
-                return separatedTrack.value;
-            } catch (err) {
-                if (abort.signal.aborted) {
-                    return undefined;
-                }
-                console.error(err);
-                error.value = (err as Error).message;
-                return undefined;
-            } finally {
-                // A cancel clears this synchronously and a later separation may already own it,
-                // so only the current run winds the state down.
-                if (activeSeparation === abort) {
-                    clearSeparationState();
-                }
-            }
-        })();
-        return pendingSeparation;
-    }
-
-    function clearSeparationState() {
-        activeSeparation = null;
-        pendingSeparation = null;
-        isProcessing.value = false;
-        separationProgress.value = null;
-        separationStage.value = null;
-    }
-
-    // Cancels the running separation, calling off the work on the backend where that is possible.
-    // Leaves any track separated by an earlier run in place.
-    function cancelSeparation() {
-        if (!activeSeparation) {
-            return;
+        console.error(err);
+        error.value = (err as Error).message;
+        return undefined;
+      } finally {
+        // A cancel clears this synchronously and a later separation may already own it,
+        // so only the current run winds the state down.
+        if (activeSeparation === abort) {
+          clearSeparationState();
         }
-        activeSeparation.abort();
-        // The rejection lands a tick later, and until then a new separation would join the dying one.
-        clearSeparationState();
-    }
+      }
+    })();
+    return pendingSeparation;
+  }
 
-    async function setBackingTrack(file: File | null) {
-        if (separatedTrack.value == null) {
-            separatedTrack.value = {backing: file ?? new Blob(), vocals: new Blob()};
-        } else {
-            separatedTrack.value = {...separatedTrack.value, backing: file ?? new Blob()};
+  function clearSeparationState() {
+    activeSeparation = null;
+    pendingSeparation = null;
+    isProcessing.value = false;
+    separationProgress.value = null;
+    separationStage.value = null;
+  }
+
+  // Cancels the running separation, calling off the work on the backend where that is possible.
+  // Leaves any track separated by an earlier run in place.
+  function cancelSeparation() {
+    if (!activeSeparation) {
+      return;
+    }
+    activeSeparation.abort();
+    // The rejection lands a tick later, and until then a new separation would join the dying one.
+    clearSeparationState();
+  }
+
+  async function setBackingTrack(file: File | null) {
+    if (separatedTrack.value == null) {
+      separatedTrack.value = { backing: file ?? new Blob(), vocals: new Blob() };
+    } else {
+      separatedTrack.value = { ...separatedTrack.value, backing: file ?? new Blob() };
+    }
+  }
+
+  async function setVocalTrack(file: File | null) {
+    if (separatedTrack.value == null) {
+      separatedTrack.value = { backing: new Blob(), vocals: file ?? new Blob() };
+    } else {
+      separatedTrack.value = { ...separatedTrack.value, vocals: file ?? new Blob() };
+    }
+  }
+
+  async function duration(songFile: File): Promise<number> {
+    return new Promise<number>((resolve, reject) => {
+      const reader = new FileReader();
+
+      reader.onload = async () => {
+        try {
+          const audioContext = new AudioContext();
+          const arrayBuffer = reader.result as ArrayBuffer;
+
+          await audioContext.decodeAudioData(
+            arrayBuffer,
+            (audioBuffer) => {
+              const duration = audioBuffer.duration;
+              resolve(duration);
+            },
+            (error) => {
+              console.error("Error decoding audio data:", error);
+              reject(
+                new Error("Failed to decode audio data: " + (error?.message || "Unknown error")),
+              );
+            },
+          );
+        } catch (error) {
+          console.error("Audio context error:", error);
+          reject(
+            new Error(
+              "Failed to create or use AudioContext: " +
+                (error instanceof Error ? error.message : "Unknown error"),
+            ),
+          );
         }
-    }
+      };
 
-    async function setVocalTrack(file: File | null) {
-        if (separatedTrack.value == null) {
-            separatedTrack.value = {backing: new Blob(), vocals: file ?? new Blob()};
-        } else {
-            separatedTrack.value = {...separatedTrack.value, vocals: file ?? new Blob()};
-        }
-    }
+      reader.onerror = () => {
+        console.error("FileReader error:", reader.error);
+        reject(
+          new Error("Failed to read audio file: " + (reader.error?.message || "Unknown error")),
+        );
+      };
 
-    async function duration(songFile: File): Promise<number> {
-        return new Promise<number>((resolve, reject) => {
-            const reader = new FileReader();
-
-            reader.onload = async () => {
-                try {
-                    const audioContext = new AudioContext();
-                    const arrayBuffer = reader.result as ArrayBuffer;
-
-                    await audioContext.decodeAudioData(
-                        arrayBuffer,
-                        (audioBuffer) => {
-                            const duration = audioBuffer.duration;
-                            resolve(duration);
-                        },
-                        (error) => {
-                            console.error("Error decoding audio data:", error);
-                            reject(
-                                new Error(
-                                    "Failed to decode audio data: " +
-                                    (error?.message || "Unknown error")
-                                )
-                            );
-                        }
-                    );
-                } catch (error) {
-                    console.error("Audio context error:", error);
-                    reject(
-                        new Error(
-                            "Failed to create or use AudioContext: " +
-                            (error instanceof Error ? error.message : "Unknown error")
-                        )
-                    );
-                }
-            };
-
-            reader.onerror = () => {
-                console.error("FileReader error:", reader.error);
-                reject(
-                    new Error(
-                        "Failed to read audio file: " +
-                        (reader.error?.message || "Unknown error")
-                    )
-                );
-            };
-
-            reader.readAsArrayBuffer(songFile);
-        });
-    }
-
-    async function getMetadata(songFile: File): Promise<{ title: string | null; artist: string | null }> {
-        return new Promise((resolve, reject) => {
-            if (!songFile) {
-                resolve({title: null, artist: null});
-                return;
-            }
-            jsmediatags.read(songFile, {
-                onSuccess(tag) {
-                    resolve({title: tag.tags.title ?? null, artist: tag.tags.artist ?? null});
-                },
-                onError(error) {
-                    console.error(error);
-                    reject(
-                        new Error(
-                            "Failed to read metadata: " +
-                            (error.info || error.type || "Unknown error")
-                        )
-                    );
-                },
-            });
-        });
-    }
-
-    // While persisted blobs are being read from IDB, the songFile ref may flip from null to a restored File.
-    // Suppress metadata re-derivation during that window so the persisted (and possibly user-edited)
-    // title/artist/duration aren't overwritten by re-reading the file's embedded tags.
-    let isHydrating = true;
-
-    // The derivation the current song file set off.
-    // Awaited by anything that restores a title or artist of its own,
-    // so the file's embedded tags don't land on top of it.
-    let pendingMetadata: Promise<unknown> = Promise.resolve();
-
-    function metadataSettled(): Promise<void> {
-        return pendingMetadata.then(() => undefined, () => undefined);
-    }
-
-    // flush: 'sync' so the isHydrating check runs in the same tick as the hydration assignment to songFile.value,
-    // before any later microtask can flip the flag.
-    watch(songFile, async (newFile) => {
-        if (isHydrating) return;
-        if (!newFile) {
-            songTitle.value = null;
-            songArtist.value = null;
-            songDuration.value = null;
-            return;
-        }
-        const derivation = Promise.all([
-            getMetadata(newFile),
-            duration(newFile),
-        ]);
-        pendingMetadata = derivation;
-        const [metadata, durationValue] = await derivation;
-        songTitle.value = metadata.title || songTitle.value;
-        songArtist.value = metadata.artist || songArtist.value;
-        songDuration.value = durationValue;
-    }, {flush: 'sync'});
-
-    // JSON-serializable state → localStorage (synchronous load)
-    persistJsonRef('media.youtubeUrl', youtubeUrl);
-    persistJsonRef('media.separationModel', separationModel);
-    persistJsonRef('media.songTitle', songTitle);
-    persistJsonRef('media.songArtist', songArtist);
-    persistJsonRef('media.songDuration', songDuration);
-
-    // Blobs → IndexedDB (async load)
-    Promise.all([
-        persistBlobRef('media.songFile', songFile),
-        persistBlobRef('media.backgroundVideo', backgroundVideo),
-        persistBlobRef('media.separatedTrack', separatedTrack),
-        persistBlobRef('media.timingsFile', timingsFile),
-        persistBlobRef('media.lyricsFile', lyricsFile),
-        persistBlobRef('media.backingTrackFile', backingTrackFile),
-        persistBlobRef('media.vocalTrackFile', vocalTrackFile),
-        persistBlobRef('media.settingsFile', settingsFile),
-    ]).finally(() => {
-        isHydrating = false;
+      reader.readAsArrayBuffer(songFile);
     });
+  }
 
-    async function clearSession(): Promise<void> {
-        cancelSeparation();
-        songFile.value = null;
-        backgroundVideo.value = null;
-        separatedTrack.value = null;
-        timingsFile.value = null;
-        lyricsFile.value = null;
-        backingTrackFile.value = null;
-        vocalTrackFile.value = null;
-        settingsFile.value = null;
+  async function getMetadata(
+    songFile: File,
+  ): Promise<{ title: string | null; artist: string | null }> {
+    return new Promise((resolve, reject) => {
+      if (!songFile) {
+        resolve({ title: null, artist: null });
+        return;
+      }
+      jsmediatags.read(songFile, {
+        onSuccess(tag) {
+          resolve({ title: tag.tags.title ?? null, artist: tag.tags.artist ?? null });
+        },
+        onError(error) {
+          console.error(error);
+          reject(
+            new Error("Failed to read metadata: " + (error.info || error.type || "Unknown error")),
+          );
+        },
+      });
+    });
+  }
+
+  // While persisted blobs are being read from IDB, the songFile ref may flip from null to a restored File.
+  // Suppress metadata re-derivation during that window so the persisted (and possibly user-edited)
+  // title/artist/duration aren't overwritten by re-reading the file's embedded tags.
+  let isHydrating = true;
+
+  // The derivation the current song file set off.
+  // Awaited by anything that restores a title or artist of its own,
+  // so the file's embedded tags don't land on top of it.
+  let pendingMetadata: Promise<unknown> = Promise.resolve();
+
+  function metadataSettled(): Promise<void> {
+    return pendingMetadata.then(
+      () => undefined,
+      () => undefined,
+    );
+  }
+
+  // flush: 'sync' so the isHydrating check runs in the same tick as the hydration assignment to songFile.value,
+  // before any later microtask can flip the flag.
+  watch(
+    songFile,
+    async (newFile) => {
+      if (isHydrating) return;
+      if (!newFile) {
         songTitle.value = null;
         songArtist.value = null;
         songDuration.value = null;
-        youtubeUrl.value = null;
-        error.value = null;
-        separationStartTime.value = null;
-        separationProgress.value = null;
-        separationStage.value = null;
-        await clearPersistence(MEDIA_LOCALSTORAGE_KEYS, MEDIA_IDB_KEYS);
-    }
+        return;
+      }
+      const derivation = Promise.all([getMetadata(newFile), duration(newFile)]);
+      pendingMetadata = derivation;
+      const [metadata, durationValue] = await derivation;
+      songTitle.value = metadata.title || songTitle.value;
+      songArtist.value = metadata.artist || songArtist.value;
+      songDuration.value = durationValue;
+    },
+    { flush: "sync" },
+  );
 
-    return {
-        // Media files
-        songFile,
-        backgroundVideo,
-        timingsFile,
-        lyricsFile,
-        backingTrackFile,
-        vocalTrackFile,
-        settingsFile,
+  // JSON-serializable state → localStorage (synchronous load)
+  persistJsonRef("media.youtubeUrl", youtubeUrl);
+  persistJsonRef("media.separationModel", separationModel);
+  persistJsonRef("media.songTitle", songTitle);
+  persistJsonRef("media.songArtist", songArtist);
+  persistJsonRef("media.songDuration", songDuration);
 
-        songTitle,
-        songArtist,
-        songDuration,
-        youtubeUrl,
+  // Blobs → IndexedDB (async load)
+  Promise.all([
+    persistBlobRef("media.songFile", songFile),
+    persistBlobRef("media.backgroundVideo", backgroundVideo),
+    persistBlobRef("media.separatedTrack", separatedTrack),
+    persistBlobRef("media.timingsFile", timingsFile),
+    persistBlobRef("media.lyricsFile", lyricsFile),
+    persistBlobRef("media.backingTrackFile", backingTrackFile),
+    persistBlobRef("media.vocalTrackFile", vocalTrackFile),
+    persistBlobRef("media.settingsFile", settingsFile),
+  ]).finally(() => {
+    isHydrating = false;
+  });
 
-        // Track separation
-        isProcessing,
-        separationModel,
-        separatedTrack,
-        error,
-        separationStartTime,
-        separationProgress,
-        separationStage,
+  async function clearSession(): Promise<void> {
+    cancelSeparation();
+    songFile.value = null;
+    backgroundVideo.value = null;
+    separatedTrack.value = null;
+    timingsFile.value = null;
+    lyricsFile.value = null;
+    backingTrackFile.value = null;
+    vocalTrackFile.value = null;
+    settingsFile.value = null;
+    songTitle.value = null;
+    songArtist.value = null;
+    songDuration.value = null;
+    youtubeUrl.value = null;
+    error.value = null;
+    separationStartTime.value = null;
+    separationProgress.value = null;
+    separationStage.value = null;
+    await clearPersistence(MEDIA_LOCALSTORAGE_KEYS, MEDIA_IDB_KEYS);
+  }
 
-        // Methods
-        metadataSettled,
-        startSeparation,
-        cancelSeparation,
-        setBackingTrack,
-        setVocalTrack,
-        clearSession,
-    };
+  return {
+    // Media files
+    songFile,
+    backgroundVideo,
+    timingsFile,
+    lyricsFile,
+    backingTrackFile,
+    vocalTrackFile,
+    settingsFile,
+
+    songTitle,
+    songArtist,
+    songDuration,
+    youtubeUrl,
+
+    // Track separation
+    isProcessing,
+    separationModel,
+    separatedTrack,
+    error,
+    separationStartTime,
+    separationProgress,
+    separationStage,
+
+    // Methods
+    metadataSettled,
+    startSeparation,
+    cancelSeparation,
+    setBackingTrack,
+    setVocalTrack,
+    clearSession,
+  };
 });

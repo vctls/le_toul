@@ -2,9 +2,7 @@
   <div class="lyric-display-wrapper">
     <div class="lyric-display box">
       <span class="completed-lyrics">{{ completedLyrics }}</span
-      ><span ref="currentLyrics" class="current-lyrics">{{
-        currentLyrics
-      }}</span
+      ><span ref="currentLyrics" class="current-lyrics">{{ currentLyrics }}</span
       ><span class="upcoming-lyrics">{{ upcomingLyrics }}</span>
     </div>
   </div>
@@ -23,10 +21,7 @@ export default defineComponent({
   },
   computed: {
     completedLyrics() {
-      return this.lyricSegments
-        .slice(0, this.currentSegment)
-        .map(this.wrapLyricSegment)
-        .join("");
+      return this.lyricSegments.slice(0, this.currentSegment).map(this.wrapLyricSegment).join("");
     },
     currentLyrics() {
       if (this.currentSegment in this.lyricSegments) {

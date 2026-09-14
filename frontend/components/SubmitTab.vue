@@ -1,5 +1,11 @@
 <template>
-  <b-tab-item value="submit" label="Submit" icon="blender" class="submit-tab scroll-wrapper" headerClass="submit-tab-header">
+  <b-tab-item
+    value="submit"
+    label="Submit"
+    icon="blender"
+    class="submit-tab scroll-wrapper"
+    headerClass="submit-tab-header"
+  >
     <div class="columns is-variable is-5">
       <div class="column settings-column">
         <h2 class="title">More Settings</h2>
@@ -10,7 +16,8 @@
               <b-icon size="is-small" icon="circle-question"></b-icon>
             </b-tooltip>
           </template>
-          <b-switch v-model="videoOptions.addCountIns"></b-switch></b-field>
+          <b-switch v-model="videoOptions.addCountIns"></b-switch
+        ></b-field>
         <template v-if="videoOptions.addCountIns">
           <b-field horizontal>
             <template #label>
@@ -19,32 +26,56 @@
                 <b-icon size="is-small" icon="circle-question"></b-icon>
               </b-tooltip>
             </template>
-            <b-input :model-value="videoOptions.countInText"
-              @update:model-value="(v: string | number | undefined) => (videoOptions.countInText = String(v ?? ''))"></b-input>
+            <b-input
+              :model-value="videoOptions.countInText"
+              @update:model-value="
+                (v: string | number | undefined) => (videoOptions.countInText = String(v ?? ''))
+              "
+            ></b-input>
           </b-field>
           <b-field horizontal>
             <template #label>
               Count-In Gap
-              <b-tooltip multilined
-                label="Add a count-in when the singing starts more than this many seconds after the previous screen ends">
+              <b-tooltip
+                multilined
+                label="Add a count-in when the singing starts more than this many seconds after the previous screen ends"
+              >
                 <b-icon size="is-small" icon="circle-question"></b-icon>
               </b-tooltip>
             </template>
-            <b-numberinput expanded :model-value="videoOptions.countInThreshold" :min="0.5" :step="0.5"
-              @update:model-value="(v: number | null | undefined) => (videoOptions.countInThreshold = Number(v ?? videoOptions.countInThreshold))"
-              controls-position="compact"></b-numberinput>
+            <b-numberinput
+              expanded
+              :model-value="videoOptions.countInThreshold"
+              :min="0.5"
+              :step="0.5"
+              @update:model-value="
+                (v: number | null | undefined) =>
+                  (videoOptions.countInThreshold = Number(v ?? videoOptions.countInThreshold))
+              "
+              controls-position="compact"
+            ></b-numberinput>
           </b-field>
           <b-field horizontal>
             <template #label>
               Count-In Length
-              <b-tooltip label="How many seconds a count-in lasts. Can't be longer than the gap above.">
+              <b-tooltip
+                label="How many seconds a count-in lasts. Can't be longer than the gap above."
+              >
                 <b-icon size="is-small" icon="circle-question"></b-icon>
               </b-tooltip>
             </template>
-            <b-numberinput expanded :model-value="videoOptions.countInDuration" :min="0.5" :max="videoOptions.countInThreshold"
+            <b-numberinput
+              expanded
+              :model-value="videoOptions.countInDuration"
+              :min="0.5"
+              :max="videoOptions.countInThreshold"
               :step="0.5"
-              @update:model-value="(v: number | null | undefined) => (videoOptions.countInDuration = Number(v ?? videoOptions.countInDuration))"
-              controls-position="compact"></b-numberinput>
+              @update:model-value="
+                (v: number | null | undefined) =>
+                  (videoOptions.countInDuration = Number(v ?? videoOptions.countInDuration))
+              "
+              controls-position="compact"
+            ></b-numberinput>
           </b-field>
         </template>
         <b-field horizontal>
@@ -52,28 +83,40 @@
             Add Instrumental Breaks
             <b-tooltip label="Add screens that count down long instrumentals">
               <b-icon size="is-small" icon="circle-question"></b-icon>
-            </b-tooltip> </template><b-switch
-            v-model="videoOptions.addInstrumentalScreens"></b-switch></b-field>
+            </b-tooltip> </template
+          ><b-switch v-model="videoOptions.addInstrumentalScreens"></b-switch
+        ></b-field>
         <b-field horizontal>
           <template #label>
             Show Fast Lines Early
             <b-tooltip
-              label="Show the first few lines of a screen early if it starts right after the previous screen ends">
+              label="Show the first few lines of a screen early if it starts right after the previous screen ends"
+            >
               <b-icon size="is-small" icon="circle-question"></b-icon>
-            </b-tooltip> </template><b-switch v-model="videoOptions.addStaggeredLines"></b-switch></b-field>
+            </b-tooltip> </template
+          ><b-switch v-model="videoOptions.addStaggeredLines"></b-switch
+        ></b-field>
         <b-field v-if="videoBlob" horizontal label="Use Background Video">
-          <b-switch v-model="videoOptions.useBackgroundVideo"></b-switch></b-field>
+          <b-switch v-model="videoOptions.useBackgroundVideo"></b-switch
+        ></b-field>
         <b-field horizontal>
           <template #label>
             Video Format
-            <b-tooltip multilined
-              label="MKV also carries the vocals and the original mix as extra audio tracks, for players that can switch between them">
+            <b-tooltip
+              multilined
+              label="MKV also carries the vocals and the original mix as extra audio tracks, for players that can switch between them"
+            >
               <b-icon size="is-small" icon="circle-question"></b-icon>
             </b-tooltip>
           </template>
-          <b-select expanded :model-value="videoOptions.outputFormat"
-            @update:model-value="(v: string) => (videoOptions.outputFormat = v as OutputFormat)">
-            <option v-for="(label, format) in outputFormatLabels" :key="format" :value="format">{{ label }}</option>
+          <b-select
+            expanded
+            :model-value="videoOptions.outputFormat"
+            @update:model-value="(v: string) => (videoOptions.outputFormat = v as OutputFormat)"
+          >
+            <option v-for="(label, format) in outputFormatLabels" :key="format" :value="format">
+              {{ label }}
+            </option>
           </b-select>
         </b-field>
         <b-collapse v-model="isShowingFontsAndColors">
@@ -85,8 +128,12 @@
           </template>
           <b-field horizontal label="Font">
             <b-select expanded v-model="videoOptions.font.name">
-              <option v-for="(path, name) in fonts" :key="path" :value="name"
-                :selected="name == videoOptions.font.name">
+              <option
+                v-for="(path, name) in fonts"
+                :key="path"
+                :value="name"
+                :selected="name == videoOptions.font.name"
+              >
                 {{ name }}
               </option>
             </b-select>
@@ -94,38 +141,68 @@
           <b-field horizontal>
             <template #label>
               Custom Font
-              <b-tooltip label="Upload your own .ttf or .otf font file. It overrides the font picked above.">
+              <b-tooltip
+                label="Upload your own .ttf or .otf font file. It overrides the font picked above."
+              >
                 <b-icon size="is-small" icon="circle-question"></b-icon>
               </b-tooltip>
             </template>
-            <file-upload expanded name="custom-font-upload" :accept="['.ttf', '.otf', '.ttc']"
-              :model-value="(settingsStore.customFont as File | undefined) ?? undefined" @update:modelValue="onCustomFontChange" />
+            <file-upload
+              expanded
+              name="custom-font-upload"
+              :accept="['.ttf', '.otf', '.ttc']"
+              :model-value="(settingsStore.customFont as File | undefined) ?? undefined"
+              @update:modelValue="onCustomFontChange"
+            />
           </b-field>
           <b-field horizontal v-if="settingsStore.customFontFamily">
             <p class="help custom-font-help">
-              Rendering lyrics in &ldquo;{{ settingsStore.customFontFamily }}&rdquo;, overriding the font above.
+              Rendering lyrics in &ldquo;{{ settingsStore.customFontFamily }}&rdquo;, overriding the
+              font above.
             </p>
           </b-field>
-          <b-field horizontal label="Font Size"><b-numberinput expanded :model-value="videoOptions.font.size" @update:model-value="(v: number | null | undefined) => (videoOptions.font.size = Number(v ?? videoOptions.font.size))"
-              controls-position="compact"></b-numberinput></b-field>
-          <b-field horizontal label="Background Color"><color-field v-model="videoOptions.color.background"
-              label="background color" /></b-field>
-          <b-field horizontal label="Primary Color"><color-field v-model="videoOptions.color.primary"
-              label="primary color" /></b-field>
-          <b-field horizontal label="Secondary Color"><color-field v-model="videoOptions.color.secondary"
-              label="secondary color" /></b-field>
-          <b-field horizontal label="Lyric Vertical Alignment"><b-radio-button v-model="videoOptions.verticalAlignment"
-              :native-value="VerticalAlignment.Top" type="is-primary is-light is-outlined">
+          <b-field horizontal label="Font Size"
+            ><b-numberinput
+              expanded
+              :model-value="videoOptions.font.size"
+              @update:model-value="
+                (v: number | null | undefined) =>
+                  (videoOptions.font.size = Number(v ?? videoOptions.font.size))
+              "
+              controls-position="compact"
+            ></b-numberinput
+          ></b-field>
+          <b-field horizontal label="Background Color"
+            ><color-field v-model="videoOptions.color.background" label="background color"
+          /></b-field>
+          <b-field horizontal label="Primary Color"
+            ><color-field v-model="videoOptions.color.primary" label="primary color"
+          /></b-field>
+          <b-field horizontal label="Secondary Color"
+            ><color-field v-model="videoOptions.color.secondary" label="secondary color"
+          /></b-field>
+          <b-field horizontal label="Lyric Vertical Alignment"
+            ><b-radio-button
+              v-model="videoOptions.verticalAlignment"
+              :native-value="VerticalAlignment.Top"
+              type="is-primary is-light is-outlined"
+            >
               <span>Top</span>
             </b-radio-button>
 
-            <b-radio-button v-model="videoOptions.verticalAlignment" :native-value="VerticalAlignment.Middle"
-              type="is-primary is-light is-outlined">
+            <b-radio-button
+              v-model="videoOptions.verticalAlignment"
+              :native-value="VerticalAlignment.Middle"
+              type="is-primary is-light is-outlined"
+            >
               <span>Middle</span>
             </b-radio-button>
 
-            <b-radio-button v-model="videoOptions.verticalAlignment" :native-value="VerticalAlignment.Bottom"
-              type="is-primary is-light is-outlined">
+            <b-radio-button
+              v-model="videoOptions.verticalAlignment"
+              :native-value="VerticalAlignment.Bottom"
+              type="is-primary is-light is-outlined"
+            >
               Bottom
             </b-radio-button>
           </b-field>
@@ -134,53 +211,92 @@
       </div>
       <div class="column">
         <h3 class="title">Video Preview</h3>
-        <b-field v-if="backingTrack" label="Preview audio" horizontal style="margin-bottom: 0.5em;">
+        <b-field v-if="backingTrack" label="Preview audio" horizontal style="margin-bottom: 0.5em">
           <b-select v-model="previewTrack">
             <option value="full">Full track</option>
             <option value="backing">Backing track</option>
           </b-select>
         </b-field>
-        <video-preview v-if="songFile" :song-file="songFile" :backing-track="backingTrack ?? undefined"
-          :preview-track="previewTrack" :subtitles="allVoicesSubtitles()" :audio-delay="audioDelay" :fonts="fontMap"
-          :background-color="videoOptions.color.background.toString()" :output-format="videoOptions.outputFormat"
-          :video-blob="videoOptions.useBackgroundVideo ? (videoBlob ?? undefined) : undefined" />
-        <b-message v-else type="is-info" :closable="false">Upload a song to see the preview.</b-message>
+        <video-preview
+          v-if="songFile"
+          :song-file="songFile"
+          :backing-track="backingTrack ?? undefined"
+          :preview-track="previewTrack"
+          :subtitles="allVoicesSubtitles()"
+          :audio-delay="audioDelay"
+          :fonts="fontMap"
+          :background-color="videoOptions.color.background.toString()"
+          :output-format="videoOptions.outputFormat"
+          :video-blob="videoOptions.useBackgroundVideo ? (videoBlob ?? undefined) : undefined"
+        />
+        <b-message v-else type="is-info" :closable="false"
+          >Upload a song to see the preview.</b-message
+        >
       </div>
     </div>
 
     <div class="submit-button-container">
-      <b-message :model-value="submitError !== null" @update:model-value="submitError = null"
-        type="is-danger" has-icon icon="circle-exclamation">
+      <b-message
+        :model-value="submitError !== null"
+        @update:model-value="submitError = null"
+        type="is-danger"
+        has-icon
+        icon="circle-exclamation"
+      >
         There was a problem generating the video: {{ submitError }}
       </b-message>
-      <video-creation-progress-indicator v-if="isSubmitting" :song-duration="songDuration ?? undefined" :phase="creationPhase"
-        :progress="videoProgress" :step="creationStep" :elapsed-time="elapsedSubmissionTime ?? undefined"
-        :separation-progress="mediaStore.separationProgress" :separation-stage="mediaStore.separationStage"
-        :waiting-for-separation="waitingForSeparation" />
+      <video-creation-progress-indicator
+        v-if="isSubmitting"
+        :song-duration="songDuration ?? undefined"
+        :phase="creationPhase"
+        :progress="videoProgress"
+        :step="creationStep"
+        :elapsed-time="elapsedSubmissionTime ?? undefined"
+        :separation-progress="mediaStore.separationProgress"
+        :separation-stage="mediaStore.separationStage"
+        :waiting-for-separation="waitingForSeparation"
+      />
       <b-message v-if="!canCreateVideo" type="is-info" :closable="false">
         {{ missingStepsMessage }}
       </b-message>
       <div class="buttons">
-        <b-button :expanded="!isSubmitting" size="is-large" type="is-primary" :loading="isSubmitting" @click="createVideo"
-          :disabled="!canCreateVideo && !isSubmitting">
+        <b-button
+          :expanded="!isSubmitting"
+          size="is-large"
+          type="is-primary"
+          :loading="isSubmitting"
+          @click="createVideo"
+          :disabled="!canCreateVideo && !isSubmitting"
+        >
           Create Video
         </b-button>
-        <b-button v-if="isSubmitting" size="is-large" type="is-danger is-light" @click="cancelCreation">
+        <b-button
+          v-if="isSubmitting"
+          size="is-large"
+          type="is-danger is-light"
+          @click="cancelCreation"
+        >
           Cancel
         </b-button>
       </div>
-      <source-file-download-links :lyrics="lyricText" :timings="timingsExport" :subtitles="allVoicesSubtitles()"
-        :settings="settingsYaml" :font="customFont ?? undefined" :vocals="mediaStore.separatedTrack?.vocals"
-        :accompaniment="mediaStore.separatedTrack?.backing" />
+      <source-file-download-links
+        :lyrics="lyricText"
+        :timings="timingsExport"
+        :subtitles="allVoicesSubtitles()"
+        :settings="settingsYaml"
+        :font="customFont ?? undefined"
+        :vocals="mediaStore.separatedTrack?.vocals"
+        :accompaniment="mediaStore.separatedTrack?.backing"
+      />
     </div>
   </b-tab-item>
 </template>
 
 <script lang="ts">
-import {map, sum} from "lodash-es";
-import {defineComponent, markRaw} from "vue";
-import {storeToRefs} from "pinia";
-import {createScreens, OutputFormat, VerticalAlignment} from "@/lib/timing";
+import { map, sum } from "lodash-es";
+import { defineComponent, markRaw } from "vue";
+import { storeToRefs } from "pinia";
+import { createScreens, OutputFormat, VerticalAlignment } from "@/lib/timing";
 import VideoPreview from "@/components/VideoPreview.vue";
 import SourceFileDownloadLinks from "@/components/SourceFileDownloadLinks.vue";
 import VideoCreationProgressIndicator from "@/components/VideoCreationProgressIndicator.vue";
@@ -190,14 +306,14 @@ import FileUpload from "@/components/FileUpload.vue";
 import jszip from "jszip";
 import yaml from "js-yaml";
 import video from "@/lib/video";
-import {CreationPhase} from "@/types";
-import {useMediaStore} from "@/stores/media";
-import {useSettingsStore, VideoSettings} from "@/stores/settings";
-import {isEmptyOverride, serializeVoiceStyle} from "@/lib/voiceStyle";
-import {useTimingsStore} from "@/stores/timings";
-import {useLyricsStore} from "@/stores/lyrics";
-import {abortable} from "@/lib/util";
-import {projectSongEntryName} from "@/lib/projectFolder";
+import { CreationPhase } from "@/types";
+import { useMediaStore } from "@/stores/media";
+import { useSettingsStore, VideoSettings } from "@/stores/settings";
+import { isEmptyOverride, serializeVoiceStyle } from "@/lib/voiceStyle";
+import { useTimingsStore } from "@/stores/timings";
+import { useLyricsStore } from "@/stores/lyrics";
+import { abortable } from "@/lib/util";
+import { projectSongEntryName } from "@/lib/projectFolder";
 
 // The rest of the bar is the zip, which carries the source song and both separated tracks.
 const RENDER_SHARE = 0.95;
@@ -264,7 +380,7 @@ export default defineComponent({
       previewTrack: "full",
       isShowingFontsAndColors: true,
       // Vue would proxy the controller, whose methods need the instance itself.
-      creation: markRaw({abort: null as AbortController | null}),
+      creation: markRaw({ abort: null as AbortController | null }),
     };
   },
   mounted() {
@@ -303,7 +419,7 @@ export default defineComponent({
       },
       set(newValue: VideoSettings) {
         this.settingsStore.videoOptions = newValue;
-      }
+      },
     },
     renderOptions() {
       return this.settingsStore.renderOptions;
@@ -336,7 +452,9 @@ export default defineComponent({
       // The shared title/count-in screens (which delay the audio) come from the primary
       // voice — the first voice with timings. Falls back to the active voice's timings.
       const primaryVoice = this.timingsStore.voicesWithTimings[0];
-      const lyrics = primaryVoice ? this.lyricsStore.lyricTextForVoice(primaryVoice) : this.lyricText;
+      const lyrics = primaryVoice
+        ? this.lyricsStore.lyricTextForVoice(primaryVoice)
+        : this.lyricText;
       const timings = primaryVoice ? this.timingsStore.timingsForVoice(primaryVoice) : this.timings;
       // createScreens tolerates partial or missing timings, so this works
       // even before the timing step is finished.
@@ -346,7 +464,7 @@ export default defineComponent({
         this.mediaStore.songDuration ?? 0,
         this.mediaStore.songTitle ?? "",
         this.mediaStore.songArtist ?? "",
-        this.videoOptions
+        this.videoOptions,
       );
       return sum(map(screens, "audioDelay"));
     },
@@ -372,7 +490,7 @@ export default defineComponent({
       // can't carry would no longer load back.
       const { vocalSeparationModel, color, ...rest } = this.videoOptions;
       const styledVoices = Object.entries(this.settingsStore.voiceStyles).filter(
-        ([, style]) => !isEmptyOverride(style)
+        ([, style]) => !isEmptyOverride(style),
       );
       const document: Record<string, unknown> = {
         song: {
@@ -394,7 +512,7 @@ export default defineComponent({
       };
       if (styledVoices.length > 0) {
         document.voiceStyles = Object.fromEntries(
-          styledVoices.map(([voice, style]) => [voice, serializeVoiceStyle(style)])
+          styledVoices.map(([voice, style]) => [voice, serializeVoiceStyle(style)]),
         );
       }
       return yaml.dump(document);
@@ -442,8 +560,7 @@ export default defineComponent({
         this.creationPhase = CreationPhase.SeparatingVocals;
         // A separation started from the Song File tab keeps running and this one only waits on it,
         // which otherwise looks like a stalled render.
-        this.waitingForSeparation =
-          this.mediaStore.isProcessing && !this.mediaStore.separatedTrack;
+        this.waitingForSeparation = this.mediaStore.isProcessing && !this.mediaStore.separatedTrack;
         this.videoProgress = 0;
         this.creationStep = "";
         elapsedTimeInterval = setInterval(() => {
@@ -451,14 +568,13 @@ export default defineComponent({
             return;
           }
           this.elapsedSubmissionTime =
-            new Date().getTime() -
-            this.mediaStore.separationStartTime.getTime();
+            new Date().getTime() - this.mediaStore.separationStartTime.getTime();
         }, 1000);
         const separatedTrack =
           this.mediaStore.separatedTrack ??
           (await abortable(
             this.mediaStore.startSeparation(songFile, this.mediaStore.separationModel),
-            abort.signal
+            abort.signal,
           ));
         if (!separatedTrack) {
           throw new Error(this.mediaStore.error ?? "Track separation failed");
@@ -478,7 +594,7 @@ export default defineComponent({
             duration: this.mediaStore.songDuration ?? undefined,
           },
           fontMap: this.fontMap,
-          alternateTracks: {vocals: separatedTrack.vocals, original: songFile},
+          alternateTracks: { vocals: separatedTrack.vocals, original: songFile },
           signal: abort.signal,
           onProgress: (progress, step) => {
             this.videoProgress = progress * RENDER_SHARE;

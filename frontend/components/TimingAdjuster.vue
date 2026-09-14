@@ -1,28 +1,44 @@
 <template>
   <div>
-    <smooth-audio-player ref="audioPlayer" controls :src="audioSource ?? undefined" @timeupdate="onAudioTimeUpdate"
-      @seeking="onAudioSeeking" @pause="onAudioPause" @error="onAudioError" />
+    <smooth-audio-player
+      ref="audioPlayer"
+      controls
+      :src="audioSource ?? undefined"
+      @timeupdate="onAudioTimeUpdate"
+      @seeking="onAudioSeeking"
+      @pause="onAudioPause"
+      @error="onAudioError"
+    />
     <!-- Display only. It loads its own copy of the audio, so playing it would double up
          with the player above; the playhead is driven by setTime instead. -->
-    <wavesurfer ref="wavesurfer" :audioData="vocalTrack || audioData" :regions="regions" :mediaControls="false"
-      :minPxPerSec="zoom" @region-updated="onRegionUpdated" @regions-updated="onRegionsUpdated" @seeking="onWavesurferSeeking" @zoom-change="$emit('zoom-change', $event)" />
+    <wavesurfer
+      ref="wavesurfer"
+      :audioData="vocalTrack || audioData"
+      :regions="regions"
+      :mediaControls="false"
+      :minPxPerSec="zoom"
+      @region-updated="onRegionUpdated"
+      @regions-updated="onRegionsUpdated"
+      @seeking="onWavesurferSeeking"
+      @zoom-change="$emit('zoom-change', $event)"
+    />
   </div>
 </template>
 
 <script lang="ts">
 import { defineComponent, markRaw } from "vue";
 import { LyricSegmentIterator } from "@/lib/timing";
-import {
-  RegionParams,
-  Region,
-} from "@/lib/wavesurferPlugins/OpenEndedRegionPlugin";
+import { RegionParams, Region } from "@/lib/wavesurferPlugins/OpenEndedRegionPlugin";
 import Wavesurfer from "@/components/Wavesurfer.vue";
 import SmoothAudioPlayer from "./SmoothAudioPlayer.vue";
 
 import { LyricEvent, adjustSegmentTiming } from "@/lib/timing";
 import { LYRIC_MARKERS } from "@/constants";
 
-function createLyricRegion(id: number, params: Partial<RegionParams> & { start: number }): RegionParams {
+function createLyricRegion(
+  id: number,
+  params: Partial<RegionParams> & { start: number },
+): RegionParams {
   return {
     id: `segment_${id}`,
     // The region plugin uses "channels" to display regions on different lines
@@ -68,9 +84,7 @@ export default defineComponent({
       if (this.lyrics == null) {
         return [];
       }
-      const lyricIterator = new LyricSegmentIterator(this.lyrics)[
-        Symbol.iterator
-      ]();
+      const lyricIterator = new LyricSegmentIterator(this.lyrics)[Symbol.iterator]();
 
       return [...lyricIterator].map((segment) => segment.text);
     },
@@ -88,7 +102,7 @@ export default defineComponent({
       handler: function (newTimings: Array<LyricEvent>) {
         this.regions = this.createRegions(newTimings, this.splitLyrics);
       },
-      deep: true
+      deep: true,
     },
     lyrics() {
       this.regions = this.createRegions(this.timings ?? [], this.splitLyrics);
@@ -106,7 +120,11 @@ export default defineComponent({
   methods: {
     audioPlayerRef() {
       return this.$refs.audioPlayer as
-        | (InstanceType<typeof SmoothAudioPlayer> & { currentTime: number; playbackRate: number; preservesPitch: boolean })
+        | (InstanceType<typeof SmoothAudioPlayer> & {
+            currentTime: number;
+            playbackRate: number;
+            preservesPitch: boolean;
+          })
         | undefined;
     },
     applyPlaybackSettings() {
@@ -118,10 +136,7 @@ export default defineComponent({
     wavesurferRef() {
       return this.$refs.wavesurfer as InstanceType<typeof Wavesurfer> | undefined;
     },
-    createRegions(
-      timings: Array<LyricEvent>,
-      lyrics: Array<string>
-    ): Array<RegionParams> {
+    createRegions(timings: Array<LyricEvent>, lyrics: Array<string>): Array<RegionParams> {
       if (!timings || !lyrics) {
         return [];
       }
@@ -188,17 +203,14 @@ export default defineComponent({
       if (regions.length === 0) return;
       const newTimings = regions.reduce(
         (timings, region) => this.applyRegionUpdateToTimings(region, timings),
-        this.timings ?? []
+        this.timings ?? [],
       );
       this.$emit("timingschange", newTimings);
       this.$nextTick(() => {
         this.previewNewTiming(regions[0]);
       });
     },
-    applyRegionUpdateToTimings(
-      region: Region,
-      timings: Array<LyricEvent>
-    ): Array<LyricEvent> {
+    applyRegionUpdateToTimings(region: Region, timings: Array<LyricEvent>): Array<LyricEvent> {
       const segmentNum = parseInt(region.id.split("_")[1]);
       return adjustSegmentTiming(segmentNum, timings, {
         start: region.start,

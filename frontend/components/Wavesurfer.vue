@@ -1,8 +1,9 @@
 <template>
   <div
-      ref="wavesurfer-container"
-      :class="['wavesurfer-container', { 'hide-waveform': !showWaveform }]"
-      @wheel="onWheel"></div>
+    ref="wavesurfer-container"
+    :class="['wavesurfer-container', { 'hide-waveform': !showWaveform }]"
+    @wheel="onWheel"
+  ></div>
 </template>
 
 <script lang="ts">
@@ -10,10 +11,7 @@
 import { defineComponent, markRaw, PropType } from "vue";
 import WaveSurfer from "wavesurfer.js";
 import type { GenericPlugin } from "wavesurfer.js/dist/base-plugin";
-import RegionsPlugin, {
-  Region,
-  RegionParams,
-} from "@/lib/wavesurferPlugins/OpenEndedRegionPlugin";
+import RegionsPlugin, { Region, RegionParams } from "@/lib/wavesurferPlugins/OpenEndedRegionPlugin";
 
 export default defineComponent({
   props: {
@@ -84,7 +82,7 @@ export default defineComponent({
       },
       {
         threshold: 0,
-      }
+      },
     );
 
     // Start observing the container
@@ -160,7 +158,7 @@ export default defineComponent({
               scrollEl.scrollLeft = this._zoomAnchor.time * value - this._zoomAnchor.cursorX;
               this._zoomAnchor = null;
             }
-            scrollEl.dispatchEvent(new Event('scroll'));
+            scrollEl.dispatchEvent(new Event("scroll"));
           }
         });
       }
@@ -179,10 +177,10 @@ export default defineComponent({
           this.updateRegions(newRegions);
         }
       },
-      deep: true
+      deep: true,
     },
   },
-  emits: ['seeking', 'region-updated', 'regions-updated', 'zoom-change'],
+  emits: ["seeking", "region-updated", "regions-updated", "zoom-change"],
   methods: {
     onWheel(event: WheelEvent) {
       if (event.deltaY === 0) return;
@@ -193,7 +191,7 @@ export default defineComponent({
         const time = (scrollEl.scrollLeft + cursorX) / this.minPxPerSec;
         this._zoomAnchor = { time, cursorX };
       }
-      this.$emit('zoom-change', Math.sign(event.deltaY) * 10);
+      this.$emit("zoom-change", Math.sign(event.deltaY) * 10);
     },
     play() {
       if (this.wavesurfer) {

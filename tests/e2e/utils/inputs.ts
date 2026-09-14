@@ -1,14 +1,19 @@
 /**
  * Input helpers for Playwright tests
  */
-import { Page, expect } from '@playwright/test';
-import { getFixturePath, loadFixtureFile } from './setupHelpers';
-import { TabId, navigateToTab } from './navigation';
+import { Page, expect } from "@playwright/test";
+import { getFixturePath, loadFixtureFile } from "./setupHelpers";
+import { TabId, navigateToTab } from "./navigation";
 
 /**
  * Uploads an audio file and waits for metadata to be loaded
  */
-export async function uploadAudioFile(page: Page, filename: string, expectArtist?: string, expectTitle?: string): Promise<void> {
+export async function uploadAudioFile(
+  page: Page,
+  filename: string,
+  expectArtist?: string,
+  expectTitle?: string,
+): Promise<void> {
   const audioFilePath = getFixturePath(filename);
   const audioFileInput = page.locator('[name="song-file-upload"] [type="file"]');
 
@@ -27,7 +32,12 @@ export async function uploadAudioFile(page: Page, filename: string, expectArtist
 /**
  * Enters a YouTube URL and clicks the Load button
  */
-export async function enterYouTubeUrl(page: Page, url: string, expectArtist?: string, expectTitle?: string): Promise<void> {
+export async function enterYouTubeUrl(
+  page: Page,
+  url: string,
+  expectArtist?: string,
+  expectTitle?: string,
+): Promise<void> {
   // Enter YouTube URL
   await page.fill('input[type="text"]', url);
 
@@ -38,9 +48,12 @@ export async function enterYouTubeUrl(page: Page, url: string, expectArtist?: st
   await page.waitForSelector('button:has-text("Load"):not(.is-loading)');
 
   // Check for error message
-  const errorMessage = await page.locator('.field.is-danger .message').isVisible();
+  const errorMessage = await page.locator(".field.is-danger .message").isVisible();
   if (errorMessage) {
-    throw new Error('YouTube URL loading failed: ' + await page.locator('.field.is-danger .message').textContent());
+    throw new Error(
+      "YouTube URL loading failed: " +
+        (await page.locator(".field.is-danger .message").textContent()),
+    );
   }
 
   // If we expect specific metadata, wait for it to be loaded
@@ -56,21 +69,24 @@ export async function enterYouTubeUrl(page: Page, url: string, expectArtist?: st
 /**
  * Loads lyrics from a fixture file or string and enters them in the lyrics editor
  */
-export async function loadAndEnterLyrics(page: Page, lyricsContentOrFilename: string): Promise<void> {
+export async function loadAndEnterLyrics(
+  page: Page,
+  lyricsContentOrFilename: string,
+): Promise<void> {
   // Determine if this is a file path or direct content
   let lyricsContent = lyricsContentOrFilename;
   try {
     // Attempt to load as a file if it appears to be a file path
-    if (lyricsContentOrFilename.includes('.') && !lyricsContentOrFilename.includes('\n')) {
+    if (lyricsContentOrFilename.includes(".") && !lyricsContentOrFilename.includes("\n")) {
       lyricsContent = await loadFixtureFile(lyricsContentOrFilename);
     }
   } catch (error) {
     // If loading fails, assume the input is direct content
-    console.log('Input treated as direct lyrics content');
+    console.log("Input treated as direct lyrics content");
   }
 
   // Enter the lyrics content into the editor
-  const textAreaLocator = page.locator('.lyric-input-tab .lyric-editor-textarea');
+  const textAreaLocator = page.locator(".lyric-input-tab .lyric-editor-textarea");
   await textAreaLocator.clear();
   await textAreaLocator.pressSequentially(lyricsContent);
 }
@@ -80,7 +96,7 @@ export async function loadAndEnterLyrics(page: Page, lyricsContentOrFilename: st
  */
 export async function uploadTimingsFile(page: Page, timingsFilename: string): Promise<void> {
   // Navigate to song info tab if not already there
-  if (!await page.locator('.song-info-tab').isVisible()) {
+  if (!(await page.locator(".song-info-tab").isVisible())) {
     await navigateToTab(page, TabId.SongInfo);
   }
 
@@ -106,7 +122,7 @@ export async function setupBasicInputs(
   audioFilename: string,
   lyricsFilename: string,
   expectArtist?: string,
-  expectTitle?: string
+  expectTitle?: string,
 ): Promise<void> {
   // Navigate to Song Info tab
   await navigateToTab(page, TabId.SongInfo);
@@ -125,7 +141,7 @@ export async function setupBasicInputs(
  * Adds underscores to lyrics (clicks the "Add Underscores" button)
  */
 export async function addUnderscoresToLyrics(page: Page): Promise<void> {
-  if (!await page.locator('.lyric-input-tab').isVisible()) {
+  if (!(await page.locator(".lyric-input-tab").isVisible())) {
     await navigateToTab(page, TabId.LyricInput);
   }
 
@@ -136,7 +152,7 @@ export async function addUnderscoresToLyrics(page: Page): Promise<void> {
  * Toggles the "Magic Slashes" checkbox
  */
 export async function toggleMagicSlashes(page: Page, enable: boolean): Promise<void> {
-  if (!await page.locator('.lyric-input-tab').isVisible()) {
+  if (!(await page.locator(".lyric-input-tab").isVisible())) {
     await navigateToTab(page, TabId.LyricInput);
   }
 
@@ -144,7 +160,7 @@ export async function toggleMagicSlashes(page: Page, enable: boolean): Promise<v
   const isChecked = await checkbox.isChecked();
 
   if ((enable && !isChecked) || (!enable && isChecked)) {
-    await page.click('.lyric-input-tab .level-item .checkbox');
+    await page.click(".lyric-input-tab .level-item .checkbox");
   }
 }
 
@@ -153,7 +169,7 @@ export async function toggleMagicSlashes(page: Page, enable: boolean): Promise<v
  * labels also carry a tooltip, so match on the name as a substring.
  */
 export function fieldFor(page: Page, label: string) {
-  return page.locator('.field.is-horizontal', { hasText: label });
+  return page.locator(".field.is-horizontal", { hasText: label });
 }
 
 /**

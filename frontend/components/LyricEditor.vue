@@ -16,11 +16,7 @@ import { defineComponent } from "vue";
 
 // import { getCurrentWord } from "@/lib/lyrics";
 
-import {
-  getCurrentWord,
-  slashifyAllOccurences,
-  convertSpacesToUnderscores,
-} from "@/lib/lyrics";
+import { getCurrentWord, slashifyAllOccurences, convertSpacesToUnderscores } from "@/lib/lyrics";
 
 export default defineComponent({
   props: {
@@ -45,7 +41,7 @@ export default defineComponent({
         const newValue = slashifyAllOccurences(
           this.modelValue,
           currentWord.replaceAll("/", ""),
-          currentWord
+          currentWord,
         );
         this.$emit("update:modelValue", newValue);
         // Normally the cursor goes to the end of the text when we update the value,
@@ -57,9 +53,7 @@ export default defineComponent({
     },
     isSlashEntry(e: Event) {
       // Return true if event is a user typing a slash
-      return (
-        e instanceof InputEvent && e.inputType == "insertText" && e.data == "/"
-      );
+      return e instanceof InputEvent && e.inputType == "insertText" && e.data == "/";
     },
     convertSpaces() {
       // Convert spaces to underscores

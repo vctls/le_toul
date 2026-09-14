@@ -28,12 +28,12 @@ export const LYRIC_MARKERS = {
 // lowest lane off the bottom of the frame. 384x288 is libass's default canvas.
 export const SUBTITLE_CANVAS = {
   width: 384,
-  height: 288
+  height: 288,
 };
 
-export const TITLE_SCREEN_DURATION = 4.0
-export const INSTRUMENTAL_SCREEN_THRESHOLD = 8.0
+export const TITLE_SCREEN_DURATION = 4.0;
+export const INSTRUMENTAL_SCREEN_THRESHOLD = 8.0;
 
-export const DEFAULT_COUNT_IN_TEXT = "*** "
-export const DEFAULT_COUNT_IN_THRESHOLD = 5.0
-export const DEFAULT_COUNT_IN_DURATION = 2.0
+export const DEFAULT_COUNT_IN_TEXT = "*** ";
+export const DEFAULT_COUNT_IN_THRESHOLD = 5.0;
+export const DEFAULT_COUNT_IN_DURATION = 2.0;

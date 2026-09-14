@@ -1,59 +1,64 @@
 import {
-    LyricSegmentIterator,
-    LyricsScreen,
-    compileLyricTimings,
-    setScreenStartTimes,
-    adjustScreenTimestamps,
-    setSegmentEndTimes,
-    createAssFile,
-    createMultiVoiceAssFile,
-    floatToTimecode,
-    LyricsLine,
-    KaraokeOptions,
-    LyricEvent,
-    VerticalAlignment,
-    adjustSegmentTiming
+  LyricSegmentIterator,
+  LyricsScreen,
+  compileLyricTimings,
+  setScreenStartTimes,
+  adjustScreenTimestamps,
+  setSegmentEndTimes,
+  createAssFile,
+  createMultiVoiceAssFile,
+  floatToTimecode,
+  LyricsLine,
+  KaraokeOptions,
+  LyricEvent,
+  VerticalAlignment,
+  adjustSegmentTiming,
 } from "./timing";
-import {LYRIC_MARKERS, DEFAULT_COUNT_IN_TEXT, DEFAULT_COUNT_IN_THRESHOLD, DEFAULT_COUNT_IN_DURATION} from "@/constants";
-import {LyricSegment} from "./timing";
-import {default as BuefyColor} from "buefy/src/utils/color";
+import {
+  LYRIC_MARKERS,
+  DEFAULT_COUNT_IN_TEXT,
+  DEFAULT_COUNT_IN_THRESHOLD,
+  DEFAULT_COUNT_IN_DURATION,
+} from "@/constants";
+import { LyricSegment } from "./timing";
+import { default as BuefyColor } from "buefy/src/utils/color";
 
 const DEFAULT_OPTIONS: KaraokeOptions = {
-    addTitleScreen: true,
-    addCountIns: true,
-    countInText: DEFAULT_COUNT_IN_TEXT,
-    countInThreshold: DEFAULT_COUNT_IN_THRESHOLD,
-    countInDuration: DEFAULT_COUNT_IN_DURATION,
-    addInstrumentalScreens: true,
-    addStaggeredLines: true,
-    useBackgroundVideo: false,
-    outputFormat: "mp4",
-    verticalAlignment: VerticalAlignment.Middle,
-    font: {
-        size: 20,
-        name: "Arial Narrow"
-    },
-    color: {
-        background: BuefyColor.parse("#FFFF00"),
-        primary: BuefyColor.parse("#FF00FF"),
-        secondary: BuefyColor.parse("#00FFFF")
-    }
-}
+  addTitleScreen: true,
+  addCountIns: true,
+  countInText: DEFAULT_COUNT_IN_TEXT,
+  countInThreshold: DEFAULT_COUNT_IN_THRESHOLD,
+  countInDuration: DEFAULT_COUNT_IN_DURATION,
+  addInstrumentalScreens: true,
+  addStaggeredLines: true,
+  useBackgroundVideo: false,
+  outputFormat: "mp4",
+  verticalAlignment: VerticalAlignment.Middle,
+  font: {
+    size: 20,
+    name: "Arial Narrow",
+  },
+  color: {
+    background: BuefyColor.parse("#FFFF00"),
+    primary: BuefyColor.parse("#FF00FF"),
+    secondary: BuefyColor.parse("#00FFFF"),
+  },
+};
 
 const DEFAULT_FONT_SIZE = 22;
 
-export const testLyrics = "Be bop_a lu bop\nShe's my ba/by\n\nAnd_here's_screen_two"
+export const testLyrics = "Be bop_a lu bop\nShe's my ba/by\n\nAnd_here's_screen_two";
 const testEvents: LyricEvent[] = [
-    [1.0, LYRIC_MARKERS.SEGMENT_START],
-    [2.0, LYRIC_MARKERS.SEGMENT_END],
-    [3.0, LYRIC_MARKERS.SEGMENT_START],
-    [4.0, LYRIC_MARKERS.SEGMENT_START],
-    [5.0, LYRIC_MARKERS.SEGMENT_START],
-    [6.0, LYRIC_MARKERS.SEGMENT_START],
-    [7.0, LYRIC_MARKERS.SEGMENT_START],
-    [8.0, LYRIC_MARKERS.SEGMENT_START],
-    [9.0, LYRIC_MARKERS.SEGMENT_START]
-]
+  [1.0, LYRIC_MARKERS.SEGMENT_START],
+  [2.0, LYRIC_MARKERS.SEGMENT_END],
+  [3.0, LYRIC_MARKERS.SEGMENT_START],
+  [4.0, LYRIC_MARKERS.SEGMENT_START],
+  [5.0, LYRIC_MARKERS.SEGMENT_START],
+  [6.0, LYRIC_MARKERS.SEGMENT_START],
+  [7.0, LYRIC_MARKERS.SEGMENT_START],
+  [8.0, LYRIC_MARKERS.SEGMENT_START],
+  [9.0, LYRIC_MARKERS.SEGMENT_START],
+];
 
 export const shortIntroTestEvents = testEvents;
 
@@ -76,89 +81,92 @@ Style: Default,Arial Narrow,20,&H00FF00FF,&H00FFFF00,&H0000FFFF,&H00000000,-1,0,
 Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
 Dialogue: 0,0:00:00.00,0:00:04.00,Default,Singer,0,0,114,,{\\k0}{\\kf200}It's Cøøl to Tüül
 Dialogue: 0,0:00:00.00,0:00:04.00,Default,Singer,0,0,144,,{\\k200}{\\kf200}TÜ/ÜL
-`
+`;
 
-const testAss = testAssPreamble + `Dialogue: 0,0:00:04.00,0:00:11.00,Default,Singer,0,0,114,,{\\k0}{\\kf200}${DEFAULT_COUNT_IN_TEXT}{\\kf100}Be bop {\\kf100}{\\kf100}a lu bop
+const testAss =
+  testAssPreamble +
+  `Dialogue: 0,0:00:04.00,0:00:11.00,Default,Singer,0,0,114,,{\\k0}{\\kf200}${DEFAULT_COUNT_IN_TEXT}{\\kf100}Be bop {\\kf100}{\\kf100}a lu bop
 
 Dialogue: 0,0:00:04.00,0:00:11.00,Default,Singer,0,0,144,,{\\k500}{\\kf100}She's my ba{\\kf100}by
 
 
 Dialogue: 0,0:00:11.00,0:01:05.00,Default,Singer,0,0,129,,{\\k0}{\\kf100}And {\\kf100}here's {\\kf100}screen {\\kf5100}two
-`
+`;
 
-const longIntroTestAss = testAssPreamble + `Dialogue: 0,Default,0:00:04.00,0:00:15.00,130,{\\k300}{\\kf300}■■■■{\\kf100}Be bop {\\kf100}{\\kf100}a lu bop
+const longIntroTestAss =
+  testAssPreamble +
+  `Dialogue: 0,Default,0:00:04.00,0:00:15.00,130,{\\k300}{\\kf300}■■■■{\\kf100}Be bop {\\kf100}{\\kf100}a lu bop
 
 Dialogue: 0,Default,0:00:04.00,0:00:15.00,130,{\\k900}{\\kf100}She's my ba{\\kf100}by
 
 
 Dialogue: 0,0:00:11.00,0:01:05.00,Default,Singer,0,0,129,,{\\k0}{\\kf100}And {\\kf100}here's {\\kf100}screen {\\kf5100}two
-`
+`;
 
-describe('LyricSegmentIterator', () => {
-    test('parses segments without markup', () => {
-        const iterator = new LyricSegmentIterator(testLyrics);
-        const segments = Array.from(iterator);
-        expect(segments.length).toBe(8);
-        expect(segments[0].text).toBe("Be bop ");
-    });
+describe("LyricSegmentIterator", () => {
+  test("parses segments without markup", () => {
+    const iterator = new LyricSegmentIterator(testLyrics);
+    const segments = Array.from(iterator);
+    expect(segments.length).toBe(8);
+    expect(segments[0].text).toBe("Be bop ");
+  });
 
-    test('parses segments with markup', () => {
-        const iterator = new LyricSegmentIterator(testLyrics, true);
-        const segments = Array.from(iterator);
-        expect(segments.length).toBe(8);
-        expect(segments[0].text).toBe("Be bop_");
-    });
+  test("parses segments with markup", () => {
+    const iterator = new LyricSegmentIterator(testLyrics, true);
+    const segments = Array.from(iterator);
+    expect(segments.length).toBe(8);
+    expect(segments[0].text).toBe("Be bop_");
+  });
 
-    test('handles leading newlines', () => {
-        const lyricsWithLeadingNewlines = "\n\nHello world";
-        const iterator = new LyricSegmentIterator(lyricsWithLeadingNewlines);
-        const segments = Array.from(iterator);
-        expect(segments.length).toBe(1);
-        expect(segments[0].text).toBe("Hello world");
-    });
+  test("handles leading newlines", () => {
+    const lyricsWithLeadingNewlines = "\n\nHello world";
+    const iterator = new LyricSegmentIterator(lyricsWithLeadingNewlines);
+    const segments = Array.from(iterator);
+    expect(segments.length).toBe(1);
+    expect(segments[0].text).toBe("Hello world");
+  });
 
-    test('handles only newlines', () => {
-        const justNewlines = "\n\n\n";
-        const iterator = new LyricSegmentIterator(justNewlines);
-        const segments = Array.from(iterator);
-        expect(segments.length).toBe(0);
-    });
+  test("handles only newlines", () => {
+    const justNewlines = "\n\n\n";
+    const iterator = new LyricSegmentIterator(justNewlines);
+    const segments = Array.from(iterator);
+    expect(segments.length).toBe(0);
+  });
 
-    test('trims leading spaces', () => {
-        const lyrics = "Line 1\n Line 2";
-        const iterator = new LyricSegmentIterator(lyrics);
-        const segments = Array.from(iterator);
-        expect(segments.length).toBe(2);
-        expect(segments[1].text).toBe("Line 2");
-    });
+  test("trims leading spaces", () => {
+    const lyrics = "Line 1\n Line 2";
+    const iterator = new LyricSegmentIterator(lyrics);
+    const segments = Array.from(iterator);
+    expect(segments.length).toBe(2);
+    expect(segments[1].text).toBe("Line 2");
+  });
 });
 
-test('compileLyricTimings', () => {
-    const screens = compileLyricTimings(testLyrics, testEvents);
-    expect(screens.length).toBe(2);
-    expect(screens[0].lines.length).toBe(2);
-    expect(screens[0].lines[0].segments.length).toBe(2);
-    expect(screens[1].lines[0].segments.length).toBe(4);
+test("compileLyricTimings", () => {
+  const screens = compileLyricTimings(testLyrics, testEvents);
+  expect(screens.length).toBe(2);
+  expect(screens[0].lines.length).toBe(2);
+  expect(screens[0].lines[0].segments.length).toBe(2);
+  expect(screens[1].lines[0].segments.length).toBe(4);
 });
 
-test('setSegmentEndTimes', () => {
-    const initialScreens = compileLyricTimings(testLyrics, testEvents);
-    const songDuration = 60;
-    const screens = setSegmentEndTimes(initialScreens, songDuration);
-    expect(screens[0].lines[0].segments[0].endTimestamp).toBe(2.0);
-    expect(screens[0].lines[0].segments[1].endTimestamp).toBe(4.0);
-    expect(screens[0].lines[1].segments[0].endTimestamp).toBe(5.0);
-    expect(screens[0].lines[1].segments[1].endTimestamp).toBe(6.0);
-    expect(screens[1].lines[0].segments[0].endTimestamp).toBe(7.0);
+test("setSegmentEndTimes", () => {
+  const initialScreens = compileLyricTimings(testLyrics, testEvents);
+  const songDuration = 60;
+  const screens = setSegmentEndTimes(initialScreens, songDuration);
+  expect(screens[0].lines[0].segments[0].endTimestamp).toBe(2.0);
+  expect(screens[0].lines[0].segments[1].endTimestamp).toBe(4.0);
+  expect(screens[0].lines[1].segments[0].endTimestamp).toBe(5.0);
+  expect(screens[0].lines[1].segments[1].endTimestamp).toBe(6.0);
+  expect(screens[1].lines[0].segments[0].endTimestamp).toBe(7.0);
+});
 
-})
+test("LyricSegment", () => {
+  const segment = new LyricSegment("boop", 2.0, 3.0);
+  expect(segment.toAss()).toBe("{\\kf100}boop");
 
-test('LyricSegment', () => {
-    const segment = new LyricSegment("boop", 2.0, 3.0);
-    expect(segment.toAss()).toBe("{\\kf100}boop")
-
-    const underSecondSegment = new LyricSegment("baby", .5, .75);
-    expect(underSecondSegment.toAss()).toBe("{\\kf25}baby");
+  const underSecondSegment = new LyricSegment("baby", 0.5, 0.75);
+  expect(underSecondSegment.toAss()).toBe("{\\kf25}baby");
 });
 
 // test('LyricScreen does ass', () => {
@@ -166,324 +174,375 @@ test('LyricSegment', () => {
 //     screen.toAss
 // });
 
-test('LyricScreen handles custom Y offset', () => {
-    const screen = new LyricsScreen([
-        new LyricsLine([new LyricSegment("one", 1.0)]),
-        new LyricsLine([new LyricSegment("two", 2.0)])
-    ])
+test("LyricScreen handles custom Y offset", () => {
+  const screen = new LyricsScreen([
+    new LyricsLine([new LyricSegment("one", 1.0)]),
+    new LyricsLine([new LyricSegment("two", 2.0)]),
+  ]);
 
-    // 2 lines, lineHeight 33, canvas height 288 => 144 - 33
-    expect(screen.getLineY(0, DEFAULT_FONT_SIZE)).toBe(111);
+  // 2 lines, lineHeight 33, canvas height 288 => 144 - 33
+  expect(screen.getLineY(0, DEFAULT_FONT_SIZE)).toBe(111);
 
-    // Laid out as a 4-line block instead of its own 2, so it starts a line higher
-    screen.positionAsLineCount = 4;
-    expect(screen.getLineY(0, DEFAULT_FONT_SIZE)).toBe(78);
-    expect(screen.getLineY(1, DEFAULT_FONT_SIZE)).toBe(111);
-})
-
-test('LyricScreen respects vertical alignment', () => {
-    const screen = new LyricsScreen([
-        new LyricsLine([new LyricSegment("one", 1.0)]),
-        new LyricsLine([new LyricSegment("two", 2.0)])
-    ])
-
-    expect(screen.getLineY(0, DEFAULT_FONT_SIZE)).toBe(111);
-    expect(screen.getLineY(0, DEFAULT_FONT_SIZE, VerticalAlignment.Top)).toBe(33);
-    expect(screen.getLineY(0, DEFAULT_FONT_SIZE, VerticalAlignment.Bottom)).toBe(288 - (33 * 3));
-
-    expect(screen.getLineY(1, DEFAULT_FONT_SIZE)).toBe(111 + 33);
-    expect(screen.getLineY(1, DEFAULT_FONT_SIZE, VerticalAlignment.Top)).toBe(33 * 2);
-    expect(screen.getLineY(1, DEFAULT_FONT_SIZE, VerticalAlignment.Bottom)).toBe(288 - (33 * 2));
+  // Laid out as a 4-line block instead of its own 2, so it starts a line higher
+  screen.positionAsLineCount = 4;
+  expect(screen.getLineY(0, DEFAULT_FONT_SIZE)).toBe(78);
+  expect(screen.getLineY(1, DEFAULT_FONT_SIZE)).toBe(111);
 });
 
-test('setScreenStartTimes', () => {
-    const screens = compileLyricTimings(testLyrics, testEvents);
-    const adjusted = setScreenStartTimes(screens);
-    expect(adjusted[0].startTimestamp).toBe(0.0);
+test("LyricScreen respects vertical alignment", () => {
+  const screen = new LyricsScreen([
+    new LyricsLine([new LyricSegment("one", 1.0)]),
+    new LyricsLine([new LyricSegment("two", 2.0)]),
+  ]);
+
+  expect(screen.getLineY(0, DEFAULT_FONT_SIZE)).toBe(111);
+  expect(screen.getLineY(0, DEFAULT_FONT_SIZE, VerticalAlignment.Top)).toBe(33);
+  expect(screen.getLineY(0, DEFAULT_FONT_SIZE, VerticalAlignment.Bottom)).toBe(288 - 33 * 3);
+
+  expect(screen.getLineY(1, DEFAULT_FONT_SIZE)).toBe(111 + 33);
+  expect(screen.getLineY(1, DEFAULT_FONT_SIZE, VerticalAlignment.Top)).toBe(33 * 2);
+  expect(screen.getLineY(1, DEFAULT_FONT_SIZE, VerticalAlignment.Bottom)).toBe(288 - 33 * 2);
 });
 
-test('adjustTimestamps', () => {
-    const screens = setScreenStartTimes(compileLyricTimings(testLyrics, testEvents));
-
-    const adjusted = adjustScreenTimestamps(screens, 1.0);
-    expect(adjusted[0].lines[0].timestamp).toBe(2.0);
-    expect(adjusted[0].startTimestamp).toBe(1.0)
+test("setScreenStartTimes", () => {
+  const screens = compileLyricTimings(testLyrics, testEvents);
+  const adjusted = setScreenStartTimes(screens);
+  expect(adjusted[0].startTimestamp).toBe(0.0);
 });
 
-test('createAssFileForShortIntroSong', () => {
-    const songDuration = 60.0;
-    const options: KaraokeOptions = {...DEFAULT_OPTIONS, addInstrumentalScreens: false, addStaggeredLines: false}
-    const assFile = createAssFile(testLyrics, shortIntroTestEvents, songDuration, "It's Cøøl to Tüül", "TÜ/ÜL", options);
-    expect(assFile).toBe(testAss);
+test("adjustTimestamps", () => {
+  const screens = setScreenStartTimes(compileLyricTimings(testLyrics, testEvents));
+
+  const adjusted = adjustScreenTimestamps(screens, 1.0);
+  expect(adjusted[0].lines[0].timestamp).toBe(2.0);
+  expect(adjusted[0].startTimestamp).toBe(1.0);
 });
 
-test('createAssFile handles timings without lyrics', () => {
-    // A timings file can be loaded before lyrics are entered. That should
-    // yield an event-less ASS file, not a crash in the screen decorators.
-    const songDuration = 60.0;
-    const timings: LyricEvent[] = [[1.0, LYRIC_MARKERS.SEGMENT_START], [2.0, LYRIC_MARKERS.SEGMENT_END]]
-    const assFile = createAssFile("", timings, songDuration, "It's Cøøl to Tüül", "TÜ/ÜL", DEFAULT_OPTIONS);
-    const headerOnly = testAssPreamble.slice(0, testAssPreamble.indexOf("Dialogue:"));
-    expect(assFile).toBe(headerOnly);
+test("createAssFileForShortIntroSong", () => {
+  const songDuration = 60.0;
+  const options: KaraokeOptions = {
+    ...DEFAULT_OPTIONS,
+    addInstrumentalScreens: false,
+    addStaggeredLines: false,
+  };
+  const assFile = createAssFile(
+    testLyrics,
+    shortIntroTestEvents,
+    songDuration,
+    "It's Cøøl to Tüül",
+    "TÜ/ÜL",
+    options,
+  );
+  expect(assFile).toBe(testAss);
 });
 
-test('addCountIn', () => {
-    const songDuration = 60.0;
-    const lyrics = "That was a long intro\nToo bad nothing rhymes with intro"
-    const timings: LyricEvent[] = [[100.0, LYRIC_MARKERS.SEGMENT_START], [105.0, LYRIC_MARKERS.SEGMENT_START]]
-    const options: KaraokeOptions = {...DEFAULT_OPTIONS, addInstrumentalScreens: false, addStaggeredLines: false}
-    let assFile = createAssFile(lyrics, timings, songDuration, "It's Cøøl to Tüül", "TÜ/ÜL", options);
+test("createAssFile handles timings without lyrics", () => {
+  // A timings file can be loaded before lyrics are entered. That should
+  // yield an event-less ASS file, not a crash in the screen decorators.
+  const songDuration = 60.0;
+  const timings: LyricEvent[] = [
+    [1.0, LYRIC_MARKERS.SEGMENT_START],
+    [2.0, LYRIC_MARKERS.SEGMENT_END],
+  ];
+  const assFile = createAssFile(
+    "",
+    timings,
+    songDuration,
+    "It's Cøøl to Tüül",
+    "TÜ/ÜL",
+    DEFAULT_OPTIONS,
+  );
+  const headerOnly = testAssPreamble.slice(0, testAssPreamble.indexOf("Dialogue:"));
+  expect(assFile).toBe(headerOnly);
+});
 
-    const expected = testAssPreamble + `Dialogue: 0,0:00:04.00,0:01:00.00,Default,Singer,0,0,114,,{\\k9400}{\\kf200}${DEFAULT_COUNT_IN_TEXT}{\\kf500}That was a long intro
+test("addCountIn", () => {
+  const songDuration = 60.0;
+  const lyrics = "That was a long intro\nToo bad nothing rhymes with intro";
+  const timings: LyricEvent[] = [
+    [100.0, LYRIC_MARKERS.SEGMENT_START],
+    [105.0, LYRIC_MARKERS.SEGMENT_START],
+  ];
+  const options: KaraokeOptions = {
+    ...DEFAULT_OPTIONS,
+    addInstrumentalScreens: false,
+    addStaggeredLines: false,
+  };
+  let assFile = createAssFile(lyrics, timings, songDuration, "It's Cøøl to Tüül", "TÜ/ÜL", options);
+
+  const expected =
+    testAssPreamble +
+    `Dialogue: 0,0:00:04.00,0:01:00.00,Default,Singer,0,0,114,,{\\k9400}{\\kf200}${DEFAULT_COUNT_IN_TEXT}{\\kf500}That was a long intro
 
 Dialogue: 0,0:00:04.00,0:01:00.00,Default,Singer,0,0,144,,{\\k10100}{\\kf-4500}Too bad nothing rhymes with intro
-`
-    expect(assFile).toBe(expected);
+`;
+  expect(assFile).toBe(expected);
 });
 
-test('addCountInToSevenSecondIntro', () => {
-    // An intro between 7-8 seconds has a count-in that makes the intro between 4-5 seconds.
-    // So we can't start playing audio until after the title screen.
-    // So timings get moved up a little bit/
-    const songDuration = 60.0;
+test("addCountInToSevenSecondIntro", () => {
+  // An intro between 7-8 seconds has a count-in that makes the intro between 4-5 seconds.
+  // So we can't start playing audio until after the title screen.
+  // So timings get moved up a little bit/
+  const songDuration = 60.0;
 
-    // a corner case when the first event is between 7 and 8 seconds
-    const sevenSecondEvents: LyricEvent[] = [
-        [7.5, LYRIC_MARKERS.SEGMENT_START],
-        [8.5, LYRIC_MARKERS.SEGMENT_END],
-        [9.0, LYRIC_MARKERS.SEGMENT_START],
-        [10.0, LYRIC_MARKERS.SEGMENT_START],
-        [11.0, LYRIC_MARKERS.SEGMENT_START],
-        [12.0, LYRIC_MARKERS.SEGMENT_START],
-        [13.0, LYRIC_MARKERS.SEGMENT_START],
-        [14.0, LYRIC_MARKERS.SEGMENT_START],
-        [15.0, LYRIC_MARKERS.SEGMENT_START],
-    ]
-    const sevenSecondAss = testAssPreamble + `Dialogue: 0,0:00:04.00,0:00:12.00,Default,Singer,0,0,114,,{\\k150}{\\kf200}${DEFAULT_COUNT_IN_TEXT}{\\kf100}Be bop {\\kf50}{\\kf100}a lu bop
+  // a corner case when the first event is between 7 and 8 seconds
+  const sevenSecondEvents: LyricEvent[] = [
+    [7.5, LYRIC_MARKERS.SEGMENT_START],
+    [8.5, LYRIC_MARKERS.SEGMENT_END],
+    [9.0, LYRIC_MARKERS.SEGMENT_START],
+    [10.0, LYRIC_MARKERS.SEGMENT_START],
+    [11.0, LYRIC_MARKERS.SEGMENT_START],
+    [12.0, LYRIC_MARKERS.SEGMENT_START],
+    [13.0, LYRIC_MARKERS.SEGMENT_START],
+    [14.0, LYRIC_MARKERS.SEGMENT_START],
+    [15.0, LYRIC_MARKERS.SEGMENT_START],
+  ];
+  const sevenSecondAss =
+    testAssPreamble +
+    `Dialogue: 0,0:00:04.00,0:00:12.00,Default,Singer,0,0,114,,{\\k150}{\\kf200}${DEFAULT_COUNT_IN_TEXT}{\\kf100}Be bop {\\kf50}{\\kf100}a lu bop
 
 Dialogue: 0,0:00:04.00,0:00:12.00,Default,Singer,0,0,144,,{\\k600}{\\kf100}She's my ba{\\kf100}by
 
 
 Dialogue: 0,0:00:12.00,0:01:00.00,Default,Singer,0,0,129,,{\\k0}{\\kf100}And {\\kf100}here's {\\kf100}screen {\\kf4500}two
-`
-    const options: KaraokeOptions = {...DEFAULT_OPTIONS, addInstrumentalScreens: false, addStaggeredLines: false}
+`;
+  const options: KaraokeOptions = {
+    ...DEFAULT_OPTIONS,
+    addInstrumentalScreens: false,
+    addStaggeredLines: false,
+  };
 
-    const assFile = createAssFile(testLyrics, sevenSecondEvents, songDuration, "It's Cøøl to Tüül", "TÜ/ÜL", options);
-    expect(assFile).toBe(sevenSecondAss);
-
+  const assFile = createAssFile(
+    testLyrics,
+    sevenSecondEvents,
+    songDuration,
+    "It's Cøøl to Tüül",
+    "TÜ/ÜL",
+    options,
+  );
+  expect(assFile).toBe(sevenSecondAss);
 });
 
-test('floatToTimecode', () => {
-    expect(floatToTimecode(0)).toBe("0:00:00.00");
-    expect(floatToTimecode(25.42)).toBe("0:00:25.42");
-    expect(floatToTimecode(60)).toBe("0:01:00.00");
+test("floatToTimecode", () => {
+  expect(floatToTimecode(0)).toBe("0:00:00.00");
+  expect(floatToTimecode(25.42)).toBe("0:00:25.42");
+  expect(floatToTimecode(60)).toBe("0:01:00.00");
 });
 
-test('adjustSegmentTiming', () => {
-    expect(adjustSegmentTiming(0, testEvents, {start: 0.5, end: 1.5})[0][0]).toBe(0.5);
-    expect(() => adjustSegmentTiming(8, testEvents, {
+test("adjustSegmentTiming", () => {
+  expect(adjustSegmentTiming(0, testEvents, { start: 0.5, end: 1.5 })[0][0]).toBe(0.5);
+  expect(
+    () =>
+      adjustSegmentTiming(8, testEvents, {
         start: 0.5,
-        end: 1.5
-    })[0][0]).toThrow("Segment 8 not found in timings");
+        end: 1.5,
+      })[0][0],
+  ).toThrow("Segment 8 not found in timings");
 });
 
-test('adjustSegmentTiming adds a SEGMENT_END to an open-ended segment', () => {
-    // Segment 1 in testEvents has no SEGMENT_END (it runs straight into segment 2).
-    const adjusted = adjustSegmentTiming(1, testEvents, {start: 3.0, end: 3.5});
-    // The new SEGMENT_END should appear between segment 1's SEGMENT_START (3.0)
-    // and segment 2's SEGMENT_START (4.0).
-    expect(adjusted[2]).toEqual([3.0, LYRIC_MARKERS.SEGMENT_START]);
-    expect(adjusted[3]).toEqual([3.5, LYRIC_MARKERS.SEGMENT_END]);
-    expect(adjusted[4]).toEqual([4.0, LYRIC_MARKERS.SEGMENT_START]);
+test("adjustSegmentTiming adds a SEGMENT_END to an open-ended segment", () => {
+  // Segment 1 in testEvents has no SEGMENT_END (it runs straight into segment 2).
+  const adjusted = adjustSegmentTiming(1, testEvents, { start: 3.0, end: 3.5 });
+  // The new SEGMENT_END should appear between segment 1's SEGMENT_START (3.0)
+  // and segment 2's SEGMENT_START (4.0).
+  expect(adjusted[2]).toEqual([3.0, LYRIC_MARKERS.SEGMENT_START]);
+  expect(adjusted[3]).toEqual([3.5, LYRIC_MARKERS.SEGMENT_END]);
+  expect(adjusted[4]).toEqual([4.0, LYRIC_MARKERS.SEGMENT_START]);
 });
 
-test('adjustSegmentTiming removes an existing SEGMENT_END when end is undefined', () => {
-    // Segment 0 in testEvents has an explicit SEGMENT_END at 2.0.
-    const adjusted = adjustSegmentTiming(0, testEvents, {start: 1.0, end: undefined});
-    // The SEGMENT_END marker should be gone; segment 1's SEGMENT_START at 3.0 follows directly.
-    expect(adjusted[0]).toEqual([1.0, LYRIC_MARKERS.SEGMENT_START]);
-    expect(adjusted[1]).toEqual([3.0, LYRIC_MARKERS.SEGMENT_START]);
-    expect(adjusted.length).toBe(testEvents.length - 1);
+test("adjustSegmentTiming removes an existing SEGMENT_END when end is undefined", () => {
+  // Segment 0 in testEvents has an explicit SEGMENT_END at 2.0.
+  const adjusted = adjustSegmentTiming(0, testEvents, { start: 1.0, end: undefined });
+  // The SEGMENT_END marker should be gone; segment 1's SEGMENT_START at 3.0 follows directly.
+  expect(adjusted[0]).toEqual([1.0, LYRIC_MARKERS.SEGMENT_START]);
+  expect(adjusted[1]).toEqual([3.0, LYRIC_MARKERS.SEGMENT_START]);
+  expect(adjusted.length).toBe(testEvents.length - 1);
 });
 
-test('adjustSegmentTiming adds a SEGMENT_END for the last segment in the array', () => {
-    // Segment 7 (the last) has no SEGMENT_END and no following SEGMENT_START.
-    const adjusted = adjustSegmentTiming(7, testEvents, {start: 9.0, end: 10.0});
-    expect(adjusted[adjusted.length - 2]).toEqual([9.0, LYRIC_MARKERS.SEGMENT_START]);
-    expect(adjusted[adjusted.length - 1]).toEqual([10.0, LYRIC_MARKERS.SEGMENT_END]);
+test("adjustSegmentTiming adds a SEGMENT_END for the last segment in the array", () => {
+  // Segment 7 (the last) has no SEGMENT_END and no following SEGMENT_START.
+  const adjusted = adjustSegmentTiming(7, testEvents, { start: 9.0, end: 10.0 });
+  expect(adjusted[adjusted.length - 2]).toEqual([9.0, LYRIC_MARKERS.SEGMENT_START]);
+  expect(adjusted[adjusted.length - 1]).toEqual([10.0, LYRIC_MARKERS.SEGMENT_END]);
 });
 
-test('adjustSegmentTiming leaves an open-ended segment open when end stays undefined', () => {
-    const adjusted = adjustSegmentTiming(2, testEvents, {start: 4.5, end: undefined});
-    // Should be identical to testEvents except segment 2's start moved from 4.0 to 4.5.
-    expect(adjusted.length).toBe(testEvents.length);
-    expect(adjusted[3]).toEqual([4.5, LYRIC_MARKERS.SEGMENT_START]);
+test("adjustSegmentTiming leaves an open-ended segment open when end stays undefined", () => {
+  const adjusted = adjustSegmentTiming(2, testEvents, { start: 4.5, end: undefined });
+  // Should be identical to testEvents except segment 2's start moved from 4.0 to 4.5.
+  expect(adjusted.length).toBe(testEvents.length);
+  expect(adjusted[3]).toEqual([4.5, LYRIC_MARKERS.SEGMENT_START]);
 });
 
-test('compileLyricTimings handles more events than segments', () => {
-    // Test with only 1 segment but many events
-    const shortLyrics = "Hello world";  // This creates 1 segment: "Hello world"
-    const tooManyEvents: LyricEvent[] = [
-        [1.0, LYRIC_MARKERS.SEGMENT_START],
-        [2.0, LYRIC_MARKERS.SEGMENT_START], // This should trigger the error
-        [3.0, LYRIC_MARKERS.SEGMENT_START],
-        [4.0, LYRIC_MARKERS.SEGMENT_START],
-        [5.0, LYRIC_MARKERS.SEGMENT_START]
-    ];
+test("compileLyricTimings handles more events than segments", () => {
+  // Test with only 1 segment but many events
+  const shortLyrics = "Hello world"; // This creates 1 segment: "Hello world"
+  const tooManyEvents: LyricEvent[] = [
+    [1.0, LYRIC_MARKERS.SEGMENT_START],
+    [2.0, LYRIC_MARKERS.SEGMENT_START], // This should trigger the error
+    [3.0, LYRIC_MARKERS.SEGMENT_START],
+    [4.0, LYRIC_MARKERS.SEGMENT_START],
+    [5.0, LYRIC_MARKERS.SEGMENT_START],
+  ];
 
-    // Should return whatever screens were built before running out of segments
-    const screens = compileLyricTimings(shortLyrics, tooManyEvents);
-    expect(screens.length).toBe(1);
-    expect(screens[0].lines.length).toBe(1);
-    expect(screens[0].lines[0].segments.length).toBe(1); // Only got the first segment
+  // Should return whatever screens were built before running out of segments
+  const screens = compileLyricTimings(shortLyrics, tooManyEvents);
+  expect(screens.length).toBe(1);
+  expect(screens[0].lines.length).toBe(1);
+  expect(screens[0].lines[0].segments.length).toBe(1); // Only got the first segment
 });
 
 describe("createMultiVoiceAssFile", () => {
-    const noAuxOptions: KaraokeOptions = {
-        ...DEFAULT_OPTIONS,
-        addTitleScreen: false,
-        addCountIns: false,
-        addInstrumentalScreens: false,
-        addStaggeredLines: false,
-    };
+  const noAuxOptions: KaraokeOptions = {
+    ...DEFAULT_OPTIONS,
+    addTitleScreen: false,
+    addCountIns: false,
+    addInstrumentalScreens: false,
+    addStaggeredLines: false,
+  };
 
-    it("returns empty string when there are no tracks", () => {
-        expect(createMultiVoiceAssFile([], 10, "T", "A")).toBe("");
-    });
+  it("returns empty string when there are no tracks", () => {
+    expect(createMultiVoiceAssFile([], 10, "T", "A")).toBe("");
+  });
 
-    it("emits one style per voice and events tagged with each voice's style", () => {
-        const tracks = [
-            {
-                voice: "Anna",
-                lyrics: "Hello\n",
-                timings: [[1.0, LYRIC_MARKERS.SEGMENT_START]] as LyricEvent[],
-                options: noAuxOptions
-            },
-            {
-                voice: "Ben",
-                lyrics: "World\n",
-                timings: [[2.0, LYRIC_MARKERS.SEGMENT_START]] as LyricEvent[],
-                options: noAuxOptions
-            },
-        ];
-        const ass = createMultiVoiceAssFile(tracks, 10, "T", "A");
+  it("emits one style per voice and events tagged with each voice's style", () => {
+    const tracks = [
+      {
+        voice: "Anna",
+        lyrics: "Hello\n",
+        timings: [[1.0, LYRIC_MARKERS.SEGMENT_START]] as LyricEvent[],
+        options: noAuxOptions,
+      },
+      {
+        voice: "Ben",
+        lyrics: "World\n",
+        timings: [[2.0, LYRIC_MARKERS.SEGMENT_START]] as LyricEvent[],
+        options: noAuxOptions,
+      },
+    ];
+    const ass = createMultiVoiceAssFile(tracks, 10, "T", "A");
 
-        // One style row per voice
-        expect(ass).toContain("Style: V0,");
-        expect(ass).toContain("Style: V1,");
-        // Dialogue events reference each voice's style (",V0," is unique to events)
-        expect(ass).toContain(",V0,");
-        expect(ass).toContain(",V1,");
-        // Both voices' lyrics are present
-        expect(ass).toContain("Hello");
-        expect(ass).toContain("World");
-        // A single shared document (one [Events] section)
-        expect(ass.match(/\[Events\]/g)?.length).toBe(1);
-    });
+    // One style row per voice
+    expect(ass).toContain("Style: V0,");
+    expect(ass).toContain("Style: V1,");
+    // Dialogue events reference each voice's style (",V0," is unique to events)
+    expect(ass).toContain(",V0,");
+    expect(ass).toContain(",V1,");
+    // Both voices' lyrics are present
+    expect(ass).toContain("Hello");
+    expect(ass).toContain("World");
+    // A single shared document (one [Events] section)
+    expect(ass.match(/\[Events\]/g)?.length).toBe(1);
+  });
 });
 
 describe("multi-voice vertical lanes", () => {
-    function marginVsForStyle(ass: string, style: string): number[] {
-        return ass.split("\n")
-            .filter((l) => l.startsWith("Dialogue:") && l.split(",")[3] === style)
-            .map((l) => Number(l.split(",")[7]));
-    }
+  function marginVsForStyle(ass: string, style: string): number[] {
+    return ass
+      .split("\n")
+      .filter((l) => l.startsWith("Dialogue:") && l.split(",")[3] === style)
+      .map((l) => Number(l.split(",")[7]));
+  }
 
-    it("centers lines within the lane when verticalZone is set", () => {
-        const screen = new LyricsScreen([new LyricsLine([new LyricSegment("a", 1, 2)])]);
-        screen.verticalZone = {top: 160, height: 160};
-        // 1 line, fontSize 20 => lineHeight 30; lane middle 240; top = 240 - 15
-        expect(screen.getLineY(0, 20)).toBe(225);
-    });
+  it("centers lines within the lane when verticalZone is set", () => {
+    const screen = new LyricsScreen([new LyricsLine([new LyricSegment("a", 1, 2)])]);
+    screen.verticalZone = { top: 160, height: 160 };
+    // 1 line, fontSize 20 => lineHeight 30; lane middle 240; top = 240 - 15
+    expect(screen.getLineY(0, 20)).toBe(225);
+  });
 
-    it("keeps the staggered line-count correction inside a lane", () => {
-        const screen = new LyricsScreen([new LyricsLine([new LyricSegment("a", 1, 2)])]);
-        screen.verticalZone = {top: 0, height: 144};
-        // Lane middle 72; as its own 1-line block, fontSize 20 => 72 - 15
-        expect(screen.getLineY(0, 20)).toBe(57);
-        // Laid out as the 2-line block it displaces => 72 - 30, the lane's top slot
-        screen.positionAsLineCount = 2;
-        expect(screen.getLineY(0, 20)).toBe(42);
-    });
+  it("keeps the staggered line-count correction inside a lane", () => {
+    const screen = new LyricsScreen([new LyricsLine([new LyricSegment("a", 1, 2)])]);
+    screen.verticalZone = { top: 0, height: 144 };
+    // Lane middle 72; as its own 1-line block, fontSize 20 => 72 - 15
+    expect(screen.getLineY(0, 20)).toBe(57);
+    // Laid out as the 2-line block it displaces => 72 - 30, the lane's top slot
+    screen.positionAsLineCount = 2;
+    expect(screen.getLineY(0, 20)).toBe(42);
+  });
 
-    it("puts a staggered line in the lane's top slot, not between the lines it replaces", () => {
-        // A short screen displayed early over a 2-line screen must land where that screen's
-        // first line was. Lanes are assigned after the staggering pass, so a correction
-        // expressed as an absolute Y would be computed for the full frame and then dropped,
-        // leaving the early line halfway down the outgoing block and colliding with it.
-        const staggered: KaraokeOptions = {
-            ...DEFAULT_OPTIONS,
-            addTitleScreen: false,
-            addCountIns: false,
-            addInstrumentalScreens: false,
-            addStaggeredLines: true,
-            font: {...DEFAULT_OPTIONS.font, size: 20},
-        };
-        const aTimings: LyricEvent[] = [1.0, 2.0, 3.0, 4.0, 5.0].map(
-            (t) => [t, LYRIC_MARKERS.SEGMENT_START] as LyricEvent
-        );
-        const tracks = [
-            {voice: "A", lyrics: "a one\na two\n\nb one\nb two\n\nc one", timings: aTimings, options: staggered},
-            {
-                voice: "B",
-                lyrics: "b line",
-                timings: [[5.5, LYRIC_MARKERS.SEGMENT_START]] as LyricEvent[],
-                options: staggered
-            },
-        ];
-        const v0 = marginVsForStyle(createMultiVoiceAssFile(tracks, 10, "T", "A"), "V0");
-        // lineHeight 30, lane 0 spans 0..144 so its middle is 72: a 2-line block sits at
-        // 42 and 72, and the early single line joins it at 42.
-        expect(v0).toContain(42);
-        // 57 would be a lone line centred in the lane, overlapping the outgoing line at 72.
-        expect(v0).not.toContain(57);
-    });
+  it("puts a staggered line in the lane's top slot, not between the lines it replaces", () => {
+    // A short screen displayed early over a 2-line screen must land where that screen's
+    // first line was. Lanes are assigned after the staggering pass, so a correction
+    // expressed as an absolute Y would be computed for the full frame and then dropped,
+    // leaving the early line halfway down the outgoing block and colliding with it.
+    const staggered: KaraokeOptions = {
+      ...DEFAULT_OPTIONS,
+      addTitleScreen: false,
+      addCountIns: false,
+      addInstrumentalScreens: false,
+      addStaggeredLines: true,
+      font: { ...DEFAULT_OPTIONS.font, size: 20 },
+    };
+    const aTimings: LyricEvent[] = [1.0, 2.0, 3.0, 4.0, 5.0].map(
+      (t) => [t, LYRIC_MARKERS.SEGMENT_START] as LyricEvent,
+    );
+    const tracks = [
+      {
+        voice: "A",
+        lyrics: "a one\na two\n\nb one\nb two\n\nc one",
+        timings: aTimings,
+        options: staggered,
+      },
+      {
+        voice: "B",
+        lyrics: "b line",
+        timings: [[5.5, LYRIC_MARKERS.SEGMENT_START]] as LyricEvent[],
+        options: staggered,
+      },
+    ];
+    const v0 = marginVsForStyle(createMultiVoiceAssFile(tracks, 10, "T", "A"), "V0");
+    // lineHeight 30, lane 0 spans 0..144 so its middle is 72: a 2-line block sits at
+    // 42 and 72, and the early single line joins it at 42.
+    expect(v0).toContain(42);
+    // 57 would be a lone line centred in the lane, overlapping the outgoing line at 72.
+    expect(v0).not.toContain(57);
+  });
 
-    it("puts simultaneous voices in separate vertical lanes (voice 0 above voice 1)", () => {
-        const noAux: KaraokeOptions = {
-            ...DEFAULT_OPTIONS,
-            addTitleScreen: false,
-            addCountIns: false,
-            addInstrumentalScreens: false,
-            addStaggeredLines: false,
-        };
-        const tracks = [
-            {
-                voice: "A",
-                lyrics: "a one\n",
-                timings: [[1.0, LYRIC_MARKERS.SEGMENT_START]] as LyricEvent[],
-                options: noAux
-            },
-            {
-                voice: "B",
-                lyrics: "b one\n",
-                timings: [[1.0, LYRIC_MARKERS.SEGMENT_START]] as LyricEvent[],
-                options: noAux
-            },
-        ];
-        const ass = createMultiVoiceAssFile(tracks, 10, "T", "A");
-        const v0 = marginVsForStyle(ass, "V0");
-        const v1 = marginVsForStyle(ass, "V1");
-        // V0's lane sits entirely above V1's lane.
-        expect(Math.max(...v0)).toBeLessThan(Math.min(...v1));
-    });
+  it("puts simultaneous voices in separate vertical lanes (voice 0 above voice 1)", () => {
+    const noAux: KaraokeOptions = {
+      ...DEFAULT_OPTIONS,
+      addTitleScreen: false,
+      addCountIns: false,
+      addInstrumentalScreens: false,
+      addStaggeredLines: false,
+    };
+    const tracks = [
+      {
+        voice: "A",
+        lyrics: "a one\n",
+        timings: [[1.0, LYRIC_MARKERS.SEGMENT_START]] as LyricEvent[],
+        options: noAux,
+      },
+      {
+        voice: "B",
+        lyrics: "b one\n",
+        timings: [[1.0, LYRIC_MARKERS.SEGMENT_START]] as LyricEvent[],
+        options: noAux,
+      },
+    ];
+    const ass = createMultiVoiceAssFile(tracks, 10, "T", "A");
+    const v0 = marginVsForStyle(ass, "V0");
+    const v1 = marginVsForStyle(ass, "V1");
+    // V0's lane sits entirely above V1's lane.
+    expect(Math.max(...v0)).toBeLessThan(Math.min(...v1));
+  });
 });
 
 describe("setSegmentEndTimes overlap clamp", () => {
-    it("clamps an explicit end that extends past the next segment's start", () => {
-        const s1 = new LyricSegment("a", 1.0, 5.0); // explicit end 5.0...
-        const s2 = new LyricSegment("b", 3.0);      // ...but next segment starts at 3.0
-        const screen = new LyricsScreen([new LyricsLine([s1, s2])]);
-        setSegmentEndTimes([screen], 10);
-        expect(s1.endTimestamp).toBe(3.0); // clamped to the next start
-        expect(s2.endTimestamp).toBe(10);  // last segment inferred to song duration
-    });
+  it("clamps an explicit end that extends past the next segment's start", () => {
+    const s1 = new LyricSegment("a", 1.0, 5.0); // explicit end 5.0...
+    const s2 = new LyricSegment("b", 3.0); // ...but next segment starts at 3.0
+    const screen = new LyricsScreen([new LyricsLine([s1, s2])]);
+    setSegmentEndTimes([screen], 10);
+    expect(s1.endTimestamp).toBe(3.0); // clamped to the next start
+    expect(s2.endTimestamp).toBe(10); // last segment inferred to song duration
+  });
 
-    it("leaves an explicit end that fits before the next segment", () => {
-        const s1 = new LyricSegment("a", 1.0, 2.0);
-        const s2 = new LyricSegment("b", 3.0);
-        const screen = new LyricsScreen([new LyricsLine([s1, s2])]);
-        setSegmentEndTimes([screen], 10);
-        expect(s1.endTimestamp).toBe(2.0);
-    });
+  it("leaves an explicit end that fits before the next segment", () => {
+    const s1 = new LyricSegment("a", 1.0, 2.0);
+    const s2 = new LyricSegment("b", 3.0);
+    const screen = new LyricsScreen([new LyricsLine([s1, s2])]);
+    setSegmentEndTimes([screen], 10);
+    expect(s1.endTimestamp).toBe(2.0);
+  });
 });

@@ -26,7 +26,9 @@ export function serializeVoiceStyle(style: VoiceStyleOverride): Record<string, u
   const out: Record<string, unknown> = {};
   for (const [key, value] of Object.entries(style)) {
     if (value === undefined) continue;
-    out[key] = VOICE_STYLE_COLOR_FIELDS.includes(key as any) ? (value as BuefyColor).toString() : value;
+    out[key] = VOICE_STYLE_COLOR_FIELDS.includes(key as any)
+      ? (value as BuefyColor).toString()
+      : value;
   }
   return out;
 }
@@ -35,7 +37,9 @@ export function deserializeVoiceStyle(stored: Record<string, unknown>): VoiceSty
   const style: Record<string, unknown> = {};
   for (const [key, value] of Object.entries(stored)) {
     if (value === undefined || value === null) continue;
-    style[key] = VOICE_STYLE_COLOR_FIELDS.includes(key as any) ? BuefyColor.parse(value as string) : value;
+    style[key] = VOICE_STYLE_COLOR_FIELDS.includes(key as any)
+      ? BuefyColor.parse(value as string)
+      : value;
   }
   return style as VoiceStyleOverride;
 }
@@ -46,7 +50,10 @@ export function isEmptyOverride(override?: VoiceStyleOverride): boolean {
 
 // Resolve a voice's effective options by merging its override over the base. Returns the
 // base unchanged when there is no override, so un-styled voices render identically.
-export function applyVoiceStyle(base: KaraokeOptions, override?: VoiceStyleOverride): KaraokeOptions {
+export function applyVoiceStyle(
+  base: KaraokeOptions,
+  override?: VoiceStyleOverride,
+): KaraokeOptions {
   if (isEmptyOverride(override)) {
     return base;
   }

@@ -1,33 +1,36 @@
-import { test, expect } from '@playwright/test';
+import { test, expect } from "@playwright/test";
 import {
   setupTestEnvironment,
   navigateToTab,
   TabId,
   loadAndEnterLyrics,
   addUnderscoresToLyrics,
-  toggleMagicSlashes
-} from './utils';
+  toggleMagicSlashes,
+} from "./utils";
 
-test.describe('Lyrics Tab Functionality', () => {
+test.describe("Lyrics Tab Functionality", () => {
   test.beforeEach(async ({ page }) => {
     await setupTestEnvironment(page);
   });
 
-  test('Lyrics tab functionality - Add Underscore and Magic Slashes', async ({ page }) => {
+  test("Lyrics tab functionality - Add Underscore and Magic Slashes", async ({ page }) => {
     // 1. Navigate directly to Lyrics tab
     await navigateToTab(page, TabId.LyricInput);
 
     // 2. Add some test lyrics with repeated words
-    const testLyrics = "Look at the stars look how they shine for you\nAnd everything you do yeah they were all yellow";
+    const testLyrics =
+      "Look at the stars look how they shine for you\nAnd everything you do yeah they were all yellow";
     await loadAndEnterLyrics(page, testLyrics);
 
     // 3. Test Add Underscores button
     await addUnderscoresToLyrics(page);
 
     // Verify spaces were converted to underscores
-    const textAreaLocator = page.locator('.lyric-input-tab .lyric-editor-textarea');
+    const textAreaLocator = page.locator(".lyric-input-tab .lyric-editor-textarea");
     const convertedText = await textAreaLocator.inputValue();
-    expect(convertedText).toBe("Look_at_the_stars_look_how_they_shine_for_you\nAnd_everything_you_do_yeah_they_were_all_yellow");
+    expect(convertedText).toBe(
+      "Look_at_the_stars_look_how_they_shine_for_you\nAnd_everything_you_do_yeah_they_were_all_yellow",
+    );
 
     // 4. Test Magic Slashes functionality
     // Verify the Magic Slashes checkbox is checked by default

@@ -1,4 +1,4 @@
-import { test, expect, Page } from '@playwright/test';
+import { test, expect, Page } from "@playwright/test";
 import {
   defaultTestConfig,
   setupTestEnvironment,
@@ -9,9 +9,9 @@ import {
   uploadTimingsFile,
   mockSeparateTrackApiDirect,
   waitForTabToBeEnabled,
-} from './utils';
+} from "./utils";
 
-const PREVIEW_AUDIO = '.preview-container audio';
+const PREVIEW_AUDIO = ".preview-container audio";
 const TRACK_SELECT = '.field:has(label:has-text("Preview audio")) select';
 
 interface PreviewAudioState {
@@ -85,18 +85,26 @@ async function expectPlayingAndAdvancing(page: Page, label: string) {
     .toBeGreaterThan(state.currentTime);
 }
 
-test.describe('Submit preview track switching', () => {
+test.describe("Submit preview track switching", () => {
   test.describe.configure({ timeout: 120000 });
 
   test.beforeEach(async ({ page }) => {
     await setupTestEnvironment(page);
   });
 
-  test('preview keeps playing across track switches, seeks, and reload', async ({ page, context }) => {
+  test("preview keeps playing across track switches, seeks, and reload", async ({
+    page,
+    context,
+  }) => {
     await mockSeparateTrackApiDirect(context);
 
     await navigateToTab(page, TabId.SongInfo);
-    await uploadAudioFile(page, defaultTestConfig.audioFile, defaultTestConfig.artist, defaultTestConfig.title);
+    await uploadAudioFile(
+      page,
+      defaultTestConfig.audioFile,
+      defaultTestConfig.artist,
+      defaultTestConfig.title,
+    );
     await page.click('button:has-text("Separate Track")');
     await navigateToTab(page, TabId.LyricInput);
     await loadAndEnterLyrics(page, defaultTestConfig.lyricsFile);
@@ -109,28 +117,28 @@ test.describe('Submit preview track switching', () => {
     // Wait for the preview audio source to be ready
     await expect
       .poll(async () => (await previewAudioState(page)).src, { timeout: 15000 })
-      .not.toBe('');
+      .not.toBe("");
 
     await startPreviewPlayback(page);
-    await expectPlayingAndAdvancing(page, 'initial playback');
+    await expectPlayingAndAdvancing(page, "initial playback");
 
     // Switch to the backing track mid-playback and listen there
-    await page.locator(TRACK_SELECT).selectOption('backing');
-    await expectPlayingAndAdvancing(page, 'after switching to backing');
+    await page.locator(TRACK_SELECT).selectOption("backing");
+    await expectPlayingAndAdvancing(page, "after switching to backing");
 
     // Seek around manually a few times, like a user dragging the scrubber
     await seekPreview(page, 5);
     await seekPreview(page, 2);
     await seekPreview(page, 8);
-    await expectPlayingAndAdvancing(page, 'after manual seeks on backing');
+    await expectPlayingAndAdvancing(page, "after manual seeks on backing");
 
     // Switch back to the full track mid-playback (the reported bug)
-    await page.locator(TRACK_SELECT).selectOption('full');
-    await expectPlayingAndAdvancing(page, 'after switching back to full');
+    await page.locator(TRACK_SELECT).selectOption("full");
+    await expectPlayingAndAdvancing(page, "after switching back to full");
 
     // And once more to backing, to catch wedging on repeat switches
-    await page.locator(TRACK_SELECT).selectOption('backing');
-    await expectPlayingAndAdvancing(page, 'after second switch to backing');
+    await page.locator(TRACK_SELECT).selectOption("backing");
+    await expectPlayingAndAdvancing(page, "after second switch to backing");
 
     // Reload the page: the preview must still be playable from restored state
     await page.reload();
@@ -139,8 +147,8 @@ test.describe('Submit preview track switching', () => {
     await expect(page.locator(PREVIEW_AUDIO)).toBeVisible({ timeout: 15000 });
     await expect
       .poll(async () => (await previewAudioState(page)).src, { timeout: 15000 })
-      .not.toBe('');
+      .not.toBe("");
     await startPreviewPlayback(page);
-    await expectPlayingAndAdvancing(page, 'after page reload');
+    await expectPlayingAndAdvancing(page, "after page reload");
   });
 });

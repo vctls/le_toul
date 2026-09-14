@@ -1,6 +1,3 @@
 {
-    "recommendations": [
-        "vue.volar",
-        "vitest.explorer"
-    ]
+  "recommendations": ["vue.volar", "vitest.explorer", "esbenp.prettier-vscode"]
 }

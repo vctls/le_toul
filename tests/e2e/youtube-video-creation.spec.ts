@@ -1,4 +1,4 @@
-import { test } from '@playwright/test';
+import { test } from "@playwright/test";
 import {
   defaultTestConfig,
   setupTestEnvironment,
@@ -17,17 +17,17 @@ import {
   enterYouTubeUrl,
   getCurrentTimings,
   loadFixtureJson,
-  expectTimingsToMatch
-} from './utils';
+  expectTimingsToMatch,
+} from "./utils";
 
-test.describe('YouTube Karaoke Video Creation', () => {
+test.describe("YouTube Karaoke Video Creation", () => {
   test.describe.configure({ timeout: 300000 }); // 5 minutes
 
   test.beforeEach(async ({ page }) => {
     await setupTestEnvironment(page);
   });
 
-  test('Create a complete karaoke video from YouTube URL', async ({ page, context }) => {
+  test("Create a complete karaoke video from YouTube URL", async ({ page, context }) => {
     // Setup API mocks first
     await mockSeparateTrackApi(context);
     await mockYouTubeDownloadApi(context);
@@ -38,9 +38,9 @@ test.describe('YouTube Karaoke Video Creation', () => {
     // 2. Enter YouTube URL and load it
     await enterYouTubeUrl(
       page,
-      'https://www.youtube.com/watch?v=gVw-wI1GeqI',
-      'Beastie Boys - Topic',
-      'Now Get Busy'
+      "https://www.youtube.com/watch?v=gVw-wI1GeqI",
+      "Beastie Boys - Topic",
+      "Now Get Busy",
     );
 
     // 3. Verify Song Timing tab is initially disabled
@@ -67,7 +67,7 @@ test.describe('YouTube Karaoke Video Creation', () => {
     await loadAndEnterTimings(page, defaultTestConfig.timingsFile);
 
     // 9. Verify success message
-    await expectSuccessMessage(page, '.song-timing-tab');
+    await expectSuccessMessage(page, ".song-timing-tab");
 
     // 10. Get timings and compare with expected
     const actualTimings = await getCurrentTimings(page);
@@ -87,6 +87,6 @@ test.describe('YouTube Karaoke Video Creation', () => {
     // 13. Wait for video download and verify
     const VIDEO_CREATION_TIMEOUT = 180000; // 3 minutes
     const videoPath = await expectFileDownload(page, VIDEO_CREATION_TIMEOUT);
-    console.log('Video download path:', videoPath);
+    console.log("Video download path:", videoPath);
   });
 });

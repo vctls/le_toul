@@ -1,27 +1,27 @@
-import { readFileSync } from 'node:fs';
-import path from 'node:path';
-import { createPinia, setActivePinia } from 'pinia';
-import { useSettingsStore } from './settings';
-import { VerticalAlignment } from '@/lib/timing';
-import { BACKING_VOCALS_SEPARATOR_MODEL, NO_VOCALS_SEPARATOR_MODEL } from './media';
-import Color from 'buefy/src/utils/color';
-import { beforeEach, describe, expect, test, vi } from 'vitest';
-import { nextTick } from 'vue';
-import { applyVoiceStyle } from '@/lib/voiceStyle';
-import { UnreadableFontError } from '@/lib/fontFile';
+import { readFileSync } from "node:fs";
+import path from "node:path";
+import { createPinia, setActivePinia } from "pinia";
+import { useSettingsStore } from "./settings";
+import { VerticalAlignment } from "@/lib/timing";
+import { BACKING_VOCALS_SEPARATOR_MODEL, NO_VOCALS_SEPARATOR_MODEL } from "./media";
+import Color from "buefy/src/utils/color";
+import { beforeEach, describe, expect, test, vi } from "vitest";
+import { nextTick } from "vue";
+import { applyVoiceStyle } from "@/lib/voiceStyle";
+import { UnreadableFontError } from "@/lib/fontFile";
 
 function fontFile(name: string, as = name): File {
-  const data = readFileSync(path.resolve(__dirname, '../../api/assets/fonts', name));
+  const data = readFileSync(path.resolve(__dirname, "../../api/assets/fonts", name));
   return new File([new Uint8Array(data)], as);
 }
 
-describe('Settings Store', () => {
+describe("Settings Store", () => {
   beforeEach(() => {
     // Create a fresh pinia instance for each test
     setActivePinia(createPinia());
   });
 
-  test('should initialize with default settings', () => {
+  test("should initialize with default settings", () => {
     const settingsStore = useSettingsStore();
 
     // Check default values
@@ -30,21 +30,21 @@ describe('Settings Store', () => {
     expect(settingsStore.videoOptions.addInstrumentalScreens).toBe(true);
     expect(settingsStore.videoOptions.addStaggeredLines).toBe(true);
     expect(settingsStore.videoOptions.useBackgroundVideo).toBe(false);
-    expect(settingsStore.videoOptions.outputFormat).toBe('mp4');
+    expect(settingsStore.videoOptions.outputFormat).toBe("mp4");
     expect(settingsStore.videoOptions.verticalAlignment).toBe(VerticalAlignment.Middle);
     expect(settingsStore.videoOptions.vocalSeparationModel).toBe(BACKING_VOCALS_SEPARATOR_MODEL);
 
     // Check font default values
     expect(settingsStore.videoOptions.font.size).toBe(20);
-    expect(settingsStore.videoOptions.font.name).toBe('Arial Narrow');
+    expect(settingsStore.videoOptions.font.name).toBe("Arial Narrow");
 
     // Check color default values
-    expect(settingsStore.videoOptions.color.background.toString()).toBe('#000000');
-    expect(settingsStore.videoOptions.color.primary.toString()).toBe('#ff00ff');
-    expect(settingsStore.videoOptions.color.secondary.toString()).toBe('#00ffff');
+    expect(settingsStore.videoOptions.color.background.toString()).toBe("#000000");
+    expect(settingsStore.videoOptions.color.primary.toString()).toBe("#ff00ff");
+    expect(settingsStore.videoOptions.color.secondary.toString()).toBe("#00ffff");
   });
 
-  test('should save settings to localStorage when changed', async () => {
+  test("should save settings to localStorage when changed", async () => {
     const settingsStore = useSettingsStore();
 
     // Modify a setting
@@ -59,11 +59,11 @@ describe('Settings Store', () => {
     expect(savedOptions.addTitleScreen).toBe(false);
 
     // Check that colors are stored as strings
-    expect(typeof savedOptions.color.background).toBe('string');
-    expect(savedOptions.color.background).toBe('#000000');
+    expect(typeof savedOptions.color.background).toBe("string");
+    expect(savedOptions.color.background).toBe("#000000");
   });
 
-  test('should load settings from localStorage', () => {
+  test("should load settings from localStorage", () => {
     // Prepare localStorage with custom settings
     const customSettings = {
       addTitleScreen: false,
@@ -75,13 +75,13 @@ describe('Settings Store', () => {
       vocalSeparationModel: NO_VOCALS_SEPARATOR_MODEL,
       font: {
         size: 30,
-        name: "Times New Roman"
+        name: "Times New Roman",
       },
       color: {
         background: "#111111",
         primary: "#222222",
-        secondary: "#333333"
-      }
+        secondary: "#333333",
+      },
     };
 
     window.localStorage.videoOptions = JSON.stringify(customSettings);
@@ -100,19 +100,19 @@ describe('Settings Store', () => {
 
     // Check font values
     expect(settingsStore.videoOptions.font.size).toBe(30);
-    expect(settingsStore.videoOptions.font.name).toBe('Times New Roman');
+    expect(settingsStore.videoOptions.font.name).toBe("Times New Roman");
 
     // Check color values - they should be Color objects after loading
     expect(settingsStore.videoOptions.color.background).toBeInstanceOf(Color);
-    expect(settingsStore.videoOptions.color.background.toString()).toBe('#111111');
-    expect(settingsStore.videoOptions.color.primary.toString()).toBe('#222222');
-    expect(settingsStore.videoOptions.color.secondary.toString()).toBe('#333333');
+    expect(settingsStore.videoOptions.color.background.toString()).toBe("#111111");
+    expect(settingsStore.videoOptions.color.primary.toString()).toBe("#222222");
+    expect(settingsStore.videoOptions.color.secondary.toString()).toBe("#333333");
   });
 
-  test('should handle invalid localStorage data', () => {
+  test("should handle invalid localStorage data", () => {
     // Set invalid JSON in localStorage
-    const consoleSpy = vi.spyOn(console, 'error');
-    window.localStorage.videoOptions = 'not-valid-json';
+    const consoleSpy = vi.spyOn(console, "error");
+    window.localStorage.videoOptions = "not-valid-json";
 
     // Initialize the store - this should use default values
     const settingsStore = useSettingsStore();
@@ -120,13 +120,13 @@ describe('Settings Store', () => {
     // Verify default settings were used
     expect(settingsStore.videoOptions.addTitleScreen).toBe(true);
     expect(settingsStore.videoOptions.font.size).toBe(20);
-    expect(settingsStore.videoOptions.color.background.toString()).toBe('#000000');
+    expect(settingsStore.videoOptions.color.background.toString()).toBe("#000000");
 
     // Spy on console.error
     expect(consoleSpy).toHaveBeenCalled();
   });
 
-  test('should reset settings to defaults', async () => {
+  test("should reset settings to defaults", async () => {
     // Start with custom settings
     const customSettings = {
       addTitleScreen: false,
@@ -138,13 +138,13 @@ describe('Settings Store', () => {
       vocalSeparationModel: NO_VOCALS_SEPARATOR_MODEL,
       font: {
         size: 30,
-        name: "Times New Roman"
+        name: "Times New Roman",
       },
       color: {
         background: "#111111",
         primary: "#222222",
-        secondary: "#333333"
-      }
+        secondary: "#333333",
+      },
     };
 
     window.localStorage.videoOptions = JSON.stringify(customSettings);
@@ -161,17 +161,17 @@ describe('Settings Store', () => {
     expect(settingsStore.videoOptions.addTitleScreen).toBe(true);
     expect(settingsStore.videoOptions.addCountIns).toBe(true);
     expect(settingsStore.videoOptions.font.size).toBe(20);
-    expect(settingsStore.videoOptions.font.name).toBe('Arial Narrow');
-    expect(settingsStore.videoOptions.color.background.toString()).toBe('#000000');
-    expect(settingsStore.videoOptions.color.primary.toString()).toBe('#ff00ff');
-    expect(settingsStore.videoOptions.color.secondary.toString()).toBe('#00ffff');
+    expect(settingsStore.videoOptions.font.name).toBe("Arial Narrow");
+    expect(settingsStore.videoOptions.color.background.toString()).toBe("#000000");
+    expect(settingsStore.videoOptions.color.primary.toString()).toBe("#ff00ff");
+    expect(settingsStore.videoOptions.color.secondary.toString()).toBe("#00ffff");
 
     // Check localStorage was updated
     const savedOptions = JSON.parse(window.localStorage.videoOptions);
     expect(savedOptions.addTitleScreen).toBe(true);
   });
 
-  test('count-in duration is capped by the threshold', async () => {
+  test("count-in duration is capped by the threshold", async () => {
     window.localStorage.clear();
     const settingsStore = useSettingsStore();
 
@@ -185,85 +185,88 @@ describe('Settings Store', () => {
     expect(settingsStore.videoOptions.countInDuration).toBe(3);
   });
 
-  test('applyVideoOptions merges partial options over the current ones', async () => {
+  test("applyVideoOptions merges partial options over the current ones", async () => {
     window.localStorage.clear();
     const settingsStore = useSettingsStore();
 
     settingsStore.applyVideoOptions({
       addCountIns: false,
-      font: { name: 'Impact' } as any,
-      color: { primary: Color.parse('#abcdef') } as any,
+      font: { name: "Impact" } as any,
+      color: { primary: Color.parse("#abcdef") } as any,
     });
 
     // Applied
     expect(settingsStore.videoOptions.addCountIns).toBe(false);
-    expect(settingsStore.videoOptions.font.name).toBe('Impact');
-    expect(settingsStore.videoOptions.color.primary.toString()).toBe('#abcdef');
+    expect(settingsStore.videoOptions.font.name).toBe("Impact");
+    expect(settingsStore.videoOptions.color.primary.toString()).toBe("#abcdef");
     // Untouched
     expect(settingsStore.videoOptions.addTitleScreen).toBe(true);
     expect(settingsStore.videoOptions.font.size).toBe(20);
-    expect(settingsStore.videoOptions.color.background.toString()).toBe('#000000');
-    expect(settingsStore.videoOptions.color.secondary.toString()).toBe('#00ffff');
+    expect(settingsStore.videoOptions.color.background.toString()).toBe("#000000");
+    expect(settingsStore.videoOptions.color.secondary.toString()).toBe("#00ffff");
 
     // And persisted, like any other change
     await nextTick();
-    expect(JSON.parse(window.localStorage.videoOptions).color.primary).toBe('#abcdef');
+    expect(JSON.parse(window.localStorage.videoOptions).color.primary).toBe("#abcdef");
   });
 
-  describe('Voice style overrides', () => {
+  describe("Voice style overrides", () => {
     beforeEach(() => {
       window.localStorage.clear();
     });
 
-    test('sets and gets a per-voice override', () => {
+    test("sets and gets a per-voice override", () => {
       const store = useSettingsStore();
-      expect(store.getVoiceStyle('Anna')).toBeUndefined();
+      expect(store.getVoiceStyle("Anna")).toBeUndefined();
 
-      store.setVoiceStyleField('Anna', 'fontName', 'Impact');
-      store.setVoiceStyleField('Anna', 'bold', false);
+      store.setVoiceStyleField("Anna", "fontName", "Impact");
+      store.setVoiceStyleField("Anna", "bold", false);
 
-      expect(store.getVoiceStyle('Anna')).toEqual({ fontName: 'Impact', bold: false });
+      expect(store.getVoiceStyle("Anna")).toEqual({ fontName: "Impact", bold: false });
     });
 
-    test('persists overrides with colors as hex strings', async () => {
+    test("persists overrides with colors as hex strings", async () => {
       const store = useSettingsStore();
-      store.setVoiceStyleField('Anna', 'primary', Color.parse('#abcdef'));
+      store.setVoiceStyleField("Anna", "primary", Color.parse("#abcdef"));
       await nextTick();
 
-      const saved = JSON.parse(window.localStorage.getItem('voiceStyles') as string);
-      expect(saved.Anna.primary).toBe('#abcdef');
+      const saved = JSON.parse(window.localStorage.getItem("voiceStyles") as string);
+      expect(saved.Anna.primary).toBe("#abcdef");
     });
 
-    test('loads overrides from localStorage, parsing colors back', () => {
-      window.localStorage.setItem('voiceStyles', JSON.stringify({ Ben: { fontSize: 28, secondary: '#123456' } }));
+    test("loads overrides from localStorage, parsing colors back", () => {
+      window.localStorage.setItem(
+        "voiceStyles",
+        JSON.stringify({ Ben: { fontSize: 28, secondary: "#123456" } }),
+      );
 
       const store = useSettingsStore();
-      const ben = store.getVoiceStyle('Ben');
+      const ben = store.getVoiceStyle("Ben");
 
       expect(ben?.fontSize).toBe(28);
       expect(ben?.secondary).toBeInstanceOf(Color);
-      expect(ben?.secondary?.toString()).toBe('#123456');
+      expect(ben?.secondary?.toString()).toBe("#123456");
     });
 
-    test('setVoiceStyles replaces every override', () => {
+    test("setVoiceStyles replaces every override", () => {
       const store = useSettingsStore();
-      store.setVoiceStyleField('Anna', 'bold', true);
+      store.setVoiceStyleField("Anna", "bold", true);
 
       store.setVoiceStyles({ Ben: { fontSize: 18 } });
 
-      expect(store.getVoiceStyle('Anna')).toBeUndefined();
-      expect(store.getVoiceStyle('Ben')).toEqual({ fontSize: 18 });
+      expect(store.getVoiceStyle("Anna")).toBeUndefined();
+      expect(store.getVoiceStyle("Ben")).toEqual({ fontSize: 18 });
     });
 
-    test('clearVoiceStyle removes the override', () => {
+    test("clearVoiceStyle removes the override", () => {
       const store = useSettingsStore();
-      store.setVoiceStyleField('Anna', 'bold', true);
-      store.clearVoiceStyle('Anna');
-      expect(store.getVoiceStyle('Anna')).toBeUndefined();
+      store.setVoiceStyleField("Anna", "bold", true);
+      store.clearVoiceStyle("Anna");
+      expect(store.getVoiceStyle("Anna")).toBeUndefined();
     });
   });
 
-  describe('custom font', () => {
+  describe("custom font", () => {
     // Earlier tests leave settings in localStorage, which a new store would load; these
     // cases are about the defaults and the uploaded font.
     beforeEach(() => {
@@ -271,82 +274,82 @@ describe('Settings Store', () => {
       setActivePinia(createPinia());
     });
 
-    test('renderOptions matches videoOptions when no font is uploaded', () => {
+    test("renderOptions matches videoOptions when no font is uploaded", () => {
       const store = useSettingsStore();
 
       expect(store.customFontFamily).toBeNull();
       expect(store.renderOptions.font.name).toBe(store.videoOptions.font.name);
     });
 
-    test('an uploaded font overrides the picked one for rendering', async () => {
+    test("an uploaded font overrides the picked one for rendering", async () => {
       const store = useSettingsStore();
-      store.videoOptions.font.name = 'Arial';
+      store.videoOptions.font.name = "Arial";
 
-      await store.setCustomFont(fontFile('MetalMania.ttf', 'my-font.ttf'));
+      await store.setCustomFont(fontFile("MetalMania.ttf", "my-font.ttf"));
 
       // The family name the font declares, not the file name, is what libass matches on.
-      expect(store.customFontFamily).toBe('Metal Mania');
-      expect(store.renderOptions.font.name).toBe('Metal Mania');
+      expect(store.customFontFamily).toBe("Metal Mania");
+      expect(store.renderOptions.font.name).toBe("Metal Mania");
       // The picker keeps its own value, so clearing the upload restores it.
-      expect(store.videoOptions.font.name).toBe('Arial');
+      expect(store.videoOptions.font.name).toBe("Arial");
       expect(store.customFontUrl).toBeTruthy();
     });
 
-    test('other render options are untouched by an uploaded font', async () => {
+    test("other render options are untouched by an uploaded font", async () => {
       const store = useSettingsStore();
       store.videoOptions.font.size = 42;
 
-      await store.setCustomFont(fontFile('Impact.ttf'));
+      await store.setCustomFont(fontFile("Impact.ttf"));
 
       expect(store.renderOptions.font.size).toBe(42);
-      expect(store.renderOptions.color.primary.toString()).toBe('#ff00ff');
+      expect(store.renderOptions.color.primary.toString()).toBe("#ff00ff");
     });
 
-    test('clearing the font falls back to the picked one', async () => {
+    test("clearing the font falls back to the picked one", async () => {
       const store = useSettingsStore();
-      store.videoOptions.font.name = 'Arial';
-      await store.setCustomFont(fontFile('Impact.ttf'));
+      store.videoOptions.font.name = "Arial";
+      await store.setCustomFont(fontFile("Impact.ttf"));
 
       await store.setCustomFont(null);
 
       expect(store.customFont).toBeNull();
       expect(store.customFontFamily).toBeNull();
       expect(store.customFontUrl).toBeNull();
-      expect(store.renderOptions.font.name).toBe('Arial');
+      expect(store.renderOptions.font.name).toBe("Arial");
     });
 
-    test('a file that is not a font is rejected and does not become active', async () => {
+    test("a file that is not a font is rejected and does not become active", async () => {
       const store = useSettingsStore();
 
-      await expect(store.setCustomFont(new File(['nope'], 'fake.ttf'))).rejects.toThrow(
-        UnreadableFontError
+      await expect(store.setCustomFont(new File(["nope"], "fake.ttf"))).rejects.toThrow(
+        UnreadableFontError,
       );
       expect(store.customFont).toBeNull();
       expect(store.customFontFamily).toBeNull();
-      expect(store.renderOptions.font.name).toBe('Arial Narrow');
+      expect(store.renderOptions.font.name).toBe("Arial Narrow");
     });
 
-    test('a voice with its own font keeps it over the uploaded one', async () => {
+    test("a voice with its own font keeps it over the uploaded one", async () => {
       const store = useSettingsStore();
-      store.setVoiceStyleField('Anna', 'fontName', 'Impact');
-      await store.setCustomFont(fontFile('MetalMania.ttf'));
+      store.setVoiceStyleField("Anna", "fontName", "Impact");
+      await store.setCustomFont(fontFile("MetalMania.ttf"));
 
-      const anna = applyVoiceStyle(store.renderOptions, store.getVoiceStyle('Anna'));
-      const ben = applyVoiceStyle(store.renderOptions, store.getVoiceStyle('Ben'));
+      const anna = applyVoiceStyle(store.renderOptions, store.getVoiceStyle("Anna"));
+      const ben = applyVoiceStyle(store.renderOptions, store.getVoiceStyle("Ben"));
 
-      expect(anna.font.name).toBe('Impact');
-      expect(ben.font.name).toBe('Metal Mania');
+      expect(anna.font.name).toBe("Impact");
+      expect(ben.font.name).toBe("Metal Mania");
     });
 
-    test('resetSettings drops the uploaded font', async () => {
+    test("resetSettings drops the uploaded font", async () => {
       const store = useSettingsStore();
-      await store.setCustomFont(fontFile('Impact.ttf'));
+      await store.setCustomFont(fontFile("Impact.ttf"));
 
       store.resetSettings();
 
       expect(store.customFont).toBeNull();
       expect(store.customFontFamily).toBeNull();
-      expect(store.renderOptions.font.name).toBe('Arial Narrow');
+      expect(store.renderOptions.font.name).toBe("Arial Narrow");
     });
   });
 });

@@ -1,4 +1,4 @@
-.PHONY: dev install bump-version-minor bump-version-patch format-backend run-api test-api test-frontend-docker test-e2e-docker test-docker build-docker
+.PHONY: dev install bump-version-minor bump-version-patch format format-backend format-frontend run-api test-api test-frontend-docker test-e2e-docker test-docker build-docker
 dev:
 	@set -e; \
 	trap 'printf "\n↪ shutting down…\n"; kill 0; exit 0' INT TERM; \
@@ -26,6 +26,12 @@ bump-version-patch:
 format-backend:
 	@set -e; \
 	poetry run black api/;
+
+format-frontend:
+	@set -e; \
+	npm run format;
+
+format: format-backend format-frontend
 
 run-api:
 	@set -e; \

@@ -30,7 +30,7 @@
 /* A component that displays WebVTT subtitles over a black screen, with an audio file provided as a prop */
 // TODO: Incorporate audio delay
 
-import {defineComponent, markRaw} from "vue";
+import { defineComponent, markRaw } from "vue";
 import bufferToWav from "audiobuffer-to-wav";
 import SubtitleDisplay from "./SubtitleDisplay.vue";
 import SmoothAudioPlayer from "./SmoothAudioPlayer.vue";
@@ -150,9 +150,7 @@ export default defineComponent({
       return this.$refs.subtitleDisplay as InstanceType<typeof SubtitleDisplay> | undefined;
     },
     togglePlayback() {
-      const audio = this.playerRef()?.audioPlayer as
-        | HTMLAudioElement
-        | undefined;
+      const audio = this.playerRef()?.audioPlayer as HTMLAudioElement | undefined;
       if (!audio) {
         return;
       }
@@ -197,9 +195,7 @@ export default defineComponent({
 
       // Capture the playhead/play state right before swapping the source,
       // since reloading the <audio> element resets playback to 0 and pauses.
-      const audio = this.playerRef()?.audioPlayer as
-        | HTMLAudioElement
-        | undefined;
+      const audio = this.playerRef()?.audioPlayer as HTMLAudioElement | undefined;
       const resumeTime = audio ? audio.currentTime : 0;
       const wasPlaying = audio ? !audio.paused : false;
 
@@ -219,10 +215,7 @@ export default defineComponent({
       };
       audio.addEventListener("loadedmetadata", onLoaded, { once: true });
     },
-    async prependSilence(
-      audioData: Blob,
-      secondsOfSilence: number
-    ): Promise<Blob> {
+    async prependSilence(audioData: Blob, secondsOfSilence: number): Promise<Blob> {
       // Prepend N seconds of silence to the start of the songfile
       if (secondsOfSilence == 0) {
         return audioData;
@@ -257,7 +250,7 @@ export default defineComponent({
       const songWithSilenceBuffer = audioContext.createBuffer(
         songBuffer.numberOfChannels,
         songBuffer.length + secondsOfSilence * audioBuffer.sampleRate,
-        songBuffer.sampleRate
+        songBuffer.sampleRate,
       );
 
       // Get the channel data from the result buffer
@@ -293,20 +286,12 @@ export default defineComponent({
       this.$emit("pause");
     },
     onAudioSeeking() {
-      this.playerRef()?.removeEventListener(
-        "timeupdate",
-        this.onAudioTimeUpdate,
-        false
-      );
+      this.playerRef()?.removeEventListener("timeupdate", this.onAudioTimeUpdate, false);
       this.$emit("seeking");
     },
 
     onAudioSeeked(e: Event) {
-      this.playerRef()?.addEventListener(
-        "timeupdate",
-        this.onAudioTimeUpdate,
-        false
-      );
+      this.playerRef()?.addEventListener("timeupdate", this.onAudioTimeUpdate, false);
 
       var currentTime = (e.target as HTMLAudioElement).currentTime;
       this.subtitleDisplayRef()?.setPlayhead(currentTime);
