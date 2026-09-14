@@ -247,6 +247,67 @@ describe('Audio Library', () => {
         expect(fetch).toHaveBeenCalledTimes(3);
     });
 
+    it('reports the progress of a job that is still running', async () => {
+        const mockFile = new File(['audio data'], 'test.mp3', { type: 'audio/mp3' });
+        const mockZipBlob = new Blob([new ArrayBuffer(8)], { type: 'application/zip' });
+
+        (fetch as any).mockResolvedValueOnce({
+            ok: true,
+            headers: {
+                get: vi.fn().mockReturnValue('application/json')
+            },
+            json: vi.fn().mockResolvedValue({
+                finishedTrackURL: 'http://example.com/poll-url'
+            })
+        });
+
+        (fetch as any).mockResolvedValueOnce({
+            ok: true,
+            headers: {
+                get: vi.fn().mockReturnValue('application/json')
+            },
+            json: vi.fn().mockResolvedValue({
+                status: 'processing',
+                pollIntervalSeconds: 3,
+                progress: 0.42,
+                stage: 'separating the vocals',
+            })
+        });
+
+        // A job reporting no figure of its own, e.g. one polled from the cache
+        (fetch as any).mockResolvedValueOnce({
+            ok: true,
+            headers: {
+                get: vi.fn().mockReturnValue('application/json')
+            },
+            json: vi.fn().mockResolvedValue({ status: 'processing', pollIntervalSeconds: 3 })
+        });
+
+        (fetch as any).mockResolvedValueOnce({
+            ok: true,
+            headers: {
+                get: vi.fn().mockReturnValue('application/zip')
+            },
+            blob: vi.fn().mockResolvedValue(mockZipBlob)
+        });
+
+        const jszip = await import('jszip');
+        vi.spyOn(jszip.default, 'loadAsync').mockResolvedValue({
+            file: vi.fn().mockReturnValue({
+                async: vi.fn().mockResolvedValue(new Blob(['mock audio'], { type: 'audio/wav' }))
+            })
+        } as any);
+
+        const onProgress = vi.fn();
+        const resultPromise = separateTrack(mockFile, 'UVR_MDXNET_KARA_2' as SeparationModel, onProgress);
+
+        await vi.advanceTimersByTimeAsync(6000);
+        await resultPromise;
+
+        expect(onProgress).toHaveBeenNthCalledWith(1, { progress: 0.42, stage: 'separating the vocals' });
+        expect(onProgress).toHaveBeenNthCalledWith(2, { progress: null, stage: null });
+    });
+
     it('reports the status instead of handing an error page to jszip', async () => {
         const mockFile = new File(['audio data'], 'test.mp3', { type: 'audio/mp3' });
 

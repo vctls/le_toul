@@ -2,7 +2,7 @@
   <b-tab-item label="Submit" icon="blender" class="submit-tab scroll-wrapper" headerClass="submit-tab-header">
     <div class="columns is-variable is-5">
       <div class="column settings-column">
-        <h2 class="title">More Settings:</h2>
+        <h2 class="title">More Settings</h2>
         <b-field horizontal>
           <template #label>
             Add Count-Ins
@@ -133,7 +133,7 @@
         </b-collapse>
       </div>
       <div class="column">
-        <h3 class="title">Video Preview:</h3>
+        <h3 class="title">Video Preview</h3>
         <b-field v-if="backingTrack" label="Preview audio" horizontal style="margin-bottom: 0.5em;">
           <b-select v-model="previewTrack">
             <option value="full">Full track</option>
@@ -151,11 +151,12 @@
     <div class="submit-button-container">
       <b-message :model-value="submitError !== null" @update:model-value="submitError = null"
         type="is-danger" has-icon icon="circle-exclamation">
-        There was a problem making your video: {{ submitError }}. Try again? Or
-        email me?
+        There was a problem generating the video: {{ submitError }}
       </b-message>
       <video-creation-progress-indicator v-if="isSubmitting" :song-duration="songDuration ?? undefined" :phase="creationPhase"
-        :progress="videoProgress" :step="creationStep" :elapsed-time="elapsedSubmissionTime ?? undefined" />
+        :progress="videoProgress" :step="creationStep" :elapsed-time="elapsedSubmissionTime ?? undefined"
+        :separation-progress="mediaStore.separationProgress" :separation-stage="mediaStore.separationStage"
+        :waiting-for-separation="waitingForSeparation" />
       <b-message v-if="!canCreateVideo" type="is-info" :closable="false">
         {{ missingStepsMessage }}
       </b-message>
@@ -250,6 +251,7 @@ export default defineComponent({
       isSubmitting: false,
       elapsedSubmissionTime: null as number | null,
       creationPhase: CreationPhase.NotStarted,
+      waitingForSeparation: false,
       videoProgress: 0,
       creationStep: "",
       submitError: null as string | null,
@@ -453,6 +455,10 @@ export default defineComponent({
       this.isSubmitting = true;
       try {
         this.creationPhase = CreationPhase.SeparatingVocals;
+        // A separation started from the Song File tab keeps running and this one only waits on it,
+        // which otherwise looks like a stalled render.
+        this.waitingForSeparation =
+          this.mediaStore.isProcessing && !this.mediaStore.separatedTrack;
         this.videoProgress = 0;
         this.creationStep = "";
         elapsedTimeInterval = setInterval(() => {
@@ -468,6 +474,7 @@ export default defineComponent({
           this.mediaStore.separationModel
         );
         this.creationPhase = CreationPhase.CreatingVideo;
+        this.waitingForSeparation = false;
         const videoOptions = { createTitleScreens: true, ...this.renderOptions };
         const videoFile: Uint8Array = await video.createVideo({
           accompaniment: separatedTrack.backing,
@@ -496,6 +503,7 @@ export default defineComponent({
         clearInterval(elapsedTimeInterval);
         this.elapsedSubmissionTime = null;
         this.creationPhase = CreationPhase.NotStarted;
+        this.waitingForSeparation = false;
         this.creationStep = "";
       }
     },

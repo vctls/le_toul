@@ -9,6 +9,8 @@ from typing import Optional
 import httpx
 
 from api import settings
+from api.karaoke import separation_progress
+from api.karaoke.separation_progress import ProgressCallback
 
 """
 Music Separation Module
@@ -71,33 +73,41 @@ def _get_output_paths(song_dir: Path) -> tuple[Path, Path]:
 
 
 def _split_song_api(
-    songfile: Path, song_dir: Path, model_name: str
+    songfile: Path,
+    song_dir: Path,
+    model_name: str,
+    on_progress: Optional[ProgressCallback] = None,
 ) -> tuple[Path, Path]:
     """Split song using the audio_separator Python API."""
-    try:
-        from audio_separator.separator import Separator
-    except ModuleNotFoundError as e:
-        logging.error(e)
-        logging.warning(
-            "audio_separator not found. I assume we're testing. Gonna use the original song."
-        )
-        return songfile.rename(
-            song_dir.joinpath("accompaniment.wav")
-        ), song_dir.joinpath("vocals.wav")
-
-    separator = Separator(
-        output_dir=str(song_dir),
-        model_file_dir=str(MODELS_DIR),
-    )
-
-    separator.load_model(model_name)
-
     output_names = {
         "Vocals": "vocals",
         "Instrumental": "accompaniment",
     }
 
-    separator.separate(str(songfile), output_names)
+    # Opened before the import: pulling in torch and building the separator take
+    # seconds of their own, and the stage is what the client shows meanwhile.
+    with separation_progress.reporting(on_progress) as progress:
+        progress.stage(separation_progress.LOADING_STAGE)
+
+        try:
+            from audio_separator.separator import Separator
+        except ModuleNotFoundError as e:
+            logging.error(e)
+            logging.warning(
+                "audio_separator not found. I assume we're testing. Gonna use the original song."
+            )
+            return songfile.rename(
+                song_dir.joinpath("accompaniment.wav")
+            ), song_dir.joinpath("vocals.wav")
+
+        separator = Separator(
+            output_dir=str(song_dir),
+            model_file_dir=str(MODELS_DIR),
+        )
+        separator.load_model(model_name)
+
+        progress.stage(separation_progress.READING_STAGE)
+        separator.separate(str(songfile), output_names)
 
     return _get_output_paths(song_dir)
 
@@ -253,6 +263,7 @@ def split_song(
     host: Optional[str] = None,
     port: Optional[int] = None,
     modal_api_url: Optional[str] = None,
+    on_progress: Optional[ProgressCallback] = None,
 ) -> tuple[Path, Path]:
     """
     Split song into instrumental and vocal tracks.
@@ -266,6 +277,9 @@ def split_song(
         host: Host for external separation server
         port: TCP port for external separation server (host+port overrides method if provided)
         api_url: URL for Modal API separation (overrides method if provided)
+        on_progress: Called with (fraction, stage) as the separation advances.
+            Only the API method reports; the others do their work behind a
+            process or a network boundary that carries no progress back.
     """
     _validate_model(model_name)
 
@@ -276,7 +290,7 @@ def split_song(
         )
     elif method == SeparationMethod.API:
         accompaniment_path, vocals_path = _split_song_api(
-            songfile, song_dir, model_name
+            songfile, song_dir, model_name, on_progress
         )
     elif method == SeparationMethod.CLI:
         accompaniment_path, vocals_path = _split_song_cli(

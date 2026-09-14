@@ -67,7 +67,7 @@ test.describe('MKV Output', () => {
 
     const steps: string[] = await page.evaluate(() => (window as any).__progressSteps);
     expect(steps).toEqual([
-      'Creating instrumental track',
+      'Separating the vocals',
       // Named before the first run reports, while the FFmpeg core is still loading.
       'Creating video',
       'Rendering the video',

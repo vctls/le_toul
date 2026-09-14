@@ -5,11 +5,6 @@
         <b-navbar-item tag="span">
           <span class="title">The Tüül</span>
         </b-navbar-item>
-        <b-navbar-item>
-          <span class="subtitle mb-0">
-            &nbsp;(For Making Decent Karaoke Videos From Any Song in About <s>10</s> 20 Minutes)
-          </span>
-        </b-navbar-item>
       </template>
       <template #end>
         <b-navbar-item>

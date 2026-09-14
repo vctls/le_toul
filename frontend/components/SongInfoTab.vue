@@ -2,27 +2,39 @@
   <b-tab-item :class="['song-info-tab', 'scroll-wrapper']" headerClass="song-info-tab-header">
     <template #header>
       <b-icon v-if="!isSeparatingTrack" icon="file-audio"></b-icon>
-      <b-tooltip v-else label="Separating track" position="is-bottom"><span class="icon is-small loader"></span>
+      <b-tooltip v-else :label="separationHeaderLabel" position="is-bottom">
+        <span v-if="separationProgress !== null" class="icon">
+          <circular-progress :value="separationProgress" label="Track separation progress"/>
+        </span>
+        <span v-else class="icon is-small loader"></span>
       </b-tooltip>
       <span> Song File</span>
     </template>
     <div class="container">
       <h2 class="title">Get Your Song Ready</h2>
       <file-upload name="song-file-upload" label="Upload a file from your computer:"
-        v-model="mediaStore.songFile"></file-upload>
+                   v-model="mediaStore.songFile"></file-upload>
       <b-field label="Or paste a YouTube video URL:" :type="youtubeError ? 'is-danger' : ''">
         <template #message>
           <span v-html="youtubeError"></span>
         </template>
-        <b-input type="text" :model-value="mediaStore.youtubeUrl ?? ''" @update:model-value="(v: string | number | undefined) => { mediaStore.youtubeUrl = v == null ? null : String(v); }" />
+        <b-input
+            type="text" :model-value="mediaStore.youtubeUrl ?? ''"
+            @update:model-value="(v: string | number | undefined) => { mediaStore.youtubeUrl = v == null ? null : String(v); }"/>
         <b-button label="Load" :type="mediaStore.youtubeUrl ? 'is-primary' : 'is-light'"
-          :disabled="!mediaStore.youtubeUrl" @click="loadYouTubeUrl" :loading="isLoadingYouTube" />
+                  :disabled="!mediaStore.youtubeUrl" @click="loadYouTubeUrl" :loading="isLoadingYouTube"/>
       </b-field>
       <b-field label="Song Artist">
-        <b-input name="artist" :model-value="mediaStore.songArtist ?? ''" @update:model-value="(v: string | number | undefined) => { mediaStore.songArtist = v == null ? null : String(v); }" />
+        <b-input
+            name="artist"
+            :model-value="mediaStore.songArtist ?? ''"
+            @update:model-value="(v: string | number | undefined) => { mediaStore.songArtist = v == null ? null : String(v); }"/>
       </b-field>
       <b-field label="Song Title">
-        <b-input name="title" :model-value="mediaStore.songTitle ?? ''" @update:model-value="(v: string | number | undefined) => { mediaStore.songTitle = v == null ? null : String(v); }" />
+        <b-input
+            name="title"
+            :model-value="mediaStore.songTitle ?? ''"
+            @update:model-value="(v: string | number | undefined) => { mediaStore.songTitle = v == null ? null : String(v); }"/>
       </b-field>
       <b-field label="Separation Model" class="separation-model-field">
         <div class="separation-model-radios">
@@ -59,27 +71,35 @@
       </template>
       <div class="box">
         <file-upload name="settings-file-upload" :accept="['.yaml', '.yml']" label="Settings File"
-          v-model="mediaStore.settingsFile" @update:modelValue="onSettingsFileChange" />
-        <file-upload name="timings-file-upload" :accept="['.json']" label="Timings File" v-model="mediaStore.timingsFile"
-          @update:modelValue="onTimingsFileChange" />
-        <file-upload label="Backing Track" v-model="mediaStore.backingTrackFile" @update:modelValue="onBackingTrackFileChange" />
-        <file-upload label="Vocal Track" v-model="mediaStore.vocalTrackFile" @update:modelValue="onVocalTrackFileChange" />
+                     v-model="mediaStore.settingsFile" @update:modelValue="onSettingsFileChange"/>
+        <file-upload name="timings-file-upload" :accept="['.json']" label="Timings File"
+                     v-model="mediaStore.timingsFile"
+                     @update:modelValue="onTimingsFileChange"/>
+        <file-upload label="Backing Track" v-model="mediaStore.backingTrackFile"
+                     @update:modelValue="onBackingTrackFileChange"/>
+        <file-upload label="Vocal Track" v-model="mediaStore.vocalTrackFile"
+                     @update:modelValue="onVocalTrackFileChange"/>
       </div>
     </b-collapse>
     <div class="buttons" v-if="!mediaStore.backingTrackFile">
       <b-tooltip position="is-right" :label="separatingTrackMessage" :always="isSeparatingTrack">
         <b-button label="Separate Track" type="is-primary" :disabled="!mediaStore.songFile" :loading="isSeparatingTrack"
-          @click="separateTrack" />
+                  @click="separateTrack"/>
       </b-tooltip>
+    </div>
+    <div class="container separation-progress" v-if="isSeparatingTrack">
+      <b-progress type="is-primary" size="is-medium" :rounded="false" :value="separationPercent" show-value>
+        {{ separationProgressMessage }}
+      </b-progress>
     </div>
   </b-tab-item>
 </template>
 
 <script lang="ts">
-import { defineComponent } from "vue";
-import { mapStores } from "pinia";
-import { fetchYouTubeVideo, parseYouTubeTitle } from "@/lib/video";
-import { SeparationModel } from "@/types";
+import {defineComponent} from "vue";
+import {mapStores} from "pinia";
+import {fetchYouTubeVideo, parseYouTubeTitle} from "@/lib/video";
+import {SeparationModel} from "@/types";
 
 import {
   useMediaStore,
@@ -89,14 +109,16 @@ import {
   BACKING_VOCALS_HQ_ALT_SEPARATOR_MODEL,
   NO_VOCALS_HQ_SEPARATOR_MODEL,
 } from "@/stores/media";
-import { useTimingsStore } from "@/stores/timings";
-import { useSettingsStore } from "@/stores/settings";
-import { parseSettingsYaml } from "@/lib/settingsFile";
+import {useTimingsStore} from "@/stores/timings";
+import {useSettingsStore} from "@/stores/settings";
+import {parseSettingsYaml} from "@/lib/settingsFile";
 import FileUpload from "@/components/FileUpload.vue";
+import CircularProgress from "@/components/CircularProgress.vue";
 
 export default defineComponent({
   components: {
     FileUpload,
+    CircularProgress,
   },
   setup() {
     const mediaStore = useMediaStore();
@@ -124,6 +146,26 @@ export default defineComponent({
     isSeparatingTrack() {
       return this.mediaStore.isProcessing;
     },
+    separationProgress(): number | null {
+      return this.mediaStore.separationProgress;
+    },
+    separationPercent(): number | undefined {
+      // undefined leaves the bar indeterminate rather than parked at zero.
+      return this.separationProgress === null ? undefined : this.separationProgress * 100;
+    },
+    separationStage(): string {
+      return this.mediaStore.separationStage ?? "separating the track";
+    },
+    separationProgressMessage(): string {
+      const stage = this.separationStage[0].toUpperCase() + this.separationStage.slice(1);
+      if (this.separationProgress === null) {
+        return `${stage}...`;
+      }
+      return `${stage}: ${Math.round(this.separationProgress * 100)}%`;
+    },
+    separationHeaderLabel(): string {
+      return this.isSeparatingTrack ? this.separationProgressMessage : "Separating track";
+    },
     separatingTrackMessage() {
       if (this.isSeparatingTrack) {
         return "Separating track...head to the Lyrics tab to keep working on the song!";
@@ -138,7 +180,7 @@ export default defineComponent({
       this.youtubeError = null;
       try {
         const [audioBlob, videoBlob, metadata] = await fetchYouTubeVideo(
-          this.mediaStore.youtubeUrl ?? ""
+            this.mediaStore.youtubeUrl ?? ""
         );
         this.mediaStore.songFile = new File([audioBlob], "audio.mp4", {
           type: "audio/mp4",
@@ -152,7 +194,7 @@ export default defineComponent({
       } catch (e) {
         console.error(e);
         let errorMessage = e instanceof Error ? e.message : String(e);
-        
+
         // Try to extract the detail from JSON error responses
         try {
           const errorObj = JSON.parse(errorMessage);
@@ -162,13 +204,14 @@ export default defineComponent({
         } catch (parseError) {
           // If it's not JSON, use the original message
         }
-        
-        this.youtubeError = `There was a problem downloading that video: ${errorMessage}. Please try again or use a service such as <a href="https://v2.youconvert.net/en/">YouConvert</a> to get the audio and add it above.`;
+
+        this.youtubeError = `There was a problem downloading that video: ${errorMessage}.`
+            + `Please try again, or use an external service or program to get the audio and add it above.`;
       }
       this.isLoadingYouTube = false;
     },
-    // Load a settings.yaml (as exported from the Submit tab) back into the app: video
-    // options, per-voice styles, the separation model and the song metadata.
+    // Load a settings.yaml (as exported from the Submit tab) back into the app:
+    // video options, per-voice styles, the separation model and the song metadata.
     async onSettingsFileChange(file: File | null) {
       if (!file) {
         return;
@@ -203,8 +246,8 @@ export default defineComponent({
         }
         this.$buefy.toast.open({
           message: settings.warnings.length
-            ? `Settings loaded, but ${settings.warnings.length} entr${settings.warnings.length === 1 ? "y was" : "ies were"} skipped (see the console).`
-            : "Settings loaded!",
+              ? `Settings loaded, but ${settings.warnings.length} entr${settings.warnings.length === 1 ? "y was" : "ies were"} skipped (see the console).`
+              : "Settings loaded!",
           type: settings.warnings.length ? "is-warning" : "is-success",
           duration: settings.warnings.length ? 5000 : 2000,
         });
@@ -224,7 +267,7 @@ export default defineComponent({
         return;
       }
       const reader = new FileReader();
-      reader.onload = (e) => {
+      reader.onload = () => {
         const parsed = JSON.parse(String(reader.result));
         if (Array.isArray(parsed)) {
           // Legacy / single-voice format: an array of [time, marker] tuples.
@@ -256,6 +299,10 @@ export default defineComponent({
 .song-info-tab {
   overflow-x: hidden;
   overflow-y: auto;
+}
+
+.separation-progress {
+  padding-top: 0.5rem;
 }
 
 .separation-model-radios {
