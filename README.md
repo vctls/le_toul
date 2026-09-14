@@ -1,26 +1,26 @@
-# Le Toul - A Karaoke Video Maker Thing
+# Le Toul - An Improved Karaoke Video Maker Thing
 
 Making a decent karaoke video can take a long time.  
 You need to separate the music from the vocals, and painstakingly adjust the timing of every syllable.  
 This projects lets you create videos that are 80% perfect in 20% of the time.
 
-This is a fork of https://github.com/incidentist/the_tuul with various improvements and versioned models removed.
+This is a fork of https://github.com/incidentist/the_tuul with various improvements.
 
 ## Quick start
 
-Requirements: docker
+Requirements: Docker
 
 1. Clone the project, or download and extract the zip file if you don't have git
 2. Run it with `docker compose`.
 3. Open http://localhost:8080/ in your browser.
 
 ```
-git clone https://github.com/vctls/the_tuul.git
-cd the_tuul
+git clone https://github.com/vctls/le_toul.git
+cd le_toul
 docker compose up
 ```
 
-The image builds on the first run, and the first separation downloads the model it uses.
+The image builds on the first run, and the first separation downloads the selected model.
 Both take a while the first time.
 
 ## Running the dev stack
