@@ -38,6 +38,7 @@
       :model-value="activeTab"
       @update:model-value="setActiveTab"
       expanded
+      :animated="!prefersReducedMotion"
       :vertical="!isMobile"
       type="is-boxed"
       class="main-tabs"
@@ -55,7 +56,7 @@
 
 <script lang="ts">
 import { defineComponent } from "vue";
-import { isMobile } from "@/lib/device";
+import { isMobile, usePrefersReducedMotion } from "@/lib/device";
 import { DONATE_URL } from "@/constants";
 import HelpTab from "@/components/HelpTab.vue";
 import SongInfoTab from "@/components/SongInfoTab.vue";
@@ -81,7 +82,11 @@ export default defineComponent({
     SubmitTab,
   },
   setup() {
-    return { helpStore: useHelpStore(), ...useTabRoute() };
+    return {
+      helpStore: useHelpStore(),
+      prefersReducedMotion: usePrefersReducedMotion(),
+      ...useTabRoute(),
+    };
   },
   data() {
     return {
