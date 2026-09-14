@@ -68,6 +68,12 @@ export const useMediaStore = defineStore('media', () => {
     const error = ref<string | null>(null);
     const separationStartTime = shallowRef<Date | null>(null);
 
+    // Fraction of the running separation that is done, null while the backend reports no figure
+    // (e.g. a GCS-cached job, or an architecture whose progress can't be read)
+    // Consumers fall back to an elapsed-time estimate.
+    const separationProgress = ref<number | null>(null);
+    const separationStage = ref<string | null>(null);
+
     async function startSeparation(inputData: any, modelName: SeparationModel): Promise<SeparatedTrack | undefined> {
         if (isProcessing.value) {
             return;
@@ -75,14 +81,21 @@ export const useMediaStore = defineStore('media', () => {
         isProcessing.value = true;
         error.value = null;
         separationStartTime.value = new Date();
+        separationProgress.value = null;
+        separationStage.value = null;
         try {
-            separatedTrack.value = await separateTrack(inputData, modelName);
+            separatedTrack.value = await separateTrack(inputData, modelName, ({progress, stage}) => {
+                separationProgress.value = progress;
+                separationStage.value = stage;
+            });
             return separatedTrack.value;
         } catch (err) {
             console.error(err);
             error.value = (err as Error).message;
         } finally {
             isProcessing.value = false;
+            separationProgress.value = null;
+            separationStage.value = null;
         }
     }
 
@@ -175,10 +188,9 @@ export const useMediaStore = defineStore('media', () => {
         });
     }
 
-    // While persisted blobs are being read from IDB, the songFile ref may flip
-    // from null to a restored File. Suppress metadata re-derivation during that
-    // window so the persisted (and possibly user-edited) title/artist/duration
-    // aren't overwritten by re-reading the file's embedded tags.
+    // While persisted blobs are being read from IDB, the songFile ref may flip from null to a restored File.
+    // Suppress metadata re-derivation during that window so the persisted (and possibly user-edited)
+    // title/artist/duration aren't overwritten by re-reading the file's embedded tags.
     let isHydrating = true;
 
     // flush: 'sync' so the isHydrating check runs in the same tick as the
@@ -235,6 +247,8 @@ export const useMediaStore = defineStore('media', () => {
         youtubeUrl.value = null;
         error.value = null;
         separationStartTime.value = null;
+        separationProgress.value = null;
+        separationStage.value = null;
         await clearPersistence(MEDIA_LOCALSTORAGE_KEYS, MEDIA_IDB_KEYS);
     }
 
@@ -258,6 +272,8 @@ export const useMediaStore = defineStore('media', () => {
         separatedTrack,
         error,
         separationStartTime,
+        separationProgress,
+        separationStage,
 
         // Methods
         startSeparation,

@@ -80,6 +80,25 @@ def mark_processing(cache_hash: str) -> None:
     )
 
 
+def mark_progress(cache_hash: str, progress: Optional[float], stage: str) -> None:
+    """Record how far along a running job is.
+
+    A report with no fraction names the stage and leaves the last figure
+    standing, so an unmeasurable phase does not send the client's bar backwards
+    into indeterminate.
+
+    Reports for a job that is no longer processing are dropped:
+    a separation that failed on its way out must not be reopened by a late report.
+    """
+    status = read_status(cache_hash)
+    if not status or status.get("status") != STATUS_PROCESSING:
+        return
+    update = {"stage": stage}
+    if progress is not None:
+        update["progress"] = round(progress, 3)
+    _write_status(cache_hash, {**status, **update})
+
+
 def mark_failed(cache_hash: str, error: str) -> None:
     """Record that a job failed so the client stops polling."""
     _write_status(

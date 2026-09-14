@@ -97,6 +97,50 @@ def test_running_job_reports_processing_with_poll_interval(client):
     assert body["pollIntervalSeconds"] == job_store.POLL_INTERVAL_SECONDS
 
 
+def test_running_job_reports_its_progress(client):
+    """A job in flight reports how far along it is, for the client's bar."""
+    job_store.mark_processing("e" * 64)
+    job_store.mark_progress("e" * 64, 0.42, "separating the vocals")
+
+    body = client.get(f"/separated_track/{'e' * 64}").json()
+
+    assert body["progress"] == 0.42
+    assert body["stage"] == "separating the vocals"
+
+
+def test_unmeasurable_stage_is_reported_without_a_figure(client):
+    """Loading the model has no progress to read, but the client can name it."""
+    job_store.mark_processing("1" * 64)
+    job_store.mark_progress("1" * 64, None, "loading the separation model")
+
+    body = client.get(f"/separated_track/{'1' * 64}").json()
+
+    assert body["stage"] == "loading the separation model"
+    assert "progress" not in body
+
+
+def test_unmeasurable_stage_keeps_the_last_figure(client):
+    """The bar must not fall back to indeterminate once it has a figure."""
+    job_store.mark_processing("2" * 64)
+    job_store.mark_progress("2" * 64, 0.05, "downloading the separation model")
+    job_store.mark_progress("2" * 64, None, "reading the song")
+
+    body = client.get(f"/separated_track/{'2' * 64}").json()
+
+    assert body["stage"] == "reading the song"
+    assert body["progress"] == 0.05
+
+
+def test_progress_does_not_revive_a_finished_job(client):
+    """A report arriving after a failure must not reopen the job."""
+    job_store.mark_failed("f" * 64, "boom")
+    job_store.mark_progress("f" * 64, 0.9, "separating the vocals")
+
+    body = client.get(f"/separated_track/{'f' * 64}").json()
+
+    assert body["status"] == "error"
+
+
 def test_failed_job_reports_the_error(client, no_bucket):
     """A separation that raises is recorded, so the client stops polling."""
     with mock.patch(

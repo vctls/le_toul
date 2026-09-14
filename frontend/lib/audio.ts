@@ -12,18 +12,31 @@ interface PollResponse {
     finishedTrackURL: string;
 }
 
-// Shape of the JSON served while a separation job is still in flight. The
-// backend may or may not suggest a poll interval, so fall back to a value
-// suited to a job running on a remote machine.
+// Shape of the JSON served while a separation job is still in flight.
+// The backend may or may not suggest a poll interval,
+// so fall back to a value suited to a job running on a remote machine.
+// Progress and stage are only reported by a job running on this backend:
+// a GCS-cached job is polled straight from the bucket, which serves the placeholder unchanged.
 interface JobStatus {
     status?: string;
     error?: string;
     pollIntervalSeconds?: number;
+    progress?: number;
+    stage?: string;
 }
+
+export interface SeparationProgress {
+    // Fraction of the job done, or null when the job reports no figure
+    progress: number | null;
+    // What the job is doing now, e.g. "separating the vocals"
+    stage: string | null;
+}
+
+export type SeparationProgressCallback = (progress: SeparationProgress) => void;
 
 const DEFAULT_POLL_INTERVAL_SECONDS = 30;
 
-async function pollForResult(url: string): Promise<Blob> {
+async function pollForResult(url: string, onProgress?: SeparationProgressCallback): Promise<Blob> {
     while (true) {
         try {
             const response = await fetch(url, {
@@ -39,6 +52,11 @@ async function pollForResult(url: string): Promise<Blob> {
                 if (status.status === "error") {
                     throw new Error(status.error || "Track separation failed");
                 }
+
+                onProgress?.({
+                    progress: status.progress ?? null,
+                    stage: status.stage ?? null,
+                });
 
                 const intervalSeconds = status.pollIntervalSeconds ?? DEFAULT_POLL_INTERVAL_SECONDS;
                 await new Promise(resolve => setTimeout(resolve, intervalSeconds * 1000));
@@ -74,7 +92,11 @@ async function processZipResponse(zipBlob: Blob): Promise<TrackSeparationResult>
     return { backing: accompaniment, vocals: vocals };
 }
 
-export async function separateTrack(songFile: File, modelName: SeparationModel): Promise<TrackSeparationResult> {
+export async function separateTrack(
+    songFile: File,
+    modelName: SeparationModel,
+    onProgress?: SeparationProgressCallback,
+): Promise<TrackSeparationResult> {
     const formData = new FormData();
     formData.append("songFile", songFile);
     formData.append("modelName", modelName);
@@ -91,7 +113,7 @@ export async function separateTrack(songFile: File, modelName: SeparationModel):
         // The endpoint can return either a JSON response with a URL to poll for results or a direct ZIP file response
         if (contentType?.includes("application/json")) {
             const jsonResponse: PollResponse = await response.json();
-            const zipBlob = await pollForResult(jsonResponse.finishedTrackURL);
+            const zipBlob = await pollForResult(jsonResponse.finishedTrackURL, onProgress);
             return await processZipResponse(zipBlob);
         } else {
             const zipBlob = await response.blob();

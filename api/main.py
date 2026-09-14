@@ -24,7 +24,7 @@ from pydantic import BaseModel
 
 from . import settings
 from . import app_logging
-from .karaoke import music_separation
+from .karaoke import music_separation, separation_progress
 from .karaoke.music_separation import SeparationMethod
 from .helpers import youtube_helper, zip_helper, cloud_storage, job_store
 from .helpers.youtube_helper import YouTubeException
@@ -99,6 +99,7 @@ def perform_music_separation(
     model_name: str,
     song_files_dir: Path,
     cache_hash: Optional[str] = None,
+    on_progress: Optional[separation_progress.ProgressCallback] = None,
 ) -> Path:
     """Perform music separation and return the path to the created zip file.
 
@@ -108,6 +109,7 @@ def perform_music_separation(
         model_name: The separation model to use
         song_files_dir: The temporary directory to work in
         cache_hash: Optional cache hash for logging context
+        on_progress: Called with (fraction, stage) as the work advances
 
     Returns:
         Path to the created zip file containing separated tracks
@@ -137,7 +139,12 @@ def perform_music_separation(
         host=settings.SEPARATOR_HOST,
         port=settings.SEPARATOR_PORT,
         modal_api_url=settings.SEPARATOR_MODAL_API_URL,
+        on_progress=on_progress,
     )
+
+    if on_progress:
+        on_progress(1.0, separation_progress.PACKAGING_STAGE)
+
     zip_path = zip_helper.create_zip_file(
         song_files_dir / "split_song.zip",
         [(accompaniment_path, "accompaniment.wav"), (vocal_path, "vocals.wav")],
@@ -151,7 +158,12 @@ def perform_music_separation(
 def process_track_separation_background(
     cache_hash: str, model_name: str, song_content: bytes, song_filename: str
 ):
-    """Background task to process track separation and upload to cache."""
+    """Background task to process track separation and upload to cache.
+
+    No progress is reported: the client polls the cache object directly rather
+    than this service, so reporting would mean re-uploading the placeholder for
+    every update.
+    """
     logger.info("background_separation_started", cache_hash=cache_hash)
 
     with tempfile.TemporaryDirectory() as song_files_dir:
@@ -175,6 +187,9 @@ def process_track_separation_local(
     """Background task to process track separation into the local job store."""
     logger.info("local_separation_started", cache_hash=cache_hash)
 
+    def report(progress: Optional[float], stage: str) -> None:
+        job_store.mark_progress(cache_hash, progress, stage)
+
     try:
         with tempfile.TemporaryDirectory() as song_files_dir:
             zip_path = perform_music_separation(
@@ -183,6 +198,7 @@ def process_track_separation_local(
                 model_name,
                 Path(song_files_dir),
                 cache_hash,
+                on_progress=report,
             )
             job_store.store_result(cache_hash, zip_path)
     except Exception as e:
