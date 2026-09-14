@@ -1,4 +1,4 @@
-# The Tüül - A Karaoke Video Maker Thing
+# The Tüüler - A Karaoke Video Maker Thing
 
 Making a decent karaoke video can take a long time.  
 You need to separate the music from the vocals, and painstakingly adjust the timing of every syllable.  
