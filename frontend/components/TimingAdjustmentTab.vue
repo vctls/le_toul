@@ -409,6 +409,7 @@ The query has to be answered by an ancestor, hence the wrapper around the grid. 
   grid-template-columns: minmax(0, 1fr);
   column-gap: 1.5rem;
   row-gap: 0.5rem;
+  justify-items: center;
 }
 
 .adjustment-fields > :deep(.field) {
@@ -454,32 +455,32 @@ generates these wrappers itself and forwards no class, so it has to be CSS. */
 /* Labels move beside their control once each column can hold both, plus room for
 the Apply button beside the widest row: 13rem of label and 10em of control. */
 @container (min-width: 62rem) {
-  /* Both columns get the same label and control tracks, so every field is the
-  same width. The floor clears the longest label; max-content grows a longer one
-  rather than clipping it, at the cost of that column no longer matching. */
+  /* Both columns get the same label and control tracks, so every field is the same width.
+  The floor clears the longest label; max-content grows a longer one rather than clipping it,
+  at the cost of that column no longer matching. The empty outer tracks of each pair split the leftover space,
+  centering the label and control in their column. */
   .adjustment-fields {
-    grid-template-columns: repeat(2, minmax(13rem, max-content) minmax(0, 1fr));
-    /* Now between label and control; the gutter between columns is the padding below. */
+    grid-template-columns: repeat(
+      2,
+      minmax(0, 1fr) minmax(13rem, max-content) minmax(0, auto) minmax(0, 1fr)
+    );
     column-gap: 0.75rem;
+    justify-items: stretch;
   }
 
   /* Subgrid, so every label in a column is as wide as that column's widest
   and all its controls start at the same offset. */
   .adjustment-fields > :deep(.field.is-horizontal) {
     display: grid;
-    grid-column: span 2;
+    grid-column: span 4;
     grid-template-columns: subgrid;
     /* Rows stretch to the tallest control on the line; centering keeps each label on its own control. */
     align-items: center;
   }
 
   .adjustment-fields :deep(.field-label) {
+    grid-column: 2;
     margin: 0;
-  }
-
-  /* Widens the single track gap into a gutter between the two field columns. */
-  .adjustment-fields :deep(.field-body) {
-    padding-right: 0.75rem;
   }
 }
 
