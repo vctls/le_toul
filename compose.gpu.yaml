@@ -1,0 +1,42 @@
+# Routes separation through a GPU-backed separator daemon. Run with:
+#   docker compose -f compose.yaml -f compose.gpu.yaml up --build
+#
+# Needs the NVIDIA container toolkit on the host. Untested.
+# Note that the image installs audio-separator's `cpu` extra (pyproject.toml),
+# so the ONNX models run on CPU regardless.
+# Only the torch roformer models would use the GPU.
+
+services:
+  api:
+    environment:
+      SEPARATOR_HOST: separator
+      SEPARATOR_PORT: 8001
+    depends_on:
+      - separator
+
+  separator:
+    image: the-tuul:latest
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: runner
+    env_file:
+      - path: .env
+        required: false
+    environment:
+      PORT: 8001
+      DEBUG: "False"
+      MAX_REQUESTS: "0"
+    command: ["gunicorn", "--config", "gunicorn.conf.py", "api.separator_server:app"]
+    volumes:
+      - pretrained-models:/app/api/pretrained_models
+    ports:
+      - "${SEPARATOR_HOST_PORT:-8001}:8001"
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
+    restart: unless-stopped

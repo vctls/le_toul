@@ -1,0 +1,30 @@
+.git
+.github
+.gitignore
+.idea
+.vscode
+.claude
+.devcontainer
+__pycache__
+.pytest_cache
+.mypy_cache
+node_modules
+.env
+google-application-credentials.json
+# Weights are auto-downloaded on first use and live in the pretrained-models volume.
+api/pretrained_models/*.onnx
+api/pretrained_models/*.ckpt
+api/pretrained_models/*.pth
+api/pretrained_models/*.safetensors
+# Built by the frontend-builder stage.
+# A host copy here would leave orphan bundles alongside it in the image.
+api/assets/bundles
+api/assets/dev
+api/static-build
+api/staticroot
+docs
+tests
+test-results
+playwright-report
+songs
+.gif-frames
