@@ -17,6 +17,7 @@ declare module 'vue' {
     autocorrect?: string;
     autocapitalize?: string;
     spellcheck?: boolean | string;
+    webkitdirectory?: boolean | string;
     'aria-label'?: string;
     'aria-controls'?: string;
     'aria-expanded'?: boolean | string;

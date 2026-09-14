@@ -8,6 +8,7 @@ import {
   faUpload,
   faTrashCan,
   faFileAudio,
+  faFolderOpen,
   // faLoader, // This icon doesn't exist in FontAwesome
   faCircleQuestion,
   faAngleDown,
@@ -44,6 +45,7 @@ library.add(
   faUpload,
   faTrashCan,
   faFileAudio,
+  faFolderOpen,
   // faLoader,
   faCircleQuestion,
   faAngleDown,
