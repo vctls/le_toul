@@ -252,3 +252,60 @@ def test_expired_results_are_pruned(client, monkeypatch, local_job_dir):
     job_store.prune_expired_results()
 
     assert not stale.exists()
+
+
+def test_cancelled_job_stops_and_reports_cancelled(client, no_bucket, song_files):
+    """A cancelled job unwinds at its next progress report."""
+
+    def cancel_then_report(*args, on_progress=None, **kwargs):
+        job_store.request_cancel(cache_hash())
+        on_progress(0.5, "separating the vocals")
+        raise AssertionError("the separation should have been called off")
+
+    song_files.side_effect = cancel_then_report
+
+    poll_url = post_song(client).json()["finishedTrackURL"]
+
+    assert client.get(poll_url).json()["status"] == "cancelled"
+
+
+def test_cancel_asks_a_running_job_to_stop(client):
+    """The job keeps its processing status until its worker notices."""
+    job_store.mark_processing("9" * 64)
+
+    response = client.post(f"/separated_track/{'9' * 64}/cancel")
+
+    assert response.json() == {"cancelled": True}
+    assert client.get(f"/separated_track/{'9' * 64}").json()["status"] == "processing"
+
+
+def test_cancelling_a_job_that_is_not_running_is_harmless(client):
+    """Nothing to call off is reported rather than treated as an error."""
+    response = client.post(f"/separated_track/{'d' * 64}/cancel")
+
+    assert response.status_code == 200
+    assert response.json() == {"cancelled": False}
+
+
+def test_superseded_run_cannot_record_its_outcome(client):
+    """A worker still running past a cancel must not bury the run that replaced it."""
+    superseded = job_store.mark_processing(cache_hash())
+    current = job_store.mark_processing(cache_hash())
+
+    job_store.mark_cancelled(cache_hash(), superseded)
+
+    status = job_store.read_status(cache_hash())
+    assert status["status"] == "processing"
+    assert status["runId"] == current
+
+
+def test_request_after_a_cancel_starts_a_fresh_job(client, no_bucket, song_files):
+    """A cancelled song can be separated again."""
+    job_store.mark_processing(cache_hash())
+    client.post(f"/separated_track/{cache_hash()}/cancel")
+    job_store.mark_cancelled(cache_hash(), job_store.read_status(cache_hash())["runId"])
+
+    poll_url = post_song(client).json()["finishedTrackURL"]
+
+    song_files.assert_called_once()
+    assert client.get(poll_url).headers["content-type"] == "application/zip"

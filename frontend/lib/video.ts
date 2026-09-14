@@ -166,8 +166,10 @@ async function runFfmpeg(
     ffmpeg: FFmpeg,
     args: string[],
     step: RenderStep,
-    progress: RenderProgress | null
+    progress: RenderProgress | null,
+    signal?: AbortSignal
 ): Promise<void> {
+    signal?.throwIfAborted();
     progress?.begin(step);
     const code = await ffmpeg.exec(args);
     if (code !== 0) {
@@ -266,6 +268,7 @@ export interface CreateVideoOptions {
     audioDelay?: number;
     alternateTracks?: AlternateAudioTracks | null;
     onProgress?: ProgressCallback;
+    signal?: AbortSignal;
 }
 
 async function createVideo({
@@ -278,6 +281,7 @@ async function createVideo({
     audioDelay = 0,
     alternateTracks = null,
     onProgress,
+    signal,
 }: CreateVideoOptions): Promise<Uint8Array> {
     // Create the video using ffmpeg.wasm v0.12
     const songFileName = "audio.mp4";
@@ -313,73 +317,88 @@ async function createVideo({
 
     ffmpeg.on('log', ({message}) => console.log("ffmpeg output", message));
 
-    // Planned before anything runs, so the bar can weigh the whole job rather than restart
-    // at each run.
-    const alternates = isMkv ? usableAlternates(alternateTracks) : [];
-    const renderStep: RenderStep = {phrase: "rendering the video", weight: STEP_WEIGHTS.render};
-    const trackSteps: RenderStep[] = alternates.map(({title}) => ({
-        phrase: `encoding the ${title.toLowerCase()} track`,
-        weight: STEP_WEIGHTS.alternateTrack,
-    }));
-    const muxStep: RenderStep = {phrase: "writing the MKV", weight: STEP_WEIGHTS.mux};
-    const plan = isMkv ? [renderStep, ...trackSteps, muxStep] : [renderStep];
-    const progress = onProgress
-        ? new RenderProgress(plan, (metadata.duration ?? 0) + audioDelay, onProgress)
-        : null;
-    if (progress) {
-        ffmpeg.on('log', progress.handleLog);
-    }
+    // The core does not come back to JS mid-run,
+    // so killing its worker is the only way to stop an encode that is already going.
+    const terminate = () => ffmpeg.terminate();
+    signal?.addEventListener("abort", terminate, {once: true});
+    try {
+        // Planned before anything runs, so the bar can weigh the whole job rather than restart
+        // at each run.
+        const alternates = isMkv ? usableAlternates(alternateTracks) : [];
+        const renderStep: RenderStep = {phrase: "rendering the video", weight: STEP_WEIGHTS.render};
+        const trackSteps: RenderStep[] = alternates.map(({title}) => ({
+            phrase: `encoding the ${title.toLowerCase()} track`,
+            weight: STEP_WEIGHTS.alternateTrack,
+        }));
+        const muxStep: RenderStep = {phrase: "writing the MKV", weight: STEP_WEIGHTS.mux};
+        const plan = isMkv ? [renderStep, ...trackSteps, muxStep] : [renderStep];
+        const progress = onProgress
+            ? new RenderProgress(plan, (metadata.duration ?? 0) + audioDelay, onProgress)
+            : null;
+        if (progress) {
+            ffmpeg.on('log', progress.handleLog);
+        }
 
-    // Write audio to ffmpeg filesystem
-    await ffmpeg.writeFile(
-        songFileName,
-        await fetchFile(accompaniment)
-    );
-
-    // The ass filter indexes fontsdir by the family name inside each file, so the filename
-    // only has to be path-safe, which a family name is not necessarily.
-    const fontSource = fontMap[videoOptions.font.name];
-    if (fontSource) {
+        // Write audio to ffmpeg filesystem
         await ffmpeg.writeFile(
-            `/tmp/${videoOptions.font.name.replace(/[^\w.-]+/g, "_")}.ttf`,
-            await fetchFile(fontSource)
+            songFileName,
+            await fetchFile(accompaniment)
         );
-    } else {
-        console.warn(`No font file available for "${videoOptions.font.name}", falling back`);
+
+        // The ass filter indexes fontsdir by the family name inside each file,
+        // so the filename only has to be path-safe, which a family name is not necessarily.
+        const fontSource = fontMap[videoOptions.font.name];
+        if (fontSource) {
+            await ffmpeg.writeFile(
+                `/tmp/${videoOptions.font.name.replace(/[^\w.-]+/g, "_")}.ttf`,
+                await fetchFile(fontSource)
+            );
+        } else {
+            console.warn(`No font file available for "${videoOptions.font.name}", falling back`);
+        }
+
+        await ffmpeg.writeFile("subtitles.ass", subtitles);
+
+        if (backgroundVideo) {
+            await ffmpeg.writeFile(
+                "video.mp4",
+                await fetchFile(backgroundVideo)
+            );
+        }
+
+        const ffmpegParams = getFfmpegParams(Boolean(backgroundVideo), backgroundColor, audioDelayMs, metadata);
+        await runFfmpeg(ffmpeg, ffmpegParams, renderStep, progress, signal);
+
+        if (!isMkv) {
+            return (await ffmpeg.readFile(RENDERED_VIDEO_FILE)) as Uint8Array;
+        }
+
+        const encoded: EncodedTrack[] = [];
+        for (const [index, {source, baseName, title}] of alternates.entries()) {
+            const inputFile = withSourceExtension(baseName, source);
+            const fileName = `${baseName}.m4a`;
+            await ffmpeg.writeFile(inputFile, await fetchFile(source));
+            await runFfmpeg(
+                ffmpeg,
+                getAlternateTrackParams(inputFile, audioDelayMs, fileName),
+                trackSteps[index],
+                progress,
+                signal
+            );
+            encoded.push({fileName, title});
+        }
+        await runFfmpeg(ffmpeg, getMkvMuxParams(encoded, metadata), muxStep, progress, signal);
+
+        return (await ffmpeg.readFile(MKV_FILE)) as Uint8Array;
+    } catch (error) {
+        // A terminated run surfaces as an ffmpeg failure, which is not what the caller asked for.
+        signal?.throwIfAborted();
+        throw error;
+    } finally {
+        signal?.removeEventListener("abort", terminate);
+        // Each run loads a core of its own, so without this every one leaks a worker holding 30-odd MB of wasm.
+        ffmpeg.terminate();
     }
-
-    await ffmpeg.writeFile("subtitles.ass", subtitles);
-
-    if (backgroundVideo) {
-        await ffmpeg.writeFile(
-            "video.mp4",
-            await fetchFile(backgroundVideo)
-        );
-    }
-
-    const ffmpegParams = getFfmpegParams(Boolean(backgroundVideo), backgroundColor, audioDelayMs, metadata);
-    await runFfmpeg(ffmpeg, ffmpegParams, renderStep, progress);
-
-    if (!isMkv) {
-        return (await ffmpeg.readFile(RENDERED_VIDEO_FILE)) as Uint8Array;
-    }
-
-    const encoded: EncodedTrack[] = [];
-    for (const [index, {source, baseName, title}] of alternates.entries()) {
-        const inputFile = withSourceExtension(baseName, source);
-        const fileName = `${baseName}.m4a`;
-        await ffmpeg.writeFile(inputFile, await fetchFile(source));
-        await runFfmpeg(
-            ffmpeg,
-            getAlternateTrackParams(inputFile, audioDelayMs, fileName),
-            trackSteps[index],
-            progress
-        );
-        encoded.push({fileName, title});
-    }
-    await runFfmpeg(ffmpeg, getMkvMuxParams(encoded, metadata), muxStep, progress);
-
-    return (await ffmpeg.readFile(MKV_FILE)) as Uint8Array;
 }
 
 interface DownloadPollResponse {

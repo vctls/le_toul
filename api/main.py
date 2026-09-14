@@ -182,12 +182,20 @@ def process_track_separation_background(
 
 
 def process_track_separation_local(
-    cache_hash: str, model_name: str, song_content: bytes, song_filename: str
+    cache_hash: str,
+    run_id: str,
+    model_name: str,
+    song_content: bytes,
+    song_filename: str,
 ):
     """Background task to process track separation into the local job store."""
     logger.info("local_separation_started", cache_hash=cache_hash)
 
     def report(progress: Optional[float], stage: str) -> None:
+        # The separation hands control back only to report,
+        # so this is the one place a cancelled run can notice and unwind.
+        if not job_store.is_current_run(cache_hash, run_id):
+            raise job_store.JobCancelled()
         job_store.mark_progress(cache_hash, progress, stage)
 
     try:
@@ -201,11 +209,14 @@ def process_track_separation_local(
                 on_progress=report,
             )
             job_store.store_result(cache_hash, zip_path)
+    except job_store.JobCancelled:
+        logger.info("local_separation_cancelled", cache_hash=cache_hash)
+        job_store.mark_cancelled(cache_hash, run_id)
     except Exception as e:
-        # The client is polling for this hash, so the failure has to be recorded
-        # rather than only logged, or it will poll forever.
+        # The client is polling for this hash, so the failure has to be recorded rather than only logged,
+        # or it will poll forever.
         logger.exception("local_separation_failed", cache_hash=cache_hash)
-        job_store.mark_failed(cache_hash, str(e))
+        job_store.mark_failed(cache_hash, str(e), run_id)
 
 
 @app.get("/")
@@ -280,9 +291,8 @@ async def separate_track(
         else:
             logger.warning("failed_to_create_placeholder", cache_hash=cache_hash)
     else:
-        # No bucket configured. Run the separation locally in the background and
-        # hand back a URL to poll: a separation can take half an hour, far longer
-        # than a browser will hold a single request open.
+        # No bucket configured. Run the separation locally in the background and hand back a URL to poll:
+        # a separation can take half an hour, far longer than a browser will hold a single request open.
         cache_hash = cloud_storage.get_cache_hash(modelName, song_content)
 
         if job_store.result_path(cache_hash).exists():
@@ -297,21 +307,21 @@ async def separate_track(
             and status.get("status") == job_store.STATUS_PROCESSING
             and not job_store.is_stale(status)
         ):
-            # Already being separated. Point the client at the running job rather
-            # than doing the same work twice.
+            # Already being separated. Point the client at the running job rather than doing the same work twice.
             logger.info("local_job_already_running", cache_hash=cache_hash)
             return SeparationPollResponse(
                 finishedTrackURL=job_store.poll_url(cache_hash)
             )
 
-        # Anything else (a failed job, or one whose worker died) falls through to
-        # a fresh attempt, so a single failure does not block the song forever.
+        # Anything else (a failed job, or one whose worker died) falls through to a fresh attempt,
+        # so a single failure does not block the song forever.
         job_store.prune_expired_results()
 
-        job_store.mark_processing(cache_hash)
+        run_id = job_store.mark_processing(cache_hash)
         background_tasks.add_task(
             process_track_separation_local,
             cache_hash,
+            run_id,
             modelName,
             song_content,
             songFile.filename or "uploaded_song",
@@ -327,9 +337,10 @@ async def separated_track(
 ):
     """Poll target for a separation running in the local job store.
 
-    Returns the zip once the job has finished, JSON describing the job while it
-    is still running or if it failed, and 404 for an unknown hash. The hash is
-    constrained to a sha256 digest so it cannot escape the job directory.
+    Returns the zip once the job has finished,
+    JSON describing the job while it is still running or if it failed,
+    and 404 for an unknown hash.
+    The hash is constrained to a sha256 digest so it cannot escape the job directory.
     """
     result = job_store.result_path(cache_hash)
     if result.exists():
@@ -348,12 +359,29 @@ async def separated_track(
             }
         )
 
-    if status.get("status") == job_store.STATUS_ERROR:
+    if status.get("status") in (job_store.STATUS_ERROR, job_store.STATUS_CANCELLED):
         return JSONResponse(status)
 
     return JSONResponse(
         {**status, "pollIntervalSeconds": job_store.POLL_INTERVAL_SECONDS}
     )
+
+
+@app.post("/separated_track/{cache_hash}/cancel")
+async def cancel_separated_track(
+    cache_hash: str = PathParam(..., pattern="^[0-9a-f]{64}$"),
+):
+    """Call off a separation running in the local job store.
+
+    Best-effort: the worker stops at its next progress report,
+    so a job still loading its model runs on until the separation itself starts.
+    Reports whether there was a running job to call off.
+    """
+    cancelled = job_store.request_cancel(cache_hash)
+    logger.info(
+        "local_separation_cancel_requested", cache_hash=cache_hash, running=cancelled
+    )
+    return {"cancelled": cancelled}
 
 
 @app.get("/download_video")

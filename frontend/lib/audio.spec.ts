@@ -335,4 +335,105 @@ describe('Audio Library', () => {
             separateTrack(mockFile, 'UVR_MDXNET_KARA_2' as SeparationModel)
         ).rejects.toThrow('502');
     });
+    it('stops polling a job that was called off', async () => {
+        const mockFile = new File(['audio data'], 'test.mp3', { type: 'audio/mp3' });
+
+        (fetch as any).mockResolvedValueOnce({
+            ok: true,
+            headers: {
+                get: vi.fn().mockReturnValue('application/json')
+            },
+            json: vi.fn().mockResolvedValue({
+                finishedTrackURL: '/separated_track/abc'
+            })
+        });
+
+        (fetch as any).mockResolvedValueOnce({
+            ok: true,
+            headers: {
+                get: vi.fn().mockReturnValue('application/json')
+            },
+            json: vi.fn().mockResolvedValue({
+                status: 'cancelled',
+                error: 'Track separation was cancelled.'
+            })
+        });
+
+        await expect(
+            separateTrack(mockFile, 'UVR_MDXNET_KARA_2' as SeparationModel)
+        ).rejects.toThrow('Track separation was cancelled.');
+
+        expect(fetch).toHaveBeenCalledTimes(2);
+    });
+
+    it('calls off the job on the backend when the caller aborts', async () => {
+        const mockFile = new File(['audio data'], 'test.mp3', { type: 'audio/mp3' });
+        const controller = new AbortController();
+
+        (fetch as any).mockResolvedValueOnce({
+            ok: true,
+            headers: {
+                get: vi.fn().mockReturnValue('application/json')
+            },
+            json: vi.fn().mockResolvedValue({
+                finishedTrackURL: '/separated_track/abc'
+            })
+        });
+
+        (fetch as any).mockResolvedValue({
+            ok: true,
+            headers: {
+                get: vi.fn().mockReturnValue('application/json')
+            },
+            json: vi.fn().mockResolvedValue({ status: 'processing', pollIntervalSeconds: 3 })
+        });
+
+        const resultPromise = separateTrack(
+            mockFile, 'UVR_MDXNET_KARA_2' as SeparationModel, undefined, controller.signal
+        );
+        // Far short of the poll interval, so the job is waiting rather than fetching
+        await vi.advanceTimersByTimeAsync(0);
+        controller.abort();
+
+        await expect(resultPromise).rejects.toThrow();
+        expect(fetch).toHaveBeenCalledWith(
+            '/separated_track/abc/cancel',
+            expect.objectContaining({ method: 'POST' })
+        );
+    });
+
+    it('has nothing to call off when the job is polled from the cache', async () => {
+        const mockFile = new File(['audio data'], 'test.mp3', { type: 'audio/mp3' });
+        const controller = new AbortController();
+
+        (fetch as any).mockResolvedValueOnce({
+            ok: true,
+            headers: {
+                get: vi.fn().mockReturnValue('application/json')
+            },
+            json: vi.fn().mockResolvedValue({
+                finishedTrackURL: 'https://storage.googleapis.com/tracks/abc.zip'
+            })
+        });
+
+        (fetch as any).mockResolvedValue({
+            ok: true,
+            headers: {
+                get: vi.fn().mockReturnValue('application/json')
+            },
+            json: vi.fn().mockResolvedValue({ status: 'processing', pollIntervalSeconds: 3 })
+        });
+
+        const resultPromise = separateTrack(
+            mockFile, 'UVR_MDXNET_KARA_2' as SeparationModel, undefined, controller.signal
+        );
+        await vi.advanceTimersByTimeAsync(0);
+        controller.abort();
+
+        await expect(resultPromise).rejects.toThrow();
+        expect(fetch).not.toHaveBeenCalledWith(
+            expect.stringContaining('/cancel'),
+            expect.anything()
+        );
+    });
 });

@@ -1,10 +1,10 @@
 """Filesystem-backed store for locally-processed separation jobs.
 
-Used when no GCS bucket is configured (local development). A separation can run
-for half an hour, which is far longer than a browser or a dev proxy will hold a
-single request open, so the client is handed a poll URL immediately and the work
-happens in the background. Results stay on disk, so re-running a song that has
-already been separated is instant.
+Used when no GCS bucket is configured (local development).
+A separation can run for half an hour,
+which is far longer than a browser or a dev proxy will hold a single request open,
+so the client is handed a poll URL immediately and the work happens in the background.
+Results stay on disk, so re-running a song that has already been separated is instant.
 
 The layout under the job directory is one pair of files per cache hash:
 
@@ -16,6 +16,7 @@ import json
 import os
 import tempfile
 import time
+import uuid
 from pathlib import Path
 from typing import Optional
 
@@ -27,9 +28,17 @@ logger = structlog.get_logger(__name__)
 
 STATUS_PROCESSING = "processing"
 STATUS_ERROR = "error"
+STATUS_CANCELLED = "cancelled"
 
-# Advertised to the client in the status payload. Local jobs finish on the same
-# machine, so there is no reason to wait as long between polls as the GCS path.
+CANCELLED_MESSAGE = "Track separation was cancelled."
+
+
+class JobCancelled(Exception):
+    """Raised inside a worker that is no longer the job the client is waiting on."""
+
+
+# Advertised to the client in the status payload.
+# Local jobs finish on the same machine, so there is no reason to wait as long between polls as the GCS path.
 POLL_INTERVAL_SECONDS = 3
 
 
@@ -56,8 +65,8 @@ def poll_url(cache_hash: str) -> str:
 def _write_atomic(path: Path, data: bytes) -> None:
     """Write data to path so readers never observe a partial file.
 
-    The poll endpoint decides a job is finished by the presence of its zip, so a
-    half-written result would be served as a corrupt download.
+    The poll endpoint decides a job is finished by the presence of its zip,
+    so a half-written result would be served as a corrupt download.
     """
     fd, tmp_name = tempfile.mkstemp(dir=path.parent, prefix=f".{path.name}.")
     try:
@@ -73,19 +82,67 @@ def _write_status(cache_hash: str, status: dict) -> None:
     _write_atomic(status_path(cache_hash), json.dumps(status).encode("utf-8"))
 
 
-def mark_processing(cache_hash: str) -> None:
-    """Record that a job has started."""
+def _write_run_outcome(cache_hash: str, run_id: Optional[str], outcome: dict) -> None:
+    """Record how a run ended, unless a later one has taken over the hash."""
+    status = read_status(cache_hash)
+    if run_id and status and status.get("runId") not in (run_id, None):
+        return
+    _write_status(cache_hash, {**outcome, "endTime": int(time.time())})
+
+
+def mark_processing(cache_hash: str) -> str:
+    """Record that a job has started, returning the token identifying this run.
+
+    A hash can be picked up again while an earlier worker is still alive
+    (its marker went stale, or its run was cancelled and the song resubmitted),
+    so every write a worker makes is against its own token.
+    """
+    run_id = uuid.uuid4().hex
     _write_status(
-        cache_hash, {"status": STATUS_PROCESSING, "startTime": int(time.time())}
+        cache_hash,
+        {"status": STATUS_PROCESSING, "startTime": int(time.time()), "runId": run_id},
+    )
+    return run_id
+
+
+def is_current_run(cache_hash: str, run_id: str) -> bool:
+    """Return whether this run is still the one the client is waiting on."""
+    status = read_status(cache_hash)
+    return bool(
+        status
+        and status.get("runId") == run_id
+        and status.get("status") == STATUS_PROCESSING
+        and not status.get("cancelRequested")
+    )
+
+
+def request_cancel(cache_hash: str) -> bool:
+    """Ask a running job to stop, returning whether there was one to ask.
+
+    The worker unwinds at its next progress report:
+    the separation only returns to our code between those, so nothing can stop it sooner.
+    """
+    status = read_status(cache_hash)
+    if not status or status.get("status") != STATUS_PROCESSING:
+        return False
+    _write_status(cache_hash, {**status, "cancelRequested": True})
+    return True
+
+
+def mark_cancelled(cache_hash: str, run_id: str) -> None:
+    """Record that a run stopped at its client's request."""
+    _write_run_outcome(
+        cache_hash,
+        run_id,
+        {"status": STATUS_CANCELLED, "error": CANCELLED_MESSAGE},
     )
 
 
 def mark_progress(cache_hash: str, progress: Optional[float], stage: str) -> None:
     """Record how far along a running job is.
 
-    A report with no fraction names the stage and leaves the last figure
-    standing, so an unmeasurable phase does not send the client's bar backwards
-    into indeterminate.
+    A report with no fraction names the stage and leaves the last figure standing,
+    so an unmeasurable phase does not send the client's bar backwards into indeterminate.
 
     Reports for a job that is no longer processing are dropped:
     a separation that failed on its way out must not be reopened by a late report.
@@ -99,12 +156,9 @@ def mark_progress(cache_hash: str, progress: Optional[float], stage: str) -> Non
     _write_status(cache_hash, {**status, **update})
 
 
-def mark_failed(cache_hash: str, error: str) -> None:
+def mark_failed(cache_hash: str, error: str, run_id: Optional[str] = None) -> None:
     """Record that a job failed so the client stops polling."""
-    _write_status(
-        cache_hash,
-        {"status": STATUS_ERROR, "error": error, "endTime": int(time.time())},
-    )
+    _write_run_outcome(cache_hash, run_id, {"status": STATUS_ERROR, "error": error})
 
 
 def read_status(cache_hash: str) -> Optional[dict]:
@@ -122,9 +176,9 @@ def read_status(cache_hash: str) -> Optional[dict]:
 def is_stale(status: dict) -> bool:
     """Return whether a processing job has outlived any plausible run.
 
-    A worker killed mid-job (a crash, or gunicorn's dev reloader restarting on a
-    file edit) leaves its marker behind forever. Treating an over-age marker as
-    dead is what stops the client polling for something nothing is working on.
+    A worker killed mid-job (a crash, or gunicorn's dev reloader restarting on a file edit)
+    leaves its marker behind forever.
+    Treating an over-age marker as dead is what stops the client polling for something nothing is working on.
     """
     if status.get("status") != STATUS_PROCESSING:
         return False
@@ -144,8 +198,8 @@ def store_result(cache_hash: str, zip_path: Path) -> Path:
 def prune_expired_results() -> None:
     """Delete results past their TTL.
 
-    Each result is roughly the size of two uncompressed WAVs, so without this the
-    job directory grows without bound.
+    Each result is roughly the size of two uncompressed WAVs,
+    so without this the job directory grows without bound.
     """
     ttl = settings.LOCAL_JOB_RESULT_TTL_SECONDS
     if ttl <= 0:

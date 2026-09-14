@@ -18,6 +18,21 @@ export function readFileAsync(file: File): Promise<string | ArrayBuffer> {
 
 
 
+// Rejects as soon as the signal aborts. The work itself is left running:
+// the caller is giving up on it, which is not the same as calling it off.
+export function abortable<T>(work: Promise<T>, signal: AbortSignal): Promise<T> {
+    return new Promise<T>((resolve, reject) => {
+        if (signal.aborted) {
+            reject(signal.reason);
+            return;
+        }
+        const onAbort = () => reject(signal.reason);
+        signal.addEventListener("abort", onAbort, {once: true});
+        work.then(resolve, reject).finally(() => signal.removeEventListener("abort", onAbort));
+    });
+}
+
+
 export function setupErrorHandling() {
     const LOG_ERRORS_TO_SERVER = true;
     const originalConsoleError = console.error;

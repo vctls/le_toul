@@ -74,29 +74,66 @@ export const useMediaStore = defineStore('media', () => {
     const separationProgress = ref<number | null>(null);
     const separationStage = ref<string | null>(null);
 
+    // Held outside the store state: Vue would proxy the controller, whose methods need the instance itself.
+    let activeSeparation: AbortController | null = null;
+    let pendingSeparation: Promise<SeparatedTrack | undefined> | null = null;
+
+    // Resolves with the separated track, or undefined if the separation failed
+    // (the reason is in `error`) or was cancelled.
+    // A separation already in flight is joined rather than started again.
     async function startSeparation(inputData: any, modelName: SeparationModel): Promise<SeparatedTrack | undefined> {
-        if (isProcessing.value) {
-            return;
+        if (pendingSeparation) {
+            return pendingSeparation;
         }
+        const abort = new AbortController();
+        activeSeparation = abort;
         isProcessing.value = true;
         error.value = null;
         separationStartTime.value = new Date();
         separationProgress.value = null;
         separationStage.value = null;
-        try {
-            separatedTrack.value = await separateTrack(inputData, modelName, ({progress, stage}) => {
-                separationProgress.value = progress;
-                separationStage.value = stage;
-            });
-            return separatedTrack.value;
-        } catch (err) {
-            console.error(err);
-            error.value = (err as Error).message;
-        } finally {
-            isProcessing.value = false;
-            separationProgress.value = null;
-            separationStage.value = null;
+        pendingSeparation = (async () => {
+            try {
+                separatedTrack.value = await separateTrack(inputData, modelName, ({progress, stage}) => {
+                    separationProgress.value = progress;
+                    separationStage.value = stage;
+                }, abort.signal);
+                return separatedTrack.value;
+            } catch (err) {
+                if (abort.signal.aborted) {
+                    return undefined;
+                }
+                console.error(err);
+                error.value = (err as Error).message;
+                return undefined;
+            } finally {
+                // A cancel clears this synchronously and a later separation may already own it,
+                // so only the current run winds the state down.
+                if (activeSeparation === abort) {
+                    clearSeparationState();
+                }
+            }
+        })();
+        return pendingSeparation;
+    }
+
+    function clearSeparationState() {
+        activeSeparation = null;
+        pendingSeparation = null;
+        isProcessing.value = false;
+        separationProgress.value = null;
+        separationStage.value = null;
+    }
+
+    // Cancels the running separation, calling off the work on the backend where that is possible.
+    // Leaves any track separated by an earlier run in place.
+    function cancelSeparation() {
+        if (!activeSeparation) {
+            return;
         }
+        activeSeparation.abort();
+        // The rejection lands a tick later, and until then a new separation would join the dying one.
+        clearSeparationState();
     }
 
     async function setBackingTrack(file: File | null) {
@@ -234,6 +271,7 @@ export const useMediaStore = defineStore('media', () => {
     });
 
     async function clearSession(): Promise<void> {
+        cancelSeparation();
         songFile.value = null;
         backgroundVideo.value = null;
         separatedTrack.value = null;
@@ -277,6 +315,7 @@ export const useMediaStore = defineStore('media', () => {
 
         // Methods
         startSeparation,
+        cancelSeparation,
         setBackingTrack,
         setVocalTrack,
         clearSession,
