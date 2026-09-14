@@ -70,9 +70,7 @@ describe("serializeTimings", () => {
       [1.5, SEGMENT_END],
       [3.0, SEGMENT_START],
     ];
-    expect(serializeTimings("hi_there", events)).toBe(
-      "<00:01.00>hi<00:01.50>_<00:03.00>there"
-    );
+    expect(serializeTimings("hi_there", events)).toBe("<00:01.00>hi<00:01.50>_<00:03.00>there");
   });
 
   it("leaves untimed trailing segments without tags", () => {

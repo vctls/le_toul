@@ -30,7 +30,8 @@ services:
       # here.
       - "9323:9323"
     # `npm clean-install` runs on first start; subsequent starts reuse the volume.
-    entrypoint: ["sh", "-c", "if [ ! -d node_modules/vite ]; then npm clean-install; fi && exec \"$$@\"", "--"]
+    entrypoint:
+      ["sh", "-c", 'if [ ! -d node_modules/vite ]; then npm clean-install; fi && exec "$$@"', "--"]
     networks: [default]
     depends_on:
       api:
@@ -55,7 +56,13 @@ services:
       - "8000:8000"
     networks: [default]
     healthcheck:
-      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health').read()"]
+      test:
+        [
+          "CMD",
+          "python",
+          "-c",
+          "import urllib.request; urllib.request.urlopen('http://localhost:8000/health').read()",
+        ]
       interval: 5s
       timeout: 3s
       retries: 10
@@ -78,7 +85,13 @@ services:
     volumes:
       - .:/app
       - playwright-node-modules:/app/node_modules
-    entrypoint: ["sh", "-c", "if [ ! -d node_modules/@playwright/test ]; then npm clean-install; fi && exec \"$$@\"", "--"]
+    entrypoint:
+      [
+        "sh",
+        "-c",
+        'if [ ! -d node_modules/@playwright/test ]; then npm clean-install; fi && exec "$$@"',
+        "--",
+      ]
     command: ["npx", "playwright", "test"]
     network_mode: "service:vite"
     profiles: ["e2e"]

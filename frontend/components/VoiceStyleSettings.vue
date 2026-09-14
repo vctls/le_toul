@@ -1,8 +1,8 @@
 <template>
   <div class="voice-style-settings">
     <p class="voice-style-intro">
-      Each voice uses the styles above by default. Turn on a custom style to override the
-      font, weight, or colors for that voice.
+      Each voice uses the styles above by default. Turn on a custom style to override the font,
+      weight, or colors for that voice.
     </p>
     <voice-style-row v-for="voice in voices" :key="voice" :voice="voice" :fonts="fonts" />
   </div>

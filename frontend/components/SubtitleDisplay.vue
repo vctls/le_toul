@@ -1,11 +1,6 @@
 <template>
   <div class="video-container">
-    <video
-      class="background-video"
-      v-if="videoBlob"
-      ref="video"
-      :src="videoDataUrl"
-    />
+    <video class="background-video" v-if="videoBlob" ref="video" :src="videoDataUrl" />
     <canvas
       class="subtitle-canvas"
       ref="subtitleCanvas"
@@ -185,9 +180,7 @@ export default defineComponent({
       this.subtitleManager = null;
       // dispose() leaves its last frame on the canvas until the replacement draws.
       const canvas = this.$refs.subtitleCanvas as HTMLCanvasElement | undefined;
-      canvas
-        ?.getContext("2d")
-        ?.clearRect(0, 0, canvas.width, canvas.height);
+      canvas?.getContext("2d")?.clearRect(0, 0, canvas.width, canvas.height);
     },
     setPlayhead(playhead: number) {
       this.currentTime = playhead;

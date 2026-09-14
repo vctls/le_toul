@@ -1,64 +1,60 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
-
-<head>
-    <meta charset="UTF-8">
-    <meta http-equiv="X-UA-Compatible" content="IE=edge">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <link rel="icon" href="/static/favicon.ico">
+  <head>
+    <meta charset="UTF-8" />
+    <meta http-equiv="X-UA-Compatible" content="IE=edge" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <link rel="icon" href="/static/favicon.ico" />
     <!-- Vite assets - replaces Django vite_hmr_client and vite_asset tags -->
-    {{ vite_hmr_client }}
-    {{ vite_assets }}
+    {{ vite_hmr_client }} {{ vite_assets }}
 
     <style>
-        html {
-            height: 100%;
-            overflow-y: hidden !important;
-        }
+      html {
+        height: 100%;
+        overflow-y: hidden !important;
+      }
 
-        html,
-        body {
-            height: 100%;
-            width: 100vw;
-            overflow: hidden;
-        }
+      html,
+      body {
+        height: 100%;
+        width: 100vw;
+        overflow: hidden;
+      }
 
-        #app,
-        .wrapper {
-            display: flex;
-            flex-direction: column;
-            height: 100%;
-            overflow: hidden;
-            flex-grow: 1;
-        }
+      #app,
+      .wrapper {
+        display: flex;
+        flex-direction: column;
+        height: 100%;
+        overflow: hidden;
+        flex-grow: 1;
+      }
 
-        .b-tab .tab-content {
-            flex-grow: 1;
-            flex-shrink: 1;
-        }
+      .b-tab .tab-content {
+        flex-grow: 1;
+        flex-shrink: 1;
+      }
 
-        kbd {
-            background-color: #eee;
-            border-radius: 3px;
-            border: 1px solid #b4b4b4;
-            box-shadow: 0 1px 1px rgba(0, 0, 0, .2), 0 2px 0 0 rgba(255, 255, 255, .7) inset;
-            color: #333;
-            display: inline-block;
-            font-size: .85em;
-            font-weight: 700;
-            line-height: 1;
-            padding: 2px 4px;
-            white-space: nowrap;
-        }
+      kbd {
+        background-color: #eee;
+        border-radius: 3px;
+        border: 1px solid #b4b4b4;
+        box-shadow:
+          0 1px 1px rgba(0, 0, 0, 0.2),
+          0 2px 0 0 rgba(255, 255, 255, 0.7) inset;
+        color: #333;
+        display: inline-block;
+        font-size: 0.85em;
+        font-weight: 700;
+        line-height: 1;
+        padding: 2px 4px;
+        white-space: nowrap;
+      }
     </style>
     <title>The Tüüler</title>
-</head>
+  </head>
 
-<body>
-    <div id="app">
-    </div>
-
-
-</body>
-
+  <body>
+    <div id="app"></div>
+  </body>
 </html>

@@ -4,7 +4,7 @@
 //
 // This widens what is accepted on *every* component, so keep it to attributes this
 // app actually relies on being forwarded, not a general HTML catch-all.
-declare module 'vue' {
+declare module "vue" {
   interface ComponentCustomProps {
     name?: string;
     title?: string;
@@ -18,9 +18,9 @@ declare module 'vue' {
     autocapitalize?: string;
     spellcheck?: boolean | string;
     webkitdirectory?: boolean | string;
-    'aria-label'?: string;
-    'aria-controls'?: string;
-    'aria-expanded'?: boolean | string;
+    "aria-label"?: string;
+    "aria-controls"?: string;
+    "aria-expanded"?: boolean | string;
 
     onClick?: (e: MouseEvent) => void;
     onKeydown?: (e: KeyboardEvent) => void;

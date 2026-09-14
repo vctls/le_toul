@@ -1,9 +1,9 @@
 /**
  * Setup helpers for Playwright tests
  */
-import { Page, expect, test } from '@playwright/test';
-import path from 'path';
-import { promises as fs } from 'fs';
+import { Page, expect, test } from "@playwright/test";
+import path from "path";
+import { promises as fs } from "fs";
 
 /**
  * Configuration for test fixtures
@@ -21,18 +21,18 @@ export interface TestConfig {
  * Default test configuration
  */
 export const defaultTestConfig: TestConfig = {
-  audioFile: 'Ma Rainey - Prove It on Me Blues, first verse.mp3',
-  lyricsFile: 'lyrics.txt',
-  timingsFile: 'timings.json',
-  artist: 'Ma Rainey',
-  title: 'Prove It On Me Blues',
+  audioFile: "Ma Rainey - Prove It on Me Blues, first verse.mp3",
+  lyricsFile: "lyrics.txt",
+  timingsFile: "timings.json",
+  artist: "Ma Rainey",
+  title: "Prove It On Me Blues",
 };
 
 /**
  * Gets the path to the fixtures directory
  */
 export function getFixturesDir(): string {
-  return path.join(test.info().project.testDir, '../fixtures');
+  return path.join(test.info().project.testDir, "../fixtures");
 }
 
 /**
@@ -46,7 +46,7 @@ export function getFixturePath(filename: string): string {
  * Loads a fixture file as a string
  */
 export async function loadFixtureFile(filename: string): Promise<string> {
-  return await fs.readFile(getFixturePath(filename), 'utf-8');
+  return await fs.readFile(getFixturePath(filename), "utf-8");
 }
 
 /**
@@ -61,7 +61,7 @@ export async function loadFixtureJson<T>(filename: string): Promise<T> {
  * Sets up console error listener that fails the test on console errors
  */
 export function setupConsoleErrorListener(page: Page): void {
-  page.on('console', msg => {
+  page.on("console", (msg) => {
     const type = msg.type();
     const text = msg.text();
 
@@ -78,7 +78,7 @@ export function setupConsoleErrorListener(page: Page): void {
  * Initializes the basic app setup - navigates to the app and checks the title
  */
 export async function initAppSetup(page: Page): Promise<void> {
-  await page.goto('/');
+  await page.goto("/");
   await expect(page).toHaveTitle("The Tuul");
 }
 
@@ -103,11 +103,14 @@ async function installClipboardStub(page: Page): Promise<void> {
   await page.addInitScript(() => {
     const existing = navigator.clipboard as Partial<Clipboard> | undefined;
     if (existing?.writeText && existing?.readText) return;
-    let buffer = '';
-    Object.defineProperty(navigator, 'clipboard', {
+    let buffer = "";
+    Object.defineProperty(navigator, "clipboard", {
       configurable: true,
       value: {
-        writeText: (text: string) => { buffer = text; return Promise.resolve(); },
+        writeText: (text: string) => {
+          buffer = text;
+          return Promise.resolve();
+        },
         readText: () => Promise.resolve(buffer),
       },
     });

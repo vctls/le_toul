@@ -9,12 +9,12 @@ describe("clampTimingOverlaps", () => {
   it("clamps an end that extends past the next segment's start", () => {
     const timings: LyricEvent[] = [
       [1.0, SEGMENT_START],
-      [3.0, SEGMENT_END],   // ends at 3.0...
+      [3.0, SEGMENT_END], // ends at 3.0...
       [2.0, SEGMENT_START], // ...but the next segment starts at 2.0
     ];
     expect(clampTimingOverlaps(timings)).toEqual([
       [1.0, SEGMENT_START],
-      [2.0, SEGMENT_END],   // clamped to the next start
+      [2.0, SEGMENT_END], // clamped to the next start
       [2.0, SEGMENT_START],
     ]);
   });

@@ -10,12 +10,17 @@
         <b-navbar-item tag="div">
           <div class="buttons">
             <b-button
-                :type="helpStore.isShowingHelp ? 'is-primary' : 'is-text'"
-                @click="helpStore.toggleHelp()"
-                title="Show or hide the instructions on each tab">
+              :type="helpStore.isShowingHelp ? 'is-primary' : 'is-text'"
+              @click="helpStore.toggleHelp()"
+              title="Show or hide the instructions on each tab"
+            >
               <b-icon icon="circle-question" size="is-large" title="Instructions"></b-icon>
             </b-button>
-            <b-button type="is-text" @click="confirmStartOver" title="Discard the saved session and start fresh">
+            <b-button
+              type="is-text"
+              @click="confirmStartOver"
+              title="Discard the saved session and start fresh"
+            >
               <b-icon icon="arrow-rotate-left" size="is-large" title="Start Over"></b-icon>
             </b-button>
             <b-button v-if="DONATE_URL" tag="a" :href="DONATE_URL" type="is-text" target="_blank">
@@ -23,29 +28,35 @@
               </b-icon>
             </b-button>
             <b-button tag="a" href="https://github.com/vctls/the_tuul" type="is-text">
-              <b-icon pack="fab" icon="github" size="is-large" title="GitHub">
-              </b-icon>
+              <b-icon pack="fab" icon="github" size="is-large" title="GitHub"> </b-icon>
             </b-button>
           </div>
         </b-navbar-item>
       </template>
     </b-navbar>
-    <b-tabs :model-value="activeTab" @update:model-value="setActiveTab" expanded :vertical="!isMobile" type="is-boxed" class="main-tabs">
+    <b-tabs
+      :model-value="activeTab"
+      @update:model-value="setActiveTab"
+      expanded
+      :vertical="!isMobile"
+      type="is-boxed"
+      class="main-tabs"
+    >
       <help-tab></help-tab>
       <song-info-tab></song-info-tab>
       <lyric-input-tab></lyric-input-tab>
       <song-timing-tab></song-timing-tab>
-      <timing-adjustment-tab/>
-      <timing-edit-tab/>
+      <timing-adjustment-tab />
+      <timing-edit-tab />
       <submit-tab></submit-tab>
     </b-tabs>
   </div>
 </template>
 
 <script lang="ts">
-import {defineComponent} from "vue";
-import {isMobile} from "@/lib/device";
-import {DONATE_URL} from "@/constants";
+import { defineComponent } from "vue";
+import { isMobile } from "@/lib/device";
+import { DONATE_URL } from "@/constants";
 import HelpTab from "@/components/HelpTab.vue";
 import SongInfoTab from "@/components/SongInfoTab.vue";
 import LyricInputTab from "@/components/LyricInputTab.vue";
@@ -53,11 +64,11 @@ import SongTimingTab from "@/components/SongTimingTab.vue";
 import TimingAdjustmentTab from "@/components/TimingAdjustmentTab.vue";
 import TimingEditTab from "@/components/TimingEditTab.vue";
 import SubmitTab from "@/components/SubmitTab.vue";
-import {useMediaStore} from "@/stores/media";
-import {useLyricsStore} from "@/stores/lyrics";
-import {useTimingsStore} from "@/stores/timings";
-import {useHelpStore} from "@/stores/help";
-import {useTabRoute} from "@/lib/tabRoute";
+import { useMediaStore } from "@/stores/media";
+import { useLyricsStore } from "@/stores/lyrics";
+import { useTimingsStore } from "@/stores/timings";
+import { useHelpStore } from "@/stores/help";
+import { useTabRoute } from "@/lib/tabRoute";
 
 export default defineComponent({
   components: {
@@ -70,7 +81,7 @@ export default defineComponent({
     SubmitTab,
   },
   setup() {
-    return {helpStore: useHelpStore(), ...useTabRoute()};
+    return { helpStore: useHelpStore(), ...useTabRoute() };
   },
   data() {
     return {
@@ -90,7 +101,7 @@ export default defineComponent({
       this.$buefy.dialog.confirm({
         title: "Start over?",
         message:
-            "This will discard the current song, lyrics, and timings. Settings will be kept. Continue?",
+          "This will discard the current song, lyrics, and timings. Settings will be kept. Continue?",
         confirmText: "Start over",
         type: "is-danger",
         hasIcon: true,

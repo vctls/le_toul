@@ -17,9 +17,9 @@ describe("parseAnnotatedLyrics", () => {
   it("splits alternating voices, sticky within a voice", () => {
     const result = parseAnnotatedLyrics(
       "[Anna] a1\n" +
-      "a2\n" +            // sticky: still Anna
-      "[Ben] b1\n" +
-      "[Anna] a3"
+        "a2\n" + // sticky: still Anna
+        "[Ben] b1\n" +
+        "[Anna] a3",
     );
     expect(result.voices).toEqual(["Anna", "Ben"]);
     expect(result.lyricTextByVoice["Anna"]).toBe("a1\na2\na3");
@@ -33,11 +33,7 @@ describe("parseAnnotatedLyrics", () => {
   });
 
   it("duplicates a `+` line into each member voice", () => {
-    const result = parseAnnotatedLyrics(
-      "[Anna] solo\n" +
-      "[Anna+Ben] together\n" +
-      "[Ben] other"
-    );
+    const result = parseAnnotatedLyrics("[Anna] solo\n" + "[Anna+Ben] together\n" + "[Ben] other");
     expect(result.voices).toEqual(["Anna", "Ben"]);
     expect(result.lyricTextByVoice["Anna"]).toBe("solo\ntogether");
     expect(result.lyricTextByVoice["Ben"]).toBe("together\nother");
@@ -58,9 +54,9 @@ describe("parseAnnotatedLyrics", () => {
   it("does not create a screen break from a blank between different voices' lines", () => {
     const result = parseAnnotatedLyrics(
       "[Anna] a1\n" +
-      "[Ben] b1\n" +
-      "\n" +              // blank between Ben and the next Anna line
-      "[Anna] a2"
+        "[Ben] b1\n" +
+        "\n" + // blank between Ben and the next Anna line
+        "[Anna] a2",
     );
     // Anna saw a blank since a1, so a2 starts a new screen for Anna...
     expect(result.lyricTextByVoice["Anna"]).toBe("a1\n\na2");

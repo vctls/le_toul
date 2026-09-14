@@ -36,7 +36,13 @@ services:
       - job-results:/var/lib/tuul/jobs
       - pretrained-models:/app/api/pretrained_models
     healthcheck:
-      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8080/health').read()"]
+      test:
+        [
+          "CMD",
+          "python",
+          "-c",
+          "import urllib.request; urllib.request.urlopen('http://localhost:8080/health').read()",
+        ]
       interval: 30s
       timeout: 5s
       retries: 3

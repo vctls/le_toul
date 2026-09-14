@@ -1,37 +1,50 @@
 <template>
   <b-tab-item
-      value="timing"
-      label="Song Timing"
-      icon="stopwatch"
-      class="wrapper song-timing-tab"
-      headerClass="song-timing-tab-header"
-      :disabled="!songFile || lyricSegments.length == 0">
+    value="timing"
+    label="Song Timing"
+    icon="stopwatch"
+    class="wrapper song-timing-tab"
+    headerClass="song-timing-tab-header"
+    :disabled="!songFile || lyricSegments.length == 0"
+  >
     <div class="title-row">
       <h2 class="title">Song Timing</h2>
-      <voice-selector/>
+      <voice-selector />
     </div>
     <help-section>
+      <p>Press <kbd>spacebar</kbd> when the singer starts the highlighted segment.</p>
       <p>
-        Press <kbd>spacebar</kbd> when the singer starts the highlighted
-        segment.
+        Press <kbd>Enter</kbd> when the singer finishes the <em>previous</em> highlighted segment.
       </p>
-      <p>
-        Press <kbd>Enter</kbd> when the singer finishes the
-        <em>previous</em> highlighted segment.
-      </p>
-      <p>
-        Adjust the playback speed to slow down fast parts or skip through long
-        instrumentals.
-      </p>
+      <p>Adjust the playback speed to slow down fast parts or skip through long instrumentals.</p>
     </help-section>
-    <b-message v-model="warningMessageVisible" type="is-warning" has-icon icon="warning" icon-size="is-small">
+    <b-message
+      v-model="warningMessageVisible"
+      type="is-warning"
+      has-icon
+      icon="warning"
+      icon-size="is-small"
+    >
       Almost done! Press <kbd>Enter</kbd> when the last line ends.
     </b-message>
-    <b-message v-model="successMessageVisible" type="is-success" has-icon icon="check" icon-size="is-small">
+    <b-message
+      v-model="successMessageVisible"
+      type="is-success"
+      has-icon
+      icon="check"
+      icon-size="is-small"
+    >
       Done! You've got everything you need to create your video. Go to the Submit tab.
     </b-message>
-    <audio ref="audio" :src="audioSource" @ended="onAudioEvent" @pause="onAudioEvent" @play="onAudioEvent"
-           @timeupdate="onTimeUpdate" @loadedmetadata="onLoadedMetadata"></audio>
+    <audio
+      ref="audio"
+      :src="audioSource"
+      @ended="onAudioEvent"
+      @pause="onAudioEvent"
+      @play="onAudioEvent"
+      @timeupdate="onTimeUpdate"
+      @loadedmetadata="onLoadedMetadata"
+    ></audio>
     <div class="level">
       <div class="level-item">
         <div class="buttons">
@@ -42,9 +55,12 @@
             &laquo; Redo This Screen
           </b-button>
           <div class="field">
-            <b-button @click="showButtonKeyboard = !showButtonKeyboard" icon-right="keyboard"
-                      :type="showButtonKeyboard ? 'is-primary' : ''"
-                      title="Show or hide buttons for entering timings, if you don't have a keyboard"></b-button>
+            <b-button
+              @click="showButtonKeyboard = !showButtonKeyboard"
+              icon-right="keyboard"
+              :type="showButtonKeyboard ? 'is-primary' : ''"
+              title="Show or hide buttons for entering timings, if you don't have a keyboard"
+            ></b-button>
           </div>
         </div>
       </div>
@@ -52,8 +68,12 @@
         <b-field class="playback-speed" label="Speed: " horizontal>
           <b-field class="has-addons">
             <template v-for="val in [0.3, 0.5, 0.7, 0.9, 1.0, 1.5]" :key="val">
-              <b-radio-button :size="isMobile ? 'is-small' : ''" v-model="playbackRate" :native-value="val"
-                              class="is-flex-shrink-0">
+              <b-radio-button
+                :size="isMobile ? 'is-small' : ''"
+                v-model="playbackRate"
+                :native-value="val"
+                class="is-flex-shrink-0"
+              >
                 {{ val }}
               </b-radio-button>
             </template>
@@ -64,7 +84,10 @@
         <b-field horizontal class="preserve-pitch">
           <template #label>
             Preserve pitch
-            <b-tooltip multilined label="Hold the original key at other speeds. The stretching it needs sounds rough well below 1x.">
+            <b-tooltip
+              multilined
+              label="Hold the original key at other speeds. The stretching it needs sounds rough well below 1x."
+            >
               <b-icon size="is-small" icon="circle-question"></b-icon>
             </b-tooltip>
           </template>
@@ -75,31 +98,44 @@
 
     <div class="seek-bar">
       <span class="seek-time">{{ formatTime(currentTime) }}</span>
-      <input class="seek-slider" type="range" min="0" :max="duration || 0" step="0.01" :value="currentTime"
-             :disabled="!duration" @input="onSeek" title="Drag to jump to a position in the track"/>
+      <input
+        class="seek-slider"
+        type="range"
+        min="0"
+        :max="duration || 0"
+        step="0.01"
+        :value="currentTime"
+        :disabled="!duration"
+        @input="onSeek"
+        title="Drag to jump to a position in the track"
+      />
       <span class="seek-time">{{ formatTime(duration) }}</span>
     </div>
 
-    <lyric-display :lyric-segments="segments" :current-segment="currentSegment" @keydown="onKeyDown">
+    <lyric-display
+      :lyric-segments="segments"
+      :current-segment="currentSegment"
+      @keydown="onKeyDown"
+    >
     </lyric-display>
-    <timing-buttons v-if="showButtonKeyboard" @keydown="onKeyDown"/>
+    <timing-buttons v-if="showButtonKeyboard" @keydown="onKeyDown" />
   </b-tab-item>
 </template>
 
 <script lang="ts">
-import {defineComponent} from "vue";
-import {storeToRefs} from "pinia";
-import {KEY_CODES, TIMING_KEY_CODES} from "@/constants";
-import {isMobile} from "@/lib/device";
-import {Segment} from "@/lib/timing";
+import { defineComponent } from "vue";
+import { storeToRefs } from "pinia";
+import { KEY_CODES, TIMING_KEY_CODES } from "@/constants";
+import { isMobile } from "@/lib/device";
+import { Segment } from "@/lib/timing";
 import HelpSection from "@/components/HelpSection.vue";
 import LyricDisplay from "@/components/LyricDisplay.vue";
 import TimingButtons from "@/components/TimingButtons.vue";
 import VoiceSelector from "@/components/VoiceSelector.vue";
-import {useTimingsStore} from "@/stores/timings";
-import {useLyricsStore} from "@/stores/lyrics";
-import {useMediaStore} from "@/stores/media";
-import {VoiceId} from "@/lib/voices";
+import { useTimingsStore } from "@/stores/timings";
+import { useLyricsStore } from "@/stores/lyrics";
+import { useMediaStore } from "@/stores/media";
+import { VoiceId } from "@/lib/voices";
 
 interface VoiceTimingState {
   currentSegment: number;
@@ -108,17 +144,17 @@ interface VoiceTimingState {
 }
 
 function defaultVoiceState(): VoiceTimingState {
-  return {currentSegment: 0, playbackRate: 1.0, playhead: 0};
+  return { currentSegment: 0, playbackRate: 1.0, playhead: 0 };
 }
 
 export default defineComponent({
-  components: {HelpSection, LyricDisplay, TimingButtons, VoiceSelector},
+  components: { HelpSection, LyricDisplay, TimingButtons, VoiceSelector },
   setup() {
     const timingsStore = useTimingsStore();
     const lyricsStore = useLyricsStore();
     const mediaStore = useMediaStore();
-    const {lyricSegments} = storeToRefs(lyricsStore);
-    return {timingsStore, lyricsStore, lyricSegments, mediaStore};
+    const { lyricSegments } = storeToRefs(lyricsStore);
+    return { timingsStore, lyricsStore, lyricSegments, mediaStore };
   },
   data() {
     return {
@@ -172,15 +208,13 @@ export default defineComponent({
       get() {
         return this.timingsStore.areTimingsUsable && !this.timingsStore.areTimingsFinished;
       },
-      set() {
-      }
+      set() {},
     },
     successMessageVisible: {
       get() {
         return this.timingsStore.areTimingsFinished;
       },
-      set() {
-      }
+      set() {},
     },
     currentScreen() {
       let currentScreen = 0;
@@ -244,7 +278,7 @@ export default defineComponent({
     },
     ensureVoiceState(voice: VoiceId): VoiceTimingState {
       if (!this.voiceState[voice]) {
-        this.voiceState = {...this.voiceState, [voice]: defaultVoiceState()};
+        this.voiceState = { ...this.voiceState, [voice]: defaultVoiceState() };
       }
       return this.voiceState[voice];
     },
@@ -310,23 +344,18 @@ export default defineComponent({
       let firstSegmentInScreen = this.firstSegmentOfScreen(this.currentScreen);
       if (firstSegmentInScreen == this.currentSegment) {
         // User meant to go back a screen
-        firstSegmentInScreen = this.firstSegmentOfScreen(
-            Math.max(this.currentScreen - 1, 0)
-        );
+        firstSegmentInScreen = this.firstSegmentOfScreen(Math.max(this.currentScreen - 1, 0));
       }
       const audio = this.audioElement();
       if (audio) {
-        audio.currentTime = this.secondsBeforeSegment(
-            firstSegmentInScreen,
-            5
-        );
+        audio.currentTime = this.secondsBeforeSegment(firstSegmentInScreen, 5);
       }
       this.timingsStore.setCurrentSegment(firstSegmentInScreen);
       this.currentSegment = firstSegmentInScreen;
     },
     firstSegmentOfScreen(screenNum: number) {
       let currentScreen = 0,
-          segmentNum = 0;
+        segmentNum = 0;
 
       for (segmentNum = 0; currentScreen < screenNum; segmentNum++) {
         if (segmentNum >= this.segments.length) {
@@ -344,10 +373,7 @@ export default defineComponent({
       return Math.max(segmentStart - seconds, 0);
     },
     isSegmentEndOfScreen(segment: Segment, segmentIndex: number) {
-      return (
-          segment.text.endsWith("\n\n") ||
-          segmentIndex == this.segments.length - 1
-      );
+      return segment.text.endsWith("\n\n") || segmentIndex == this.segments.length - 1;
     },
   },
 });

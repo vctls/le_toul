@@ -3,23 +3,35 @@
     <span>Source files: </span>
     <span v-if="lyrics" class="file-item">
       lyrics.txt
-      <a @click="download(lyrics, 'lyrics.txt')" title="download lyrics"><b-icon icon="download" /></a><a
-        @click="copyToClipboard(lyrics)" title="copy lyrics to clipboard"><b-icon icon="copy" /></a>
+      <a @click="download(lyrics, 'lyrics.txt')" title="download lyrics"
+        ><b-icon icon="download" /></a
+      ><a @click="copyToClipboard(lyrics)" title="copy lyrics to clipboard"
+        ><b-icon icon="copy"
+      /></a>
     </span>
     <span v-if="hasTimings" class="file-item">
       timings.json
-      <a @click="download(timings, 'timings.json')" title="download timings"><b-icon icon="download" /></a><a
-        @click="copyToClipboard(timings)" title="copy timings to clipboard"><b-icon icon="copy" /></a>
+      <a @click="download(timings, 'timings.json')" title="download timings"
+        ><b-icon icon="download" /></a
+      ><a @click="copyToClipboard(timings)" title="copy timings to clipboard"
+        ><b-icon icon="copy"
+      /></a>
     </span>
     <span v-if="subtitles" class="file-item">
       subtitles.ass
-      <a @click="download(subtitles, 'subtitles.ass')" title="download subtitles"><b-icon icon="download" /></a><a
-        @click="copyToClipboard(subtitles)" title="copy subtitles to clipboard"><b-icon icon="copy" /></a>
+      <a @click="download(subtitles, 'subtitles.ass')" title="download subtitles"
+        ><b-icon icon="download" /></a
+      ><a @click="copyToClipboard(subtitles)" title="copy subtitles to clipboard"
+        ><b-icon icon="copy"
+      /></a>
     </span>
     <span v-if="settings" class="file-item">
       settings.yaml
-      <a @click="download(settings, 'settings.yaml')" title="download settings"><b-icon icon="download" /></a><a
-        @click="copyToClipboard(settings)" title="copy settings to clipboard"><b-icon icon="copy" /></a>
+      <a @click="download(settings, 'settings.yaml')" title="download settings"
+        ><b-icon icon="download" /></a
+      ><a @click="copyToClipboard(settings)" title="copy settings to clipboard"
+        ><b-icon icon="copy"
+      /></a>
     </span>
     <span v-if="font" class="file-item">
       {{ font.name }}
@@ -27,12 +39,15 @@
     </span>
     <span v-if="vocals && vocals.size > 0" class="file-item">
       vocals.wav
-      <a @click="download(vocals, 'vocals.wav')" title="download vocals"><b-icon icon="download" /></a>
+      <a @click="download(vocals, 'vocals.wav')" title="download vocals"
+        ><b-icon icon="download"
+      /></a>
     </span>
     <span v-if="accompaniment && accompaniment.size > 0" class="file-item">
       accompaniment.wav
-      <a @click="download(accompaniment, 'accompaniment.wav')" title="download accompaniment"><b-icon
-          icon="download" /></a>
+      <a @click="download(accompaniment, 'accompaniment.wav')" title="download accompaniment"
+        ><b-icon icon="download"
+      /></a>
     </span>
   </div>
 </template>
@@ -67,15 +82,16 @@ export default defineComponent({
         this.settings ||
         this.font ||
         (this.vocals && this.vocals.size > 0) ||
-        (this.accompaniment && this.accompaniment.size > 0)
+        (this.accompaniment && this.accompaniment.size > 0),
       );
     },
   },
   methods: {
     download(data: unknown, filename: string) {
-      const blob = data instanceof Blob
-        ? data
-        : new Blob([isString(data) ? data : JSON.stringify(data)], { type: "text/plain" });
+      const blob =
+        data instanceof Blob
+          ? data
+          : new Blob([isString(data) ? data : JSON.stringify(data)], { type: "text/plain" });
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");
       a.href = url;
@@ -123,7 +139,7 @@ export default defineComponent({
 </script>
 
 <style scoped>
-.source-file-links .file-item+.file-item::before {
+.source-file-links .file-item + .file-item::before {
   content: "\2022 ";
 }
 </style>

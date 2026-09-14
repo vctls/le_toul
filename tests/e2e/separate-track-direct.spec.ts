@@ -1,4 +1,4 @@
-import { test } from '@playwright/test';
+import { test } from "@playwright/test";
 import {
   defaultTestConfig,
   setupTestEnvironment,
@@ -13,23 +13,31 @@ import {
   expectVideoCreationToBeEnabled,
   loadAndEnterTimings,
   expectSuccessMessage,
-  expectFileDownload
-} from './utils';
+  expectFileDownload,
+} from "./utils";
 
-test.describe('Separate Track Direct Response', () => {
+test.describe("Separate Track Direct Response", () => {
   test.describe.configure({ timeout: 300000 }); // 5 minutes
 
   test.beforeEach(async ({ page }) => {
     await setupTestEnvironment(page);
   });
 
-  test('Create a complete karaoke track when separate_track returns ZIP directly', async ({ page, context }) => {
+  test("Create a complete karaoke track when separate_track returns ZIP directly", async ({
+    page,
+    context,
+  }) => {
     // Setup API mock to return ZIP directly (simulating non-cached behavior)
     await mockSeparateTrackApiDirect(context);
 
     // Navigate to Song Info tab and upload audio
     await navigateToTab(page, TabId.SongInfo);
-    await uploadAudioFile(page, defaultTestConfig.audioFile, defaultTestConfig.artist, defaultTestConfig.title);
+    await uploadAudioFile(
+      page,
+      defaultTestConfig.audioFile,
+      defaultTestConfig.artist,
+      defaultTestConfig.title,
+    );
 
     // Verify Song Timing tab is initially disabled
     await expectTabToBeDisabled(page, TabId.SongTiming);
@@ -55,7 +63,7 @@ test.describe('Separate Track Direct Response', () => {
     await loadAndEnterTimings(page, defaultTestConfig.timingsFile);
 
     // Verify success message
-    await expectSuccessMessage(page, '.song-timing-tab');
+    await expectSuccessMessage(page, ".song-timing-tab");
 
     // Navigate to Submit tab and verify video creation is now available
     await navigateToTab(page, TabId.Submit);
@@ -67,6 +75,6 @@ test.describe('Separate Track Direct Response', () => {
     // Wait for video download and verify
     const VIDEO_CREATION_TIMEOUT = 180000; // 3 minutes
     const videoPath = await expectFileDownload(page, VIDEO_CREATION_TIMEOUT);
-    console.log('Video download path:', videoPath);
+    console.log("Video download path:", videoPath);
   });
 });

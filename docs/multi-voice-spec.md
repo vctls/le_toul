@@ -11,7 +11,7 @@ identified by **arbitrary-string tags**. Each voice is timed, controlled, and st
 independently**. When there is more than one voice, a **voice selector** appears next to the
 title in the Song Timing, Adjust, and Edit tabs.
 
-Priority is correctness across *all* scenarios (including overlap), not authoring
+Priority is correctness across _all_ scenarios (including overlap), not authoring
 convenience for the simple duet case.
 
 ## Mental model: a voice is an independent single-voice project
@@ -46,7 +46,7 @@ Rules:
 - The tag content is an **arbitrary string**, trimmed (anything except `]` or newline).
   `+` is the **only** special character: it separates **members**.
 - **`+` is a duplication shorthand, not a combined voice.** `[Anna+Ben]` puts the line into
-  *both* Anna's stream and Ben's stream, exactly as if it had been written twice. There is
+  _both_ Anna's stream and Ben's stream, exactly as if it had been written twice. There is
   no "Anna+Ben" voice; it never appears in the selector. Consequently an individual voice
   name cannot contain `+` (everything else is allowed, including spaces).
 - The set of voices is the set of **atoms**: split every tag on `+`, trim, take the union,
@@ -71,7 +71,7 @@ parseAnnotatedLyrics(text): {
    split on `+`).
 2. Append each line's cleaned text (tag removed) to the buffer of **every** member voice,
    preserving line breaks; a `\n\n` screen break is reflected in a voice's buffer when it
-   falls between two of *that voice's* lines.
+   falls between two of _that voice's_ lines.
 3. Each `lyricTextByVoice[v]` is then an ordinary lyric string that feeds the existing
    `parseLyrics` / pipeline verbatim.
 
@@ -92,13 +92,13 @@ Keeps the single `lyricText` as the source of truth; adds derived getters:
 
 ```ts
 // was: _timings: Array<[number, number]>
-_timings: Record<VoiceId, Array<[number, number]>>
+_timings: Record<VoiceId, Array<[number, number]>>;
 ```
 
 - Every getter/action operates on a given voice (or the active voice). The existing
   per-stream logic (`add`, `handleConflictWithPreviousSegment`, `setCurrentSegment`,
   `timingForSegmentNum`, `areTimingsUsable`, `areTimingsFinished`, `subtitles`) is correct
-  *within* a voice — it just becomes voice-scoped.
+  _within_ a voice — it just becomes voice-scoped.
 - **Migration:** on load, a legacy array becomes `{ [DEFAULT_VOICE_ID]: <array> }`.
 
 ### Voice renames (`reconcileVoices`)
@@ -159,15 +159,15 @@ be long / numerous.
 Each voice gets its own style: `resolve(v) = merge(base, voiceOverrides[v])`. Define one
 `LyricStyle` interface, starting with a **limited subset** (additive later):
 
-| Field | ASS property |
-|---|---|
-| `fontName` | `Fontname` |
-| `fontSize` | `Fontsize` |
-| `bold` | `Bold` |
-| `italic` | `Italic` |
-| `primary` | `PrimaryColour` |
+| Field       | ASS property      |
+| ----------- | ----------------- |
+| `fontName`  | `Fontname`        |
+| `fontSize`  | `Fontsize`        |
+| `bold`      | `Bold`            |
+| `italic`    | `Italic`          |
+| `primary`   | `PrimaryColour`   |
 | `secondary` | `SecondaryColour` |
-| `outline` | `OutlineColour` |
+| `outline`   | `OutlineColour`   |
 
 Settings: `base: LyricStyle` (today's flat font/color migrates here) +
 `voiceOverrides: Record<VoiceId, Partial<LyricStyle>>`. No unison/group cascade — there is

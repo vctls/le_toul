@@ -10,7 +10,14 @@
     :aria-valuenow="Math.round(clampedValue * 100)"
     :aria-label="label"
   >
-    <circle class="circular-progress-track" cx="16" cy="16" :r="radius" :stroke-width="strokeWidth" fill="none" />
+    <circle
+      class="circular-progress-track"
+      cx="16"
+      cy="16"
+      :r="radius"
+      :stroke-width="strokeWidth"
+      fill="none"
+    />
     <circle
       class="circular-progress-value"
       cx="16"

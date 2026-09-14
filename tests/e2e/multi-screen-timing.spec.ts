@@ -1,4 +1,4 @@
-import { test, expect } from '@playwright/test';
+import { test, expect } from "@playwright/test";
 import {
   defaultTestConfig,
   setupTestEnvironment,
@@ -13,10 +13,10 @@ import {
   getCurrentTimings,
   expectSegmentTimingsToBe,
   expectTimingsToMatch,
-  TimingEntry
-} from './utils';
+  TimingEntry,
+} from "./utils";
 
-test.describe('Multi-screen Timing and Adjustment', () => {
+test.describe("Multi-screen Timing and Adjustment", () => {
   test.describe.configure({ timeout: 180000 }); // 3 minutes
 
   test.beforeEach(async ({ page, context }) => {
@@ -24,10 +24,15 @@ test.describe('Multi-screen Timing and Adjustment', () => {
     await mockSeparateTrackApi(context);
   });
 
-  test('Adjust timing on first screen and continue with second screen', async ({ page }) => {
+  test("Adjust timing on first screen and continue with second screen", async ({ page }) => {
     // 1. Setup: Upload audio and enter a 2-screen lyrics text
     await navigateToTab(page, TabId.SongInfo);
-    await uploadAudioFile(page, defaultTestConfig.audioFile, defaultTestConfig.artist, defaultTestConfig.title);
+    await uploadAudioFile(
+      page,
+      defaultTestConfig.audioFile,
+      defaultTestConfig.artist,
+      defaultTestConfig.title,
+    );
 
     await navigateToTab(page, TabId.LyricInput);
 
@@ -35,7 +40,7 @@ test.describe('Multi-screen Timing and Adjustment', () => {
     const twoScreenLyrics =
       "First screen line 1\n" +
       "First screen line 2\n" +
-      "\n" +  // This line marks the screen break
+      "\n" + // This line marks the screen break
       "Second screen line 3\n" +
       "Second screen line 4";
 
@@ -46,10 +51,10 @@ test.describe('Multi-screen Timing and Adjustment', () => {
 
     // Define timings for the first screen (4 lines = 8 events, start and end for each line)
     const firstScreenTimings: TimingEntry[] = [
-      { time: 1.0, type: 1 },  // Line 1 start
-      { time: 2.0, type: 2 },  // Line 1 end
-      { time: 3.0, type: 1 },  // Line 2 start
-      { time: 4.0, type: 2 },  // Line 2 end
+      { time: 1.0, type: 1 }, // Line 1 start
+      { time: 2.0, type: 2 }, // Line 1 end
+      { time: 3.0, type: 1 }, // Line 2 start
+      { time: 4.0, type: 2 }, // Line 2 end
     ];
 
     // Enter timings for first screen
@@ -79,7 +84,7 @@ test.describe('Multi-screen Timing and Adjustment', () => {
     await enterTimings(page, secondScreenTimings);
 
     // Verify success message is displayed
-    await expect(page.locator('.song-timing-tab .message.is-success')).toBeVisible();
+    await expect(page.locator(".song-timing-tab .message.is-success")).toBeVisible();
 
     // 5. Verify the Submit tab is now enabled after completing all timings
     await expectTabToBeEnabled(page, TabId.Submit);
@@ -89,14 +94,14 @@ test.describe('Multi-screen Timing and Adjustment', () => {
 
     // Define expected timings - including the adjusted first segment
     const expectedTimings = [
-      [0.5, 1],  // Line 1 start - adjusted from 1.0 to 0.5
-      [2.0, 2],  // Line 1 end
-      [3.0, 1],  // Line 2 start
-      [4.0, 2],  // Line 2 end
+      [0.5, 1], // Line 1 start - adjusted from 1.0 to 0.5
+      [2.0, 2], // Line 1 end
+      [3.0, 1], // Line 2 start
+      [4.0, 2], // Line 2 end
       [10.0, 1], // Line 3 start
       [11.0, 2], // Line 3 end
       [12.0, 1], // Line 4 start
-      [13.0, 2]  // Line 4 end
+      [13.0, 2], // Line 4 end
     ];
 
     // Check that timings match expected values

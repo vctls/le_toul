@@ -1,10 +1,10 @@
 /**
  * Timing helpers for Playwright tests
  */
-import { Page, Locator, expect } from '@playwright/test';
-import { TabId, navigateToTab } from './navigation';
-import { loadFixtureJson } from './setupHelpers';
-import { DEFAULT_VOICE_ID } from '../../../frontend/lib/voices';
+import { Page, Locator, expect } from "@playwright/test";
+import { TabId, navigateToTab } from "./navigation";
+import { loadFixtureJson } from "./setupHelpers";
+import { DEFAULT_VOICE_ID } from "../../../frontend/lib/voices";
 
 // Define the format of a timing entry
 export interface TimingEntry {
@@ -16,7 +16,7 @@ export interface TimingEntry {
  * Toggles playback in the timing tab
  */
 export async function togglePlayback(page: Page): Promise<void> {
-  if (!await page.locator('.song-timing-tab').isVisible()) {
+  if (!(await page.locator(".song-timing-tab").isVisible())) {
     await navigateToTab(page, TabId.SongTiming);
   }
 
@@ -28,7 +28,7 @@ export async function togglePlayback(page: Page): Promise<void> {
  * Each timing entry contains a time and a type (1 = Space for start, 2 = Enter for end)
  */
 export async function enterTimings(page: Page, timings: TimingEntry[]): Promise<void> {
-  if (!await page.locator('.song-timing-tab').isVisible()) {
+  if (!(await page.locator(".song-timing-tab").isVisible())) {
     await navigateToTab(page, TabId.SongTiming);
   }
 
@@ -39,7 +39,7 @@ export async function enterTimings(page: Page, timings: TimingEntry[]): Promise<
   // scheduling lets key-press latency drift into the recorded timestamps.
   const startedAt = Date.now();
   for (const timing of timings) {
-    const key = timing.type === 1 ? 'Space' : 'Enter';
+    const key = timing.type === 1 ? "Space" : "Enter";
     const remaining = timing.time * 1000 - (Date.now() - startedAt);
     if (remaining > 0) {
       await page.waitForTimeout(remaining);
@@ -62,7 +62,7 @@ export async function loadAndEnterTimings(page: Page, timingsFilename: string): 
   // Convert to TimingEntry format
   const timings: TimingEntry[] = timingsData.map(([time, type]) => ({
     time,
-    type: type as 1 | 2
+    type: type as 1 | 2,
   }));
 
   // Enter the timings
@@ -72,7 +72,7 @@ export async function loadAndEnterTimings(page: Page, timingsFilename: string): 
 async function centreOf(target: Locator): Promise<{ x: number; y: number }> {
   const box = await target.boundingBox();
   if (!box) {
-    throw new Error('Could not get boundingBox for the drag target');
+    throw new Error("Could not get boundingBox for the drag target");
   }
   return { x: box.x + box.width / 2, y: box.y + box.height / 2 };
 }
@@ -86,7 +86,7 @@ async function dragBy(
   grab: Locator,
   offset: number,
   measure: () => Promise<number | undefined>,
-  message: string
+  message: string,
 ): Promise<void> {
   const before = await measure();
   const { x, y } = await centreOf(grab);
@@ -111,20 +111,20 @@ async function dragBy(
 async function dragRegionHandle(
   page: Page,
   region: Locator,
-  side: 'left' | 'right',
-  offset: number
+  side: "left" | "right",
+  offset: number,
 ): Promise<void> {
   const edge = () =>
     region
       .boundingBox()
-      .then((box) => (box === null ? undefined : side === 'left' ? box.x : box.x + box.width));
+      .then((box) => (box === null ? undefined : side === "left" ? box.x : box.x + box.width));
 
   await dragBy(
     page,
     region.locator(`[part="region-handle region-handle-${side}"]`),
     offset,
     edge,
-    `region ${side} edge should move by ${offset}px`
+    `region ${side} edge should move by ${offset}px`,
   );
 }
 
@@ -134,7 +134,7 @@ async function dragRegionHandle(
  * into view.
  */
 export async function scrollWaveformIntoView(page: Page): Promise<void> {
-  await page.locator('.timing-adjustment-tab .wavesurfer-container').scrollIntoViewIfNeeded();
+  await page.locator(".timing-adjustment-tab .wavesurfer-container").scrollIntoViewIfNeeded();
 }
 
 /** The Adjust tab's rectangle for one lyric segment. */
@@ -154,17 +154,19 @@ export async function clickRegion(page: Page, segmentIndex: number): Promise<voi
 }
 
 // Buefy's primary, which a selected rectangle is filled with.
-const SELECTED_REGION_COLOR = 'rgb(121, 87, 213)';
+const SELECTED_REGION_COLOR = "rgb(121, 87, 213)";
 
 export async function expectRegionSelected(
   page: Page,
   segmentIndex: number,
-  selected = true
+  selected = true,
 ): Promise<void> {
-  const fill = expect
-    .poll(() => regionLocator(page, segmentIndex).evaluate((el) => el.style.backgroundColor), {
-      message: `segment ${segmentIndex} should ${selected ? '' : 'not '}look selected`,
-    });
+  const fill = expect.poll(
+    () => regionLocator(page, segmentIndex).evaluate((el) => el.style.backgroundColor),
+    {
+      message: `segment ${segmentIndex} should ${selected ? "" : "not "}look selected`,
+    },
+  );
   if (selected) {
     await fill.toBe(SELECTED_REGION_COLOR);
   } else {
@@ -179,7 +181,7 @@ export async function expectRegionSelected(
 export async function dragRegionBody(
   page: Page,
   segmentIndex: number,
-  offset: number
+  offset: number,
 ): Promise<void> {
   const region = regionLocator(page, segmentIndex);
   await dragBy(
@@ -187,7 +189,7 @@ export async function dragRegionBody(
     region,
     offset,
     () => region.boundingBox().then((box) => box?.x),
-    `segment ${segmentIndex} should have moved`
+    `segment ${segmentIndex} should have moved`,
   );
 }
 
@@ -200,9 +202,9 @@ export async function adjustTiming(
   page: Page,
   segmentIndex: number,
   startOffset: number = 0,
-  endOffset: number = 0
+  endOffset: number = 0,
 ): Promise<void> {
-  if (!await page.locator('.timing-adjustment-tab').isVisible()) {
+  if (!(await page.locator(".timing-adjustment-tab").isVisible())) {
     await navigateToTab(page, TabId.TimingAdjustment);
   }
   await scrollWaveformIntoView(page);
@@ -211,11 +213,11 @@ export async function adjustTiming(
   await expect(region).toBeVisible();
 
   if (startOffset !== 0) {
-    await dragRegionHandle(page, region, 'left', startOffset);
+    await dragRegionHandle(page, region, "left", startOffset);
   }
 
   if (endOffset !== 0) {
-    await dragRegionHandle(page, region, 'right', endOffset);
+    await dragRegionHandle(page, region, "right", endOffset);
   }
 }
 
@@ -231,7 +233,7 @@ export async function getCurrentTimings(page: Page): Promise<any> {
   await timingsClipboardButton.click();
 
   // Wait for toast notification confirming copy
-  await page.locator('.toast.is-success').waitFor({ state: 'visible' });
+  await page.locator(".toast.is-success").waitFor({ state: "visible" });
 
   // Read clipboard content
   const clipboardContent = await page.evaluate(() => navigator.clipboard.readText());

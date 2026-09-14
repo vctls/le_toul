@@ -1,4 +1,4 @@
-import { test, expect } from '@playwright/test';
+import { test, expect } from "@playwright/test";
 import {
   defaultTestConfig,
   setupTestEnvironment,
@@ -8,18 +8,23 @@ import {
   loadAndEnterLyrics,
   uploadTimingsFile,
   expectVideoCreationToBeDisabled,
-  expectVideoCreationToBeEnabled
-} from './utils';
+  expectVideoCreationToBeEnabled,
+} from "./utils";
 
-test.describe('Timings File Upload', () => {
+test.describe("Timings File Upload", () => {
   test.beforeEach(async ({ page }) => {
     await setupTestEnvironment(page);
   });
 
-  test('Create Video becomes available after uploading timings file', async ({ page }) => {
+  test("Create Video becomes available after uploading timings file", async ({ page }) => {
     // 1. Navigate to Song Info tab and upload audio
     await navigateToTab(page, TabId.SongInfo);
-    await uploadAudioFile(page, defaultTestConfig.audioFile, defaultTestConfig.artist, defaultTestConfig.title);
+    await uploadAudioFile(
+      page,
+      defaultTestConfig.audioFile,
+      defaultTestConfig.artist,
+      defaultTestConfig.title,
+    );
 
     // 2. Navigate to Lyrics tab and enter lyrics
     await navigateToTab(page, TabId.LyricInput);

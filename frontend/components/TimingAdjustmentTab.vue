@@ -1,77 +1,96 @@
 <template>
   <b-tab-item
-      value="adjust"
-      icon="flask" label="Adjust" :disabled="!isEnabled" class="timing-adjustment-tab"
-      headerClass="timing-adjustment-tab-header">
+    value="adjust"
+    icon="flask"
+    label="Adjust"
+    :disabled="!isEnabled"
+    class="timing-adjustment-tab"
+    headerClass="timing-adjustment-tab-header"
+  >
     <div class="title-row">
       <h2 class="title">Adjust Timings</h2>
-      <voice-selector/>
+      <voice-selector />
     </div>
     <help-section>
       <p>
-        Use this tab to adjust lyric timings by dragging the start of the
-        lyric's rectangle. Drag the end of the rectangle to adjust the release.
-        Drag the end up to the start of the next rectangle to join them.
-        When rectangles are joined, dragging the start of the next rectangle
+        Use this tab to adjust lyric timings by dragging the start of the lyric's rectangle. Drag
+        the end of the rectangle to adjust the release. Drag the end up to the start of the next
+        rectangle to join them. When rectangles are joined, dragging the start of the next rectangle
         will move the end of the previous rectangle.
       </p>
       <p>
-        Click a rectangle to select it, then click another one to select every
-        rectangle between the two. Dragging any selected rectangle moves the
-        whole selection at once, up to the rectangles on either side of it.
-        Click a selected rectangle to clear the selection.
+        Click a rectangle to select it, then click another one to select every rectangle between the
+        two. Dragging any selected rectangle moves the whole selection at once, up to the rectangles
+        on either side of it. Click a selected rectangle to clear the selection.
       </p>
       <p>
-        Press <kbd>spacebar</kbd> to start and stop playback, and
-        <kbd>&larr;</kbd> <kbd>&rarr;</kbd> to move the playhead by the preroll set below.
-        Hold <kbd>shift</kbd> for steps five times as long.
-        Press <kbd>Enter</kbd> to play again from the last position you set yourself,
-        by clicking the waveform, using the arrow keys, or dragging a timing.
-        Scroll up and down on the waveform to zoom in and out on the area under the cursor.
+        Press <kbd>spacebar</kbd> to start and stop playback, and <kbd>&larr;</kbd>
+        <kbd>&rarr;</kbd> to move the playhead by the preroll set below. Hold <kbd>shift</kbd> for
+        steps five times as long. Press <kbd>Enter</kbd> to play again from the last position you
+        set yourself, by clicking the waveform, using the arrow keys, or dragging a timing. Scroll
+        up and down on the waveform to zoom in and out on the area under the cursor.
       </p>
     </help-section>
     <div class="adjustment-form">
       <div class="adjustment-fields">
         <b-field label="Playback rate" horizontal>
-          <b-numberinput expanded
-              :model-value="playbackRate"
-              @update:model-value="(v: number | null | undefined) => (playbackRate = Number(v ?? playbackRate))"
-              :min="0.25" :max="2" :step="0.25" controls-position="compact"/>
+          <b-numberinput
+            expanded
+            :model-value="playbackRate"
+            @update:model-value="
+              (v: number | null | undefined) => (playbackRate = Number(v ?? playbackRate))
+            "
+            :min="0.25"
+            :max="2"
+            :step="0.25"
+            controls-position="compact"
+          />
         </b-field>
         <b-field horizontal>
           <template #label>
             Preserve pitch
             <b-tooltip
-                multilined
-                label="Hold the original key at other speeds. The stretching it needs sounds rough well below 1x.">
+              multilined
+              label="Hold the original key at other speeds. The stretching it needs sounds rough well below 1x."
+            >
               <b-icon size="is-small" icon="circle-question"></b-icon>
             </b-tooltip>
           </template>
           <b-switch v-model="preservePitch"></b-switch>
         </b-field>
         <b-field label="Waveform zoom" horizontal>
-          <b-numberinput expanded
-              :model-value="zoom"
-              @update:model-value="(v: number | null | undefined) => (zoom = Number(v ?? zoom))"
-              :min="10"
-              :max="500" :step="10"
-              controls-position="compact"/>
+          <b-numberinput
+            expanded
+            :model-value="zoom"
+            @update:model-value="(v: number | null | undefined) => (zoom = Number(v ?? zoom))"
+            :min="10"
+            :max="500"
+            :step="10"
+            controls-position="compact"
+          />
         </b-field>
         <b-field label="Shift all timings (ms)" horizontal>
-          <b-numberinput expanded
-              :model-value="shiftMs"
-              @update:model-value="(v: number | null | undefined) => (shiftMs = Number(v ?? shiftMs))"
-              :step="1"
-              controls-position="compact"/>
-          <b-button label="Apply" @click="applyShift"/>
+          <b-numberinput
+            expanded
+            :model-value="shiftMs"
+            @update:model-value="(v: number | null | undefined) => (shiftMs = Number(v ?? shiftMs))"
+            :step="1"
+            controls-position="compact"
+          />
+          <b-button label="Apply" @click="applyShift" />
         </b-field>
         <b-field label="Playhead preroll (seconds)" horizontal>
-          <b-numberinput expanded
-              :model-value="prerollSeconds"
-              @update:model-value="(v: number | null | undefined) => (prerollSeconds = Number(v ?? prerollSeconds))"
-              :min="0"
-              :max="30"
-              :step="1" controls-position="compact"/>
+          <b-numberinput
+            expanded
+            :model-value="prerollSeconds"
+            @update:model-value="
+              (v: number | null | undefined) => (prerollSeconds = Number(v ?? prerollSeconds))
+            "
+            :min="0"
+            :max="30"
+            :step="1"
+            controls-position="compact"
+          />
         </b-field>
         <b-field v-if="vocalTrack" label="Playback track" horizontal>
           <b-select expanded v-model="playbackTrackChoice">
@@ -82,34 +101,48 @@
       </div>
     </div>
     <subtitle-display
-        class="subtitle-display" v-if="songFile && debouncedSubtitles" ref="subtitleDisplay"
-        :subtitles="debouncedSubtitles"
-        :fonts="{}" :backgroundColor="settingsStore.videoOptions.color.background.toString()"/>
+      class="subtitle-display"
+      v-if="songFile && debouncedSubtitles"
+      ref="subtitleDisplay"
+      :subtitles="debouncedSubtitles"
+      :fonts="{}"
+      :backgroundColor="settingsStore.videoOptions.color.background.toString()"
+    />
     <timing-adjuster
-        v-if="songFile && adjustmentSubtitles" ref="timing-adjuster" :lyrics="voiceLyrics"
-        :timings="timingsStore.rawTimings" :audioData="songFile ?? undefined"
-        :vocalTrack="vocalTrack ?? undefined" :playbackTrack="playbackTrack ?? undefined"
-        :prerollSeconds="prerollSeconds" :zoom="zoom" :playbackRate="playbackRate" :preservePitch="preservePitch"
-        @timingschange="onTimingsChange" @zoom-change="onZoomChange"
-        @timeupdate="onPlayheadUpdate" @seeking="onSeek"/>
+      v-if="songFile && adjustmentSubtitles"
+      ref="timing-adjuster"
+      :lyrics="voiceLyrics"
+      :timings="timingsStore.rawTimings"
+      :audioData="songFile ?? undefined"
+      :vocalTrack="vocalTrack ?? undefined"
+      :playbackTrack="playbackTrack ?? undefined"
+      :prerollSeconds="prerollSeconds"
+      :zoom="zoom"
+      :playbackRate="playbackRate"
+      :preservePitch="preservePitch"
+      @timingschange="onTimingsChange"
+      @zoom-change="onZoomChange"
+      @timeupdate="onPlayheadUpdate"
+      @seeking="onSeek"
+    />
   </b-tab-item>
 </template>
 
 <script lang="ts">
-import {defineComponent} from "vue";
-import {LyricEvent} from "@/lib/timing";
+import { defineComponent } from "vue";
+import { LyricEvent } from "@/lib/timing";
 import HelpSection from "@/components/HelpSection.vue";
 import TimingAdjuster from "@/components/TimingAdjuster.vue";
 import SubtitleDisplay from "./SubtitleDisplay.vue";
 import VoiceSelector from "@/components/VoiceSelector.vue";
-import {useMediaStore} from "@/stores/media";
-import {useTimingsStore} from "@/stores/timings";
-import {useLyricsStore} from "@/stores/lyrics";
-import {useSettingsStore} from "@/stores/settings";
-import {storeToRefs} from "pinia";
-import {BButton, BField, BNumberinput, BSelect, BSwitch} from "buefy";
-import {VoiceId} from "@/lib/voices";
-import {clampTimingOverlaps} from "@/lib/timingValidation";
+import { useMediaStore } from "@/stores/media";
+import { useTimingsStore } from "@/stores/timings";
+import { useLyricsStore } from "@/stores/lyrics";
+import { useSettingsStore } from "@/stores/settings";
+import { storeToRefs } from "pinia";
+import { BButton, BField, BNumberinput, BSelect, BSwitch } from "buefy";
+import { VoiceId } from "@/lib/voices";
+import { clampTimingOverlaps } from "@/lib/timingValidation";
 
 // The arrow keys step by the playhead preroll, so stepping and the preview jump
 // after a drag agree on what one step is worth. Shift takes five of them.
@@ -133,7 +166,7 @@ function defaultAdjustState(): AdjustVoiceState {
     shiftMs: 0,
     zoom: 50,
     playbackRate: 1,
-    playbackTrackChoice: "full"
+    playbackTrackChoice: "full",
   };
 }
 
@@ -147,14 +180,14 @@ export default defineComponent({
     HelpSection,
     TimingAdjuster,
     SubtitleDisplay,
-    VoiceSelector
+    VoiceSelector,
   },
   setup() {
     const mediaStore = useMediaStore();
     const timingsStore = useTimingsStore();
     const lyricsStore = useLyricsStore();
     const settingsStore = useSettingsStore();
-    const {subtitles} = storeToRefs(timingsStore);
+    const { subtitles } = storeToRefs(timingsStore);
     return {
       mediaStore,
       timingsStore,
@@ -217,17 +250,17 @@ export default defineComponent({
       return this.timingsStore.length > 0;
     },
     adjustmentSubtitles(): string {
-      return this.subtitles({addTitleScreen: false, addCountIns: false});
+      return this.subtitles({ addTitleScreen: false, addCountIns: false });
     },
   },
   mounted() {
     // Capture phase: the audio element's built-in controls handle these same keys when they have focus,
     // so we have to get in ahead of them and cancel the native behavior.
     // A bubble-phase listener runs too late and both act.
-    window.addEventListener('keydown', this.onKeyDown, true);
+    window.addEventListener("keydown", this.onKeyDown, true);
   },
   beforeUnmount() {
-    window.removeEventListener('keydown', this.onKeyDown, true);
+    window.removeEventListener("keydown", this.onKeyDown, true);
     if (this._subtitleDebounceTimer) {
       clearTimeout(this._subtitleDebounceTimer);
     }
@@ -236,7 +269,7 @@ export default defineComponent({
     activeVoice(newVoice: VoiceId, oldVoice?: VoiceId) {
       // Save the outgoing voice's control state and load the incoming voice's.
       if (oldVoice) {
-        this.voiceState = {...this.voiceState, [oldVoice]: this.snapshotState()};
+        this.voiceState = { ...this.voiceState, [oldVoice]: this.snapshotState() };
       }
       this.loadState(newVoice);
     },
@@ -272,7 +305,7 @@ export default defineComponent({
       return this.$refs.subtitleDisplay as InstanceType<typeof SubtitleDisplay> | undefined;
     },
     timingAdjusterRef() {
-      return this.$refs['timing-adjuster'] as InstanceType<typeof TimingAdjuster> | undefined;
+      return this.$refs["timing-adjuster"] as InstanceType<typeof TimingAdjuster> | undefined;
     },
     snapshotState(): AdjustVoiceState {
       return {
@@ -299,24 +332,24 @@ export default defineComponent({
       this.zoom = Math.min(500, Math.max(10, this.zoom + delta));
     },
     onKeyDown(event: KeyboardEvent) {
-      const isEnter = event.code === 'Enter' || event.code === 'NumpadEnter';
-      const isArrow = event.code === 'ArrowLeft' || event.code === 'ArrowRight';
-      if (event.code !== 'Space' && !isEnter && !isArrow) return;
+      const isEnter = event.code === "Enter" || event.code === "NumpadEnter";
+      const isArrow = event.code === "ArrowLeft" || event.code === "ArrowRight";
+      if (event.code !== "Space" && !isEnter && !isArrow) return;
       const target = event.target as HTMLElement | null;
       // Form controls need these keys for themselves.
-      if (target && ['INPUT', 'TEXTAREA', 'SELECT'].includes(target.tagName)) return;
+      if (target && ["INPUT", "TEXTAREA", "SELECT"].includes(target.tagName)) return;
       // Enter is also how a focused button or link is activated,
       // so leave those to the browser rather than hijacking the key.
-      if (isEnter && target?.closest?.('button, a')) return;
+      if (isEnter && target?.closest?.("button, a")) return;
       if (this.$el.offsetParent === null) return;
       event.preventDefault();
       if (isEnter) {
         this.timingAdjusterRef()?.restartAt(this.manualPlayhead);
       } else if (isArrow) {
-        const direction = event.code === 'ArrowLeft' ? -1 : 1;
+        const direction = event.code === "ArrowLeft" ? -1 : 1;
         const step = event.shiftKey
-            ? this.prerollSeconds * COARSE_STEP_MULTIPLIER
-            : this.prerollSeconds;
+          ? this.prerollSeconds * COARSE_STEP_MULTIPLIER
+          : this.prerollSeconds;
         this.timingAdjusterRef()?.seekBy(direction * step);
       } else {
         this.timingAdjusterRef()?.togglePlayPause();
@@ -324,9 +357,10 @@ export default defineComponent({
     },
     applyShift() {
       const deltaSeconds = this.shiftMs / 1000;
-      const shifted = this.timingsStore.rawTimings.map(
-          ([time, marker]): LyricEvent => [Math.max(0, time + deltaSeconds), marker]
-      );
+      const shifted = this.timingsStore.rawTimings.map(([time, marker]): LyricEvent => [
+        Math.max(0, time + deltaSeconds),
+        marker,
+      ]);
       this.timingsStore.resetTimings(clampTimingOverlaps(shifted));
     },
     onTimingsChange(newTimings: Array<LyricEvent>) {

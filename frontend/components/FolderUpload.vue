@@ -7,12 +7,13 @@
       </b-tooltip>
     </template>
     <b-upload
-        :expanded="expanded"
-        :model-value="selected"
-        @update:model-value="onSelect"
-        webkitdirectory
-        multiple
-        class="file-label">
+      :expanded="expanded"
+      :model-value="selected"
+      @update:model-value="onSelect"
+      webkitdirectory
+      multiple
+      class="file-label"
+    >
       <span class="file-cta">
         <b-icon class="file-icon" icon="folder-open"></b-icon>
         <span class="file-label">Choose Folder</span>
@@ -25,7 +26,7 @@
 </template>
 
 <script lang="ts">
-import {defineComponent} from "vue";
+import { defineComponent } from "vue";
 
 export default defineComponent({
   emits: ["select"],

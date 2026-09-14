@@ -13,16 +13,10 @@ import { defineComponent } from "vue";
 export default defineComponent({
   methods: {
     fireSpacebar() {
-      this.$emit(
-        "keydown",
-        new KeyboardEvent("keydown", { code: "Space" })
-      );
+      this.$emit("keydown", new KeyboardEvent("keydown", { code: "Space" }));
     },
     fireEnter() {
-      this.$emit(
-        "keydown",
-        new KeyboardEvent("keydown", { code: "Enter" })
-      );
+      this.$emit("keydown", new KeyboardEvent("keydown", { code: "Enter" }));
     },
   },
 });

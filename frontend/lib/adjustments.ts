@@ -1,191 +1,218 @@
 import {
-    adjustScreenTimestamps,
-    LyricSegment,
-    LyricsScreen,
-    LyricsLine,
-    Timestamp,
-    denormalizeTimestamps,
-    KaraokeOptions
+  adjustScreenTimestamps,
+  LyricSegment,
+  LyricsScreen,
+  LyricsLine,
+  Timestamp,
+  denormalizeTimestamps,
+  KaraokeOptions,
 } from "./timing";
-import {TITLE_SCREEN_DURATION as TITLE_SCREEN_DURATION, INSTRUMENTAL_SCREEN_THRESHOLD} from "../constants";
-import {concat} from "lodash-es";
+import {
+  TITLE_SCREEN_DURATION as TITLE_SCREEN_DURATION,
+  INSTRUMENTAL_SCREEN_THRESHOLD,
+} from "../constants";
+import { concat } from "lodash-es";
 
-const FIRST_SCREEN_QUICK_START_THRESHOLD: Timestamp = 1.0
-const SCREEN_QUICK_START_THRESHOLD: Timestamp = 2.0
+const FIRST_SCREEN_QUICK_START_THRESHOLD: Timestamp = 1.0;
+const SCREEN_QUICK_START_THRESHOLD: Timestamp = 2.0;
 
-export function addQuickStartCountIn(screens: LyricsScreen[], options: KaraokeOptions): LyricsScreen[] {
-    const firstSegment = screens[0].lines[0].segments[0];
-    if (firstSegment.timestamp > FIRST_SCREEN_QUICK_START_THRESHOLD) {
-        return screens;
-    }
-    /*
+export function addQuickStartCountIn(
+  screens: LyricsScreen[],
+  options: KaraokeOptions,
+): LyricsScreen[] {
+  const firstSegment = screens[0].lines[0].segments[0];
+  if (firstSegment.timestamp > FIRST_SCREEN_QUICK_START_THRESHOLD) {
+    return screens;
+  }
+  /*
     This is the first screen and the lyrics start right away.
     Add a count-in and adjust all other timings accordingly
     */
 
-    // This is how much time we need to add to the beginning:
-    const addedTime: Timestamp = options.countInDuration - firstSegment.timestamp;
-    // Move every timestamp forward by that much
-    const adjustedScreens = adjustScreenTimestamps(screens, addedTime)
-    // Reset the first screen start time to the non-adjusted value
-    adjustedScreens[0].startTimestamp = screens[0].startTimestamp;
-    // Delay the audio on the first screen by the amount we moved forward.
-    adjustedScreens[0].audioDelay += addedTime;
-    // Add the count-in segment to the beginning
-    const newFirstSegment = adjustedScreens[0].lines[0].segments[0];
-    const countInSegment = new LyricSegment(options.countInText, 0.0, newFirstSegment.timestamp);
-    adjustedScreens[0].lines[0].addSegmentToFront(countInSegment);
+  // This is how much time we need to add to the beginning:
+  const addedTime: Timestamp = options.countInDuration - firstSegment.timestamp;
+  // Move every timestamp forward by that much
+  const adjustedScreens = adjustScreenTimestamps(screens, addedTime);
+  // Reset the first screen start time to the non-adjusted value
+  adjustedScreens[0].startTimestamp = screens[0].startTimestamp;
+  // Delay the audio on the first screen by the amount we moved forward.
+  adjustedScreens[0].audioDelay += addedTime;
+  // Add the count-in segment to the beginning
+  const newFirstSegment = adjustedScreens[0].lines[0].segments[0];
+  const countInSegment = new LyricSegment(options.countInText, 0.0, newFirstSegment.timestamp);
+  adjustedScreens[0].lines[0].addSegmentToFront(countInSegment);
 
-    return adjustedScreens;
+  return adjustedScreens;
 }
 
-export function addScreenCountIns(screens: LyricsScreen[], options: KaraokeOptions): LyricsScreen[] {
-    // Add a count-in to the start of a screen if there's awhile before the
-    // singing starts
+export function addScreenCountIns(
+  screens: LyricsScreen[],
+  options: KaraokeOptions,
+): LyricsScreen[] {
+  // Add a count-in to the start of a screen if there's awhile before the
+  // singing starts
 
-    let prevScreenEnd: Timestamp = 0.0
-    screens.forEach((screen, index) => {
-        const firstSegment = screen.lines[0].segments[0];
-        if (firstSegment.timestamp - prevScreenEnd > options.countInThreshold) {
-            const countInSegment = new LyricSegment(options.countInText, firstSegment.timestamp - options.countInDuration, firstSegment.timestamp);
-            screen.lines[0].addSegmentToFront(countInSegment);
-        }
-        prevScreenEnd = screen.endTimestamp;
-    });
-    return screens;
-}
-
-const MAX_EARLY_DISPLAY: Timestamp = 5.0
-const DEFERRED_LEAD_IN: Timestamp = 1.0
-
-export function deferScreenStarts(screens: LyricsScreen[], maxEarly: number = MAX_EARLY_DISPLAY, leadIn: number = DEFERRED_LEAD_IN): LyricsScreen[] {
-    // Cap how early a screen is displayed. A screen normally displays from the previous
-    // screen's end (which can be the very start of the song), so a voice whose first line
-    // is deep into the song would otherwise show its text from 0:00. When a screen would
-    // appear more than `maxEarly` seconds before its first line animates, pull its display
-    // start to `leadIn` seconds before that line. Used for non-primary voices, which have
-    // no title/instrumental screens to fill the gap. The (per-voice) count-in still applies.
-    for (const screen of screens) {
-        if (screen.lines.length === 0) {
-            continue;
-        }
-        const firstAnimation = screen.lines[0].timestamp;
-        const start = screen.startTimestamp ?? 0;
-        if (start < firstAnimation - maxEarly) {
-            screen.startTimestamp = Math.max(0, firstAnimation - leadIn);
-        }
+  let prevScreenEnd: Timestamp = 0.0;
+  screens.forEach((screen, index) => {
+    const firstSegment = screen.lines[0].segments[0];
+    if (firstSegment.timestamp - prevScreenEnd > options.countInThreshold) {
+      const countInSegment = new LyricSegment(
+        options.countInText,
+        firstSegment.timestamp - options.countInDuration,
+        firstSegment.timestamp,
+      );
+      screen.lines[0].addSegmentToFront(countInSegment);
     }
-    return screens;
+    prevScreenEnd = screen.endTimestamp;
+  });
+  return screens;
+}
+
+const MAX_EARLY_DISPLAY: Timestamp = 5.0;
+const DEFERRED_LEAD_IN: Timestamp = 1.0;
+
+export function deferScreenStarts(
+  screens: LyricsScreen[],
+  maxEarly: number = MAX_EARLY_DISPLAY,
+  leadIn: number = DEFERRED_LEAD_IN,
+): LyricsScreen[] {
+  // Cap how early a screen is displayed. A screen normally displays from the previous
+  // screen's end (which can be the very start of the song), so a voice whose first line
+  // is deep into the song would otherwise show its text from 0:00. When a screen would
+  // appear more than `maxEarly` seconds before its first line animates, pull its display
+  // start to `leadIn` seconds before that line. Used for non-primary voices, which have
+  // no title/instrumental screens to fill the gap. The (per-voice) count-in still applies.
+  for (const screen of screens) {
+    if (screen.lines.length === 0) {
+      continue;
+    }
+    const firstAnimation = screen.lines[0].timestamp;
+    const start = screen.startTimestamp ?? 0;
+    if (start < firstAnimation - maxEarly) {
+      screen.startTimestamp = Math.max(0, firstAnimation - leadIn);
+    }
+  }
+  return screens;
 }
 
 function getIntroLength(screens: LyricsScreen[]): number {
-    // Get the length of the song intro
-    return screens[0].lines[0].timestamp;
+  // Get the length of the song intro
+  return screens[0].lines[0].timestamp;
 }
 
 export function trimStart(screens: LyricsScreen[], adjustment: number): LyricsScreen[] {
-    // Trim [adjustment] seconds from the start of the first screen, keeping other timestamps the same.
-    let otherScreens = screens.slice(1);
-    const trimmedScreen = screens[0].trimDisplayStart(adjustment);
-    return concat([trimmedScreen], otherScreens);
+  // Trim [adjustment] seconds from the start of the first screen, keeping other timestamps the same.
+  let otherScreens = screens.slice(1);
+  const trimmedScreen = screens[0].trimDisplayStart(adjustment);
+  return concat([trimmedScreen], otherScreens);
 }
 
 function createInstrumentalScreen(startTime: Timestamp, duration: number): LyricsScreen {
-    // Create an INSTRUMENTAL screen lasting [duration] seconds
-    const line = new LyricsLine([new LyricSegment("||||||||||||||||||||||||||||||||||", startTime, startTime + duration)])
-    const screen = new LyricsScreen([line]);
-    screen.startTimestamp = startTime;
-    return screen;
+  // Create an INSTRUMENTAL screen lasting [duration] seconds
+  const line = new LyricsLine([
+    new LyricSegment("||||||||||||||||||||||||||||||||||", startTime, startTime + duration),
+  ]);
+  const screen = new LyricsScreen([line]);
+  screen.startTimestamp = startTime;
+  return screen;
 }
 
 export function addInstrumentalScreens(screens: LyricsScreen[]): LyricsScreen[] {
-    // Add instrumental countdown screens between screens with a long gap
-    if (screens.length < 2) {
-        return screens;
-    }
-    // We need to use actual segment times, not calculated screen start/end times
-    const currentScreen = screens[1];
-    const prevScreenEnd = screens[0].endTimestamp;
-    const screenStart = currentScreen.segments[0].timestamp;
-    const screenGap = screenStart - prevScreenEnd;
-    if (screenGap < INSTRUMENTAL_SCREEN_THRESHOLD) {
-        return [screens[0]].concat(addInstrumentalScreens(screens.slice(1)));
-    } else {
-        const instrumentalScreen = createInstrumentalScreen(screens[0].endTimestamp, screenGap);
-        const adjustedScreens = trimStart(screens.slice(1), screenGap);
-        return [screens[0], instrumentalScreen].concat(addInstrumentalScreens(adjustedScreens))
-    }
-
-}
-
-export function addTitleScreen(screens: LyricsScreen[], title: string, artist: string): LyricsScreen[] {
-    const introLength = getIntroLength(screens);
-    // If the vocals start right at the beginning of the song, don't start the audio until the title screen is over.
-    let audioDelay = 0.0;
-    let adjustedLyricScreens;
-    if (introLength > TITLE_SCREEN_DURATION) {
-        // Long intro, start audio during title screen
-        adjustedLyricScreens = trimStart(screens, TITLE_SCREEN_DURATION);
-    } else {
-        // Short intro, delay audio until after title screen
-        audioDelay = TITLE_SCREEN_DURATION;
-        adjustedLyricScreens = adjustScreenTimestamps(screens, TITLE_SCREEN_DURATION);
-    }
-    const titleScreen = new LyricsScreen(
-        [
-            new LyricsLine([new LyricSegment(title, 0.0, TITLE_SCREEN_DURATION / 2)]),
-            new LyricsLine([new LyricSegment(artist, TITLE_SCREEN_DURATION / 2, TITLE_SCREEN_DURATION)])
-        ],
-        audioDelay
-    );
-    const denormalizedScreen = denormalizeTimestamps([titleScreen], TITLE_SCREEN_DURATION)[0];
-    const screensWithTitle = adjustedLyricScreens.slice()
-    screensWithTitle.unshift(denormalizedScreen);
-    return screensWithTitle;
-}
-
-export function displayQuickLinesEarly(screens: LyricsScreen[], displayOptions: KaraokeOptions): LyricsScreen[] {
-    // If the lyrics on the next screen start right away, display the first few lines early
-    // Skip the title screen and the last screen.
-    for (let i = 1; i < screens.length - 1; i++) {
-        const screen = screens[i];
-        const nextScreen = screens[i + 1];
-        if (nextScreen.singStart - screen.singEnd > SCREEN_QUICK_START_THRESHOLD) {
-            continue;
-        }
-        if (screen.lines.length < 2) {
-            continue;
-        }
-
-        const earlyRemovalLines = screen.lines.slice(0, Math.min(2, screen.lines.length - 1));
-        const lineAfterEarlyRemovals = screen.lines[earlyRemovalLines.length];
-        // Remove earlyRemovalLines when the line after them is halfway done singing
-        const earlyRemovalTime = lineAfterEarlyRemovals.timestamp
-            + ((lineAfterEarlyRemovals.endTimestamp - lineAfterEarlyRemovals.timestamp) * .5)
-        const earlyDisplayTime = lineAfterEarlyRemovals.timestamp
-            + ((lineAfterEarlyRemovals.endTimestamp - lineAfterEarlyRemovals.timestamp) * .75)
-        earlyRemovalLines.forEach(line => {
-            line.customDisplayEndTime = earlyRemovalTime;
-            line.fadeOutDuration = (earlyDisplayTime - earlyRemovalTime) / 2
-        });
-
-        // TODO what if nextScreen.length == 2 and screen.length == 3?
-        const earlyDisplayLines = nextScreen.lines.slice(0, earlyRemovalLines.length);
-        // Adjust y positions so they don't overwrite remaining lines. The next screen's block
-        // is laid out as if it had this screen's line count, which puts its first line in the
-        // slot this screen's first line is vacating. Recording the line count rather than the
-        // resulting Y keeps this correct once voice lanes are assigned (multi-voice), which
-        // happens after this pass and moves the whole block.
-        const fontSize = displayOptions.font.size;
-        const alignment = displayOptions.verticalAlignment;
-        if (screen.getLineY(0, fontSize, alignment) < nextScreen.getLineY(0, fontSize, alignment)) {
-            nextScreen.positionAsLineCount = screen.positionAsLineCount ?? screen.lines.length;
-        }
-
-        earlyDisplayLines.forEach((line, i) => {
-            line.customDisplayStartTime = earlyDisplayTime;
-            line.fadeInDuration = (earlyDisplayTime - earlyRemovalTime) / 2;
-        })
-    }
+  // Add instrumental countdown screens between screens with a long gap
+  if (screens.length < 2) {
     return screens;
+  }
+  // We need to use actual segment times, not calculated screen start/end times
+  const currentScreen = screens[1];
+  const prevScreenEnd = screens[0].endTimestamp;
+  const screenStart = currentScreen.segments[0].timestamp;
+  const screenGap = screenStart - prevScreenEnd;
+  if (screenGap < INSTRUMENTAL_SCREEN_THRESHOLD) {
+    return [screens[0]].concat(addInstrumentalScreens(screens.slice(1)));
+  } else {
+    const instrumentalScreen = createInstrumentalScreen(screens[0].endTimestamp, screenGap);
+    const adjustedScreens = trimStart(screens.slice(1), screenGap);
+    return [screens[0], instrumentalScreen].concat(addInstrumentalScreens(adjustedScreens));
+  }
+}
+
+export function addTitleScreen(
+  screens: LyricsScreen[],
+  title: string,
+  artist: string,
+): LyricsScreen[] {
+  const introLength = getIntroLength(screens);
+  // If the vocals start right at the beginning of the song, don't start the audio until the title screen is over.
+  let audioDelay = 0.0;
+  let adjustedLyricScreens;
+  if (introLength > TITLE_SCREEN_DURATION) {
+    // Long intro, start audio during title screen
+    adjustedLyricScreens = trimStart(screens, TITLE_SCREEN_DURATION);
+  } else {
+    // Short intro, delay audio until after title screen
+    audioDelay = TITLE_SCREEN_DURATION;
+    adjustedLyricScreens = adjustScreenTimestamps(screens, TITLE_SCREEN_DURATION);
+  }
+  const titleScreen = new LyricsScreen(
+    [
+      new LyricsLine([new LyricSegment(title, 0.0, TITLE_SCREEN_DURATION / 2)]),
+      new LyricsLine([new LyricSegment(artist, TITLE_SCREEN_DURATION / 2, TITLE_SCREEN_DURATION)]),
+    ],
+    audioDelay,
+  );
+  const denormalizedScreen = denormalizeTimestamps([titleScreen], TITLE_SCREEN_DURATION)[0];
+  const screensWithTitle = adjustedLyricScreens.slice();
+  screensWithTitle.unshift(denormalizedScreen);
+  return screensWithTitle;
+}
+
+export function displayQuickLinesEarly(
+  screens: LyricsScreen[],
+  displayOptions: KaraokeOptions,
+): LyricsScreen[] {
+  // If the lyrics on the next screen start right away, display the first few lines early
+  // Skip the title screen and the last screen.
+  for (let i = 1; i < screens.length - 1; i++) {
+    const screen = screens[i];
+    const nextScreen = screens[i + 1];
+    if (nextScreen.singStart - screen.singEnd > SCREEN_QUICK_START_THRESHOLD) {
+      continue;
+    }
+    if (screen.lines.length < 2) {
+      continue;
+    }
+
+    const earlyRemovalLines = screen.lines.slice(0, Math.min(2, screen.lines.length - 1));
+    const lineAfterEarlyRemovals = screen.lines[earlyRemovalLines.length];
+    // Remove earlyRemovalLines when the line after them is halfway done singing
+    const earlyRemovalTime =
+      lineAfterEarlyRemovals.timestamp +
+      (lineAfterEarlyRemovals.endTimestamp - lineAfterEarlyRemovals.timestamp) * 0.5;
+    const earlyDisplayTime =
+      lineAfterEarlyRemovals.timestamp +
+      (lineAfterEarlyRemovals.endTimestamp - lineAfterEarlyRemovals.timestamp) * 0.75;
+    earlyRemovalLines.forEach((line) => {
+      line.customDisplayEndTime = earlyRemovalTime;
+      line.fadeOutDuration = (earlyDisplayTime - earlyRemovalTime) / 2;
+    });
+
+    // TODO what if nextScreen.length == 2 and screen.length == 3?
+    const earlyDisplayLines = nextScreen.lines.slice(0, earlyRemovalLines.length);
+    // Adjust y positions so they don't overwrite remaining lines. The next screen's block
+    // is laid out as if it had this screen's line count, which puts its first line in the
+    // slot this screen's first line is vacating. Recording the line count rather than the
+    // resulting Y keeps this correct once voice lanes are assigned (multi-voice), which
+    // happens after this pass and moves the whole block.
+    const fontSize = displayOptions.font.size;
+    const alignment = displayOptions.verticalAlignment;
+    if (screen.getLineY(0, fontSize, alignment) < nextScreen.getLineY(0, fontSize, alignment)) {
+      nextScreen.positionAsLineCount = screen.positionAsLineCount ?? screen.lines.length;
+    }
+
+    earlyDisplayLines.forEach((line, i) => {
+      line.customDisplayStartTime = earlyDisplayTime;
+      line.fadeInDuration = (earlyDisplayTime - earlyRemovalTime) / 2;
+    });
+  }
+  return screens;
 }

@@ -53,10 +53,7 @@ const BOOLEAN_OPTIONS = [
   "useBackgroundVideo",
 ] as const;
 
-const POSITIVE_NUMBER_OPTIONS = [
-  "countInThreshold",
-  "countInDuration",
-] as const;
+const POSITIVE_NUMBER_OPTIONS = ["countInThreshold", "countInDuration"] as const;
 
 // The exporter writes the enum's numeric value, but a hand-written file is much clearer
 // with a name, so accept either.
@@ -105,7 +102,9 @@ function readPositiveNumber(value: unknown, path: string, warnings: string[]): n
   const parsed = readNumber(value, path, warnings);
   if (parsed === undefined) return undefined;
   if (parsed <= 0) {
-    warnings.push(`${path}: expected a number of seconds above zero, ignoring ${JSON.stringify(value)}`);
+    warnings.push(
+      `${path}: expected a number of seconds above zero, ignoring ${JSON.stringify(value)}`,
+    );
     return undefined;
   }
   return parsed;
@@ -137,7 +136,7 @@ function readColor(value: unknown, path: string, warnings: string[]): Color | un
 function readAlignment(
   value: unknown,
   path: string,
-  warnings: string[]
+  warnings: string[],
 ): VerticalAlignment | undefined {
   if (value === undefined || value === null) return undefined;
   if (typeof value === "string") {
@@ -148,7 +147,11 @@ function readAlignment(
     }
     return named;
   }
-  if (value === VerticalAlignment.Top || value === VerticalAlignment.Middle || value === VerticalAlignment.Bottom) {
+  if (
+    value === VerticalAlignment.Top ||
+    value === VerticalAlignment.Middle ||
+    value === VerticalAlignment.Bottom
+  ) {
     return value as VerticalAlignment;
   }
   warnings.push(`${path}: expected top, middle or bottom, ignoring ${JSON.stringify(value)}`);
@@ -158,13 +161,15 @@ function readAlignment(
 function readOutputFormat(
   value: unknown,
   path: string,
-  warnings: string[]
+  warnings: string[],
 ): OutputFormat | undefined {
   const name = readString(value, path, warnings);
   if (name === undefined) return undefined;
   const normalized = name.trim().toLowerCase();
   if (!OUTPUT_FORMATS.some((format) => format === normalized)) {
-    warnings.push(`${path}: expected ${OUTPUT_FORMATS.join(" or ")}, ignoring ${JSON.stringify(value)}`);
+    warnings.push(
+      `${path}: expected ${OUTPUT_FORMATS.join(" or ")}, ignoring ${JSON.stringify(value)}`,
+    );
     return undefined;
   }
   return normalized as OutputFormat;
@@ -173,7 +178,7 @@ function readOutputFormat(
 function readSeparationModel(
   value: unknown,
   path: string,
-  warnings: string[]
+  warnings: string[],
 ): SeparationModel | undefined {
   const name = readString(value, path, warnings);
   if (name === undefined) return undefined;
@@ -184,7 +189,12 @@ function readSeparationModel(
   return name as SeparationModel;
 }
 
-function warnUnknownKeys(source: Record<string, unknown>, known: readonly string[], path: string, warnings: string[]) {
+function warnUnknownKeys(
+  source: Record<string, unknown>,
+  known: readonly string[],
+  path: string,
+  warnings: string[],
+) {
   for (const key of Object.keys(source)) {
     if (!known.includes(key)) {
       warnings.push(`${path ? `${path}.${key}` : key}: unknown setting, ignoring it`);
@@ -235,7 +245,11 @@ function parseVideoOptions(raw: unknown, warnings: string[]): Partial<VideoSetti
   const countInText = readString(raw.countInText, "videoOptions.countInText", warnings);
   if (countInText !== undefined) options.countInText = countInText;
 
-  const alignment = readAlignment(raw.verticalAlignment, "videoOptions.verticalAlignment", warnings);
+  const alignment = readAlignment(
+    raw.verticalAlignment,
+    "videoOptions.verticalAlignment",
+    warnings,
+  );
   if (alignment !== undefined) options.verticalAlignment = alignment;
 
   const outputFormat = readOutputFormat(raw.outputFormat, "videoOptions.outputFormat", warnings);
@@ -246,7 +260,7 @@ function parseVideoOptions(raw: unknown, warnings: string[]): Partial<VideoSetti
   const model = readSeparationModel(
     raw.vocalSeparationModel,
     "videoOptions.vocalSeparationModel",
-    warnings
+    warnings,
   );
   if (model !== undefined) options.vocalSeparationModel = model;
 
@@ -281,9 +295,18 @@ function parseVideoOptions(raw: unknown, warnings: string[]): Partial<VideoSetti
   return options;
 }
 
-function parseVoiceStyle(raw: Record<string, unknown>, path: string, warnings: string[]): VoiceStyleOverride {
+function parseVoiceStyle(
+  raw: Record<string, unknown>,
+  path: string,
+  warnings: string[],
+): VoiceStyleOverride {
   const style: VoiceStyleOverride = {};
-  warnUnknownKeys(raw, ["fontName", "fontSize", "bold", "italic", ...VOICE_STYLE_COLOR_FIELDS], path, warnings);
+  warnUnknownKeys(
+    raw,
+    ["fontName", "fontSize", "bold", "italic", ...VOICE_STYLE_COLOR_FIELDS],
+    path,
+    warnings,
+  );
 
   const fontName = readString(raw.fontName, `${path}.fontName`, warnings);
   const fontSize = readNumber(raw.fontSize, `${path}.fontSize`, warnings);
@@ -305,7 +328,7 @@ function parseVoiceStyle(raw: Record<string, unknown>, path: string, warnings: s
 
 function parseVoiceStyles(
   raw: unknown,
-  warnings: string[]
+  warnings: string[],
 ): Record<VoiceId, VoiceStyleOverride> | undefined {
   if (raw === undefined || raw === null) return undefined;
   if (!isMapping(raw)) {
@@ -341,7 +364,12 @@ export function parseSettingsYaml(text: string): ParsedSettingsFile {
   }
 
   const warnings: string[] = [];
-  warnUnknownKeys(document, ["song", "separationModel", "videoOptions", "voiceStyles"], "", warnings);
+  warnUnknownKeys(
+    document,
+    ["song", "separationModel", "videoOptions", "voiceStyles"],
+    "",
+    warnings,
+  );
 
   const videoOptions = parseVideoOptions(document.videoOptions, warnings);
   const parsed: ParsedSettingsFile = {

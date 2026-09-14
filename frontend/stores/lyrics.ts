@@ -1,12 +1,12 @@
-import { defineStore } from 'pinia';
-import { ref, computed } from 'vue';
-import { parseLyrics } from '@/lib/timing';
-import { parseAnnotatedLyrics, VoiceId } from '@/lib/voices';
-import { persistJsonRef } from '@/lib/persistence';
+import { defineStore } from "pinia";
+import { ref, computed } from "vue";
+import { parseLyrics } from "@/lib/timing";
+import { parseAnnotatedLyrics, VoiceId } from "@/lib/voices";
+import { persistJsonRef } from "@/lib/persistence";
 
-export const useLyricsStore = defineStore('lyrics', () => {
-  const lyricText = ref('');
-  persistJsonRef('lyrics.lyricText', lyricText);
+export const useLyricsStore = defineStore("lyrics", () => {
+  const lyricText = ref("");
+  persistJsonRef("lyrics.lyricText", lyricText);
 
   // Parse marked up lyrics into segments using shared logic
   const lyricSegments = computed(() => {
@@ -21,7 +21,7 @@ export const useLyricsStore = defineStore('lyrics', () => {
   const voices = computed<VoiceId[]>(() => annotated.value.voices);
 
   function lyricTextForVoice(voice: VoiceId): string {
-    return annotated.value.lyricTextByVoice[voice] ?? '';
+    return annotated.value.lyricTextByVoice[voice] ?? "";
   }
 
   function segmentsForVoice(voice: VoiceId) {
@@ -33,7 +33,7 @@ export const useLyricsStore = defineStore('lyrics', () => {
   }
 
   function clear() {
-    lyricText.value = '';
+    lyricText.value = "";
   }
 
   return {

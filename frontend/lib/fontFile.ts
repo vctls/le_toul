@@ -39,7 +39,7 @@ function sfntOffset(view: DataView): number {
   }
   if (WOFF_TAGS.includes(tag)) {
     throw new UnreadableFontError(
-      "Web font formats (.woff and .woff2) can't be used for lyrics. Please upload a .ttf or .otf file."
+      "Web font formats (.woff and .woff2) can't be used for lyrics. Please upload a .ttf or .otf file.",
     );
   }
   if (!SFNT_VERSIONS.includes(tag)) {
@@ -59,7 +59,9 @@ function nameTableOffset(view: DataView, offset: number): number {
       return view.getUint32(record + 8);
     }
   }
-  throw new UnreadableFontError("This font file has no name table, so we can't tell which font it is.");
+  throw new UnreadableFontError(
+    "This font file has no name table, so we can't tell which font it is.",
+  );
 }
 
 function decodeName(view: DataView, offset: number, length: number, platformId: number): string {

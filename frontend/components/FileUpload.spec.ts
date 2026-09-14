@@ -1,17 +1,17 @@
-import { mount } from '@vue/test-utils';
-import FileUpload from './FileUpload.vue';
+import { mount } from "@vue/test-utils";
+import FileUpload from "./FileUpload.vue";
 
-describe('FileUpload', () => {
-  it('renders a file upload input', () => {
+describe("FileUpload", () => {
+  it("renders a file upload input", () => {
     const wrapper = mount(FileUpload, {
       props: {
-        label: 'Upload a file',
+        label: "Upload a file",
         value: null,
       },
     });
 
-    expect(wrapper.find('.file-label').exists()).toBe(true);
-    expect(wrapper.find('.file-name').text()).toBe('No file chosen');
+    expect(wrapper.find(".file-label").exists()).toBe(true);
+    expect(wrapper.find(".file-name").text()).toBe("No file chosen");
   });
 
   // it('displays the file name when a file is selected', async () => {

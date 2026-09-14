@@ -1,19 +1,19 @@
 // stores/timings.ts
-import { defineStore } from 'pinia';
-import { watch } from 'vue';
+import { defineStore } from "pinia";
+import { watch } from "vue";
 import { KEY_CODES, LYRIC_MARKERS } from "@/constants";
-import { pullAt } from 'lodash-es';
-import { useLyricsStore } from './lyrics';
-import { useMediaStore } from './media';
-import { useSettingsStore } from './settings';
+import { pullAt } from "lodash-es";
+import { useLyricsStore } from "./lyrics";
+import { useMediaStore } from "./media";
+import { useSettingsStore } from "./settings";
 import { createAssFile, createMultiVoiceAssFile, DEFAULT_KARAOKE_OPTIONS } from "@/lib/timing";
 import { applyVoiceStyle } from "@/lib/voiceStyle";
-import { VideoSettings } from './settings';
+import { VideoSettings } from "./settings";
 import { VoiceId, DEFAULT_VOICE_ID } from "@/lib/voices";
 import { loadJsonFromStorage } from "@/lib/persistence";
 
-const TIMINGS_STORAGE_KEY = 'timings._timings';
-const ACTIVE_VOICE_STORAGE_KEY = 'timings._activeVoice';
+const TIMINGS_STORAGE_KEY = "timings._timings";
+const ACTIVE_VOICE_STORAGE_KEY = "timings._activeVoice";
 
 type Timings = Array<[number, number]>;
 type TimingsByVoice = Record<VoiceId, Timings>;
@@ -30,7 +30,7 @@ function loadTimingsByVoice(): TimingsByVoice {
   return stored;
 }
 
-export const useTimingsStore = defineStore('timings', {
+export const useTimingsStore = defineStore("timings", {
   // Timings are stored per voice, never as a single shared stream. Voices are fully
   // independent (see frontend/lib/voices.ts for why): they can overlap in time, so there
   // is no one ordered timeline to share. The single-array API below (rawTimings, add,
@@ -94,7 +94,7 @@ export const useTimingsStore = defineStore('timings', {
       }
 
       // Count how many segment starts we have
-      const startMarkers = this.rawTimings.filter(t => t[1] === LYRIC_MARKERS.SEGMENT_START);
+      const startMarkers = this.rawTimings.filter((t) => t[1] === LYRIC_MARKERS.SEGMENT_START);
 
       // Check if we have timing markers for all segments
       if (startMarkers.length < lyricSegments.length) {
@@ -105,7 +105,9 @@ export const useTimingsStore = defineStore('timings', {
 
     areTimingsFinished(): boolean {
       // Timings are fully finished when we've marked the end of the last segment
-      return this.areTimingsUsable && this.rawTimings[this.length - 1][1] === LYRIC_MARKERS.SEGMENT_END;
+      return (
+        this.areTimingsUsable && this.rawTimings[this.length - 1][1] === LYRIC_MARKERS.SEGMENT_END
+      );
     },
 
     subtitles() {
@@ -122,11 +124,14 @@ export const useTimingsStore = defineStore('timings', {
         try {
           const baseOptions = settingsStore.renderOptions || DEFAULT_KARAOKE_OPTIONS;
           // Apply the active voice's style override (no-op when it has none).
-          const voiceOptions = applyVoiceStyle(baseOptions, settingsStore.getVoiceStyle(this.activeVoice));
+          const voiceOptions = applyVoiceStyle(
+            baseOptions,
+            settingsStore.getVoiceStyle(this.activeVoice),
+          );
 
           const adjustedOptions = {
             ...voiceOptions,
-            ...options
+            ...options,
           };
 
           return createAssFile(
@@ -135,7 +140,7 @@ export const useTimingsStore = defineStore('timings', {
             mediaStore.songDuration ?? 0,
             mediaStore.songTitle ?? "",
             mediaStore.songArtist ?? "",
-            adjustedOptions
+            adjustedOptions,
           );
         } catch (e) {
           console.error("Failed to create subtitles", e);
@@ -166,7 +171,10 @@ export const useTimingsStore = defineStore('timings', {
           voice,
           lyrics: lyricsStore.lyricTextForVoice(voice),
           timings: this.timingsForVoice(voice),
-          options: { ...applyVoiceStyle(baseOptions, settingsStore.getVoiceStyle(voice)), ...options },
+          options: {
+            ...applyVoiceStyle(baseOptions, settingsStore.getVoiceStyle(voice)),
+            ...options,
+          },
         }));
         if (tracks.length === 0) {
           return "";
@@ -177,14 +185,14 @@ export const useTimingsStore = defineStore('timings', {
             tracks,
             mediaStore.songDuration ?? 0,
             mediaStore.songTitle ?? "",
-            mediaStore.songArtist ?? ""
+            mediaStore.songArtist ?? "",
           );
         } catch (e) {
           console.error("Failed to create multi-voice subtitles", e);
           return "";
         }
       };
-    }
+    },
   },
 
   actions: {
@@ -208,9 +216,7 @@ export const useTimingsStore = defineStore('timings', {
       }
 
       const marker =
-        keyCode == KEY_CODES.SPACEBAR
-          ? LYRIC_MARKERS.SEGMENT_START
-          : LYRIC_MARKERS.SEGMENT_END;
+        keyCode == KEY_CODES.SPACEBAR ? LYRIC_MARKERS.SEGMENT_START : LYRIC_MARKERS.SEGMENT_END;
 
       if (marker == LYRIC_MARKERS.SEGMENT_START) {
         this.handleConflictWithPreviousSegment(timestamp);
@@ -234,9 +240,7 @@ export const useTimingsStore = defineStore('timings', {
     },
 
     timingForSegmentNum(segmentNum: number) {
-      const starts = this.rawTimings.filter(
-        (t) => t[1] == LYRIC_MARKERS.SEGMENT_START
-      );
+      const starts = this.rawTimings.filter((t) => t[1] == LYRIC_MARKERS.SEGMENT_START);
 
       if (segmentNum >= starts.length) {
         return 0;
@@ -296,7 +300,7 @@ export const useTimingsStore = defineStore('timings', {
       const timed = (voice: VoiceId) => (this._timingsByVoice[voice]?.length ?? 0) > 0;
 
       const orphans = Object.keys(this._timingsByVoice).filter(
-        (voice) => timed(voice) && !voices.includes(voice)
+        (voice) => timed(voice) && !voices.includes(voice),
       );
       const untimed = voices.filter((voice) => !timed(voice));
       if (orphans.length !== 1 || untimed.length !== 1) {
@@ -325,7 +329,7 @@ export const useTimingsStore = defineStore('timings', {
       watch(
         () => lyricsStore.voices.join("\n"),
         () => this.reconcileVoices(),
-        { immediate: true }
+        { immediate: true },
       );
     },
 
@@ -338,6 +342,6 @@ export const useTimingsStore = defineStore('timings', {
           console.error(`Failed to save ${TIMINGS_STORAGE_KEY} to localStorage`, e);
         }
       });
-    }
-  }
+    },
+  },
 });

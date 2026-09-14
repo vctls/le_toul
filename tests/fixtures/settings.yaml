@@ -16,12 +16,12 @@ videoOptions:
     size: 30
     name: Impact
   color:
-    background: '#101010'
-    primary: '#ff8800'
-    secondary: '#0088ff'
+    background: "#101010"
+    primary: "#ff8800"
+    secondary: "#0088ff"
 voiceStyles:
   Anna:
     fontName: Georgia
     fontSize: 26
     bold: true
-    primary: '#abcdef'
+    primary: "#abcdef"

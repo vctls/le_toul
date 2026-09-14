@@ -1,17 +1,22 @@
-import { readFileSync } from 'node:fs';
-import path from 'node:path';
-import { describe, expect, test } from 'vitest';
-import { parseFontFamilyName, readFontFamilyName, UnreadableFontError } from './fontFile';
+import { readFileSync } from "node:fs";
+import path from "node:path";
+import { describe, expect, test } from "vitest";
+import { parseFontFamilyName, readFontFamilyName, UnreadableFontError } from "./fontFile";
 
-const FONT_DIR = path.resolve(__dirname, '../../api/assets/fonts');
+const FONT_DIR = path.resolve(__dirname, "../../api/assets/fonts");
 
 function bundledFont(name: string): ArrayBuffer {
   const buffer = readFileSync(path.join(FONT_DIR, name));
-  return buffer.buffer.slice(buffer.byteOffset, buffer.byteOffset + buffer.byteLength) as ArrayBuffer;
+  return buffer.buffer.slice(
+    buffer.byteOffset,
+    buffer.byteOffset + buffer.byteLength,
+  ) as ArrayBuffer;
 }
 
 // A real font with the right mix of name records is hard to come by, so synthesize one.
-function fontWithNames(entries: { platformId: number; nameId: number; text: string }[]): ArrayBuffer {
+function fontWithNames(
+  entries: { platformId: number; nameId: number; text: string }[],
+): ArrayBuffer {
   const encoded = entries.map(({ platformId, text }) => {
     if (platformId === 1) {
       return Uint8Array.from(text, (c) => c.charCodeAt(0));
@@ -55,41 +60,41 @@ function fontWithNames(entries: { platformId: number; nameId: number; text: stri
   return data;
 }
 
-describe('parseFontFamilyName', () => {
+describe("parseFontFamilyName", () => {
   test.each([
-    ['Impact.ttf', 'Impact'],
-    ['MetalMania.ttf', 'Metal Mania'],
-    ['ArialNarrow.ttf', 'Arial Narrow'],
-    ['LiberationSans.ttf', 'Liberation Sans'],
-  ])('reads the family name out of %s', (file, expected) => {
+    ["Impact.ttf", "Impact"],
+    ["MetalMania.ttf", "Metal Mania"],
+    ["ArialNarrow.ttf", "Arial Narrow"],
+    ["LiberationSans.ttf", "Liberation Sans"],
+  ])("reads the family name out of %s", (file, expected) => {
     expect(parseFontFamilyName(bundledFont(file))).toBe(expected);
   });
 
-  test('prefers the typographic family over the legacy one', () => {
+  test("prefers the typographic family over the legacy one", () => {
     const data = fontWithNames([
-      { platformId: 3, nameId: 1, text: 'Bagel Fat One SemiCondensed' },
-      { platformId: 3, nameId: 16, text: 'Bagel Fat One' },
+      { platformId: 3, nameId: 1, text: "Bagel Fat One SemiCondensed" },
+      { platformId: 3, nameId: 16, text: "Bagel Fat One" },
     ]);
 
-    expect(parseFontFamilyName(data)).toBe('Bagel Fat One');
+    expect(parseFontFamilyName(data)).toBe("Bagel Fat One");
   });
 
-  test('falls back to the Macintosh record when that is all there is', () => {
-    const data = fontWithNames([{ platformId: 1, nameId: 1, text: 'Old Mac Font' }]);
+  test("falls back to the Macintosh record when that is all there is", () => {
+    const data = fontWithNames([{ platformId: 1, nameId: 1, text: "Old Mac Font" }]);
 
-    expect(parseFontFamilyName(data)).toBe('Old Mac Font');
+    expect(parseFontFamilyName(data)).toBe("Old Mac Font");
   });
 
-  test('ignores name records that are neither family name', () => {
+  test("ignores name records that are neither family name", () => {
     const data = fontWithNames([
-      { platformId: 3, nameId: 4, text: 'Some Font Bold Italic' }, // full name
-      { platformId: 3, nameId: 1, text: 'Some Font' },
+      { platformId: 3, nameId: 4, text: "Some Font Bold Italic" }, // full name
+      { platformId: 3, nameId: 1, text: "Some Font" },
     ]);
 
-    expect(parseFontFamilyName(data)).toBe('Some Font');
+    expect(parseFontFamilyName(data)).toBe("Some Font");
   });
 
-  test('rejects web font formats by name', () => {
+  test("rejects web font formats by name", () => {
     const data = new ArrayBuffer(64);
     new DataView(data).setUint32(0, 0x774f4646); // 'wOFF'
 
@@ -97,17 +102,17 @@ describe('parseFontFamilyName', () => {
     expect(() => parseFontFamilyName(data)).toThrow(/woff/i);
   });
 
-  test('rejects a file that is not a font', () => {
-    const data = new TextEncoder().encode('this is not a font at all').buffer;
+  test("rejects a file that is not a font", () => {
+    const data = new TextEncoder().encode("this is not a font at all").buffer;
 
     expect(() => parseFontFamilyName(data as ArrayBuffer)).toThrow(UnreadableFontError);
   });
 
-  test('rejects an empty file', () => {
+  test("rejects an empty file", () => {
     expect(() => parseFontFamilyName(new ArrayBuffer(0))).toThrow(UnreadableFontError);
   });
 
-  test('rejects a font with no name table', () => {
+  test("rejects a font with no name table", () => {
     const data = new ArrayBuffer(12 + 16);
     const view = new DataView(data);
     view.setUint32(0, 0x00010000);
@@ -118,10 +123,10 @@ describe('parseFontFamilyName', () => {
   });
 });
 
-describe('readFontFamilyName', () => {
-  test('reads the family name from a File', async () => {
-    const file = new File([bundledFont('Georgia.ttf')], 'whatever-the-user-called-it.ttf');
+describe("readFontFamilyName", () => {
+  test("reads the family name from a File", async () => {
+    const file = new File([bundledFont("Georgia.ttf")], "whatever-the-user-called-it.ttf");
 
-    await expect(readFontFamilyName(file)).resolves.toBe('Georgia');
+    await expect(readFontFamilyName(file)).resolves.toBe("Georgia");
   });
 });

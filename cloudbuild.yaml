@@ -16,7 +16,7 @@ steps:
     args: ["push", "$_DOCKER_IMAGE"]
   # Deploy service for simple requests
   - waitFor:
-    - container_push
+      - container_push
     name: "gcr.io/google.com/cloudsdktool/cloud-sdk"
     entrypoint: gcloud
     args:
@@ -36,7 +36,7 @@ steps:
       ]
   # Deploy API service for high-intensity requests
   - waitFor:
-    - container_push
+      - container_push
     name: "gcr.io/google.com/cloudsdktool/cloud-sdk"
     entrypoint: gcloud
     args:

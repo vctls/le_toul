@@ -1,4 +1,4 @@
-import { test } from '@playwright/test';
+import { test } from "@playwright/test";
 import {
   defaultTestConfig,
   setupTestEnvironment,
@@ -13,23 +13,28 @@ import {
   expectVideoCreationToBeEnabled,
   loadAndEnterTimings,
   expectSuccessMessage,
-  expectFileDownload
-} from './utils';
+  expectFileDownload,
+} from "./utils";
 
-test.describe('Karaoke Track Creation', () => {
+test.describe("Karaoke Track Creation", () => {
   test.describe.configure({ timeout: 300000 }); // 5 minutes
 
   test.beforeEach(async ({ page }) => {
     await setupTestEnvironment(page);
   });
 
-  test('Create a complete karaoke track', async ({ page, context }) => {
+  test("Create a complete karaoke track", async ({ page, context }) => {
     // Setup API mock
     await mockSeparateTrackApi(context);
 
     // 1. Navigate to Song Info tab and upload audio
     await navigateToTab(page, TabId.SongInfo);
-    await uploadAudioFile(page, defaultTestConfig.audioFile, defaultTestConfig.artist, defaultTestConfig.title);
+    await uploadAudioFile(
+      page,
+      defaultTestConfig.audioFile,
+      defaultTestConfig.artist,
+      defaultTestConfig.title,
+    );
 
     // 2. Verify Song Timing tab is initially disabled
     await expectTabToBeDisabled(page, TabId.SongTiming);
@@ -55,7 +60,7 @@ test.describe('Karaoke Track Creation', () => {
     await loadAndEnterTimings(page, defaultTestConfig.timingsFile);
 
     // 8. Verify success message
-    await expectSuccessMessage(page, '.song-timing-tab');
+    await expectSuccessMessage(page, ".song-timing-tab");
 
     // 9. Navigate to Submit tab and verify video creation is now available
     await navigateToTab(page, TabId.Submit);
@@ -67,6 +72,6 @@ test.describe('Karaoke Track Creation', () => {
     // 11. Wait for video download and verify
     const VIDEO_CREATION_TIMEOUT = 180000; // 3 minutes
     const videoPath = await expectFileDownload(page, VIDEO_CREATION_TIMEOUT);
-    console.log('Video download path:', videoPath);
+    console.log("Video download path:", videoPath);
   });
 });

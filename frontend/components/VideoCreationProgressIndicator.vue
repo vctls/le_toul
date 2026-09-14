@@ -1,14 +1,20 @@
 <template>
   <div class="video-creation-progress-indicator">
-    <b-message :type="messageType" has-icon :icon="messageIcon" icon-size="is-small" :closable="false">
+    <b-message
+      :type="messageType"
+      has-icon
+      :icon="messageIcon"
+      icon-size="is-small"
+      :closable="false"
+    >
       {{ message }}
     </b-message>
     <b-progress
-        :type="messageType"
-        size="is-medium"
-        :rounded="false"
-        :value="progressValue"
-        show-value
+      :type="messageType"
+      size="is-medium"
+      :rounded="false"
+      :value="progressValue"
+      show-value
     >
       {{ progressMessage }}
     </b-progress>
@@ -16,8 +22,8 @@
 </template>
 
 <script lang="ts">
-import {defineComponent, PropType} from "vue";
-import {CreationPhase} from "@/types";
+import { defineComponent, PropType } from "vue";
+import { CreationPhase } from "@/types";
 
 export default defineComponent({
   props: {
@@ -31,9 +37,9 @@ export default defineComponent({
     step: String,
     phase: Number as PropType<CreationPhase>,
     // Progress of the SeparatingVocals phase, from 0 to 1, or null when the backend reports no figure
-    separationProgress: {type: Number as PropType<number | null>, default: null},
+    separationProgress: { type: Number as PropType<number | null>, default: null },
     // What the SeparatingVocals phase is doing right now, e.g. "separating the vocals"
-    separationStage: {type: String as PropType<string | null>, default: null},
+    separationStage: { type: String as PropType<string | null>, default: null },
     // Whether the separation was already running when the video was requested
     waitingForSeparation: Boolean,
   },
@@ -93,7 +99,11 @@ export default defineComponent({
     // undefined leaves the bar indeterminate,
     // for a separation with nothing to report and no song duration to estimate from.
     progressValue(): number | undefined {
-      if (this.isSeparating && this.separationProgress === null && this.estimatedSeparationProgress === null) {
+      if (
+        this.isSeparating &&
+        this.separationProgress === null &&
+        this.estimatedSeparationProgress === null
+      ) {
         return undefined;
       }
       return this.phaseProgress * 100;

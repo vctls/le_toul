@@ -1,7 +1,14 @@
 <template>
-  <audio ref="audioPlayer" v-bind="$attrs" @play="startTimeUpdateLoop($event)" @pause="onPause"
-    @seeking="$emit('seeking', $event)" @seeked="$emit('seeked', $event)" @waiting="$emit('waiting', $event)"
-    @error="$emit('error', $event)"></audio>
+  <audio
+    ref="audioPlayer"
+    v-bind="$attrs"
+    @play="startTimeUpdateLoop($event)"
+    @pause="onPause"
+    @seeking="$emit('seeking', $event)"
+    @seeked="$emit('seeked', $event)"
+    @waiting="$emit('waiting', $event)"
+    @error="$emit('error', $event)"
+  ></audio>
 </template>
 
 <script lang="ts">
@@ -17,33 +24,33 @@ export default defineComponent({
   },
   // Expose currentTime as a property
   mounted() {
-    Object.defineProperty(this, 'playbackRate', {
+    Object.defineProperty(this, "playbackRate", {
       get: () => this.audioPlayer?.playbackRate || 1,
       set: (value) => {
         if (this.audioPlayer) {
           this.audioPlayer.playbackRate = value;
         }
-      }
+      },
     });
-    Object.defineProperty(this, 'preservesPitch', {
+    Object.defineProperty(this, "preservesPitch", {
       get: () => this.audioPlayer?.preservesPitch ?? true,
       set: (value) => {
         if (this.audioPlayer) {
           this.audioPlayer.preservesPitch = value;
         }
-      }
+      },
     });
-    Object.defineProperty(this, 'currentTime', {
+    Object.defineProperty(this, "currentTime", {
       get: () => this.audioPlayer?.currentTime || 0,
       set: (value) => {
-        if (typeof value !== 'number' || isNaN(value)) {
+        if (typeof value !== "number" || isNaN(value)) {
           console.warn("Invalid value for currentTime:", value);
           return;
         }
         if (this.audioPlayer) {
           this.audioPlayer.currentTime = value;
         }
-      }
+      },
     });
   },
   data() {
@@ -56,7 +63,7 @@ export default defineComponent({
     addEventListener(
       eventName: string,
       callback: EventListenerOrEventListenerObject,
-      useCapture: boolean = false
+      useCapture: boolean = false,
     ) {
       const audio = this.$refs.audioPlayer as HTMLAudioElement;
       audio.addEventListener(eventName, callback, useCapture);
@@ -64,7 +71,7 @@ export default defineComponent({
     removeEventListener(
       eventName: string,
       callback: EventListenerOrEventListenerObject,
-      useCapture: boolean = false
+      useCapture: boolean = false,
     ) {
       const audio = this.$refs.audioPlayer as HTMLAudioElement;
       audio.removeEventListener(eventName, callback, useCapture);

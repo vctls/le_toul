@@ -1,26 +1,20 @@
 {
-    "compilerOptions": {
-        "target": "ES2022",
-        "strict": true,
-        "sourceMap": true,
-        "moduleResolution": "Bundler",
-        "esModuleInterop": true,
-        "skipLibCheck": true,
-        "module": "ES2022",
-        "paths": {
-            "@/*": [
-                "./frontend/*"
-            ],
-            "@/lib/*": [
-                "./frontend/lib/*"
-            ]
-        },
-        "types": [
-            "vitest/globals",
-        ]
+  "compilerOptions": {
+    "target": "ES2022",
+    "strict": true,
+    "sourceMap": true,
+    "moduleResolution": "Bundler",
+    "esModuleInterop": true,
+    "skipLibCheck": true,
+    "module": "ES2022",
+    "paths": {
+      "@/*": ["./frontend/*"],
+      "@/lib/*": ["./frontend/lib/*"]
     },
-    "vueCompilerOptions": {
-        "strictTemplates": true,
-        "target": 3.5
-    }
+    "types": ["vitest/globals"]
+  },
+  "vueCompilerOptions": {
+    "strictTemplates": true,
+    "target": 3.5
+  }
 }

@@ -11,49 +11,50 @@
       </b-field>
       <b-field horizontal label="Font Size">
         <b-numberinput
-            expanded
-            :model-value="fontSize"
-            @update:model-value="(v: number | null | undefined) => (fontSize = Number(v ?? fontSize))"
-            controls-position="compact"/>
+          expanded
+          :model-value="fontSize"
+          @update:model-value="(v: number | null | undefined) => (fontSize = Number(v ?? fontSize))"
+          controls-position="compact"
+        />
       </b-field>
       <b-field horizontal label="Bold">
-        <b-switch v-model="bold"/>
+        <b-switch v-model="bold" />
       </b-field>
       <b-field horizontal label="Italic">
-        <b-switch v-model="italic"/>
+        <b-switch v-model="italic" />
       </b-field>
       <b-field horizontal label="Primary Color">
-        <color-field v-model="primary" :label="`${voice} primary color`"/>
+        <color-field v-model="primary" :label="`${voice} primary color`" />
       </b-field>
       <b-field horizontal label="Secondary Color">
-        <color-field v-model="secondary" :label="`${voice} secondary color`"/>
+        <color-field v-model="secondary" :label="`${voice} secondary color`" />
       </b-field>
       <b-field horizontal label="Outline Color">
-        <color-field v-model="outline" :label="`${voice} outline color`"/>
+        <color-field v-model="outline" :label="`${voice} outline color`" />
       </b-field>
     </div>
   </div>
 </template>
 
 <script lang="ts">
-import {defineComponent, PropType} from "vue";
-import {BField, BSelect, BNumberinput, BSwitch} from "buefy";
-import {default as BuefyColor} from "buefy/src/utils/color";
+import { defineComponent, PropType } from "vue";
+import { BField, BSelect, BNumberinput, BSwitch } from "buefy";
+import { default as BuefyColor } from "buefy/src/utils/color";
 import ColorField from "@/components/ColorField.vue";
-import {useSettingsStore} from "@/stores/settings";
-import {VoiceStyleOverride, isEmptyOverride} from "@/lib/voiceStyle";
-import {VoiceId} from "@/lib/voices";
+import { useSettingsStore } from "@/stores/settings";
+import { VoiceStyleOverride, isEmptyOverride } from "@/lib/voiceStyle";
+import { VoiceId } from "@/lib/voices";
 
 // Editor for a single voice's style override.
 // Uses v-model throughout (Vue 3 component model binding), mirroring the base "Fonts and Colors" controls.
 export default defineComponent({
-  components: {BField, BSelect, BNumberinput, BSwitch, ColorField},
+  components: { BField, BSelect, BNumberinput, BSwitch, ColorField },
   props: {
-    voice: {type: String as PropType<VoiceId>, required: true},
-    fonts: {type: Object as PropType<Record<string, string>>, required: true},
+    voice: { type: String as PropType<VoiceId>, required: true },
+    fonts: { type: Object as PropType<Record<string, string>>, required: true },
   },
   setup() {
-    return {settingsStore: useSettingsStore()};
+    return { settingsStore: useSettingsStore() };
   },
   data() {
     return {
