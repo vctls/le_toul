@@ -60,3 +60,8 @@
     width: 1em;
     height: 1em;
 }
+
+// Messages lay their icon out as a Bulma media object, which top-aligns.
+.message-body .media {
+    align-items: center;
+}

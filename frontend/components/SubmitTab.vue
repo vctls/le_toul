@@ -30,7 +30,7 @@
                 <b-icon size="is-small" icon="circle-question"></b-icon>
               </b-tooltip>
             </template>
-            <b-numberinput :model-value="videoOptions.countInThreshold" :min="0.5" :step="0.5"
+            <b-numberinput expanded :model-value="videoOptions.countInThreshold" :min="0.5" :step="0.5"
               @update:model-value="(v: number | null | undefined) => (videoOptions.countInThreshold = Number(v ?? videoOptions.countInThreshold))"
               controls-position="compact"></b-numberinput>
           </b-field>
@@ -41,7 +41,7 @@
                 <b-icon size="is-small" icon="circle-question"></b-icon>
               </b-tooltip>
             </template>
-            <b-numberinput :model-value="videoOptions.countInDuration" :min="0.5" :max="videoOptions.countInThreshold"
+            <b-numberinput expanded :model-value="videoOptions.countInDuration" :min="0.5" :max="videoOptions.countInThreshold"
               :step="0.5"
               @update:model-value="(v: number | null | undefined) => (videoOptions.countInDuration = Number(v ?? videoOptions.countInDuration))"
               controls-position="compact"></b-numberinput>
@@ -71,7 +71,7 @@
               <b-icon size="is-small" icon="circle-question"></b-icon>
             </b-tooltip>
           </template>
-          <b-select :model-value="videoOptions.outputFormat"
+          <b-select expanded :model-value="videoOptions.outputFormat"
             @update:model-value="(v: string) => (videoOptions.outputFormat = v as OutputFormat)">
             <option v-for="(label, format) in outputFormatLabels" :key="format" :value="format">{{ label }}</option>
           </b-select>
@@ -84,7 +84,7 @@
             </a>
           </template>
           <b-field horizontal label="Font">
-            <b-select v-model="videoOptions.font.name">
+            <b-select expanded v-model="videoOptions.font.name">
               <option v-for="(path, name) in fonts" :key="path" :value="name"
                 :selected="name == videoOptions.font.name">
                 {{ name }}
@@ -98,7 +98,7 @@
                 <b-icon size="is-small" icon="circle-question"></b-icon>
               </b-tooltip>
             </template>
-            <file-upload name="custom-font-upload" :accept="['.ttf', '.otf', '.ttc']"
+            <file-upload expanded name="custom-font-upload" :accept="['.ttf', '.otf', '.ttc']"
               :model-value="(settingsStore.customFont as File | undefined) ?? undefined" @update:modelValue="onCustomFontChange" />
           </b-field>
           <b-field horizontal v-if="settingsStore.customFontFamily">
@@ -106,7 +106,7 @@
               Rendering lyrics in &ldquo;{{ settingsStore.customFontFamily }}&rdquo;, overriding the font above.
             </p>
           </b-field>
-          <b-field horizontal label="Font Size"><b-numberinput :model-value="videoOptions.font.size" @update:model-value="(v: number | null | undefined) => (videoOptions.font.size = Number(v ?? videoOptions.font.size))"
+          <b-field horizontal label="Font Size"><b-numberinput expanded :model-value="videoOptions.font.size" @update:model-value="(v: number | null | undefined) => (videoOptions.font.size = Number(v ?? videoOptions.font.size))"
               controls-position="compact"></b-numberinput></b-field>
           <b-field horizontal label="Background Color"><color-field v-model="videoOptions.color.background"
               label="background color" /></b-field>
@@ -563,5 +563,14 @@ export default defineComponent({
 
 .settings-column :deep(.b-tooltip.is-multiline .tooltip-content) {
   width: 24rem;
+}
+
+/* Bulma's label padding assumes a one-line input; these rows hold taller controls. */
+.submit-tab :deep(.field.is-horizontal) {
+  align-items: center;
+}
+
+.submit-tab :deep(.field.is-horizontal > .field-label) {
+  padding-top: 0;
 }
 </style>
