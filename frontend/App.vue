@@ -3,7 +3,7 @@
     <b-navbar shadow :mobile-burger="false">
       <template #brand>
         <b-navbar-item tag="span">
-          <span class="title">The Tüüler</span>
+          <span class="title">Le Toul</span>
         </b-navbar-item>
       </template>
       <template #end>
