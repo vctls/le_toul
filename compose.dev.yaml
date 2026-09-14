@@ -41,7 +41,6 @@ services:
       context: .
       dockerfile: Dockerfile
       target: runner
-    image: the-tuul:dev
     env_file: .env
     environment:
       PORT: 8000
