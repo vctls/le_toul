@@ -1,5 +1,5 @@
 <template>
-  <b-tab-item label="Lyrics" icon="align-left" class="lyric-input-tab" headerClass="lyric-input-tab-header">
+  <b-tab-item value="lyrics" label="Lyrics" icon="align-left" class="lyric-input-tab" headerClass="lyric-input-tab-header">
     <h2 class="title">Song Lyrics</h2>
     <help-section>
       <div class="columns is-variable is-5">

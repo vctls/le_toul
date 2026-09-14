@@ -1,5 +1,6 @@
 <template>
   <b-tab-item
+      value="adjust"
       icon="flask" label="Adjust" :disabled="!isEnabled" class="timing-adjustment-tab"
       headerClass="timing-adjustment-tab-header">
     <div class="title-row">

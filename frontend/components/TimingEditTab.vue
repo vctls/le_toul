@@ -1,5 +1,5 @@
 <template>
-  <b-tab-item icon="pen-to-square" label="Edit" :disabled="!isEnabled" class="timing-edit-tab">
+  <b-tab-item value="edit" icon="pen-to-square" label="Edit" :disabled="!isEnabled" class="timing-edit-tab">
     <div class="title-row">
       <h2 class="title">Edit Timings</h2>
       <voice-selector/>

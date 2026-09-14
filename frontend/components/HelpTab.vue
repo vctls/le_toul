@@ -1,5 +1,5 @@
 <template>
-  <b-tab-item label="Introduction" icon="circle-info" class="scroll-wrapper">
+  <b-tab-item value="help" label="Introduction" icon="circle-info" class="scroll-wrapper">
     <div class="content">
       <p>
         <strong>Step 1: Choose a music file.</strong> Click the

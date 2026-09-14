@@ -124,6 +124,13 @@ export default defineComponent({
       console.error("Wavesurfer error", err);
     });
 
+    // Regions added before the audio is decoded have no duration to lay themselves out against,
+    // and the plugin defers saving them until it has one, past the reach of clearRegions().
+    // Landing straight on this tab (a #adjust deep link or reload) is the case that hits it.
+    this.wavesurfer.on("ready", () => {
+      this.updateRegions(this.regions);
+    });
+
     this.regionsPlugin.on("region-updated", (region: Region) => {
       // The DOM is already at its final position; skip the rebuild triggered
       // when these timings round-trip back through the `regions` prop.
@@ -218,7 +225,7 @@ export default defineComponent({
       }
     },
     updateRegions(regions: RegionParams[]) {
-      if (!this.wavesurfer || !this.isVisible) return;
+      if (!this.wavesurfer || !this.isVisible || !this.isReady()) return;
 
       // Clear regions first
       this.regionsPlugin.clearRegions();
