@@ -1,4 +1,4 @@
-.PHONY: dev install bump-version-minor bump-version-patch format format-backend format-frontend run-api test-api test-frontend-docker test-e2e-docker test-docker build-docker
+.PHONY: dev install bump-version-minor bump-version-patch format format-backend format-frontend lint-backend run-api test-api test-frontend-docker test-e2e-docker test-docker build-docker
 dev:
 	@set -e; \
 	trap 'printf "\n↪ shutting down…\n"; kill 0; exit 0' INT TERM; \
@@ -25,7 +25,8 @@ bump-version-patch:
 
 format-backend:
 	@set -e; \
-	poetry run black api/;
+	poetry run ruff check --fix .; \
+	poetry run ruff format .;
 
 format-frontend:
 	@set -e; \
@@ -36,6 +37,11 @@ format: format-backend format-frontend
 run-api:
 	@set -e; \
 	poetry run gunicorn --config gunicorn.conf.py api.main:app;
+
+lint-backend:
+	@set -e; \
+	poetry run ruff check .; \
+	poetry run ruff format --check .;
 
 test-api:
 	@set -e; \

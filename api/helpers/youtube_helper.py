@@ -1,13 +1,14 @@
 import json
 import tempfile
-from pathlib import Path
-import structlog
 import urllib.error
+from pathlib import Path
 
 import pytubefix as pytube
+import structlog
 from pytubefix import extract
+
 from .. import settings
-from . import zip_helper, cloud_storage
+from . import cloud_storage, zip_helper
 
 logger = structlog.get_logger(__name__)
 
@@ -58,11 +59,11 @@ def get_youtube_streams(
     except urllib.error.URLError as e:
         # Check if this is a "No route to host" error (errno 113)
         is_no_route_error = False
-        if hasattr(e, "reason"):
-            if hasattr(e.reason, "errno") and e.reason.errno == 113:
-                is_no_route_error = True
-            elif str(e.reason).find("No route to host") != -1:
-                is_no_route_error = True
+        if hasattr(e, "reason") and (
+            (hasattr(e.reason, "errno") and e.reason.errno == 113)
+            or str(e.reason).find("No route to host") != -1
+        ):
+            is_no_route_error = True
 
         if is_no_route_error:
             # Try to extract host information from the error

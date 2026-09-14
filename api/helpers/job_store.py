@@ -18,7 +18,6 @@ import tempfile
 import time
 import uuid
 from pathlib import Path
-from typing import Optional
 
 import structlog
 
@@ -82,7 +81,7 @@ def _write_status(cache_hash: str, status: dict) -> None:
     _write_atomic(status_path(cache_hash), json.dumps(status).encode("utf-8"))
 
 
-def _write_run_outcome(cache_hash: str, run_id: Optional[str], outcome: dict) -> None:
+def _write_run_outcome(cache_hash: str, run_id: str | None, outcome: dict) -> None:
     """Record how a run ended, unless a later one has taken over the hash."""
     status = read_status(cache_hash)
     if run_id and status and status.get("runId") not in (run_id, None):
@@ -138,7 +137,7 @@ def mark_cancelled(cache_hash: str, run_id: str) -> None:
     )
 
 
-def mark_progress(cache_hash: str, progress: Optional[float], stage: str) -> None:
+def mark_progress(cache_hash: str, progress: float | None, stage: str) -> None:
     """Record how far along a running job is.
 
     A report with no fraction names the stage and leaves the last figure standing,
@@ -156,12 +155,12 @@ def mark_progress(cache_hash: str, progress: Optional[float], stage: str) -> Non
     _write_status(cache_hash, {**status, **update})
 
 
-def mark_failed(cache_hash: str, error: str, run_id: Optional[str] = None) -> None:
+def mark_failed(cache_hash: str, error: str, run_id: str | None = None) -> None:
     """Record that a job failed so the client stops polling."""
     _write_run_outcome(cache_hash, run_id, {"status": STATUS_ERROR, "error": error})
 
 
-def read_status(cache_hash: str) -> Optional[dict]:
+def read_status(cache_hash: str) -> dict | None:
     """Return the recorded status for a job, or None if there is no such job."""
     path = status_path(cache_hash)
     try:

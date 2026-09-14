@@ -3,8 +3,7 @@ from pathlib import Path
 from unittest import mock
 
 import pytest
-
-from karaoke.music_separation import split_song, DEFAULT_MODEL, SeparationMethod
+from karaoke.music_separation import DEFAULT_MODEL, SeparationMethod, split_song
 
 
 @pytest.fixture
@@ -132,11 +131,13 @@ def test_split_song_both_methods_same_output(audio_file, temp_output_dir):
 
 def test_split_song_subprocess_command_not_found(audio_file, temp_output_dir):
     """Test subprocess method when audio-separator command is not found."""
-    with mock.patch("subprocess.run", side_effect=FileNotFoundError()):
-        with pytest.raises(FileNotFoundError):
-            split_song(
-                audio_file, temp_output_dir, DEFAULT_MODEL, method=SeparationMethod.CLI
-            )
+    with (
+        mock.patch("subprocess.run", side_effect=FileNotFoundError()),
+        pytest.raises(FileNotFoundError),
+    ):
+        split_song(
+            audio_file, temp_output_dir, DEFAULT_MODEL, method=SeparationMethod.CLI
+        )
 
 
 def test_split_song_subprocess_command_fails(audio_file, temp_output_dir):

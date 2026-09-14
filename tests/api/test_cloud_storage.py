@@ -28,14 +28,31 @@ def test_get_cache_hash():
 @pytest.mark.parametrize(
     "bucket_exists,blob_exists,content_type,expected_result",
     [
-        (True, True, "application/zip", "https://example.com/url"),  # Completed cache - should return URL
-        (True, True, "application/json", "https://example.com/url"),  # Placeholder - should return URL
-        (True, False, None, None),  # Bucket exists but blob doesn't - should return None
+        (
+            True,
+            True,
+            "application/zip",
+            "https://example.com/url",
+        ),  # Completed cache - should return URL
+        (
+            True,
+            True,
+            "application/json",
+            "https://example.com/url",
+        ),  # Placeholder - should return URL
+        (
+            True,
+            False,
+            None,
+            None,
+        ),  # Bucket exists but blob doesn't - should return None
         (False, False, None, None),  # Bucket doesn't exist - should return None
     ],
 )
 @mock.patch("api.helpers.cloud_storage.storage")
-def test_fetch_from_cache(mock_storage, bucket_exists, blob_exists, content_type, expected_result):
+def test_fetch_from_cache(
+    mock_storage, bucket_exists, blob_exists, content_type, expected_result
+):
     # Setup mocks
     mock_client = mock.MagicMock()
     mock_bucket = mock.MagicMock()
@@ -47,6 +64,7 @@ def test_fetch_from_cache(mock_storage, bucket_exists, blob_exists, content_type
 
     if not bucket_exists:
         from google.cloud.exceptions import NotFound
+
         mock_client.bucket.side_effect = NotFound("Bucket not found")
 
     if not blob_exists:

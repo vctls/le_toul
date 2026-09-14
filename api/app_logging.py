@@ -4,8 +4,7 @@ Logging configuration for FastAPI application.
 
 import structlog
 
-from . import loggers
-from . import settings
+from . import loggers, settings
 
 
 def setup():

@@ -1,9 +1,7 @@
 import hashlib
 import json
-import tempfile
 import time
 from pathlib import Path
-from typing import Optional
 
 import structlog
 from google.cloud import storage
@@ -27,8 +25,8 @@ def get_cache_hash(model_name: str, song_file_data: bytes) -> str:
 
 
 def fetch_from_cache(
-    cache_hash: str, bucket_name: Optional[str] = None, folder: str = "separated_tracks"
-) -> Optional[str]:
+    cache_hash: str, bucket_name: str | None = None, folder: str = "separated_tracks"
+) -> str | None:
     """
     Try to fetch a zip file from Google Cloud Storage based on the hash.
     Returns:
@@ -80,7 +78,7 @@ def fetch_from_cache(
 def upload_to_cache(
     cache_hash: str,
     zip_path: Path,
-    bucket_name: Optional[str] = None,
+    bucket_name: str | None = None,
     folder: str = "separated_tracks",
 ) -> bool:
     """
@@ -122,8 +120,8 @@ def upload_to_cache(
 
 
 def create_cache_placeholder(
-    cache_hash: str, bucket_name: Optional[str] = None, folder: str = "separated_tracks"
-) -> Optional[str]:
+    cache_hash: str, bucket_name: str | None = None, folder: str = "separated_tracks"
+) -> str | None:
     """
     Create a placeholder JSON file in GCS to indicate processing has started.
     Uses the same filename as the final cache file.

@@ -3,8 +3,6 @@ Vite asset helper for FastAPI - replacement for django-vite functionality.
 """
 
 import json
-from pathlib import Path
-from typing import Dict, List, Optional
 
 from . import settings
 
@@ -17,10 +15,10 @@ class ViteAssets:
         self.manifest_path = (
             settings.BASE_DIR / "assets" / "bundles" / ".vite" / "manifest.json"
         )
-        self._manifest: Optional[Dict] = None
+        self._manifest: dict | None = None
 
     @property
-    def manifest(self) -> Dict:
+    def manifest(self) -> dict:
         """Load and cache the Vite manifest."""
         if self._manifest is None:
             try:
@@ -30,7 +28,7 @@ class ViteAssets:
                 self._manifest = {}
         return self._manifest
 
-    def get_asset_urls(self, entry_name: str) -> Dict[str, List[str]]:
+    def get_asset_urls(self, entry_name: str) -> dict[str, list[str]]:
         """Get CSS and JS URLs for a given entry point."""
         if entry_name not in self.manifest:
             return {"css": [], "js": []}

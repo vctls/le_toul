@@ -20,9 +20,9 @@ separator-daemon = "api.run_separator_daemon:main"
 
 
 [tool.poetry.group.dev.dependencies]
-black = "^26.5.1"
 pytest = "^9.0.3"
 mypy = "^2.1.0"
+ruff = "^0.16.7"
 
 [tool.pytest.ini_options]
 minversion = "7.0"
@@ -33,6 +33,15 @@ pythonpath = [
   ".",
   "api"
 ]
+
+[tool.ruff]
+target-version = "py313"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B", "SIM"]
+# E501: the formatter already wraps code; what is left is long strings and comments.
+# B008: FastAPI declares dependencies as argument defaults (File(), Depends()).
+ignore = ["E501", "B008"]
 
 [tool.mypy]
 

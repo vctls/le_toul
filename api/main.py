@@ -1,6 +1,5 @@
 import tempfile
 from pathlib import Path
-from typing import Optional
 
 import structlog
 from fastapi import (
@@ -9,11 +8,13 @@ from fastapi import (
     File,
     Form,
     HTTPException,
-    Path as PathParam,
     Query,
     Request,
     Response,
     UploadFile,
+)
+from fastapi import (
+    Path as PathParam,
 )
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, JSONResponse, StreamingResponse
@@ -22,12 +23,11 @@ from fastapi.templating import Jinja2Templates
 from markupsafe import Markup
 from pydantic import BaseModel
 
-from . import settings
-from . import app_logging
+from . import app_logging, settings
+from .helpers import cloud_storage, job_store, youtube_helper, zip_helper
+from .helpers.youtube_helper import YouTubeException
 from .karaoke import music_separation, separation_progress
 from .karaoke.music_separation import SeparationMethod
-from .helpers import youtube_helper, zip_helper, cloud_storage, job_store
-from .helpers.youtube_helper import YouTubeException
 from .vite_assets import vite_assets
 
 # Configure logging
@@ -63,11 +63,11 @@ templates = Jinja2Templates(directory=settings.TEMPLATES_DIR)
 
 # Pydantic models
 class LogErrorRequest(BaseModel):
-    message: Optional[str] = None
-    stack: Optional[str] = None
-    url: Optional[str] = None
-    line: Optional[int] = None
-    column: Optional[int] = None
+    message: str | None = None
+    stack: str | None = None
+    url: str | None = None
+    line: int | None = None
+    column: int | None = None
 
 
 class SeparationPollResponse(BaseModel):
@@ -98,8 +98,8 @@ def perform_music_separation(
     song_filename: str,
     model_name: str,
     song_files_dir: Path,
-    cache_hash: Optional[str] = None,
-    on_progress: Optional[separation_progress.ProgressCallback] = None,
+    cache_hash: str | None = None,
+    on_progress: separation_progress.ProgressCallback | None = None,
 ) -> Path:
     """Perform music separation and return the path to the created zip file.
 
@@ -191,7 +191,7 @@ def process_track_separation_local(
     """Background task to process track separation into the local job store."""
     logger.info("local_separation_started", cache_hash=cache_hash)
 
-    def report(progress: Optional[float], stage: str) -> None:
+    def report(progress: float | None, stage: str) -> None:
         # The separation hands control back only to report,
         # so this is the one place a cancelled run can notice and unwind.
         if not job_store.is_current_run(cache_hash, run_id):
@@ -399,7 +399,7 @@ async def download_youtube_video(
         video_id = youtube_helper.get_video_id(youtube_url)
         logger.info("extracted_video_id", video_id=video_id)
     except ValueError as e:
-        raise HTTPException(status_code=400, detail=str(e))
+        raise HTTPException(status_code=400, detail=str(e)) from e
 
     # Check if we have storage configured
     if settings.SEPARATED_TRACKS_BUCKET:
@@ -425,7 +425,7 @@ async def download_youtube_video(
             )
             return streamed_response(zip_path)
     except YouTubeException as e:
-        raise HTTPException(status_code=400, detail=str(e))
+        raise HTTPException(status_code=400, detail=str(e)) from e
 
 
 @app.post("/log_error")
