@@ -1,5 +1,6 @@
 <template>
   <b-tab-item
+      value="timing"
       label="Song Timing"
       icon="stopwatch"
       class="wrapper song-timing-tab"

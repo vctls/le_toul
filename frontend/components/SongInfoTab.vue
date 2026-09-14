@@ -1,5 +1,5 @@
 <template>
-  <b-tab-item :class="['song-info-tab', 'scroll-wrapper']" headerClass="song-info-tab-header">
+  <b-tab-item value="song" :class="['song-info-tab', 'scroll-wrapper']" headerClass="song-info-tab-header">
     <template #header>
       <b-icon v-if="!isSeparatingTrack" icon="file-audio"></b-icon>
       <b-tooltip v-else :label="separationHeaderLabel" position="is-bottom">

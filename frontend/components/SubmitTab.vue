@@ -1,5 +1,5 @@
 <template>
-  <b-tab-item label="Submit" icon="blender" class="submit-tab scroll-wrapper" headerClass="submit-tab-header">
+  <b-tab-item value="submit" label="Submit" icon="blender" class="submit-tab scroll-wrapper" headerClass="submit-tab-header">
     <div class="columns is-variable is-5">
       <div class="column settings-column">
         <h2 class="title">More Settings</h2>

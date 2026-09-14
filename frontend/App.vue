@@ -30,7 +30,7 @@
         </b-navbar-item>
       </template>
     </b-navbar>
-    <b-tabs expanded :vertical="!isMobile" type="is-boxed" class="main-tabs">
+    <b-tabs :model-value="activeTab" @update:model-value="setActiveTab" expanded :vertical="!isMobile" type="is-boxed" class="main-tabs">
       <help-tab></help-tab>
       <song-info-tab></song-info-tab>
       <lyric-input-tab></lyric-input-tab>
@@ -57,6 +57,7 @@ import {useMediaStore} from "@/stores/media";
 import {useLyricsStore} from "@/stores/lyrics";
 import {useTimingsStore} from "@/stores/timings";
 import {useHelpStore} from "@/stores/help";
+import {useTabRoute} from "@/lib/tabRoute";
 
 export default defineComponent({
   components: {
@@ -69,7 +70,7 @@ export default defineComponent({
     SubmitTab,
   },
   setup() {
-    return {helpStore: useHelpStore()};
+    return {helpStore: useHelpStore(), ...useTabRoute()};
   },
   data() {
     return {
