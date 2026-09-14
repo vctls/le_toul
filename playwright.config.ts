@@ -11,6 +11,8 @@ export default defineConfig({
   forbidOnly: !!process.env.CI,
   /* Retry on CI only */
   retries: process.env.CI ? 2 : 0,
+  /* The ffmpeg WASM specs are heavy enough that more concurrent browsers get one killed at launch. */
+  workers: 2,
   /* Reporter to use */
   reporter: [["html", { host: "0.0.0.0", port: 9323 }]],
   /* Shared settings for all the projects below */

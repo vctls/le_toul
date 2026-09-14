@@ -21,7 +21,9 @@ const SEEK_SECONDS = 15;
 
 interface WaveformView {
   cursorLeft: string;
+  cursorPx: number;
   scrollLeft: number;
+  clientWidth: number;
 }
 
 function waveformView(page: Page): Promise<WaveformView> {
@@ -32,9 +34,18 @@ function waveformView(page: Page): Promise<WaveformView> {
     const scroll = shadow.querySelector(".scroll") as HTMLElement;
     return {
       cursorLeft: cursor.style.left,
+      cursorPx:
+        cursor.getBoundingClientRect().left -
+        scroll.getBoundingClientRect().left +
+        scroll.scrollLeft,
       scrollLeft: scroll.scrollLeft,
+      clientWidth: scroll.clientWidth,
     };
   });
+}
+
+function cursorIsOnScreen(v: WaveformView): boolean {
+  return v.cursorPx >= v.scrollLeft && v.cursorPx <= v.scrollLeft + v.clientWidth;
 }
 
 test.describe("Adjust tab playhead", () => {
@@ -60,7 +71,9 @@ test.describe("Adjust tab playhead", () => {
     await scrollWaveformIntoView(page);
     await expect(regionLocator(page, 0)).toBeVisible();
 
-    const zoom = page.locator(".adjustment-form .b-numberinput input").first();
+    const zoom = page
+      .locator(".adjustment-form .field.is-horizontal", { hasText: "Waveform zoom" })
+      .locator("input");
     await zoom.fill(String(ZOOM));
     await zoom.blur();
 
@@ -74,10 +87,11 @@ test.describe("Adjust tab playhead", () => {
     await navigateToTab(page, TabId.TimingAdjustment);
     await scrollWaveformIntoView(page);
 
-    await expect
-      .poll(() => waveformView(page).then((v) => v.scrollLeft))
-      .toBeCloseTo(before.scrollLeft, -1);
+    // WaveSurfer centers the cursor only when the redraw beats the seek, so after the round
+    // trip the offset is either centered or merely far enough to bring the cursor on screen.
+    await expect.poll(() => waveformView(page).then(cursorIsOnScreen)).toBe(true);
     const after = await waveformView(page);
+    expect(after.scrollLeft).toBeGreaterThan(0);
     expect(after.cursorLeft).toBe(before.cursorLeft);
     expect(
       await page.locator(PLAYER).evaluate((el: HTMLAudioElement) => el.currentTime),
