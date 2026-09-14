@@ -7,8 +7,14 @@
         </b-navbar-item>
       </template>
       <template #end>
-        <b-navbar-item>
+        <b-navbar-item tag="div">
           <div class="buttons">
+            <b-button
+                :type="helpStore.isShowingHelp ? 'is-primary' : 'is-text'"
+                @click="helpStore.toggleHelp()"
+                title="Show or hide the instructions on each tab">
+              <b-icon icon="circle-question" size="is-large" title="Instructions"></b-icon>
+            </b-button>
             <b-button type="is-text" @click="confirmStartOver" title="Discard the saved session and start fresh">
               <b-icon icon="arrow-rotate-left" size="is-large" title="Start Over"></b-icon>
             </b-button>
@@ -50,6 +56,7 @@ import SubmitTab from "@/components/SubmitTab.vue";
 import {useMediaStore} from "@/stores/media";
 import {useLyricsStore} from "@/stores/lyrics";
 import {useTimingsStore} from "@/stores/timings";
+import {useHelpStore} from "@/stores/help";
 
 export default defineComponent({
   components: {
@@ -60,6 +67,9 @@ export default defineComponent({
     TimingAdjustmentTab,
     TimingEditTab,
     SubmitTab,
+  },
+  setup() {
+    return {helpStore: useHelpStore()};
   },
   data() {
     return {
@@ -97,6 +107,35 @@ export default defineComponent({
 <style scoped>
 .wrapper > .navbar {
   flex-shrink: 0;
+}
+
+/* Bulma hides the navbar menu below its desktop breakpoint, behind a burger we
+   don't use. Keep the whole bar laid out as one row at every width. */
+@media screen and (max-width: 1023px) {
+  .wrapper :deep(.navbar) {
+    display: flex;
+    align-items: stretch;
+  }
+
+  .wrapper :deep(.navbar-menu) {
+    display: flex;
+    align-items: stretch;
+    flex-grow: 1;
+    background-color: transparent;
+    box-shadow: none;
+    padding: 0;
+  }
+
+  .wrapper :deep(.navbar-end) {
+    display: flex;
+    align-items: stretch;
+    margin-left: auto;
+  }
+
+  .wrapper :deep(.navbar-end .navbar-item) {
+    display: flex;
+    align-items: center;
+  }
 }
 
 .main-tabs {

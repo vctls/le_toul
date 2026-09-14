@@ -4,7 +4,7 @@
       <h2 class="title">Edit Timings</h2>
       <voice-selector/>
     </div>
-    <div class="content">
+    <help-section>
       <p>
         Each <code>&lt;MM:SS.cc&gt;</code> tag marks when the following syllable starts.
         A bare tag with nothing after it marks a release before a pause.
@@ -14,14 +14,13 @@
       <p>
         Press <b>Apply</b> to use your edits, or <b>Reload</b> to discard them and show the current timings again.
       </p>
-    </div>
-    <b-field>
+    </help-section>
+    <b-field class="editor-field">
       <b-input
           :model-value="draft ?? ''"
           @update:model-value="(v: string | number | undefined) => { draft = v == null ? '' : String(v) }"
           type="textarea"
           custom-class="timing-editor-textarea"
-          :rows="16"
           spellcheck="false"
           autocorrect="off"
           autocapitalize="off"
@@ -39,6 +38,7 @@
 <script lang="ts">
 import {defineComponent} from "vue";
 import {BButton, BField, BInput} from "buefy";
+import HelpSection from "@/components/HelpSection.vue";
 import VoiceSelector from "@/components/VoiceSelector.vue";
 import {useTimingsStore} from "@/stores/timings";
 import {useLyricsStore} from "@/stores/lyrics";
@@ -47,7 +47,7 @@ import {validateTimings} from "@/lib/timingValidation";
 import {VoiceId} from "@/lib/voices";
 
 export default defineComponent({
-  components: {BButton, BField, BInput, VoiceSelector},
+  components: {BButton, BField, BInput, HelpSection, VoiceSelector},
   setup() {
     const timingsStore = useTimingsStore();
     const lyricsStore = useLyricsStore();
@@ -113,6 +113,14 @@ export default defineComponent({
 .timing-edit-tab {
   display: flex;
   flex-direction: column;
+  height: 100%;
+}
+
+.timing-edit-tab :deep(.editor-field),
+.timing-edit-tab :deep(.editor-field .control) {
+  display: flex;
+  flex: 1;
+  min-height: 0;
 }
 
 .title-row {
@@ -128,5 +136,9 @@ export default defineComponent({
   font-family: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
   white-space: pre;
   line-height: 1.6;
+  flex: 1;
+  /* Bulma gives every control a fixed height, which blocks the flex stretch. */
+  height: 100%;
+  max-height: none;
 }
 </style>
