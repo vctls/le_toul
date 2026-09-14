@@ -1,6 +1,6 @@
 <template>
   <div class="video-creation-progress-indicator">
-    <b-message :type="messageType" has-icon :icon="messageIcon" :closable="false">
+    <b-message :type="messageType" has-icon :icon="messageIcon" icon-size="is-small" :closable="false">
       {{ message }}
     </b-message>
     <b-progress

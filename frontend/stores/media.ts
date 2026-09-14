@@ -18,6 +18,7 @@ const MEDIA_IDB_KEYS = [
     'media.backgroundVideo',
     'media.separatedTrack',
     'media.timingsFile',
+    'media.lyricsFile',
     'media.backingTrackFile',
     'media.vocalTrackFile',
     'media.settingsFile',
@@ -47,10 +48,11 @@ export const useMediaStore = defineStore('media', () => {
     const backgroundVideo = shallowRef<Blob | null>(null);
 
     // Files surfaced in the "Advanced" section of SongInfoTab. The semantic
-    // state they map to (timings array, separatedTrack.backing) is held
+    // state they map to (timings array, lyric text, separatedTrack.backing) is held
     // elsewhere; these refs exist so the FileUpload widgets can re-display the
     // user's selection after a reload.
     const timingsFile = shallowRef<File | null>(null);
+    const lyricsFile = shallowRef<File | null>(null);
     const backingTrackFile = shallowRef<File | null>(null);
     const vocalTrackFile = shallowRef<File | null>(null);
     const settingsFile = shallowRef<File | null>(null);
@@ -263,6 +265,7 @@ export const useMediaStore = defineStore('media', () => {
         persistBlobRef('media.backgroundVideo', backgroundVideo),
         persistBlobRef('media.separatedTrack', separatedTrack),
         persistBlobRef('media.timingsFile', timingsFile),
+        persistBlobRef('media.lyricsFile', lyricsFile),
         persistBlobRef('media.backingTrackFile', backingTrackFile),
         persistBlobRef('media.vocalTrackFile', vocalTrackFile),
         persistBlobRef('media.settingsFile', settingsFile),
@@ -276,6 +279,7 @@ export const useMediaStore = defineStore('media', () => {
         backgroundVideo.value = null;
         separatedTrack.value = null;
         timingsFile.value = null;
+        lyricsFile.value = null;
         backingTrackFile.value = null;
         vocalTrackFile.value = null;
         settingsFile.value = null;
@@ -295,6 +299,7 @@ export const useMediaStore = defineStore('media', () => {
         songFile,
         backgroundVideo,
         timingsFile,
+        lyricsFile,
         backingTrackFile,
         vocalTrackFile,
         settingsFile,

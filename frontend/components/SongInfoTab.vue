@@ -10,10 +10,13 @@
       </b-tooltip>
       <span> Song File</span>
     </template>
-    <div class="container">
+    <div class="container is-fluid">
       <h2 class="title">Get Your Song Ready</h2>
-      <file-upload name="song-file-upload" label="Upload a file from your computer:"
-                   v-model="mediaStore.songFile"></file-upload>
+      <file-upload
+          name="song-file-upload"
+          label="Upload a file from your computer:"
+          tooltip="The full song, as audio or video. Its vocals are separated out to make the backing track."
+          v-model="mediaStore.songFile"></file-upload>
       <b-field label="Or paste a YouTube video URL:" :type="youtubeError ? 'is-danger' : ''">
         <template #message>
           <span v-html="youtubeError"></span>
@@ -21,17 +24,20 @@
         <b-input
             type="text" :model-value="mediaStore.youtubeUrl ?? ''"
             @update:model-value="(v: string | number | undefined) => { mediaStore.youtubeUrl = v == null ? null : String(v); }"/>
-        <b-button label="Load" :type="mediaStore.youtubeUrl ? 'is-primary' : 'is-light'"
-                  :disabled="!mediaStore.youtubeUrl" @click="loadYouTubeUrl" :loading="isLoadingYouTube"/>
+        <b-button
+            label="Load" :type="mediaStore.youtubeUrl ? 'is-primary' : 'is-light'"
+            :disabled="!mediaStore.youtubeUrl" @click="loadYouTubeUrl" :loading="isLoadingYouTube"/>
       </b-field>
       <b-field label="Song Artist">
         <b-input
+            class="metadata-input"
             name="artist"
             :model-value="mediaStore.songArtist ?? ''"
             @update:model-value="(v: string | number | undefined) => { mediaStore.songArtist = v == null ? null : String(v); }"/>
       </b-field>
       <b-field label="Song Title">
         <b-input
+            class="metadata-input"
             name="title"
             :model-value="mediaStore.songTitle ?? ''"
             @update:model-value="(v: string | number | undefined) => { mediaStore.songTitle = v == null ? null : String(v); }"/>
@@ -60,39 +66,68 @@
           </b-radio>
         </div>
       </b-field>
-    </div>
 
-    <b-collapse v-model="isShowingAdvanced">
-      <template #trigger="props">
-        <b-button type="is-text" aria-controls="contentIdForA11y4" :aria-expanded="props.open">
-          <span>Advanced</span>
-          <b-icon :icon="props.open ? 'angle-down' : 'angle-right'"></b-icon>
-        </b-button>
-      </template>
-      <div class="box">
-        <file-upload name="settings-file-upload" :accept="['.yaml', '.yml']" label="Settings File"
-                     v-model="mediaStore.settingsFile" @update:modelValue="onSettingsFileChange"/>
-        <file-upload name="timings-file-upload" :accept="['.json']" label="Timings File"
-                     v-model="mediaStore.timingsFile"
-                     @update:modelValue="onTimingsFileChange"/>
-        <file-upload label="Backing Track" v-model="mediaStore.backingTrackFile"
-                     @update:modelValue="onBackingTrackFileChange"/>
-        <file-upload label="Vocal Track" v-model="mediaStore.vocalTrackFile"
-                     @update:modelValue="onVocalTrackFileChange"/>
+      <b-collapse v-model="isShowingAdvanced">
+        <template #trigger="props">
+          <b-button type="is-text" aria-controls="contentIdForA11y4" :aria-expanded="props.open">
+            <span>Advanced</span>
+            <b-icon :icon="props.open ? 'angle-down' : 'angle-right'"></b-icon>
+          </b-button>
+        </template>
+        <div class="box">
+          <div class="columns is-multiline is-variable is-4">
+            <div class="column is-half-tablet is-one-third-desktop">
+              <file-upload
+                  name="settings-file-upload" :accept="['.yaml', '.yml']" label="Settings File"
+                  tooltip="A settings.yaml exported from the Submit tab. Restores the video options, voice styles and song details."
+                  v-model="mediaStore.settingsFile" @update:modelValue="onSettingsFileChange"/>
+            </div>
+            <div class="column is-half-tablet is-one-third-desktop">
+              <file-upload
+                  name="lyrics-file-upload" :accept="['.txt', 'text/plain']" label="Lyrics File"
+                  tooltip="A plain text lyrics file. Its contents replace whatever is in the Lyrics tab."
+                  v-model="mediaStore.lyricsFile"
+                  @update:modelValue="onLyricsFileChange"/>
+            </div>
+            <div class="column is-half-tablet is-one-third-desktop">
+              <file-upload
+                  name="timings-file-upload" :accept="['.json']" label="Timings File"
+                  tooltip="A timings.json exported from the Submit tab. Restores the timings you tapped out, so you can pick up where you left off."
+                  v-model="mediaStore.timingsFile"
+                  @update:modelValue="onTimingsFileChange"/>
+            </div>
+            <div class="column is-half-tablet is-one-third-desktop">
+              <file-upload
+                  name="backing-track-upload" label="Backing Track"
+                  tooltip="An instrumental track you already have. Skips the separation step."
+                  v-model="mediaStore.backingTrackFile"
+                  @update:modelValue="onBackingTrackFileChange"/>
+            </div>
+            <div class="column is-half-tablet is-one-third-desktop">
+              <file-upload
+                  name="vocal-track-upload" label="Vocal Track"
+                  tooltip="A vocals-only track you already have. Used to check your timings against the singing."
+                  v-model="mediaStore.vocalTrackFile"
+                  @update:modelValue="onVocalTrackFileChange"/>
+            </div>
+          </div>
+        </div>
+      </b-collapse>
+
+      <div class="buttons" v-if="!mediaStore.backingTrackFile">
+        <b-tooltip position="is-right" :label="separatingTrackMessage" :always="isSeparatingTrack">
+          <b-button label="Separate Track" type="is-primary" :disabled="!mediaStore.songFile"
+                    :loading="isSeparatingTrack"
+                    @click="separateTrack"/>
+        </b-tooltip>
       </div>
-    </b-collapse>
-    <div class="buttons" v-if="!mediaStore.backingTrackFile">
-      <b-tooltip position="is-right" :label="separatingTrackMessage" :always="isSeparatingTrack">
-        <b-button label="Separate Track" type="is-primary" :disabled="!mediaStore.songFile" :loading="isSeparatingTrack"
-                  @click="separateTrack"/>
-      </b-tooltip>
-    </div>
-    <div class="container separation-progress" v-if="isSeparatingTrack">
-      <b-progress type="is-primary" size="is-medium" :rounded="false" :value="separationPercent" show-value>
-        {{ separationProgressMessage }}
-      </b-progress>
-      <!-- Beside the Separate Track button, its always-on tooltip would swallow the clicks. -->
-      <b-button label="Cancel" type="is-danger is-light" @click="cancelSeparation"/>
+      <div class="separation-progress" v-if="isSeparatingTrack">
+        <b-progress type="is-primary" size="is-medium" :rounded="false" :value="separationPercent" show-value>
+          {{ separationProgressMessage }}
+        </b-progress>
+        <!-- Beside the Separate Track button, its always-on tooltip would swallow the clicks. -->
+        <b-button label="Cancel" type="is-danger is-light" @click="cancelSeparation"/>
+      </div>
     </div>
   </b-tab-item>
 </template>
@@ -112,6 +147,7 @@ import {
   NO_VOCALS_HQ_SEPARATOR_MODEL,
 } from "@/stores/media";
 import {useTimingsStore} from "@/stores/timings";
+import {useLyricsStore} from "@/stores/lyrics";
 import {useSettingsStore} from "@/stores/settings";
 import {parseSettingsYaml} from "@/lib/settingsFile";
 import FileUpload from "@/components/FileUpload.vue";
@@ -126,10 +162,12 @@ export default defineComponent({
     const mediaStore = useMediaStore();
     const timingsStore = useTimingsStore();
     const settingsStore = useSettingsStore();
+    const lyricsStore = useLyricsStore();
     return {
       mediaStore,
       timingsStore,
       settingsStore,
+      lyricsStore,
     };
   },
   data() {
@@ -281,6 +319,25 @@ export default defineComponent({
       };
       reader.readAsText(file);
     },
+    // Clearing the file leaves the lyrics alone: the text is editable in the
+    // Lyrics tab and there is no earlier version to fall back to.
+    async onLyricsFileChange(file: File | null) {
+      if (!file) {
+        return;
+      }
+      try {
+        this.lyricsStore.setLyrics(await file.text());
+        this.$buefy.toast.open({message: "Lyrics loaded!", type: "is-success", duration: 2000});
+      } catch (e) {
+        console.error(e);
+        this.mediaStore.lyricsFile = null;
+        this.$buefy.toast.open({
+          message: `Couldn't read that lyrics file: ${(e as Error).message}`,
+          type: "is-danger",
+          duration: 5000,
+        });
+      }
+    },
     onSeparationModelChange(model: SeparationModel) {
       this.mediaStore.separationModel = model;
     },
@@ -304,6 +361,24 @@ export default defineComponent({
 .song-info-tab {
   overflow-x: hidden;
   overflow-y: auto;
+}
+
+.metadata-input :deep(.input) {
+  width: auto;
+  max-width: 100%;
+}
+
+/* Content sizing drops the browser's default 20-character box, which is the
+   width of the YouTube field above; 14rem restores it as the floor. */
+@supports (field-sizing: content) {
+  .metadata-input :deep(.input) {
+    min-width: 14rem;
+    field-sizing: content;
+  }
+}
+
+.buttons {
+  margin-top: 1.5rem;
 }
 
 .separation-progress {

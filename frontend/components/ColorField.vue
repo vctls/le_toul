@@ -91,7 +91,8 @@ export default defineComponent({
 }
 
 .hex-input {
-  width: 8em;
+  flex: 1;
+  min-width: 8em;
   font-family: monospace;
 }
 </style>
