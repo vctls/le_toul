@@ -76,6 +76,12 @@
         </template>
         <div class="box">
           <div class="columns is-multiline is-variable is-4">
+            <div class="column is-full">
+              <folder-upload
+                  name="project-folder-upload" expanded label="Project Folder"
+                  tooltip="A folder of files downloaded from the Submit tab and extracted. Loads whichever of the song, lyrics, timings, settings, tracks and font it holds."
+                  @select="onProjectFolderSelect"/>
+            </div>
             <div class="column is-half-tablet is-one-third-desktop">
               <file-upload
                   name="settings-file-upload" :accept="['.yaml', '.yml']" label="Settings File"
@@ -150,12 +156,22 @@ import {useTimingsStore} from "@/stores/timings";
 import {useLyricsStore} from "@/stores/lyrics";
 import {useSettingsStore} from "@/stores/settings";
 import {parseSettingsYaml} from "@/lib/settingsFile";
+import {classifyProjectFolder} from "@/lib/projectFolder";
 import FileUpload from "@/components/FileUpload.vue";
+import FolderUpload from "@/components/FolderUpload.vue";
 import CircularProgress from "@/components/CircularProgress.vue";
+
+function formatList(items: string[]): string {
+  if (items.length < 2) {
+    return items.join("");
+  }
+  return `${items.slice(0, -1).join(", ")} and ${items[items.length - 1]}`;
+}
 
 export default defineComponent({
   components: {
     FileUpload,
+    FolderUpload,
     CircularProgress,
   },
   setup() {
@@ -252,44 +268,49 @@ export default defineComponent({
     },
     // Load a settings.yaml (as exported from the Submit tab) back into the app:
     // video options, per-voice styles, the separation model and the song metadata.
+    // Returns the entries the file had that couldn't be applied.
+    async applySettingsFile(file: File): Promise<string[]> {
+      const settings = parseSettingsYaml(await file.text());
+
+      this.settingsStore.applyVideoOptions(settings.videoOptions);
+      if (settings.voiceStyles) {
+        this.settingsStore.setVoiceStyles(settings.voiceStyles);
+      }
+      if (settings.separationModel) {
+        this.mediaStore.separationModel = settings.separationModel;
+      }
+      if (settings.song.title) {
+        this.mediaStore.songTitle = settings.song.title;
+      }
+      if (settings.song.artist) {
+        this.mediaStore.songArtist = settings.song.artist;
+      }
+      if (settings.song.youtubeUrl) {
+        this.mediaStore.youtubeUrl = settings.song.youtubeUrl;
+      }
+      // The real duration is derived from the audio,
+      // so the file's value is only useful as a stand-in until a song is loaded.
+      if (settings.song.duration && !this.mediaStore.songFile) {
+        this.mediaStore.songDuration = settings.song.duration;
+      }
+
+      for (const warning of settings.warnings) {
+        console.warn(`settings.yaml: ${warning}`);
+      }
+      return settings.warnings;
+    },
     async onSettingsFileChange(file: File | null) {
       if (!file) {
         return;
       }
       try {
-        const settings = parseSettingsYaml(await file.text());
-
-        this.settingsStore.applyVideoOptions(settings.videoOptions);
-        if (settings.voiceStyles) {
-          this.settingsStore.setVoiceStyles(settings.voiceStyles);
-        }
-        if (settings.separationModel) {
-          this.mediaStore.separationModel = settings.separationModel;
-        }
-        if (settings.song.title) {
-          this.mediaStore.songTitle = settings.song.title;
-        }
-        if (settings.song.artist) {
-          this.mediaStore.songArtist = settings.song.artist;
-        }
-        if (settings.song.youtubeUrl) {
-          this.mediaStore.youtubeUrl = settings.song.youtubeUrl;
-        }
-        // The real duration is derived from the audio,
-        // so the file's value is only useful as a stand-in until a song is loaded.
-        if (settings.song.duration && !this.mediaStore.songFile) {
-          this.mediaStore.songDuration = settings.song.duration;
-        }
-
-        for (const warning of settings.warnings) {
-          console.warn(`settings.yaml: ${warning}`);
-        }
+        const warnings = await this.applySettingsFile(file);
         this.$buefy.toast.open({
-          message: settings.warnings.length
-              ? `Settings loaded, but ${settings.warnings.length} entr${settings.warnings.length === 1 ? "y was" : "ies were"} skipped (see the console).`
+          message: warnings.length
+              ? `Settings loaded, but ${warnings.length} entr${warnings.length === 1 ? "y was" : "ies were"} skipped (see the console).`
               : "Settings loaded!",
-          type: settings.warnings.length ? "is-warning" : "is-success",
-          duration: settings.warnings.length ? 5000 : 2000,
+          type: warnings.length ? "is-warning" : "is-success",
+          duration: warnings.length ? 5000 : 2000,
         });
       } catch (e) {
         console.error(e);
@@ -301,23 +322,32 @@ export default defineComponent({
         });
       }
     },
-    onTimingsFileChange(file: File | null) {
+    async applyTimingsFile(file: File) {
+      const parsed = JSON.parse(await file.text());
+      if (Array.isArray(parsed)) {
+        // Legacy / single-voice format: an array of [time, marker] tuples.
+        this.timingsStore.resetTimings(parsed);
+      } else {
+        // Multi-voice format: a per-voice map of timing arrays.
+        this.timingsStore.setAllTimings(parsed);
+      }
+    },
+    async onTimingsFileChange(file: File | null) {
       if (!file) {
         this.timingsStore.resetTimings([]);
         return;
       }
-      const reader = new FileReader();
-      reader.onload = () => {
-        const parsed = JSON.parse(String(reader.result));
-        if (Array.isArray(parsed)) {
-          // Legacy / single-voice format: an array of [time, marker] tuples.
-          this.timingsStore.resetTimings(parsed);
-        } else {
-          // Multi-voice format: a per-voice map of timing arrays.
-          this.timingsStore.setAllTimings(parsed);
-        }
-      };
-      reader.readAsText(file);
+      try {
+        await this.applyTimingsFile(file);
+      } catch (e) {
+        console.error(e);
+        this.mediaStore.timingsFile = null;
+        this.$buefy.toast.open({
+          message: `Couldn't read that timings file: ${(e as Error).message}`,
+          type: "is-danger",
+          duration: 5000,
+        });
+      }
     },
     // Clearing the file leaves the lyrics alone: the text is editable in the
     // Lyrics tab and there is no earlier version to fall back to.
@@ -337,6 +367,90 @@ export default defineComponent({
           duration: 5000,
         });
       }
+    },
+    // Loads whatever an extracted project folder holds, applying each file exactly as its
+    // own upload field would. What the folder hasn't got is left alone.
+    async onProjectFolderSelect(files: File[]) {
+      const project = classifyProjectFolder(files);
+      const loaded: string[] = [];
+      const failed: string[] = [];
+      const apply = async (label: string, file: File, run: () => Promise<void> | void) => {
+        try {
+          await run();
+          loaded.push(label);
+        } catch (e) {
+          console.error(e);
+          failed.push(file.name);
+        }
+      };
+
+      if (project.song) {
+        const song = project.song;
+        await apply("the song", song, async () => {
+          this.mediaStore.songFile = song;
+          // The song's own tags land on the title and artist a moment later. Let them,
+          // before the settings file puts the project's own values back.
+          await this.mediaStore.metadataSettled();
+        });
+      }
+      if (project.settings) {
+        const settings = project.settings;
+        await apply("settings", settings, async () => {
+          await this.applySettingsFile(settings);
+          this.mediaStore.settingsFile = settings;
+        });
+      }
+      if (project.lyrics) {
+        const lyrics = project.lyrics;
+        await apply("lyrics", lyrics, async () => {
+          this.lyricsStore.setLyrics(await lyrics.text());
+          this.mediaStore.lyricsFile = lyrics;
+        });
+      }
+      if (project.timings) {
+        const timings = project.timings;
+        await apply("timings", timings, async () => {
+          await this.applyTimingsFile(timings);
+          this.mediaStore.timingsFile = timings;
+        });
+      }
+      if (project.backing) {
+        const backing = project.backing;
+        await apply("the backing track", backing, async () => {
+          await this.mediaStore.setBackingTrack(backing);
+          this.mediaStore.backingTrackFile = backing;
+        });
+      }
+      if (project.vocals) {
+        const vocals = project.vocals;
+        await apply("the vocal track", vocals, async () => {
+          await this.mediaStore.setVocalTrack(vocals);
+          this.mediaStore.vocalTrackFile = vocals;
+        });
+      }
+      if (project.font) {
+        const font = project.font;
+        await apply("the font", font, () => this.settingsStore.setCustomFont(font));
+      }
+
+      if (project.ignored.length) {
+        console.warn(`Not loaded from the project folder: ${project.ignored.join(", ")}`);
+      }
+      if (failed.length) {
+        this.$buefy.toast.open({
+          message: loaded.length
+              ? `Loaded ${formatList(loaded)}, but couldn't read ${formatList(failed)}.`
+              : `Couldn't read ${formatList(failed)}.`,
+          type: "is-danger",
+          duration: 5000,
+        });
+        return;
+      }
+      this.$buefy.toast.open({
+        message: loaded.length ? `Loaded ${formatList(loaded)}.` : "Nothing to load in that folder.",
+        type: loaded.length ? "is-success" : "is-warning",
+        duration: loaded.length ? 3000 : 5000,
+      });
     },
     onSeparationModelChange(model: SeparationModel) {
       this.mediaStore.separationModel = model;

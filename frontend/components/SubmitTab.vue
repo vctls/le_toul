@@ -197,8 +197,9 @@ import {isEmptyOverride, serializeVoiceStyle} from "@/lib/voiceStyle";
 import {useTimingsStore} from "@/stores/timings";
 import {useLyricsStore} from "@/stores/lyrics";
 import {abortable} from "@/lib/util";
+import {projectSongEntryName} from "@/lib/projectFolder";
 
-// The rest of the bar is the zip, which carries both separated tracks.
+// The rest of the bar is the zip, which carries the source song and both separated tracks.
 const RENDER_SHARE = 0.95;
 
 const outputFormatLabels: Record<OutputFormat, string> = {
@@ -522,6 +523,12 @@ export default defineComponent({
       zip.file("settings.yaml", this.settingsYaml);
       if (this.customFont) {
         zip.file(this.customFont.name, this.customFont);
+      }
+
+      // Named after its role rather than kept as uploaded,
+      // so a folder extracted from this zip can tell the source song from the karaoke video beside it.
+      if (this.songFile) {
+        zip.file(projectSongEntryName(this.songFile.name), this.songFile);
       }
 
       const separated = this.mediaStore.separatedTrack;

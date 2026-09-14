@@ -140,17 +140,17 @@ export const useMediaStore = defineStore('media', () => {
 
     async function setBackingTrack(file: File | null) {
         if (separatedTrack.value == null) {
-            separatedTrack.value = { backing: file ?? new Blob(), vocals: new Blob() };
+            separatedTrack.value = {backing: file ?? new Blob(), vocals: new Blob()};
         } else {
-            separatedTrack.value = { ...separatedTrack.value, backing: file ?? new Blob() };
+            separatedTrack.value = {...separatedTrack.value, backing: file ?? new Blob()};
         }
     }
 
     async function setVocalTrack(file: File | null) {
         if (separatedTrack.value == null) {
-            separatedTrack.value = { backing: new Blob(), vocals: file ?? new Blob() };
+            separatedTrack.value = {backing: new Blob(), vocals: file ?? new Blob()};
         } else {
-            separatedTrack.value = { ...separatedTrack.value, vocals: file ?? new Blob() };
+            separatedTrack.value = {...separatedTrack.value, vocals: file ?? new Blob()};
         }
     }
 
@@ -207,12 +207,12 @@ export const useMediaStore = defineStore('media', () => {
     async function getMetadata(songFile: File): Promise<{ title: string | null; artist: string | null }> {
         return new Promise((resolve, reject) => {
             if (!songFile) {
-                resolve({ title: null, artist: null });
+                resolve({title: null, artist: null});
                 return;
             }
             jsmediatags.read(songFile, {
                 onSuccess(tag) {
-                    resolve({ title: tag.tags.title ?? null, artist: tag.tags.artist ?? null });
+                    resolve({title: tag.tags.title ?? null, artist: tag.tags.artist ?? null});
                 },
                 onError(error) {
                     console.error(error);
@@ -232,9 +232,17 @@ export const useMediaStore = defineStore('media', () => {
     // title/artist/duration aren't overwritten by re-reading the file's embedded tags.
     let isHydrating = true;
 
-    // flush: 'sync' so the isHydrating check runs in the same tick as the
-    // hydration assignment to songFile.value, before any later microtask can
-    // flip the flag.
+    // The derivation the current song file set off.
+    // Awaited by anything that restores a title or artist of its own,
+    // so the file's embedded tags don't land on top of it.
+    let pendingMetadata: Promise<unknown> = Promise.resolve();
+
+    function metadataSettled(): Promise<void> {
+        return pendingMetadata.then(() => undefined, () => undefined);
+    }
+
+    // flush: 'sync' so the isHydrating check runs in the same tick as the hydration assignment to songFile.value,
+    // before any later microtask can flip the flag.
     watch(songFile, async (newFile) => {
         if (isHydrating) return;
         if (!newFile) {
@@ -243,14 +251,16 @@ export const useMediaStore = defineStore('media', () => {
             songDuration.value = null;
             return;
         }
-        const [metadata, durationValue] = await Promise.all([
+        const derivation = Promise.all([
             getMetadata(newFile),
             duration(newFile),
         ]);
+        pendingMetadata = derivation;
+        const [metadata, durationValue] = await derivation;
         songTitle.value = metadata.title || songTitle.value;
         songArtist.value = metadata.artist || songArtist.value;
         songDuration.value = durationValue;
-    }, { flush: 'sync' });
+    }, {flush: 'sync'});
 
     // JSON-serializable state → localStorage (synchronous load)
     persistJsonRef('media.youtubeUrl', youtubeUrl);
@@ -319,6 +329,7 @@ export const useMediaStore = defineStore('media', () => {
         separationStage,
 
         // Methods
+        metadataSettled,
         startSeparation,
         cancelSeparation,
         setBackingTrack,
