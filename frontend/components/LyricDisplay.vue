@@ -69,14 +69,15 @@ export default defineComponent({
 }
 
 .completed-lyrics {
-  color: gray;
+  color: var(--bulma-text-weak);
 }
 
 .current-lyrics {
-  color: magenta;
+  color: var(--bulma-link-on-scheme);
+  font-weight: var(--bulma-weight-semibold);
 }
 
 span.upcoming-lyrics {
-  color: blue;
+  color: var(--bulma-text-strong);
 }
 </style>

@@ -112,6 +112,15 @@ export type RegionParams = {
 // Keep in sync with --bulma-primary in main.scss.
 const SELECTION_COLOR = "#7957d5";
 
+// The label spans two backgrounds: the region's own fill and,
+// where it is wider than the region, the bare waveform behind it.
+const LABEL_ON_REGION = "var(--region-label-on-fill)";
+const LABEL_ON_SELECTION = "white";
+const LABEL_ON_WAVEFORM = "var(--region-label-on-waveform)";
+// Knocks the waveform bars out from behind the overhang.
+//  Stacked because one shadow is too sheer to cover a bar.
+const LABEL_HALO = Array(3).fill("0 0 3px var(--bulma-scheme-main)").join(", ");
+
 const CONTENT_STYLE = {
   padding: "0em 0.2em",
   display: "inline-block",
@@ -160,6 +169,7 @@ class SingleRegion extends EventEmitter<RegionEvents> implements Region {
   public color: string;
   public content?: HTMLElement;
   private contentOverlay?: HTMLElement;
+  private contentOverlayLabel?: HTMLElement;
   public minLength = 0;
   public maxLength = Infinity;
   public channelIdx: number;
@@ -533,7 +543,10 @@ class SingleRegion extends EventEmitter<RegionEvents> implements Region {
     this.element.style.borderLeftColor = selected ? SELECTION_COLOR : this.color;
     this.element.style.cursor = selected ? "grab" : "default";
     if (this.contentOverlay) {
-      this.contentOverlay.style.display = selected ? "block" : "none";
+      this.contentOverlay.style.backgroundColor = selected ? SELECTION_COLOR : this.color;
+    }
+    if (this.contentOverlayLabel) {
+      this.contentOverlayLabel.style.color = selected ? LABEL_ON_SELECTION : LABEL_ON_REGION;
     }
   }
 
@@ -562,34 +575,42 @@ class SingleRegion extends EventEmitter<RegionEvents> implements Region {
     this.content?.remove();
     this.contentOverlay?.remove();
     this.contentOverlay = undefined;
+    this.contentOverlayLabel = undefined;
     if (!content) {
       this.content = undefined;
       return;
     }
-    const label = (color: string) =>
-      createElement("div", { style: { ...CONTENT_STYLE, color }, textContent: content });
-    this.content = label("black");
+    const label = (color: string, textShadow = "none") =>
+      createElement("div", {
+        style: { ...CONTENT_STYLE, color, textShadow },
+        textContent: content,
+      });
+    this.content = label(LABEL_ON_WAVEFORM, LABEL_HALO);
     if (this.contentEditable) {
       this.content.contentEditable = "true";
     }
     this.content.setAttribute("part", "region-content");
     this.element.appendChild(this.content);
 
-    // A label wider than its region spills onto the bare waveform. A second
-    // copy of it, clipped to the region box, repaints just the part over a
-    // selected region's dark fill in white; the overhang stays black.
-    if (this.contentEditable) return;
+    // Markers draw no fill of their own, so the whole label sits on the waveform.
+    if (this.contentEditable || this.isMarker) return;
+
+    // An opaque copy of the fill, clipped to the region box, buries the halo and the waveform-coloured text.
+    // Its own copy of the label then repaints just that part in a colour suited to the fill.
+    // The overhang is left untouched.
     this.contentOverlay = createElement("div", {
       style: {
         position: "absolute",
         inset: "0",
         overflow: "hidden",
+        borderRadius: "inherit",
+        backgroundColor: this.selected ? SELECTION_COLOR : this.color,
         pointerEvents: "none",
         zIndex: "1",
-        display: this.selected ? "block" : "none",
       },
     });
-    this.contentOverlay.appendChild(label("white"));
+    this.contentOverlayLabel = label(this.selected ? LABEL_ON_SELECTION : LABEL_ON_REGION);
+    this.contentOverlay.appendChild(this.contentOverlayLabel);
     this.element.appendChild(this.contentOverlay);
   }
 
@@ -598,6 +619,7 @@ class SingleRegion extends EventEmitter<RegionEvents> implements Region {
     if (options.color) {
       this.color = options.color;
       this.element.style.backgroundColor = this.color;
+      if (this.contentOverlay) this.contentOverlay.style.backgroundColor = this.color;
     }
 
     if (options.start !== undefined || options.end !== undefined) {

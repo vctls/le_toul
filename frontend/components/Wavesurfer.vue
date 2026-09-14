@@ -13,6 +13,11 @@ import WaveSurfer from "wavesurfer.js";
 import type { GenericPlugin } from "wavesurfer.js/dist/base-plugin";
 import RegionsPlugin, { Region, RegionParams } from "@/lib/wavesurferPlugins/OpenEndedRegionPlugin";
 
+// WaveSurfer paints to a canvas, so custom properties have to be resolved to literal colors rather than inherited.
+function schemeColor(name: string, fallback: string): string {
+  return getComputedStyle(document.documentElement).getPropertyValue(name).trim() || fallback;
+}
+
 export default defineComponent({
   props: {
     audioData: {
@@ -41,7 +46,7 @@ export default defineComponent({
     },
     waveColor: {
       type: String,
-      default: "rgba(0, 0, 0, 0.1)",
+      required: false,
     },
     showWaveform: {
       type: Boolean,
@@ -51,14 +56,14 @@ export default defineComponent({
   data() {
     return {
       wavesurfer: null as WaveSurfer | null,
-      // Not reactive: Vue would hand back proxies of the regions the plugin
-      // holds, and the raw instances its own events carry would no longer
-      // compare equal to them.
+      // Not reactive: Vue would hand back proxies of the regions the plugin holds,
+      // and the raw instances its own events carry would no longer compare equal to them.
       regionsPlugin: markRaw(RegionsPlugin.create()),
       isVisible: false,
       _observer: null as IntersectionObserver | null,
       _resizeObserver: null as ResizeObserver | null,
       _zoomAnchor: null as { time: number; cursorX: number } | null,
+      _schemeQuery: null as MediaQueryList | null,
       // Set when a drag/resize updates a region.
       // The drag has already moved the region's DOM to its final position, so when the resulting timings round-trip
       // back through the `regions` prop we skip the expensive teardown-and-rebuild of every region for that one update.
@@ -88,10 +93,9 @@ export default defineComponent({
     // Start observing the container
     this._observer.observe(this.$refs["wavesurfer-container"] as HTMLElement);
 
-    // Hiding the container (display: none) drops its scroll box, so the browser
-    // resets the scroll offset and the playhead comes back off-screen. Nothing
-    // re-asserts it while playback is paused, so do it whenever the container
-    // is laid out again.
+    // Hiding the container (display: none) drops its scroll box,
+    // so the browser resets the scroll offset and the playhead comes back off-screen.
+    // Nothing re-asserts it while playback is paused, so do it whenever the container is laid out again.
     this._resizeObserver = new ResizeObserver(() => this.scrollPlayheadIntoView());
     this._resizeObserver.observe(this.$refs["wavesurfer-container"] as HTMLElement);
 
@@ -100,14 +104,12 @@ export default defineComponent({
       cursorColor: this.cursorColor,
       cursorWidth: this.cursorWidth,
       mediaControls: this.mediaControls,
-      waveColor: this.waveColor,
-      progressColor: "purple",
+      ...this.schemeColors(),
       barWidth: 3,
       barHeight: 1,
       barGap: 2,
       height: 200,
       minPxPerSec: this.minPxPerSec,
-      //   responsive: true,
       normalize: false,
       plugins: [this.regionsPlugin as unknown as GenericPlugin],
     });
@@ -130,8 +132,8 @@ export default defineComponent({
     });
 
     this.regionsPlugin.on("region-updated", (region: Region) => {
-      // The DOM is already at its final position; skip the rebuild triggered
-      // when these timings round-trip back through the `regions` prop.
+      // The DOM is already at its final position.
+      // Skip the rebuild triggered when these timings round-trip back through the `regions` prop.
       this._skipNextRegionsUpdate = true;
       this.$emit("region-updated", region);
     });
@@ -140,6 +142,9 @@ export default defineComponent({
       this._skipNextRegionsUpdate = true;
       this.$emit("regions-updated", regions);
     });
+
+    this._schemeQuery = window.matchMedia("(prefers-color-scheme: dark)");
+    this._schemeQuery.addEventListener("change", this.applySchemeColors);
   },
   watch: {
     audioData(newAudioData: Blob) {
@@ -165,9 +170,8 @@ export default defineComponent({
     },
     regions: {
       handler: function (newRegions) {
-        // A drag just moved this region in place; the prop change is only the
-        // store value catching up. The DOM is already correct, so skip the
-        // teardown-and-rebuild of every region for this one update.
+        // A drag just moved this region in place; the prop change is only the store value catching up.
+        // The DOM is already correct, so skip the teardown-and-rebuild of every region for this one update.
         if (this._skipNextRegionsUpdate) {
           this._skipNextRegionsUpdate = false;
           return;
@@ -182,6 +186,15 @@ export default defineComponent({
   },
   emits: ["seeking", "region-updated", "regions-updated", "zoom-change"],
   methods: {
+    schemeColors() {
+      return {
+        waveColor: this.waveColor ?? schemeColor("--waveform-wave", "rgba(0, 0, 0, 0.1)"),
+        progressColor: schemeColor("--bulma-link-on-scheme", "#7957d5"),
+      };
+    },
+    applySchemeColors() {
+      this.wavesurfer?.setOptions(this.schemeColors());
+    },
     onWheel(event: WheelEvent) {
       if (event.deltaY === 0) return;
       event.preventDefault();
@@ -245,6 +258,7 @@ export default defineComponent({
   beforeUnmount() {
     this._observer?.disconnect();
     this._resizeObserver?.disconnect();
+    this._schemeQuery?.removeEventListener("change", this.applySchemeColors);
     if (this.wavesurfer) {
       this.wavesurfer.destroy();
     }

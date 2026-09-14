@@ -155,7 +155,7 @@ export default defineComponent({
             start: time,
             end: undefined,
             content: lyricSegment,
-            color: "rgba(102, 209, 255, 1)",
+            color: "var(--region-fill)",
           });
         } else if (marker === LYRIC_MARKERS.SEGMENT_END && currentRegion) {
           currentRegion.end = time;
