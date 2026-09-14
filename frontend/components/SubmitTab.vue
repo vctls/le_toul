@@ -161,9 +161,12 @@
         {{ missingStepsMessage }}
       </b-message>
       <div class="buttons">
-        <b-button expanded size="is-large" type="is-primary" :loading="isSubmitting" @click="createVideo"
+        <b-button :expanded="!isSubmitting" size="is-large" type="is-primary" :loading="isSubmitting" @click="createVideo"
           :disabled="!canCreateVideo && !isSubmitting">
           Create Video
+        </b-button>
+        <b-button v-if="isSubmitting" size="is-large" type="is-danger is-light" @click="cancelCreation">
+          Cancel
         </b-button>
       </div>
       <source-file-download-links :lyrics="lyricText" :timings="timingsExport" :subtitles="allVoicesSubtitles()"
@@ -175,7 +178,7 @@
 
 <script lang="ts">
 import {map, sum} from "lodash-es";
-import {defineComponent} from "vue";
+import {defineComponent, markRaw} from "vue";
 import {storeToRefs} from "pinia";
 import {createScreens, OutputFormat, VerticalAlignment} from "@/lib/timing";
 import VideoPreview from "@/components/VideoPreview.vue";
@@ -187,12 +190,13 @@ import FileUpload from "@/components/FileUpload.vue";
 import jszip from "jszip";
 import yaml from "js-yaml";
 import video from "@/lib/video";
-import {CreationPhase, SeparationModel} from "@/types";
-import {SeparatedTrack, useMediaStore,} from "@/stores/media";
+import {CreationPhase} from "@/types";
+import {useMediaStore} from "@/stores/media";
 import {useSettingsStore, VideoSettings} from "@/stores/settings";
 import {isEmptyOverride, serializeVoiceStyle} from "@/lib/voiceStyle";
 import {useTimingsStore} from "@/stores/timings";
 import {useLyricsStore} from "@/stores/lyrics";
+import {abortable} from "@/lib/util";
 
 // The rest of the bar is the zip, which carries both separated tracks.
 const RENDER_SHARE = 0.95;
@@ -258,6 +262,8 @@ export default defineComponent({
       // Which track the preview plays: "full" (with vocals) or "backing".
       previewTrack: "full",
       isShowingFontsAndColors: false,
+      // Vue would proxy the controller, whose methods need the instance itself.
+      creation: markRaw({abort: null as AbortController | null}),
     };
   },
   mounted() {
@@ -413,44 +419,22 @@ export default defineComponent({
         });
       }
     },
-    async separateTrack(
-      songFile: File,
-      model: string
-    ): Promise<SeparatedTrack> {
-      return new Promise<SeparatedTrack>(
-          (resolve, reject) => {
-            if (this.mediaStore.separatedTrack) {
-              resolve(this.mediaStore.separatedTrack);
-              return;
-            }
-            this.mediaStore.startSeparation(songFile, model as SeparationModel);
-            const stopWatchingBacking = this.$watch(
-                "mediaStore.separatedTrack",
-                (separatedTrack) => {
-                  console.log("separatedTrackWatcher", separatedTrack);
-                  if (separatedTrack) {
-                    stopWatchingBacking();
-                    stopWatchingError();
-                    resolve(separatedTrack);
-                  }
-                }
-            );
-            const stopWatchingError = this.$watch(
-                "mediaStore.error",
-                (error) => {
-                  stopWatchingBacking();
-                  stopWatchingError();
-                  reject(error);
-                }
-            );
-          }
-      );
+    // Stops whatever the submission is doing.
+    // A separation that was already running when the video was requested keeps going:
+    // the user called off the video, not the work the Song File tab started.
+    cancelCreation() {
+      this.creation.abort?.abort();
+      if (!this.waitingForSeparation) {
+        this.mediaStore.cancelSeparation();
+      }
     },
     async createVideo() {
       const songFile = this.songFile;
       if (!songFile) {
         return;
       }
+      const abort = new AbortController();
+      this.creation.abort = abort;
       let elapsedTimeInterval: ReturnType<typeof setInterval> | undefined;
       this.isSubmitting = true;
       try {
@@ -469,10 +453,15 @@ export default defineComponent({
             new Date().getTime() -
             this.mediaStore.separationStartTime.getTime();
         }, 1000);
-        const separatedTrack = await this.separateTrack(
-          songFile,
-          this.mediaStore.separationModel
-        );
+        const separatedTrack =
+          this.mediaStore.separatedTrack ??
+          (await abortable(
+            this.mediaStore.startSeparation(songFile, this.mediaStore.separationModel),
+            abort.signal
+          ));
+        if (!separatedTrack) {
+          throw new Error(this.mediaStore.error ?? "Track separation failed");
+        }
         this.creationPhase = CreationPhase.CreatingVideo;
         this.waitingForSeparation = false;
         const videoOptions = { createTitleScreens: true, ...this.renderOptions };
@@ -489,16 +478,22 @@ export default defineComponent({
           },
           fontMap: this.fontMap,
           alternateTracks: {vocals: separatedTrack.vocals, original: songFile},
+          signal: abort.signal,
           onProgress: (progress, step) => {
             this.videoProgress = progress * RENDER_SHARE;
             this.creationStep = step;
           },
         });
-        await this.zipAndSendFiles(videoFile);
+        await this.zipAndSendFiles(videoFile, abort.signal);
       } catch (e) {
-        console.error(e);
-        this.submitError = e instanceof Error ? e.message : String(e);
+        if (!abort.signal.aborted) {
+          console.error(e);
+          this.submitError = e instanceof Error ? e.message : String(e);
+        }
       } finally {
+        if (this.creation.abort === abort) {
+          this.creation.abort = null;
+        }
         this.isSubmitting = false;
         clearInterval(elapsedTimeInterval);
         this.elapsedSubmissionTime = null;
@@ -517,7 +512,8 @@ export default defineComponent({
       anchor.download = filename;
       anchor.click();
     },
-    async zipAndSendFiles(videoBlob: Uint8Array) {
+    async zipAndSendFiles(videoBlob: Uint8Array, signal?: AbortSignal) {
+      signal?.throwIfAborted();
       const zip = new jszip();
       zip.file(this.videoFileName, videoBlob);
       zip.file("subtitles.ass", this.allVoicesSubtitles());
@@ -540,6 +536,8 @@ export default defineComponent({
       const zipBlob = await zip.generateAsync({ type: "blob" }, ({ percent }) => {
         this.videoProgress = RENDER_SHARE + (percent / 100) * (1 - RENDER_SHARE);
       });
+      // jszip has no way to stop, so a cancel lands here as a download not offered.
+      signal?.throwIfAborted();
       await this.sendZipFile(zipBlob);
     },
   },

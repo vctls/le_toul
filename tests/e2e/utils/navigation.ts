@@ -29,7 +29,7 @@ export async function navigateToTab(page: Page, tabId: TabId): Promise<void> {
     [TabId.SongTiming]: 'Song Timing',
     [TabId.TimingAdjustment]: 'Adjust Timings',
     [TabId.VideoPreview]: 'Video Preview',
-    [TabId.Submit]: 'More Settings:',
+    [TabId.Submit]: 'More Settings',
     [TabId.Help]: 'Help'
   };
 

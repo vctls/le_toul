@@ -91,6 +91,8 @@
       <b-progress type="is-primary" size="is-medium" :rounded="false" :value="separationPercent" show-value>
         {{ separationProgressMessage }}
       </b-progress>
+      <!-- Beside the Separate Track button, its always-on tooltip would swallow the clicks. -->
+      <b-button label="Cancel" type="is-danger is-light" @click="cancelSeparation"/>
     </div>
   </b-tab-item>
 </template>
@@ -235,8 +237,8 @@ export default defineComponent({
         if (settings.song.youtubeUrl) {
           this.mediaStore.youtubeUrl = settings.song.youtubeUrl;
         }
-        // The real duration is derived from the audio, so the file's value is only
-        // useful as a stand-in until a song is loaded.
+        // The real duration is derived from the audio,
+        // so the file's value is only useful as a stand-in until a song is loaded.
         if (settings.song.duration && !this.mediaStore.songFile) {
           this.mediaStore.songDuration = settings.song.duration;
         }
@@ -292,6 +294,9 @@ export default defineComponent({
       const model = this.mediaStore.separationModel;
       this.mediaStore.startSeparation(this.mediaStore.songFile, model);
     },
+    cancelSeparation() {
+      this.mediaStore.cancelSeparation();
+    },
   },
 });
 </script>
@@ -303,6 +308,14 @@ export default defineComponent({
 
 .separation-progress {
   padding-top: 0.5rem;
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.separation-progress :deep(.progress-wrapper) {
+  flex: 1;
+  margin-bottom: 0;
 }
 
 .separation-model-radios {
