@@ -73,7 +73,7 @@ export default defineComponent({
 <style scoped>
 /* The element selector outweighs Bulma's own `.textarea:not([rows])` cap of 40em. */
 textarea.lyric-editor-textarea {
-  font-family: monospace;
+  font-family: var(--bulma-family-primary);
   max-height: none;
 }
 </style>
