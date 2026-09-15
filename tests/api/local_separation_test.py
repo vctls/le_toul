@@ -21,6 +21,7 @@ from api.main import app
 
 SONG_CONTENT = b"test audio content"
 MODEL_NAME = "UVR_MDXNET_KARA_2.onnx"
+OTHER_MODEL_NAME = "UVR-MDX-NET-Inst_HQ_3.onnx"
 
 
 @pytest.fixture
@@ -60,10 +61,10 @@ def song_files():
             yield mock_split_song
 
 
-def post_song(client):
+def post_song(client, model_name=MODEL_NAME):
     return client.post(
         "/separate_track",
-        data={"modelName": MODEL_NAME},
+        data={"modelName": model_name},
         files={"songFile": ("test_song.mp3", SONG_CONTENT, "audio/mpeg")},
     )
 
@@ -201,6 +202,17 @@ def test_repeat_request_reuses_the_stored_result(client, no_bucket, song_files):
 
     assert second == first
     assert song_files.call_count == 1
+    assert client.get(second).headers["content-type"] == "application/zip"
+
+
+def test_another_model_gets_its_own_result(client, no_bucket, song_files):
+    """The cache is keyed by model, so the same song can be tried against another one."""
+    first = post_song(client).json()["finishedTrackURL"]
+
+    second = post_song(client, model_name=OTHER_MODEL_NAME).json()["finishedTrackURL"]
+
+    assert second != first
+    assert song_files.call_count == 2
     assert client.get(second).headers["content-type"] == "application/zip"
 
 

@@ -84,6 +84,33 @@ describe("Media Store separation", () => {
     expect(store.isProcessing).toBe(true);
   });
 
+  it("discards the separated track and calls off the run that would replace it", async () => {
+    const store = useMediaStore();
+    const started = pendingSeparation();
+    store.startSeparation(SONG, BACKING_VOCALS_SEPARATOR_MODEL);
+    const signal = await started;
+    store.separatedTrack = TRACK;
+    store.backingTrackFile = new File(["backing"], "accompaniment.wav");
+    store.vocalTrackFile = new File(["vocals"], "vocals.wav");
+
+    store.discardSeparatedTrack();
+
+    expect(signal.aborted).toBe(true);
+    expect(store.separatedTrack).toBeNull();
+    expect(store.backingTrackFile).toBeNull();
+    expect(store.vocalTrackFile).toBeNull();
+    expect(store.hasSeparatedTrack).toBe(false);
+  });
+
+  it("reports an uploaded track alone as a separated track", async () => {
+    const store = useMediaStore();
+
+    expect(store.hasSeparatedTrack).toBe(false);
+    await store.setBackingTrack(new File(["backing"], "accompaniment.wav"));
+
+    expect(store.hasSeparatedTrack).toBe(true);
+  });
+
   it("reports a separation that failed", async () => {
     const store = useMediaStore();
     (separateTrack as any).mockRejectedValue(new Error("Separator ran out of memory"));

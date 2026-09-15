@@ -1,6 +1,6 @@
 <template>
   <div v-if="hasAnyFiles" class="is-size-7 has-text-centered has-text-gray source-file-links">
-    <span>Source files: </span>
+    <span>{{ label }}</span>
     <span v-if="lyrics" class="file-item">
       lyrics.txt
       <a @click="download(lyrics, 'lyrics.txt')" title="download lyrics"
@@ -58,6 +58,8 @@ import { defineComponent } from "vue";
 
 export default defineComponent({
   props: {
+    // The trailing space is load-bearing: template whitespace before the first file is stripped at compile time.
+    label: { type: String, default: "Source files: " },
     lyrics: String,
     // Either a single voice's array of [time, marker] tuples, or a per-voice map.
     timings: [Array, Object],

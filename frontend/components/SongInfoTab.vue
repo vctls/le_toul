@@ -179,7 +179,7 @@
           <b-button
             label="Separate Track"
             type="is-primary"
-            :disabled="!mediaStore.songFile || !!mediaStore.backingTrackFile"
+            :disabled="!mediaStore.songFile || isSeparatingTrack"
             :loading="isSeparatingTrack"
             @click="separateTrack"
           />
@@ -198,6 +198,27 @@
         <!-- Beside the Separate Track button, its always-on tooltip would swallow the clicks. -->
         <b-button label="Cancel" type="is-danger is-light" @click="cancelSeparation" />
       </div>
+
+      <confirm-modal
+        v-model="isConfirmingSeparation"
+        title="Separate again?"
+        type="is-warning"
+        icon="warning"
+        confirm-label="Separate again"
+        cancel-label="Keep what I have"
+        @confirm="separateAgain"
+      >
+        <p>
+          The backing and vocal tracks you have now will be unloaded, and the video will wait for
+          the new separation before it renders. Save them first if you want to keep them.
+        </p>
+        <source-file-download-links
+          class="mt-4"
+          label="Current tracks: "
+          :vocals="mediaStore.separatedTrack?.vocals"
+          :accompaniment="mediaStore.separatedTrack?.backing"
+        />
+      </confirm-modal>
     </div>
   </b-tab-item>
 </template>
@@ -224,6 +245,8 @@ import { classifyProjectFolder } from "@/lib/projectFolder";
 import FileUpload from "@/components/FileUpload.vue";
 import FolderUpload from "@/components/FolderUpload.vue";
 import CircularProgress from "@/components/CircularProgress.vue";
+import SourceFileDownloadLinks from "@/components/SourceFileDownloadLinks.vue";
+import ConfirmModal from "@/components/ConfirmModal.vue";
 
 function formatList(items: string[]): string {
   if (items.length < 2) {
@@ -237,6 +260,8 @@ export default defineComponent({
     FileUpload,
     FolderUpload,
     CircularProgress,
+    SourceFileDownloadLinks,
+    ConfirmModal,
   },
   setup() {
     const mediaStore = useMediaStore();
@@ -260,6 +285,7 @@ export default defineComponent({
       BACKING_VOCALS_HQ_ALT_SEPARATOR_MODEL,
       NO_VOCALS_HQ_SEPARATOR_MODEL,
       isShowingAdvanced: false,
+      isConfirmingSeparation: false,
     };
   },
   computed: {
@@ -290,8 +316,8 @@ export default defineComponent({
       if (this.isSeparatingTrack) {
         return "Separating track...head to the Lyrics tab to keep working on the song!";
       }
-      if (this.mediaStore.backingTrackFile) {
-        return "You already loaded a backing track, so there's nothing to separate.";
+      if (this.mediaStore.hasSeparatedTrack) {
+        return "You already have a backing track. Separating again replaces it.";
       }
       return "Start separating the track while you work on the song timings. It's faster!";
     },
@@ -531,9 +557,20 @@ export default defineComponent({
     onVocalTrackFileChange(file: File | null) {
       this.mediaStore.setVocalTrack(file);
     },
-    async separateTrack() {
-      const model = this.mediaStore.separationModel;
-      this.mediaStore.startSeparation(this.mediaStore.songFile, model);
+    // Separating again throws away the track that is loaded, so ask before it goes.
+    separateTrack() {
+      if (this.mediaStore.hasSeparatedTrack) {
+        this.isConfirmingSeparation = true;
+        return;
+      }
+      this.runSeparation();
+    },
+    separateAgain() {
+      this.mediaStore.discardSeparatedTrack();
+      this.runSeparation();
+    },
+    runSeparation() {
+      this.mediaStore.startSeparation(this.mediaStore.songFile, this.mediaStore.separationModel);
     },
     cancelSeparation() {
       this.mediaStore.cancelSeparation();
