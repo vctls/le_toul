@@ -1,6 +1,7 @@
 .DS_Store
-# PyCharm project configuration
+# JetBrains project configuration
 .idea
+.vscode
 __pycache__
 # Separation model binaries. Auto-downloaded by audio-separator on first use.
 # See README "Credits" for sources. Keep metadata JSONs/YAMLs tracked so we
