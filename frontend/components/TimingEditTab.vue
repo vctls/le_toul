@@ -147,7 +147,7 @@ export default defineComponent({
 }
 
 .timing-edit-tab :deep(.timing-editor-textarea) {
-  font-family: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
+  font-family: var(--bulma-family-primary);
   white-space: pre;
   line-height: 1.6;
   flex: 1;
