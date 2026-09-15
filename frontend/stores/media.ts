@@ -1,5 +1,5 @@
 import { defineStore } from "pinia";
-import { ref, shallowRef, watch } from "vue";
+import { computed, ref, shallowRef, watch } from "vue";
 
 import { separateTrack } from "@/lib/audio";
 import { SeparationModel } from "@/types";
@@ -144,6 +144,24 @@ export const useMediaStore = defineStore("media", () => {
     activeSeparation.abort();
     // The rejection lands a tick later, and until then a new separation would join the dying one.
     clearSeparationState();
+  }
+
+  // Whether a backing or vocal track is loaded, from an upload or an earlier separation.
+  // The setters below stand a missing side in as an empty blob, so presence is a matter of size.
+  const hasSeparatedTrack = computed(
+    () =>
+      (separatedTrack.value?.backing.size ?? 0) > 0 || (separatedTrack.value?.vocals.size ?? 0) > 0,
+  );
+
+  // Drops the tracks an upload or an earlier separation left behind,
+  // so a render waits for the next separation instead of using the old backing track.
+  // Calls off a run still in flight first: its result would otherwise land here after the clear.
+  function discardSeparatedTrack() {
+    cancelSeparation();
+    separatedTrack.value = null;
+    backingTrackFile.value = null;
+    vocalTrackFile.value = null;
+    error.value = null;
   }
 
   async function setBackingTrack(file: File | null) {
@@ -332,11 +350,13 @@ export const useMediaStore = defineStore("media", () => {
     separationStartTime,
     separationProgress,
     separationStage,
+    hasSeparatedTrack,
 
     // Methods
     metadataSettled,
     startSeparation,
     cancelSeparation,
+    discardSeparatedTrack,
     setBackingTrack,
     setVocalTrack,
     clearSession,

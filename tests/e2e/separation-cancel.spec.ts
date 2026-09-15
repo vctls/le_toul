@@ -52,11 +52,13 @@ test.describe("Cancelling a separation", () => {
 
     await page.click('button:has-text("Separate Track")');
     await expect(page.locator(".separation-progress")).toBeVisible();
+    await expect(page.locator('button:has-text("Separate Track")')).toBeDisabled();
 
     await page.click('button:has-text("Cancel")');
 
     await expect(page.locator(".separation-progress")).toBeHidden();
     await expect(page.locator('button:has-text("Cancel")')).toBeHidden();
+    await expect(page.locator('button:has-text("Separate Track")')).toBeEnabled();
     await expect.poll(() => cancelledJob).toBe(`/separated_track/${JOB_HASH}/cancel`);
   });
 });

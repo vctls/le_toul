@@ -38,7 +38,7 @@
       :model-value="activeTab"
       @update:model-value="setActiveTab"
       expanded
-      :animated="!prefersReducedMotion"
+      :animated="false"
       :vertical="!isMobile"
       type="is-boxed"
       class="main-tabs"
@@ -51,12 +51,22 @@
       <timing-edit-tab />
       <submit-tab></submit-tab>
     </b-tabs>
+    <confirm-modal
+      v-model="isConfirmingStartOver"
+      title="Start over?"
+      type="is-danger"
+      icon="circle-exclamation"
+      confirm-label="Start over"
+      @confirm="startOver"
+    >
+      This will discard the current song, lyrics, and timings. Settings will be kept. Continue?
+    </confirm-modal>
   </div>
 </template>
 
 <script lang="ts">
 import { defineComponent } from "vue";
-import { isMobile, usePrefersReducedMotion } from "@/lib/device";
+import { isMobile } from "@/lib/device";
 import { DONATE_URL } from "@/constants";
 import HelpTab from "@/components/HelpTab.vue";
 import SongInfoTab from "@/components/SongInfoTab.vue";
@@ -65,6 +75,7 @@ import SongTimingTab from "@/components/SongTimingTab.vue";
 import TimingAdjustmentTab from "@/components/TimingAdjustmentTab.vue";
 import TimingEditTab from "@/components/TimingEditTab.vue";
 import SubmitTab from "@/components/SubmitTab.vue";
+import ConfirmModal from "@/components/ConfirmModal.vue";
 import { useMediaStore } from "@/stores/media";
 import { useLyricsStore } from "@/stores/lyrics";
 import { useTimingsStore } from "@/stores/timings";
@@ -80,11 +91,11 @@ export default defineComponent({
     TimingAdjustmentTab,
     TimingEditTab,
     SubmitTab,
+    ConfirmModal,
   },
   setup() {
     return {
       helpStore: useHelpStore(),
-      prefersReducedMotion: usePrefersReducedMotion(),
       ...useTabRoute(),
     };
   },
@@ -92,6 +103,7 @@ export default defineComponent({
     return {
       DONATE_URL,
       isSubmitting: false,
+      isConfirmingStartOver: false,
     };
   },
 
@@ -100,22 +112,12 @@ export default defineComponent({
   },
   methods: {
     confirmStartOver() {
-      const mediaStore = useMediaStore();
-      const lyricsStore = useLyricsStore();
-      const timingsStore = useTimingsStore();
-      this.$buefy.dialog.confirm({
-        title: "Start over?",
-        message:
-          "This will discard the current song, lyrics, and timings. Settings will be kept. Continue?",
-        confirmText: "Start over",
-        type: "is-danger",
-        hasIcon: true,
-        onConfirm: async () => {
-          timingsStore.clear();
-          lyricsStore.clear();
-          await mediaStore.clearSession();
-        },
-      });
+      this.isConfirmingStartOver = true;
+    },
+    async startOver() {
+      useTimingsStore().clear();
+      useLyricsStore().clear();
+      await useMediaStore().clearSession();
     },
   },
 });
