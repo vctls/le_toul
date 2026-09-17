@@ -36,7 +36,7 @@ describe("applyVoiceStyle", () => {
     expect(result.color.primary).toBe(red);
     expect(result.color.secondary).toBe(DEFAULT_KARAOKE_OPTIONS.color.secondary); // untouched
     // Shared options (count-ins, alignment, ...) are preserved.
-    expect(result.addCountIns).toBe(DEFAULT_KARAOKE_OPTIONS.addCountIns);
+    expect(result.countInMode).toBe(DEFAULT_KARAOKE_OPTIONS.countInMode);
   });
 
   it("maps `outline` to the background/outline color", () => {

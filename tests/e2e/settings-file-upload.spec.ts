@@ -4,6 +4,7 @@ import {
   navigateToTab,
   exactFieldFor,
   fieldFor,
+  radioFor,
   switchFor,
   TabId,
   getFixturePath,
@@ -37,7 +38,7 @@ test.describe("Settings File Upload", () => {
 
     // ...as are the video options, over on the Submit tab
     await navigateToTab(page, TabId.Submit);
-    await expect(switchFor(page, "Add Count-Ins")).not.toBeChecked();
+    await expect(radioFor(page, "Add Count-Ins", "line")).toBeChecked();
     await expect(switchFor(page, "Add Instrumental Breaks")).toBeChecked();
     await expect(fieldFor(page, "Video Format").locator("select")).toHaveValue("mkv");
 
@@ -58,6 +59,6 @@ test.describe("Settings File Upload", () => {
     await expect(page.locator(".toast.is-danger")).toBeVisible();
 
     await navigateToTab(page, TabId.Submit);
-    await expect(switchFor(page, "Add Count-Ins")).toBeChecked();
+    await expect(radioFor(page, "Add Count-Ins", "screen")).toBeChecked();
   });
 });

@@ -12,13 +12,26 @@
         <b-field horizontal>
           <template #label>
             Add Count-Ins
-            <b-tooltip label="Add count-in dots so you know when to start singing">
+            <b-tooltip
+              multilined
+              label="Add count-in dots so you know when to start singing: before each screen, or before any line that follows a gap"
+            >
               <b-icon size="is-small" icon="circle-question"></b-icon>
             </b-tooltip>
           </template>
-          <b-switch v-model="videoOptions.addCountIns"></b-switch
-        ></b-field>
-        <template v-if="videoOptions.addCountIns">
+          <div class="radios">
+            <b-radio v-model="videoOptions.countInMode" name="countInMode" native-value="none">
+              None
+            </b-radio>
+            <b-radio v-model="videoOptions.countInMode" name="countInMode" native-value="screen">
+              Screen start
+            </b-radio>
+            <b-radio v-model="videoOptions.countInMode" name="countInMode" native-value="line">
+              Line start
+            </b-radio>
+          </div>
+        </b-field>
+        <template v-if="videoOptions.countInMode !== 'none'">
           <b-field horizontal>
             <template #label>
               Count-In Text
@@ -38,7 +51,7 @@
               Count-In Gap
               <b-tooltip
                 multilined
-                label="Add a count-in when the singing starts more than this many seconds after the previous screen ends"
+                label="Add a count-in when a line starts more than this many seconds after the previous line ends"
               >
                 <b-icon size="is-small" icon="circle-question"></b-icon>
               </b-tooltip>
@@ -695,5 +708,16 @@ export default defineComponent({
 
 .submit-tab :deep(.field.is-horizontal > .field-label) {
   padding-top: 0;
+}
+
+.submit-tab .radios {
+  width: 100%;
+  flex-wrap: nowrap;
+  column-gap: 0;
+  justify-content: space-between;
+}
+
+.submit-tab .radios :deep(.radio) {
+  white-space: nowrap;
 }
 </style>

@@ -1,5 +1,5 @@
 import { test, expect } from "@playwright/test";
-import { setupTestEnvironment, navigateToTab, fieldFor, switchFor, TabId } from "./utils";
+import { setupTestEnvironment, navigateToTab, fieldFor, radioFor, TabId } from "./utils";
 
 test.describe("Count-In Settings", () => {
   test.beforeEach(async ({ page }) => {
@@ -7,14 +7,22 @@ test.describe("Count-In Settings", () => {
     await navigateToTab(page, TabId.Submit);
   });
 
+  test("count-ins are on a screen's first line by default", async ({ page }) => {
+    await expect(radioFor(page, "Add Count-Ins", "screen")).toBeChecked();
+  });
+
   test("the count-in fields are only shown when count-ins are on", async ({ page }) => {
     await expect(fieldFor(page, "Count-In Text")).toBeVisible();
 
-    // The real checkbox sits under Buefy's own markup, so click the switch itself.
-    await fieldFor(page, "Add Count-Ins").locator(".switch").click();
-    await expect(switchFor(page, "Add Count-Ins")).not.toBeChecked();
+    // The real radio sits under Buefy's own markup, so click its label instead.
+    await fieldFor(page, "Add Count-Ins").locator(".radio", { hasText: "None" }).click();
+    await expect(radioFor(page, "Add Count-Ins", "none")).toBeChecked();
 
     await expect(fieldFor(page, "Count-In Text")).toBeHidden();
+
+    await fieldFor(page, "Add Count-Ins").locator(".radio", { hasText: "Line start" }).click();
+    await expect(radioFor(page, "Add Count-Ins", "line")).toBeChecked();
+    await expect(fieldFor(page, "Count-In Text")).toBeVisible();
   });
 
   test("lowering the count-in gap pulls the count-in length down with it", async ({ page }) => {

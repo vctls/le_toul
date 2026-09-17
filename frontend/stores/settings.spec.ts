@@ -26,7 +26,7 @@ describe("Settings Store", () => {
 
     // Check default values
     expect(settingsStore.videoOptions.addTitleScreen).toBe(true);
-    expect(settingsStore.videoOptions.addCountIns).toBe(true);
+    expect(settingsStore.videoOptions.countInMode).toBe("screen");
     expect(settingsStore.videoOptions.addInstrumentalScreens).toBe(true);
     expect(settingsStore.videoOptions.addStaggeredLines).toBe(true);
     expect(settingsStore.videoOptions.useBackgroundVideo).toBe(false);
@@ -67,7 +67,7 @@ describe("Settings Store", () => {
     // Prepare localStorage with custom settings
     const customSettings = {
       addTitleScreen: false,
-      addCountIns: false,
+      countInMode: "line",
       addInstrumentalScreens: false,
       addStaggeredLines: false,
       useBackgroundVideo: true,
@@ -91,7 +91,7 @@ describe("Settings Store", () => {
 
     // Verify settings were loaded
     expect(settingsStore.videoOptions.addTitleScreen).toBe(false);
-    expect(settingsStore.videoOptions.addCountIns).toBe(false);
+    expect(settingsStore.videoOptions.countInMode).toBe("line");
     expect(settingsStore.videoOptions.addInstrumentalScreens).toBe(false);
     expect(settingsStore.videoOptions.addStaggeredLines).toBe(false);
     expect(settingsStore.videoOptions.useBackgroundVideo).toBe(true);
@@ -130,7 +130,7 @@ describe("Settings Store", () => {
     // Start with custom settings
     const customSettings = {
       addTitleScreen: false,
-      addCountIns: false,
+      countInMode: "line",
       addInstrumentalScreens: false,
       addStaggeredLines: false,
       useBackgroundVideo: true,
@@ -159,7 +159,7 @@ describe("Settings Store", () => {
 
     // Verify settings were reset
     expect(settingsStore.videoOptions.addTitleScreen).toBe(true);
-    expect(settingsStore.videoOptions.addCountIns).toBe(true);
+    expect(settingsStore.videoOptions.countInMode).toBe("screen");
     expect(settingsStore.videoOptions.font.size).toBe(20);
     expect(settingsStore.videoOptions.font.name).toBe("Arial Narrow");
     expect(settingsStore.videoOptions.color.background.toString()).toBe("#000000");
@@ -169,6 +169,21 @@ describe("Settings Store", () => {
     // Check localStorage was updated
     const savedOptions = JSON.parse(window.localStorage.videoOptions);
     expect(savedOptions.addTitleScreen).toBe(true);
+  });
+
+  test.each([
+    [true, "screen"],
+    [false, "none"],
+  ])("loads a stored addCountIns: %s as countInMode %s", (stored, expected) => {
+    window.localStorage.videoOptions = JSON.stringify({
+      addCountIns: stored,
+      color: { background: "#000000", primary: "#ff00ff", secondary: "#00ffff" },
+    });
+
+    const settingsStore = useSettingsStore();
+
+    expect(settingsStore.videoOptions.countInMode).toBe(expected);
+    expect((settingsStore.videoOptions as any).addCountIns).toBeUndefined();
   });
 
   test("count-in duration is capped by the threshold", async () => {
@@ -190,13 +205,13 @@ describe("Settings Store", () => {
     const settingsStore = useSettingsStore();
 
     settingsStore.applyVideoOptions({
-      addCountIns: false,
+      countInMode: "none",
       font: { name: "Impact" } as any,
       color: { primary: Color.parse("#abcdef") } as any,
     });
 
     // Applied
-    expect(settingsStore.videoOptions.addCountIns).toBe(false);
+    expect(settingsStore.videoOptions.countInMode).toBe("none");
     expect(settingsStore.videoOptions.font.name).toBe("Impact");
     expect(settingsStore.videoOptions.color.primary.toString()).toBe("#abcdef");
     // Untouched

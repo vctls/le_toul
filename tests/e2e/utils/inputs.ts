@@ -186,3 +186,10 @@ export function exactFieldFor(page: Page, label: string) {
 export function switchFor(page: Page, label: string) {
   return fieldFor(page, label).locator('input[type="checkbox"]');
 }
+
+/**
+ * One radio of a radio group inside one of those fields, by its value.
+ */
+export function radioFor(page: Page, label: string, value: string) {
+  return fieldFor(page, label).locator(`input[type="radio"][value="${value}"]`);
+}

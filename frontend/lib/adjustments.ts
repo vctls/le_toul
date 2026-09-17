@@ -45,26 +45,29 @@ export function addQuickStartCountIn(
   return adjustedScreens;
 }
 
-export function addScreenCountIns(
-  screens: LyricsScreen[],
-  options: KaraokeOptions,
-): LyricsScreen[] {
-  // Add a count-in to the start of a screen if there's awhile before the
-  // singing starts
+export function addGapCountIns(screens: LyricsScreen[], options: KaraokeOptions): LyricsScreen[] {
+  // Add a count-in to the start of a line if there's awhile before the singing starts.
+  // Gaps are measured across screen boundaries too, so the previous end carries over.
 
-  let prevScreenEnd: Timestamp = 0.0;
-  screens.forEach((screen, index) => {
-    const firstSegment = screen.lines[0].segments[0];
-    if (firstSegment.timestamp - prevScreenEnd > options.countInThreshold) {
-      const countInSegment = new LyricSegment(
-        options.countInText,
-        firstSegment.timestamp - options.countInDuration,
-        firstSegment.timestamp,
-      );
-      screen.lines[0].addSegmentToFront(countInSegment);
+  const everyLine = options.countInMode === "line";
+  let prevEnd: Timestamp = 0.0;
+  for (const screen of screens) {
+    for (const [index, line] of screen.lines.entries()) {
+      if (line.segments.length === 0) {
+        continue;
+      }
+      if ((everyLine || index === 0) && line.timestamp - prevEnd > options.countInThreshold) {
+        line.addSegmentToFront(
+          new LyricSegment(
+            options.countInText,
+            line.timestamp - options.countInDuration,
+            line.timestamp,
+          ),
+        );
+      }
+      prevEnd = line.endTimestamp;
     }
-    prevScreenEnd = screen.endTimestamp;
-  });
+  }
   return screens;
 }
 

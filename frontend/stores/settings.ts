@@ -1,6 +1,6 @@
 import { defineStore } from "pinia";
 import { reactive, watch, ref, computed } from "vue";
-import { OutputFormat, VerticalAlignment } from "@/lib/timing";
+import { CountInMode, OutputFormat, VerticalAlignment } from "@/lib/timing";
 import { NO_VOCALS_SEPARATOR_MODEL, BACKING_VOCALS_SEPARATOR_MODEL } from "./media";
 import Color from "buefy/src/utils/color";
 import { SeparationModel } from "@/types";
@@ -10,6 +10,7 @@ import { persistBlobRef } from "@/lib/persistence";
 import { TimingKeys, DEFAULT_TIMING_KEYS, isKeyName } from "@/lib/timingKeys";
 import { readFontFamilyName } from "@/lib/fontFile";
 import {
+  DEFAULT_COUNT_IN_MODE,
   DEFAULT_COUNT_IN_TEXT,
   DEFAULT_COUNT_IN_THRESHOLD,
   DEFAULT_COUNT_IN_DURATION,
@@ -51,7 +52,7 @@ function loadTimingKeys(): TimingKeys {
 export type VideoSettings = {
   vocalSeparationModel: SeparationModel;
   addTitleScreen: boolean;
-  addCountIns: boolean;
+  countInMode: CountInMode;
   countInText: string;
   countInThreshold: number;
   countInDuration: number;
@@ -85,7 +86,7 @@ type StoredSettings = Omit<VideoSettings, "color"> & {
 // Default settings with simple hex strings
 const DEFAULT_SETTINGS: VideoSettings = {
   addTitleScreen: true,
-  addCountIns: true,
+  countInMode: DEFAULT_COUNT_IN_MODE,
   countInText: DEFAULT_COUNT_IN_TEXT,
   countInThreshold: DEFAULT_COUNT_IN_THRESHOLD,
   countInDuration: DEFAULT_COUNT_IN_DURATION,
@@ -140,7 +141,7 @@ export const useSettingsStore = defineStore("settings", () => {
   // Load saved settings when the store is initialized
   loadSettings();
 
-  // A count-in longer than the gap that triggers it would start before the previous screen
+  // A count-in longer than the gap that triggers it would start before the previous line
   // ends, so the threshold caps the duration. Enforced here because a loaded settings file
   // and stored settings bypass the Submit tab's own bounds.
   watch(
@@ -305,6 +306,13 @@ export const useSettingsStore = defineStore("settings", () => {
           secondary: Color.parse(options.color.secondary),
         },
       } as VideoSettings;
+
+      // Settings saved before count-ins gained a "line" mode carry a boolean instead.
+      const legacyCountIns = (options as { addCountIns?: boolean }).addCountIns;
+      if (legacyCountIns !== undefined) {
+        newVideoOptions.countInMode = legacyCountIns ? "screen" : "none";
+        delete (newVideoOptions as { addCountIns?: boolean }).addCountIns;
+      }
 
       // Handle legacy vocalSeparationModel setting
       if (

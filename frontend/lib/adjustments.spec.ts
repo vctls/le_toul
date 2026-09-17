@@ -2,7 +2,7 @@ import {
   addTitleScreen,
   addInstrumentalScreens,
   addQuickStartCountIn,
-  addScreenCountIns,
+  addGapCountIns,
   displayQuickLinesEarly,
   deferScreenStarts,
 } from "./adjustments";
@@ -14,6 +14,7 @@ import {
   LyricsLine,
   LyricsScreen,
   KaraokeOptions,
+  CountInMode,
   VerticalAlignment,
 } from "./timing";
 import { testLyrics, shortIntroTestEvents } from "./timing.spec";
@@ -27,7 +28,7 @@ import { default as BuefyColor } from "buefy/src/utils/color";
 
 const DEFAULT_OPTIONS: KaraokeOptions = {
   addTitleScreen: true,
-  addCountIns: true,
+  countInMode: "screen",
   countInText: DEFAULT_COUNT_IN_TEXT,
   countInThreshold: DEFAULT_COUNT_IN_THRESHOLD,
   countInDuration: DEFAULT_COUNT_IN_DURATION,
@@ -68,7 +69,7 @@ Dialogue: 0,0:00:00.00,0:00:04.00,Default,Singer,0,0,144,,{\\k200}{\\kf200}The T
   expect(screensWithTitle[0].audioDelay).toBe(4);
 });
 
-test("screen count-ins use the configured text, threshold and duration", () => {
+test("count-ins use the configured text, threshold and duration", () => {
   const lyrics = "That was a long intro";
   const timings: LyricEvent[] = [
     [30.0, LYRIC_MARKERS.SEGMENT_START],
@@ -81,7 +82,7 @@ test("screen count-ins use the configured text, threshold and duration", () => {
     countInDuration: 3.0,
   };
 
-  const screens = addScreenCountIns(
+  const screens = addGapCountIns(
     denormalizeTimestamps(compileLyricTimings(lyrics, timings), 60.0),
     options,
   );
@@ -92,7 +93,7 @@ test("screen count-ins use the configured text, threshold and duration", () => {
   expect(countIn.endTimestamp).toBe(30.0);
 });
 
-test("no screen count-in when the gap is within the threshold", () => {
+test("no count-in when the gap is within the threshold", () => {
   const lyrics = "That was a long intro";
   const timings: LyricEvent[] = [
     [30.0, LYRIC_MARKERS.SEGMENT_START],
@@ -104,12 +105,73 @@ test("no screen count-in when the gap is within the threshold", () => {
     countInDuration: 3.0,
   };
 
-  const screens = addScreenCountIns(
+  const screens = addGapCountIns(
     denormalizeTimestamps(compileLyricTimings(lyrics, timings), 60.0),
     options,
   );
 
   expect(screens[0].lines[0].segments[0].text).toBe(lyrics);
+});
+
+const MID_SCREEN_GAP_LYRICS = "first line\nsecond line";
+const MID_SCREEN_GAP_TIMINGS: LyricEvent[] = [
+  [1.0, LYRIC_MARKERS.SEGMENT_START],
+  [2.0, LYRIC_MARKERS.SEGMENT_END],
+  [20.0, LYRIC_MARKERS.SEGMENT_START],
+  [21.0, LYRIC_MARKERS.SEGMENT_END],
+];
+
+function screenWithMidScreenGap(countInMode: CountInMode): LyricsScreen {
+  const options: KaraokeOptions = {
+    ...DEFAULT_OPTIONS,
+    countInMode,
+    countInThreshold: 5.0,
+    countInDuration: 3.0,
+  };
+  return addGapCountIns(
+    denormalizeTimestamps(compileLyricTimings(MID_SCREEN_GAP_LYRICS, MID_SCREEN_GAP_TIMINGS), 60.0),
+    options,
+  )[0];
+}
+
+test("line mode gives a mid-screen line its own count-in", () => {
+  const screen = screenWithMidScreenGap("line");
+
+  expect(screen.lines[0].segments[0].text).toBe("first line\n");
+  const countIn = screen.lines[1].segments[0];
+  expect(countIn.text).toBe(DEFAULT_COUNT_IN_TEXT);
+  expect(countIn.timestamp).toBe(17.0);
+  expect(countIn.endTimestamp).toBe(20.0);
+});
+
+test("screen mode leaves a mid-screen line alone", () => {
+  const screen = screenWithMidScreenGap("screen");
+
+  expect(screen.lines[1].segments[0].text).toBe("second line");
+});
+
+test("no count-in on a line that follows on from the previous one", () => {
+  const lyrics = "first line\nsecond line";
+  const timings: LyricEvent[] = [
+    [10.0, LYRIC_MARKERS.SEGMENT_START],
+    [11.0, LYRIC_MARKERS.SEGMENT_END],
+    [12.0, LYRIC_MARKERS.SEGMENT_START],
+    [13.0, LYRIC_MARKERS.SEGMENT_END],
+  ];
+  const options: KaraokeOptions = {
+    ...DEFAULT_OPTIONS,
+    countInMode: "line",
+    countInThreshold: 5.0,
+    countInDuration: 3.0,
+  };
+
+  const screens = addGapCountIns(
+    denormalizeTimestamps(compileLyricTimings(lyrics, timings), 60.0),
+    options,
+  );
+
+  expect(screens[0].lines[0].segments[0].text).toBe(DEFAULT_COUNT_IN_TEXT);
+  expect(screens[0].lines[1].segments[0].text).toBe("second line");
 });
 
 test("quick start count-in uses the configured text and duration", () => {
