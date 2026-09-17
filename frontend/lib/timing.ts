@@ -109,17 +109,20 @@ function colorToString(color: Color): string {
 }
 
 export function floatToTimecode(t: number): string {
-  // Format t (seconds) as HH:MM:SS.ms
+  // Format t (seconds) as HH:MM:SS.cc. Every field is derived from one rounded
+  // centisecond count: rounding the fraction on its own drops the carry at .995 and up,
+  // which silently shifts the timecode a second earlier.
+  const totalCentiseconds = Math.round(t * 100);
+  const centiseconds = totalCentiseconds % 100;
+  const totalSeconds = (totalCentiseconds - centiseconds) / 100;
   const timecodeParts = [
-    Math.floor(t / 3600).toString(),
-    Math.floor((t / 60) % 60)
+    Math.floor(totalSeconds / 3600).toString(),
+    Math.floor((totalSeconds / 60) % 60)
       .toString()
       .padStart(2, "0"),
     [
-      Math.floor(t % 60)
-        .toString()
-        .padStart(2, "0"),
-      (t - Math.floor(t)).toFixed(2).slice(2, 4),
+      (totalSeconds % 60).toString().padStart(2, "0"),
+      centiseconds.toString().padStart(2, "0"),
     ].join("."),
   ];
   return timecodeParts.join(":");

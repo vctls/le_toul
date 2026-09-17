@@ -21,14 +21,18 @@
       <p>
         Click a rectangle to select it, then click another one to select every rectangle between the
         two. Dragging any selected rectangle moves the whole selection at once, up to the rectangles
-        on either side of it. Click a selected rectangle to clear the selection.
+        on either side of it. Click a selected rectangle or press <kbd>Esc</kbd> to clear the
+        selection.
       </p>
       <p>
         Press <kbd>spacebar</kbd> to start and stop playback, and <kbd>&larr;</kbd>
         <kbd>&rarr;</kbd> to move the playhead by the preroll set below. Hold <kbd>shift</kbd> for
-        steps five times as long. Press <kbd>Enter</kbd> to play again from the last position you
-        set yourself, by clicking the waveform, using the arrow keys, or dragging a timing. Scroll
-        up and down on the waveform to zoom in and out on the area under the cursor.
+        steps five times as long. <kbd>Home</kbd> and <kbd>End</kbd> move it to the left and right
+        edges of the waveform as it is currently scrolled, and <kbd>ctrl</kbd> with either one moves
+        it to the very beginning or end of the song. Press <kbd>Enter</kbd> to play again from the
+        last position you set yourself, by clicking the waveform, using the arrow keys, or dragging
+        a timing. Scroll up and down on the waveform to zoom in and out on the area under the
+        cursor.
       </p>
     </help-section>
     <div class="adjustment-form">
@@ -334,7 +338,9 @@ export default defineComponent({
     onKeyDown(event: KeyboardEvent) {
       const isEnter = event.code === "Enter" || event.code === "NumpadEnter";
       const isArrow = event.code === "ArrowLeft" || event.code === "ArrowRight";
-      if (event.code !== "Space" && !isEnter && !isArrow) return;
+      const isEscape = event.code === "Escape";
+      const isViewEdge = event.code === "Home" || event.code === "End";
+      if (event.code !== "Space" && !isEnter && !isArrow && !isEscape && !isViewEdge) return;
       const target = event.target as HTMLElement | null;
       // Form controls need these keys for themselves.
       if (target && ["INPUT", "TEXTAREA", "SELECT"].includes(target.tagName)) return;
@@ -343,7 +349,17 @@ export default defineComponent({
       if (isEnter && target?.closest?.("button, a")) return;
       if (this.$el.offsetParent === null) return;
       event.preventDefault();
-      if (isEnter) {
+      if (isEscape) {
+        this.timingAdjusterRef()?.clearSelection();
+      } else if (isViewEdge) {
+        const edge = event.code === "Home" ? "start" : "end";
+        const adjuster = this.timingAdjusterRef();
+        if (event.ctrlKey) {
+          adjuster?.seekToTrackEdge(edge);
+        } else {
+          adjuster?.seekToViewEdge(edge);
+        }
+      } else if (isEnter) {
         this.timingAdjusterRef()?.restartAt(this.manualPlayhead);
       } else if (isArrow) {
         const direction = event.code === "ArrowLeft" ? -1 : 1;

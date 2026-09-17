@@ -44,6 +44,7 @@
         >
       </div>
     </div>
+    <song-player :file="songFile" />
     <lyric-editor
       ref="lyricEditor"
       :modelValue="lyricText"
@@ -59,17 +60,22 @@ import { storeToRefs } from "pinia";
 import { useLyricsStore } from "@/stores/lyrics";
 import LyricEditor from "@/components/LyricEditor.vue";
 import HelpSection from "@/components/HelpSection.vue";
+import SongPlayer from "@/components/SongPlayer.vue";
+import { useMediaStore } from "@/stores/media";
 
 export default defineComponent({
   components: {
     HelpSection,
     LyricEditor,
+    SongPlayer,
   },
   setup() {
     const lyricStore = useLyricsStore();
     const { lyricText } = storeToRefs(lyricStore);
+    const { songFile } = storeToRefs(useMediaStore());
     return {
       lyricText,
+      songFile,
     };
   },
   data() {

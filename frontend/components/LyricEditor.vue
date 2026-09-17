@@ -26,7 +26,38 @@ export default defineComponent({
       default: true,
     },
   },
+  data() {
+    return {
+      scrollTop: 0,
+      visibilityObserver: null as IntersectionObserver | null,
+    };
+  },
+  mounted() {
+    const input = this.textarea();
+    input.addEventListener("scroll", this.rememberScroll);
+    if (typeof IntersectionObserver === "undefined") return;
+    this.visibilityObserver = new IntersectionObserver(([entry]) => {
+      if (entry.isIntersecting) {
+        input.scrollTop = this.scrollTop;
+      }
+    });
+    this.visibilityObserver.observe(input);
+  },
+  beforeUnmount() {
+    this.textarea().removeEventListener("scroll", this.rememberScroll);
+    this.visibilityObserver?.disconnect();
+  },
   methods: {
+    textarea(): HTMLTextAreaElement {
+      return this.$refs.lyricInput as HTMLTextAreaElement;
+    },
+    rememberScroll() {
+      const input = this.textarea();
+      // Hiding the tab zeroes scrollTop; ignore that so the saved offset survives.
+      if (input.clientHeight > 0) {
+        this.scrollTop = input.scrollTop;
+      }
+    },
     onLyricInput(e: Event) {
       // TODO: Also update on slash removal
       // TODO: update on pasted text and bulk-removed text
@@ -57,7 +88,7 @@ export default defineComponent({
     },
     convertSpaces() {
       // Convert spaces to underscores
-      const input = this.$refs.lyricInput as HTMLTextAreaElement;
+      const input = this.textarea();
       const currentPosition = input.selectionStart;
       const selectionEnd = input.selectionEnd;
       const newValue = convertSpacesToUnderscores(this.modelValue);

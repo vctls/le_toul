@@ -7,6 +7,7 @@ import { SeparationModel } from "@/types";
 import { VoiceStyleOverride, serializeVoiceStyle, deserializeVoiceStyle } from "@/lib/voiceStyle";
 import { VoiceId } from "@/lib/voices";
 import { persistBlobRef } from "@/lib/persistence";
+import { TimingKeys, DEFAULT_TIMING_KEYS, isKeyName } from "@/lib/timingKeys";
 import { readFontFamilyName } from "@/lib/fontFile";
 import {
   DEFAULT_COUNT_IN_TEXT,
@@ -15,6 +16,7 @@ import {
 } from "@/constants";
 
 const VOICE_STYLES_STORAGE_KEY = "voiceStyles";
+const TIMING_KEYS_STORAGE_KEY = "timingKeys";
 
 function loadVoiceStyles(): Record<VoiceId, VoiceStyleOverride> {
   try {
@@ -27,6 +29,21 @@ function loadVoiceStyles(): Record<VoiceId, VoiceStyleOverride> {
   } catch (e) {
     console.error("Error loading voice styles:", e);
     return {};
+  }
+}
+
+// A key that has since stopped being a name we recognise falls back to the default,
+// so a stale entry can never leave the timing tab with an unpressable binding.
+function loadTimingKeys(): TimingKeys {
+  try {
+    const raw = JSON.parse(localStorage.getItem(TIMING_KEYS_STORAGE_KEY) || "{}");
+    return {
+      start: isKeyName(raw.start) ? raw.start : DEFAULT_TIMING_KEYS.start,
+      end: isKeyName(raw.end) ? raw.end : DEFAULT_TIMING_KEYS.end,
+    };
+  } catch (e) {
+    console.error("Error loading timing keys:", e);
+    return { ...DEFAULT_TIMING_KEYS };
   }
 }
 
@@ -106,6 +123,10 @@ export const useSettingsStore = defineStore("settings", () => {
   // Per-voice style overrides, keyed by voice id. Empty/absent => the voice uses the base.
   const voiceStyles = ref<Record<VoiceId, VoiceStyleOverride>>(loadVoiceStyles());
 
+  // Kept out of `videoOptions`, which is what the exported settings.yaml describes: these
+  // are about how the tapping tab is driven, not about the video.
+  const timingKeys = ref<TimingKeys>(loadTimingKeys());
+
   // Kept out of `videoOptions`, which is JSON-serialized to localStorage wholesale; the
   // file goes to IndexedDB instead.
   const customFont = ref<File | null>(null);
@@ -153,6 +174,14 @@ export const useSettingsStore = defineStore("settings", () => {
     { deep: true },
   );
 
+  watch(
+    timingKeys,
+    () => {
+      localStorage.setItem(TIMING_KEYS_STORAGE_KEY, JSON.stringify(timingKeys.value));
+    },
+    { deep: true },
+  );
+
   // The family name is re-derived on load rather than stored, so a file that has gone
   // unreadable is dropped instead of naming a font libass can't find.
   persistBlobRef("settings.customFont", customFont).then(async () => {
@@ -191,6 +220,18 @@ export const useSettingsStore = defineStore("settings", () => {
       ? { ...videoOptions, font: { ...videoOptions.font, name: customFontFamily.value } }
       : videoOptions,
   );
+
+  // Binding the key the other role holds swaps the two, so the pair never both point at
+  // the same key, which would make one of the two markers unreachable.
+  function setTimingKey(role: keyof TimingKeys, name: string): void {
+    const other = role === "start" ? "end" : "start";
+    const next: TimingKeys = { ...timingKeys.value };
+    if (next[other] === name) {
+      next[other] = next[role];
+    }
+    next[role] = name;
+    timingKeys.value = next;
+  }
 
   function getVoiceStyle(voice: VoiceId): VoiceStyleOverride | undefined {
     return voiceStyles.value[voice];
@@ -300,6 +341,7 @@ export const useSettingsStore = defineStore("settings", () => {
   function resetSettings(): void {
     Object.assign(videoOptions, defaultSettings());
     voiceStyles.value = {};
+    timingKeys.value = { ...DEFAULT_TIMING_KEYS };
     void setCustomFont(null);
   }
 
@@ -307,10 +349,12 @@ export const useSettingsStore = defineStore("settings", () => {
     videoOptions,
     renderOptions,
     voiceStyles,
+    timingKeys,
     customFont,
     customFontFamily,
     customFontUrl,
     setCustomFont,
+    setTimingKey,
     getVoiceStyle,
     setVoiceStyleField,
     clearVoiceStyle,

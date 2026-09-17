@@ -12,9 +12,12 @@
       <voice-selector />
     </div>
     <help-section>
-      <p>Press <kbd>spacebar</kbd> when the singer starts the highlighted segment.</p>
       <p>
-        Press <kbd>Enter</kbd> when the singer finishes the <em>previous</em> highlighted segment.
+        Press <kbd>{{ startKeyLabel }}</kbd> when the singer starts the highlighted segment.
+      </p>
+      <p>
+        Press <kbd>{{ endKeyLabel }}</kbd> when the singer finishes the <em>previous</em>
+        highlighted segment.
       </p>
       <p>Adjust the playback speed to slow down fast parts or skip through long instrumentals.</p>
     </help-section>
@@ -25,7 +28,7 @@
       icon="warning"
       icon-size="is-small"
     >
-      Almost done! Press <kbd>Enter</kbd> when the last line ends.
+      Almost done! Press <kbd>{{ endKeyLabel }}</kbd> when the last line ends.
     </b-message>
     <b-message
       v-model="successMessageVisible"
@@ -96,6 +99,19 @@
       </div>
     </div>
 
+    <div class="timing-keys">
+      <key-name-input
+        label="Start key"
+        :model-value="timingKeys.start"
+        @update:model-value="(name: string) => settingsStore.setTimingKey('start', name)"
+      />
+      <key-name-input
+        label="End key"
+        :model-value="timingKeys.end"
+        @update:model-value="(name: string) => settingsStore.setTimingKey('end', name)"
+      />
+    </div>
+
     <div class="seek-bar">
       <span class="seek-time">{{ formatTime(currentTime) }}</span>
       <input
@@ -118,23 +134,32 @@
       @keydown="onKeyDown"
     >
     </lyric-display>
-    <timing-buttons v-if="showButtonKeyboard" @keydown="onKeyDown" />
+    <timing-buttons
+      v-if="showButtonKeyboard"
+      :start-key="timingKeys.start"
+      :end-key="timingKeys.end"
+      @keydown="onKeyDown"
+    />
   </b-tab-item>
 </template>
 
 <script lang="ts">
 import { defineComponent } from "vue";
 import { storeToRefs } from "pinia";
-import { KEY_CODES, TIMING_KEY_CODES } from "@/constants";
+import { LYRIC_MARKERS } from "@/constants";
 import { isMobile } from "@/lib/device";
 import { Segment } from "@/lib/timing";
 import HelpSection from "@/components/HelpSection.vue";
+import KeyNameInput from "@/components/KeyNameInput.vue";
 import LyricDisplay from "@/components/LyricDisplay.vue";
 import TimingButtons from "@/components/TimingButtons.vue";
 import VoiceSelector from "@/components/VoiceSelector.vue";
 import { useTimingsStore } from "@/stores/timings";
 import { useLyricsStore } from "@/stores/lyrics";
 import { useMediaStore } from "@/stores/media";
+import { useSettingsStore } from "@/stores/settings";
+import { TimingKeys, eventMatchesKey, formatKeyName } from "@/lib/timingKeys";
+import { claimMediaKeys, registerPlayer } from "@/lib/exclusivePlayback";
 import { VoiceId } from "@/lib/voices";
 
 interface VoiceTimingState {
@@ -148,13 +173,14 @@ function defaultVoiceState(): VoiceTimingState {
 }
 
 export default defineComponent({
-  components: { HelpSection, LyricDisplay, TimingButtons, VoiceSelector },
+  components: { HelpSection, KeyNameInput, LyricDisplay, TimingButtons, VoiceSelector },
   setup() {
     const timingsStore = useTimingsStore();
     const lyricsStore = useLyricsStore();
     const mediaStore = useMediaStore();
+    const settingsStore = useSettingsStore();
     const { lyricSegments } = storeToRefs(lyricsStore);
-    return { timingsStore, lyricsStore, lyricSegments, mediaStore };
+    return { timingsStore, lyricsStore, lyricSegments, mediaStore, settingsStore };
   },
   data() {
     return {
@@ -168,10 +194,29 @@ export default defineComponent({
       showButtonKeyboard: isMobile(),
       currentTime: 0,
       duration: 0,
+      unregisterPlayer: null as (() => void) | null,
     };
+  },
+  mounted() {
+    const audio = this.audioElement();
+    if (audio) {
+      this.unregisterPlayer = registerPlayer(audio);
+    }
+  },
+  beforeUnmount() {
+    this.unregisterPlayer?.();
   },
   computed: {
     isMobile,
+    timingKeys(): TimingKeys {
+      return this.settingsStore.timingKeys;
+    },
+    startKeyLabel(): string {
+      return formatKeyName(this.timingKeys.start);
+    },
+    endKeyLabel(): string {
+      return formatKeyName(this.timingKeys.end);
+    },
     activeVoice(): VoiceId {
       return this.timingsStore.activeVoice;
     },
@@ -282,30 +327,51 @@ export default defineComponent({
       }
       return this.voiceState[voice];
     },
+    timingMarker(eventCode: string): number | undefined {
+      if (eventMatchesKey(eventCode, this.timingKeys.start)) {
+        return LYRIC_MARKERS.SEGMENT_START;
+      }
+      if (eventMatchesKey(eventCode, this.timingKeys.end)) {
+        return LYRIC_MARKERS.SEGMENT_END;
+      }
+      return undefined;
+    },
+    // The key bindings are edited on this tab, and timing keys are caught on `window`, so
+    // a key typed into a field must not also land as a timing.
+    isTypingTarget(target: EventTarget | null): boolean {
+      const element = target as HTMLElement | null;
+      return (
+        !!element &&
+        (element.isContentEditable || ["INPUT", "TEXTAREA", "SELECT"].includes(element.tagName))
+      );
+    },
     onKeyDown(e: KeyboardEvent) {
-      const keyCode = TIMING_KEY_CODES[e.code];
+      if (this.isTypingTarget(e.target)) {
+        return;
+      }
+      const marker = this.timingMarker(e.code);
       const audio = this.audioElement();
-      if (keyCode !== undefined && this.isPlaying && audio) {
+      if (marker !== undefined && this.isPlaying && audio) {
         const currentSongTime = audio.currentTime;
-        if (!this.timingsStore.areTimingsUsable || keyCode == KEY_CODES.ENTER) {
-          this.addTimingEvent(keyCode, currentSongTime);
+        if (!this.timingsStore.areTimingsUsable || marker == LYRIC_MARKERS.SEGMENT_END) {
+          this.addTimingEvent(marker, currentSongTime);
         }
         e.preventDefault();
         return false;
       }
     },
-    addTimingEvent(keyCode: number, currentSongTime: number) {
-      if (keyCode == KEY_CODES.ENTER) {
-        this.timingsStore.add(this.currentSegment - 1, keyCode, currentSongTime);
-      } else if (keyCode == KEY_CODES.SPACEBAR) {
-        this.advanceToNextSegment(keyCode, currentSongTime);
+    addTimingEvent(marker: number, currentSongTime: number) {
+      if (marker == LYRIC_MARKERS.SEGMENT_END) {
+        this.timingsStore.add(this.currentSegment - 1, marker, currentSongTime);
+      } else if (marker == LYRIC_MARKERS.SEGMENT_START) {
+        this.advanceToNextSegment(marker, currentSongTime);
       }
     },
-    advanceToNextSegment(keyCode: number, currentSongTime: number) {
+    advanceToNextSegment(marker: number, currentSongTime: number) {
       if (this.currentSegment >= this.segments.length) {
         return;
       }
-      this.timingsStore.add(this.currentSegment, keyCode, currentSongTime);
+      this.timingsStore.add(this.currentSegment, marker, currentSongTime);
       this.currentSegment += 1;
     },
     playPause() {
@@ -322,6 +388,7 @@ export default defineComponent({
       const audio = this.audioElement();
       if (!audio) return;
       audio.currentTime = parseFloat((e.target as HTMLInputElement).value);
+      claimMediaKeys(audio);
     },
     formatTime(seconds: number): string {
       if (!seconds || !isFinite(seconds)) {
@@ -337,7 +404,7 @@ export default defineComponent({
       if (!audioEl) return;
       this.isPlaying = !(audioEl.paused || audioEl.ended);
       if (e.type == "ended" && !this.timingsStore.areTimingsFinished) {
-        this.addTimingEvent(KEY_CODES.ENTER, audioEl.currentTime);
+        this.addTimingEvent(LYRIC_MARKERS.SEGMENT_END, audioEl.currentTime);
       }
     },
     redoScreen() {
@@ -387,6 +454,14 @@ export default defineComponent({
   align-items: center;
   gap: 1rem;
   flex-wrap: wrap;
+}
+
+.timing-keys {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.75rem 2rem;
+  margin-bottom: 1rem;
 }
 
 .playback-speed {

@@ -1,7 +1,7 @@
 // stores/timings.ts
 import { defineStore } from "pinia";
 import { watch } from "vue";
-import { KEY_CODES, LYRIC_MARKERS } from "@/constants";
+import { LYRIC_MARKERS } from "@/constants";
 import { pullAt } from "lodash-es";
 import { useLyricsStore } from "./lyrics";
 import { useMediaStore } from "./media";
@@ -210,13 +210,10 @@ export const useTimingsStore = defineStore("timings", {
       return this._timingsByVoice[voice];
     },
 
-    add(currentSegmentNum: number, keyCode: number, timestamp: number) {
+    add(currentSegmentNum: number, marker: number, timestamp: number) {
       if (currentSegmentNum < 0) {
         return;
       }
-
-      const marker =
-        keyCode == KEY_CODES.SPACEBAR ? LYRIC_MARKERS.SEGMENT_START : LYRIC_MARKERS.SEGMENT_END;
 
       if (marker == LYRIC_MARKERS.SEGMENT_START) {
         this.handleConflictWithPreviousSegment(timestamp);

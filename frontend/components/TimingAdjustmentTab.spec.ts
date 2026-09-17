@@ -10,12 +10,22 @@ import { LYRIC_MARKERS } from "@/constants";
 const togglePlayPause = vi.fn();
 const restartAt = vi.fn();
 const seekBy = vi.fn();
+const clearSelection = vi.fn();
+const seekToViewEdge = vi.fn();
+const seekToTrackEdge = vi.fn();
 
 // Stands in for the TimingAdjuster the tab drives through its ref.
 const timingAdjusterStub = {
   name: "TimingAdjuster",
   template: '<div class="timing-adjuster-stub" />',
-  methods: { togglePlayPause, restartAt, seekBy },
+  methods: {
+    togglePlayPause,
+    restartAt,
+    seekBy,
+    clearSelection,
+    seekToViewEdge,
+    seekToTrackEdge,
+  },
 };
 
 // Mounted tabs keep a window keydown listener, so they must be torn down
@@ -53,8 +63,11 @@ function mountTab() {
   return wrapper;
 }
 
-function pressKey(code: string, { target = document.body as HTMLElement, shiftKey = false } = {}) {
-  target.dispatchEvent(new KeyboardEvent("keydown", { code, shiftKey, bubbles: true }));
+function pressKey(
+  code: string,
+  { target = document.body as HTMLElement, shiftKey = false, ctrlKey = false } = {},
+) {
+  target.dispatchEvent(new KeyboardEvent("keydown", { code, shiftKey, ctrlKey, bubbles: true }));
 }
 
 describe("TimingAdjustmentTab shortcuts", () => {
@@ -64,6 +77,9 @@ describe("TimingAdjustmentTab shortcuts", () => {
     togglePlayPause.mockClear();
     restartAt.mockClear();
     seekBy.mockClear();
+    clearSelection.mockClear();
+    seekToViewEdge.mockClear();
+    seekToTrackEdge.mockClear();
   });
 
   afterEach(() => {
@@ -105,6 +121,48 @@ describe("TimingAdjustmentTab shortcuts", () => {
     pressKey("Enter", { target: button });
     expect(restartAt).not.toHaveBeenCalled();
     button.remove();
+  });
+
+  it("moves the playhead to the edges of the waveform view with Home and End", () => {
+    mountTab();
+    pressKey("Home");
+    expect(seekToViewEdge).toHaveBeenLastCalledWith("start");
+    pressKey("End");
+    expect(seekToViewEdge).toHaveBeenLastCalledWith("end");
+  });
+
+  it("moves the playhead to the ends of the song with ctrl held", () => {
+    mountTab();
+    pressKey("Home", { ctrlKey: true });
+    expect(seekToTrackEdge).toHaveBeenLastCalledWith("start");
+    pressKey("End", { ctrlKey: true });
+    expect(seekToTrackEdge).toHaveBeenLastCalledWith("end");
+    expect(seekToViewEdge).not.toHaveBeenCalled();
+  });
+
+  it("leaves Home and End to form controls", () => {
+    mountTab();
+    const input = document.createElement("input");
+    document.body.appendChild(input);
+    pressKey("Home", { target: input });
+    pressKey("End", { target: input });
+    expect(seekToViewEdge).not.toHaveBeenCalled();
+    input.remove();
+  });
+
+  it("clears the region selection on Esc", () => {
+    mountTab();
+    pressKey("Escape");
+    expect(clearSelection).toHaveBeenCalledOnce();
+  });
+
+  it("leaves Esc to form controls", () => {
+    mountTab();
+    const input = document.createElement("input");
+    document.body.appendChild(input);
+    pressKey("Escape", { target: input });
+    expect(clearSelection).not.toHaveBeenCalled();
+    input.remove();
   });
 
   it("steps by the preroll with the arrow keys, wherever the focus is", () => {
