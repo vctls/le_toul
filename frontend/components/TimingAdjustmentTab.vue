@@ -254,7 +254,7 @@ export default defineComponent({
       return this.timingsStore.length > 0;
     },
     adjustmentSubtitles(): string {
-      return this.subtitles({ addTitleScreen: false, addCountIns: false });
+      return this.subtitles({ addTitleScreen: false, countInMode: "none" });
     },
   },
   mounted() {

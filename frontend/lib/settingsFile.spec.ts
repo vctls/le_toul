@@ -16,7 +16,7 @@ const EXPORTED_FILE = yaml.dump({
   separationModel: NO_VOCALS_SEPARATOR_MODEL,
   videoOptions: {
     addTitleScreen: false,
-    addCountIns: false,
+    countInMode: "line",
     countInText: "1 2 3 ",
     countInThreshold: 6.5,
     countInDuration: 1.5,
@@ -47,7 +47,7 @@ describe("parseSettingsYaml", () => {
     expect(parsed.separationModel).toBe(NO_VOCALS_SEPARATOR_MODEL);
 
     expect(parsed.videoOptions.addTitleScreen).toBe(false);
-    expect(parsed.videoOptions.addCountIns).toBe(false);
+    expect(parsed.videoOptions.countInMode).toBe("line");
     expect(parsed.videoOptions.countInText).toBe("1 2 3 ");
     expect(parsed.videoOptions.countInThreshold).toBe(6.5);
     expect(parsed.videoOptions.countInDuration).toBe(1.5);
@@ -71,10 +71,10 @@ describe("parseSettingsYaml", () => {
   });
 
   test("only reports the settings the file mentions", () => {
-    const parsed = parseSettingsYaml("videoOptions:\n  addCountIns: false\n");
+    const parsed = parseSettingsYaml("videoOptions:\n  countInMode: none\n");
 
     expect(parsed.warnings).toEqual([]);
-    expect(parsed.videoOptions).toEqual({ addCountIns: false });
+    expect(parsed.videoOptions).toEqual({ countInMode: "none" });
     expect(parsed.song).toEqual({});
     expect(parsed.separationModel).toBeUndefined();
     expect(parsed.voiceStyles).toBeUndefined();
@@ -89,6 +89,15 @@ describe("parseSettingsYaml", () => {
     expect(parsed.videoOptions.countInDuration).toBeUndefined();
     expect(parsed.warnings.join("\n")).toContain("videoOptions.countInThreshold");
     expect(parsed.warnings.join("\n")).toContain("videoOptions.countInDuration");
+  });
+
+  test("reads the count-in mode a pre-line-mode file expresses as a boolean", () => {
+    expect(parseSettingsYaml("videoOptions:\n  addCountIns: true\n").videoOptions.countInMode).toBe(
+      "screen",
+    );
+    const off = parseSettingsYaml("videoOptions:\n  addCountIns: false\n");
+    expect(off.warnings).toEqual([]);
+    expect(off.videoOptions.countInMode).toBe("none");
   });
 
   test("accepts named vertical alignments for hand-written files", () => {
@@ -115,7 +124,7 @@ describe("parseSettingsYaml", () => {
     const parsed = parseSettingsYaml(
       [
         "videoOptions:",
-        "  addCountIns: maybe",
+        "  countInMode: sometimes",
         "  font:",
         "    size: large",
         "    name: Impact",
@@ -125,12 +134,12 @@ describe("parseSettingsYaml", () => {
       ].join("\n"),
     );
 
-    expect(parsed.videoOptions.addCountIns).toBeUndefined();
+    expect(parsed.videoOptions.countInMode).toBeUndefined();
     expect(parsed.videoOptions.font).toEqual({ name: "Impact" });
     expect(parsed.videoOptions.color?.primary).toBeUndefined();
     expect(parsed.videoOptions.color?.secondary.toString()).toBe("#00ff00");
     expect(parsed.warnings).toHaveLength(3);
-    expect(parsed.warnings.join("\n")).toContain("videoOptions.addCountIns");
+    expect(parsed.warnings.join("\n")).toContain("videoOptions.countInMode");
     expect(parsed.warnings.join("\n")).toContain("videoOptions.font.size");
     expect(parsed.warnings.join("\n")).toContain("videoOptions.color.primary");
   });

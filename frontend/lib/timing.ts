@@ -1,13 +1,14 @@
 import {
   LYRIC_MARKERS,
   SUBTITLE_CANVAS,
+  DEFAULT_COUNT_IN_MODE,
   DEFAULT_COUNT_IN_TEXT,
   DEFAULT_COUNT_IN_THRESHOLD,
   DEFAULT_COUNT_IN_DURATION,
 } from "@/constants";
 import {
   addQuickStartCountIn,
-  addScreenCountIns,
+  addGapCountIns,
   addTitleScreen,
   addInstrumentalScreens,
   displayQuickLinesEarly,
@@ -20,12 +21,17 @@ import { default as BuefyColor } from "buefy/src/utils/color";
 export const OUTPUT_FORMATS = ["mp4", "mkv"] as const;
 export type OutputFormat = (typeof OUTPUT_FORMATS)[number];
 
+// Which gaps get a count-in: none at all, only the gap before a screen's first line, or
+// the gap before any line.
+export const COUNT_IN_MODES = ["none", "screen", "line"] as const;
+export type CountInMode = (typeof COUNT_IN_MODES)[number];
+
 export interface KaraokeOptions {
   addTitleScreen: boolean;
-  addCountIns: boolean;
+  countInMode: CountInMode;
   countInText: string;
-  // A screen gets a count-in when its first line starts more than this many seconds after
-  // the previous screen ends. Must stay at or above countInDuration.
+  // A line gets a count-in when it starts more than this many seconds after the previous
+  // line ends. Must stay at or above countInDuration.
   countInThreshold: number;
   countInDuration: number;
   addInstrumentalScreens: boolean;
@@ -54,7 +60,7 @@ export enum VerticalAlignment {
 
 export const DEFAULT_KARAOKE_OPTIONS: KaraokeOptions = {
   addTitleScreen: true,
-  addCountIns: true,
+  countInMode: DEFAULT_COUNT_IN_MODE,
   countInText: DEFAULT_COUNT_IN_TEXT,
   countInThreshold: DEFAULT_COUNT_IN_THRESHOLD,
   countInDuration: DEFAULT_COUNT_IN_DURATION,
@@ -739,9 +745,9 @@ export function createScreens(
     return screens;
   }
   screens = denormalizeTimestamps(screens, songDuration);
-  if (options.addCountIns) {
+  if (options.countInMode !== "none") {
     screens = addQuickStartCountIn(screens, options);
-    screens = addScreenCountIns(screens, options);
+    screens = addGapCountIns(screens, options);
   }
   if (options.addTitleScreen) {
     screens = addTitleScreen(screens, title, artist);

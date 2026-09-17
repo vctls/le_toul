@@ -7,7 +7,13 @@
 
 import yaml from "js-yaml";
 import Color from "buefy/src/utils/color";
-import { OutputFormat, OUTPUT_FORMATS, VerticalAlignment } from "@/lib/timing";
+import {
+  CountInMode,
+  COUNT_IN_MODES,
+  OutputFormat,
+  OUTPUT_FORMATS,
+  VerticalAlignment,
+} from "@/lib/timing";
 import { VoiceStyleOverride, VOICE_STYLE_COLOR_FIELDS } from "@/lib/voiceStyle";
 import { VoiceId } from "@/lib/voices";
 import { SeparationModel } from "@/types";
@@ -47,13 +53,15 @@ const SEPARATION_MODELS: readonly string[] = [
 
 const BOOLEAN_OPTIONS = [
   "addTitleScreen",
-  "addCountIns",
   "addInstrumentalScreens",
   "addStaggeredLines",
   "useBackgroundVideo",
 ] as const;
 
 const POSITIVE_NUMBER_OPTIONS = ["countInThreshold", "countInDuration"] as const;
+
+// Files written before count-ins gained a "line" mode say addCountIns: true/false.
+const LEGACY_COUNT_IN_KEY = "addCountIns";
 
 // The exporter writes the enum's numeric value, but a hand-written file is much clearer
 // with a name, so accept either.
@@ -66,6 +74,8 @@ const ALIGNMENT_NAMES: Record<string, VerticalAlignment> = {
 const KNOWN_VIDEO_OPTIONS = [
   ...BOOLEAN_OPTIONS,
   ...POSITIVE_NUMBER_OPTIONS,
+  "countInMode",
+  LEGACY_COUNT_IN_KEY,
   "countInText",
   "outputFormat",
   "verticalAlignment",
@@ -158,6 +168,23 @@ function readAlignment(
   return undefined;
 }
 
+function readCountInMode(
+  value: unknown,
+  path: string,
+  warnings: string[],
+): CountInMode | undefined {
+  const name = readString(value, path, warnings);
+  if (name === undefined) return undefined;
+  const normalized = name.trim().toLowerCase();
+  if (!COUNT_IN_MODES.some((mode) => mode === normalized)) {
+    warnings.push(
+      `${path}: expected ${COUNT_IN_MODES.join(", ")}, ignoring ${JSON.stringify(value)}`,
+    );
+    return undefined;
+  }
+  return normalized as CountInMode;
+}
+
 function readOutputFormat(
   value: unknown,
   path: string,
@@ -244,6 +271,15 @@ function parseVideoOptions(raw: unknown, warnings: string[]): Partial<VideoSetti
 
   const countInText = readString(raw.countInText, "videoOptions.countInText", warnings);
   if (countInText !== undefined) options.countInText = countInText;
+
+  const legacyCountIns = raw[LEGACY_COUNT_IN_KEY];
+  if (legacyCountIns !== undefined && legacyCountIns !== null) {
+    const enabled = readBoolean(legacyCountIns, `videoOptions.${LEGACY_COUNT_IN_KEY}`, warnings);
+    if (enabled !== undefined) options.countInMode = enabled ? "screen" : "none";
+  }
+
+  const countInMode = readCountInMode(raw.countInMode, "videoOptions.countInMode", warnings);
+  if (countInMode !== undefined) options.countInMode = countInMode;
 
   const alignment = readAlignment(
     raw.verticalAlignment,

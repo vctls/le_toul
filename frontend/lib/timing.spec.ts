@@ -25,7 +25,7 @@ import { default as BuefyColor } from "buefy/src/utils/color";
 
 const DEFAULT_OPTIONS: KaraokeOptions = {
   addTitleScreen: true,
-  addCountIns: true,
+  countInMode: "screen",
   countInText: DEFAULT_COUNT_IN_TEXT,
   countInThreshold: DEFAULT_COUNT_IN_THRESHOLD,
   countInDuration: DEFAULT_COUNT_IN_DURATION,
@@ -403,7 +403,7 @@ describe("createMultiVoiceAssFile", () => {
   const noAuxOptions: KaraokeOptions = {
     ...DEFAULT_OPTIONS,
     addTitleScreen: false,
-    addCountIns: false,
+    countInMode: "none",
     addInstrumentalScreens: false,
     addStaggeredLines: false,
   };
@@ -476,7 +476,7 @@ describe("multi-voice vertical lanes", () => {
     const staggered: KaraokeOptions = {
       ...DEFAULT_OPTIONS,
       addTitleScreen: false,
-      addCountIns: false,
+      countInMode: "none",
       addInstrumentalScreens: false,
       addStaggeredLines: true,
       font: { ...DEFAULT_OPTIONS.font, size: 20 },
@@ -510,7 +510,7 @@ describe("multi-voice vertical lanes", () => {
     const noAux: KaraokeOptions = {
       ...DEFAULT_OPTIONS,
       addTitleScreen: false,
-      addCountIns: false,
+      countInMode: "none",
       addInstrumentalScreens: false,
       addStaggeredLines: false,
     };
