@@ -329,6 +329,14 @@ test("floatToTimecode", () => {
   expect(floatToTimecode(60)).toBe("0:01:00.00");
 });
 
+test("floatToTimecode carries a rounded-up fraction", () => {
+  expect(floatToTimecode(44.996)).toBe("0:00:45.00");
+  expect(floatToTimecode(59.999)).toBe("0:01:00.00");
+  expect(floatToTimecode(119.998)).toBe("0:02:00.00");
+  expect(floatToTimecode(3599.999)).toBe("1:00:00.00");
+  expect(floatToTimecode(25.994)).toBe("0:00:25.99");
+});
+
 test("adjustSegmentTiming", () => {
   expect(adjustSegmentTiming(0, testEvents, { start: 0.5, end: 1.5 })[0][0]).toBe(0.5);
   expect(

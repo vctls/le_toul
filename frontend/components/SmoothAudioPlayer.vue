@@ -14,6 +14,7 @@
 <script lang="ts">
 // A wrapper for an audio element that emits timeupdate events more frequently
 import { defineComponent, ref } from "vue";
+import { registerPlayer } from "@/lib/exclusivePlayback";
 
 export default defineComponent({
   inheritAttrs: false,
@@ -52,11 +53,15 @@ export default defineComponent({
         }
       },
     });
+    if (this.audioPlayer) {
+      this.unregisterPlayer = registerPlayer(this.audioPlayer);
+    }
   },
   data() {
     return {
       animationFrameId: null as number | null,
       lastTime: 0,
+      unregisterPlayer: null as (() => void) | null,
     };
   },
   methods: {
@@ -110,6 +115,7 @@ export default defineComponent({
     },
   },
   beforeUnmount() {
+    this.unregisterPlayer?.();
     this.stopTimeUpdateLoop();
   },
 });

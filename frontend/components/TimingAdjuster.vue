@@ -234,6 +234,22 @@ export default defineComponent({
       const player = this.audioPlayerRef();
       if (player) player.currentTime = playhead;
     },
+    // Jump to whichever end of the track `edge` names.
+    seekToTrackEdge(edge: "start" | "end") {
+      if (edge === "start") return this.setAudioPlayhead(0);
+      const audio = this.audioPlayerRef()?.audioPlayer as HTMLAudioElement | undefined;
+      if (!audio || !Number.isFinite(audio.duration)) return;
+      this.setAudioPlayhead(audio.duration);
+    },
+    // Jump to whichever end of the scrolled-into-view waveform `edge` names.
+    seekToViewEdge(edge: "start" | "end") {
+      const range = this.wavesurferRef()?.visibleTimeRange();
+      if (!range) return;
+      this.setAudioPlayhead(edge === "start" ? range.start : range.end);
+    },
+    clearSelection() {
+      this.wavesurferRef()?.clearSelection();
+    },
     togglePlayPause() {
       const audio = this.audioPlayerRef()?.audioPlayer as HTMLAudioElement | undefined;
       if (!audio) return;

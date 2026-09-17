@@ -352,4 +352,61 @@ describe("Settings Store", () => {
       expect(store.renderOptions.font.name).toBe("Arial Narrow");
     });
   });
+
+  describe("timing keys", () => {
+    beforeEach(() => {
+      localStorage.removeItem("timingKeys");
+      setActivePinia(createPinia());
+    });
+
+    test("defaults to spacebar and enter", () => {
+      const store = useSettingsStore();
+
+      expect(store.timingKeys).toEqual({ start: "Space", end: "Enter" });
+    });
+
+    test("stores a rebound key", async () => {
+      const store = useSettingsStore();
+
+      store.setTimingKey("start", "KeyZ");
+      await nextTick();
+
+      expect(store.timingKeys).toEqual({ start: "KeyZ", end: "Enter" });
+      expect(JSON.parse(localStorage.getItem("timingKeys")!)).toEqual({
+        start: "KeyZ",
+        end: "Enter",
+      });
+    });
+
+    test("binding the other role's key swaps the two", () => {
+      const store = useSettingsStore();
+
+      store.setTimingKey("start", "Enter");
+
+      expect(store.timingKeys).toEqual({ start: "Enter", end: "Space" });
+    });
+
+    test("loads stored keys", () => {
+      localStorage.setItem("timingKeys", JSON.stringify({ start: "KeyA", end: "KeyB" }));
+      setActivePinia(createPinia());
+
+      expect(useSettingsStore().timingKeys).toEqual({ start: "KeyA", end: "KeyB" });
+    });
+
+    test("falls back to the default for a stored name no key has", () => {
+      localStorage.setItem("timingKeys", JSON.stringify({ start: "Spacebar", end: "KeyB" }));
+      setActivePinia(createPinia());
+
+      expect(useSettingsStore().timingKeys).toEqual({ start: "Space", end: "KeyB" });
+    });
+
+    test("resetSettings restores the defaults", () => {
+      const store = useSettingsStore();
+      store.setTimingKey("end", "KeyB");
+
+      store.resetSettings();
+
+      expect(store.timingKeys).toEqual({ start: "Space", end: "Enter" });
+    });
+  });
 });

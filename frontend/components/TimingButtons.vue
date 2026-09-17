@@ -1,7 +1,7 @@
 <template>
   <div class="buttons">
-    <b-button @mousedown="fireSpacebar">Spacebar</b-button>
-    <b-button @mousedown="fireEnter">Enter</b-button>
+    <b-button @mousedown="fire(startKey)">{{ formatKeyName(startKey) }}</b-button>
+    <b-button @mousedown="fire(endKey)">{{ formatKeyName(endKey) }}</b-button>
   </div>
 </template>
 
@@ -9,14 +9,17 @@
 // Shows buttons for submitting timing info, in case of a mobile device without a hardware keyboard
 
 import { defineComponent } from "vue";
+import { formatKeyName } from "@/lib/timingKeys";
 
 export default defineComponent({
+  props: {
+    startKey: { type: String, required: true },
+    endKey: { type: String, required: true },
+  },
   methods: {
-    fireSpacebar() {
-      this.$emit("keydown", new KeyboardEvent("keydown", { code: "Space" }));
-    },
-    fireEnter() {
-      this.$emit("keydown", new KeyboardEvent("keydown", { code: "Enter" }));
+    formatKeyName,
+    fire(code: string) {
+      this.$emit("keydown", new KeyboardEvent("keydown", { code }));
     },
   },
 });

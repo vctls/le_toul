@@ -7,7 +7,7 @@ import { useLyricsStore } from "./lyrics";
 import { useMediaStore } from "./media";
 import { useSettingsStore } from "./settings";
 import { beforeEach, describe, expect, test, vi } from "vitest";
-import { KEY_CODES, LYRIC_MARKERS } from "@/constants";
+import { LYRIC_MARKERS } from "@/constants";
 import { createAssFile } from "@/lib/timing";
 import { DEFAULT_VOICE_ID } from "@/lib/voices";
 
@@ -33,7 +33,7 @@ describe("Timings Store", () => {
 
   test("should add timing events", () => {
     const timingsStore = useTimingsStore();
-    timingsStore.add(0, 32, 1.0); // 32 is SPACEBAR code
+    timingsStore.add(0, LYRIC_MARKERS.SEGMENT_START, 1.0);
 
     expect(timingsStore.length).toBe(1);
     expect(timingsStore.rawTimings).toEqual([[1.0, LYRIC_MARKERS.SEGMENT_START]]);
@@ -42,9 +42,9 @@ describe("Timings Store", () => {
   test("conflicts should be resolved", () => {
     const timings = useTimingsStore();
 
-    timings.add(0, KEY_CODES.SPACEBAR, 1.0);
-    timings.add(1, KEY_CODES.ENTER, 3.0);
-    timings.add(2, KEY_CODES.SPACEBAR, 2.5);
+    timings.add(0, LYRIC_MARKERS.SEGMENT_START, 1.0);
+    timings.add(1, LYRIC_MARKERS.SEGMENT_END, 3.0);
+    timings.add(2, LYRIC_MARKERS.SEGMENT_START, 2.5);
 
     expect(timings.rawTimings[1]).toStrictEqual([2.5, LYRIC_MARKERS.SEGMENT_START]);
   });
@@ -54,10 +54,10 @@ describe("Timings Store", () => {
 
     expect(timings.length).toBe(0);
 
-    timings.add(0, KEY_CODES.SPACEBAR, 1.0);
+    timings.add(0, LYRIC_MARKERS.SEGMENT_START, 1.0);
     expect(timings.length).toBe(1);
 
-    timings.add(1, KEY_CODES.ENTER, 3.0);
+    timings.add(1, LYRIC_MARKERS.SEGMENT_END, 3.0);
     expect(timings.length).toBe(2);
   });
 
@@ -67,17 +67,17 @@ describe("Timings Store", () => {
     // Initial state should return null
     expect(timings.last).toStrictEqual(null);
 
-    timings.add(0, KEY_CODES.SPACEBAR, 1.0);
+    timings.add(0, LYRIC_MARKERS.SEGMENT_START, 1.0);
     expect(timings.last).toStrictEqual([1.0, LYRIC_MARKERS.SEGMENT_START]);
 
-    timings.add(0, KEY_CODES.ENTER, 3.0);
+    timings.add(0, LYRIC_MARKERS.SEGMENT_END, 3.0);
     expect(timings.last).toStrictEqual([3.0, LYRIC_MARKERS.SEGMENT_END]);
   });
 
   test("resetTimings should replace all timings", () => {
     const timings = useTimingsStore();
 
-    timings.add(0, KEY_CODES.SPACEBAR, 1.0);
+    timings.add(0, LYRIC_MARKERS.SEGMENT_START, 1.0);
     expect(timings.length).toBe(1);
 
     const newTimings: [number, number][] = [
@@ -93,10 +93,10 @@ describe("Timings Store", () => {
   test("timingForSegmentNum should find the correct segment start time", () => {
     const timings = useTimingsStore();
 
-    timings.add(0, KEY_CODES.SPACEBAR, 1.0);
-    timings.add(0, KEY_CODES.ENTER, 2.0);
-    timings.add(1, KEY_CODES.SPACEBAR, 3.0);
-    timings.add(1, KEY_CODES.ENTER, 4.0);
+    timings.add(0, LYRIC_MARKERS.SEGMENT_START, 1.0);
+    timings.add(0, LYRIC_MARKERS.SEGMENT_END, 2.0);
+    timings.add(1, LYRIC_MARKERS.SEGMENT_START, 3.0);
+    timings.add(1, LYRIC_MARKERS.SEGMENT_END, 4.0);
 
     expect(timings.timingForSegmentNum(0)).toBe(1.0);
     expect(timings.timingForSegmentNum(1)).toBe(3.0);
@@ -107,11 +107,11 @@ describe("Timings Store", () => {
   test("setCurrentSegment should truncate timings to the specified segment", () => {
     const timings = useTimingsStore();
 
-    timings.add(0, KEY_CODES.SPACEBAR, 1.0);
-    timings.add(0, KEY_CODES.ENTER, 2.0);
-    timings.add(1, KEY_CODES.SPACEBAR, 3.0);
-    timings.add(1, KEY_CODES.ENTER, 4.0);
-    timings.add(2, KEY_CODES.SPACEBAR, 5.0);
+    timings.add(0, LYRIC_MARKERS.SEGMENT_START, 1.0);
+    timings.add(0, LYRIC_MARKERS.SEGMENT_END, 2.0);
+    timings.add(1, LYRIC_MARKERS.SEGMENT_START, 3.0);
+    timings.add(1, LYRIC_MARKERS.SEGMENT_END, 4.0);
+    timings.add(2, LYRIC_MARKERS.SEGMENT_START, 5.0);
 
     expect(timings.length).toBe(5);
 
@@ -173,11 +173,11 @@ describe("Timings Store", () => {
     lyricsStore.setLyrics("[Anna] hello\n[Ben] world");
 
     timingsStore.setActiveVoice("Anna");
-    timingsStore.add(0, KEY_CODES.SPACEBAR, 1.0);
+    timingsStore.add(0, LYRIC_MARKERS.SEGMENT_START, 1.0);
 
     timingsStore.setActiveVoice("Ben");
     expect(timingsStore.rawTimings).toEqual([]); // Ben untouched
-    timingsStore.add(0, KEY_CODES.SPACEBAR, 5.0);
+    timingsStore.add(0, LYRIC_MARKERS.SEGMENT_START, 5.0);
 
     // Each voice kept its own timings
     timingsStore.setActiveVoice("Anna");
@@ -205,9 +205,9 @@ describe("Timings Store", () => {
 
     lyricsStore.setLyrics("[Anna] hello\n[Ben] world");
     timingsStore.setActiveVoice("Anna");
-    timingsStore.add(0, KEY_CODES.SPACEBAR, 1.0);
+    timingsStore.add(0, LYRIC_MARKERS.SEGMENT_START, 1.0);
     timingsStore.setActiveVoice("Ben");
-    timingsStore.add(0, KEY_CODES.SPACEBAR, 5.0);
+    timingsStore.add(0, LYRIC_MARKERS.SEGMENT_START, 5.0);
 
     timingsStore.clear();
 
@@ -317,9 +317,9 @@ describe("Timings Store", () => {
       lyricsStore.setLyrics("[Anna] hello\n[Ben] world");
       await nextTick();
       timingsStore.setActiveVoice("Anna");
-      timingsStore.add(0, KEY_CODES.SPACEBAR, 1.0);
+      timingsStore.add(0, LYRIC_MARKERS.SEGMENT_START, 1.0);
       timingsStore.setActiveVoice("Ben");
-      timingsStore.add(0, KEY_CODES.SPACEBAR, 5.0);
+      timingsStore.add(0, LYRIC_MARKERS.SEGMENT_START, 5.0);
 
       // Dropping Ben's tag merges his line into Anna, who is already timed.
       lyricsStore.setLyrics("[Anna] hello\nworld");

@@ -64,6 +64,7 @@ export default defineComponent({
       _resizeObserver: null as ResizeObserver | null,
       _zoomAnchor: null as { time: number; cursorX: number } | null,
       _schemeQuery: null as MediaQueryList | null,
+      _savedScrollLeft: 0,
       // Set when a drag/resize updates a region.
       // The drag has already moved the region's DOM to its final position, so when the resulting timings round-trip
       // back through the `regions` prop we skip the expensive teardown-and-rebuild of every region for that one update.
@@ -93,10 +94,10 @@ export default defineComponent({
     // Start observing the container
     this._observer.observe(this.$refs["wavesurfer-container"] as HTMLElement);
 
-    // Hiding the container (display: none) drops its scroll box,
-    // so the browser resets the scroll offset and the playhead comes back off-screen.
-    // Nothing re-asserts it while playback is paused, so do it whenever the container is laid out again.
-    this._resizeObserver = new ResizeObserver(() => this.scrollPlayheadIntoView());
+    // Hiding the container (display: none) drops its scroll box, so the browser resets the scroll
+    // offset. Nothing re-asserts it while playback is paused, so do it whenever the container is
+    // laid out again.
+    this._resizeObserver = new ResizeObserver(() => this.restoreScroll());
     this._resizeObserver.observe(this.$refs["wavesurfer-container"] as HTMLElement);
 
     this.wavesurfer = WaveSurfer.create({
@@ -114,6 +115,8 @@ export default defineComponent({
       plugins: [this.regionsPlugin as unknown as GenericPlugin],
     });
     if (this.audioData) this.wavesurfer.loadBlob(this.audioData);
+
+    this.scrollElement()?.addEventListener("scroll", this.rememberScroll);
 
     this.wavesurfer.on("click", (x: number) => {
       const time = x * (this.wavesurfer?.getDuration() ?? 0);
@@ -157,7 +160,7 @@ export default defineComponent({
       if (this.wavesurfer) {
         this.wavesurfer.zoom(value);
         this.$nextTick(() => {
-          const scrollEl = this.wavesurfer?.getWrapper()?.parentElement;
+          const scrollEl = this.scrollElement();
           if (scrollEl) {
             if (this._zoomAnchor) {
               scrollEl.scrollLeft = this._zoomAnchor.time * value - this._zoomAnchor.cursorX;
@@ -198,7 +201,7 @@ export default defineComponent({
     onWheel(event: WheelEvent) {
       if (event.deltaY === 0) return;
       event.preventDefault();
-      const scrollEl = this.wavesurfer?.getWrapper()?.parentElement;
+      const scrollEl = this.scrollElement();
       if (scrollEl) {
         const cursorX = event.clientX - scrollEl.getBoundingClientRect().left;
         const time = (scrollEl.scrollLeft + cursorX) / this.minPxPerSec;
@@ -216,6 +219,26 @@ export default defineComponent({
         this.wavesurfer.pause();
       }
     },
+    // The stretch of the track currently scrolled into view, in seconds.
+    visibleTimeRange(): { start: number; end: number } | null {
+      const scrollEl = this.scrollElement();
+      const duration = this.wavesurfer?.getDuration() ?? 0;
+      if (!scrollEl?.scrollWidth || !duration) return null;
+      const { scrollWidth, scrollLeft, clientWidth } = scrollEl;
+      // Measured off the laid-out waveform rather than minPxPerSec, which the zoom only asks for.
+      const pxPerSec = scrollWidth / duration;
+      const endPx = Math.min(scrollWidth, scrollLeft + clientWidth);
+      // A playhead landing outside the viewport makes wavesurfer re-centre the waveform, and on an
+      // exact edge float rounding decides that either way. Both ends are held a half pixel inside,
+      // except where the viewport is against the track's own end and the arithmetic is exact.
+      return {
+        start: scrollLeft <= 0 ? 0 : (scrollLeft + 0.5) / pxPerSec,
+        end: endPx >= scrollWidth ? duration : (endPx - 0.5) / pxPerSec,
+      };
+    },
+    clearSelection() {
+      this.regionsPlugin.clearSelection();
+    },
     setTime(time: number) {
       if (this.wavesurfer) {
         this.wavesurfer.setTime(time);
@@ -230,10 +253,20 @@ export default defineComponent({
     isReady() {
       return this.wavesurfer && this.wavesurfer.getDecodedData();
     },
-    scrollPlayheadIntoView() {
-      if (this.wavesurfer && this.isReady()) {
-        this.wavesurfer.setTime(this.wavesurfer.getCurrentTime());
-      }
+    scrollElement(): HTMLElement | null {
+      return (this.wavesurfer?.getWrapper()?.parentElement as HTMLElement) ?? null;
+    },
+    rememberScroll() {
+      const scrollEl = this.scrollElement();
+      // While the container is hidden it has no scroll box, and the offset the browser reports is a
+      // meaningless zero.
+      if (!scrollEl || scrollEl.clientWidth === 0) return;
+      this._savedScrollLeft = scrollEl.scrollLeft;
+    },
+    restoreScroll() {
+      const scrollEl = this.scrollElement();
+      if (!scrollEl || scrollEl.clientWidth === 0) return;
+      scrollEl.scrollLeft = this._savedScrollLeft;
     },
     updateRegions(regions: RegionParams[]) {
       if (!this.wavesurfer || !this.isVisible || !this.isReady()) return;
@@ -259,6 +292,7 @@ export default defineComponent({
     this._observer?.disconnect();
     this._resizeObserver?.disconnect();
     this._schemeQuery?.removeEventListener("change", this.applySchemeColors);
+    this.scrollElement()?.removeEventListener("scroll", this.rememberScroll);
     if (this.wavesurfer) {
       this.wavesurfer.destroy();
     }
