@@ -36,7 +36,6 @@ test.describe("Separating again over a track that is already loaded", () => {
 
     await navigateToTab(page, TabId.SongInfo);
     await uploadAudioFile(page, defaultTestConfig.audioFile);
-    await page.click("button:has-text('Advanced')");
     await page
       .locator('[name="backing-track-upload"] input[type="file"]')
       .setInputFiles(getFixturePath(defaultTestConfig.audioFile));

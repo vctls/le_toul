@@ -34,9 +34,8 @@ test.describe("Timings File Upload", () => {
     await navigateToTab(page, TabId.Submit);
     await expectVideoCreationToBeDisabled(page);
 
-    // 4. Upload timings file through advanced options in Song Info tab
+    // 4. Upload timings file through the restore box in the Song Info tab
     await navigateToTab(page, TabId.SongInfo);
-    await page.click("button:has-text('Advanced')");
     await uploadTimingsFile(page, defaultTestConfig.timingsFile);
 
     // 5. Navigate to Submit tab and verify video creation is now available

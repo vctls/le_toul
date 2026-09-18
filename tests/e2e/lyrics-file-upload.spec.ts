@@ -14,7 +14,6 @@ test.describe("Lyrics File Upload", () => {
 
   test("uploading a lyrics file fills the lyrics editor", async ({ page }) => {
     await navigateToTab(page, TabId.SongInfo);
-    await page.click("button:has-text('Advanced')");
     await page
       .locator('[name="lyrics-file-upload"] input[type="file"]')
       .setInputFiles(getFixturePath("lyrics.txt"));
