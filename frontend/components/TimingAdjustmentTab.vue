@@ -148,6 +148,7 @@ import { BButton, BField, BNumberinput, BSelect, BSwitch } from "buefy";
 import { VoiceId } from "@/lib/voices";
 import { clampTimingOverlaps } from "@/lib/timingValidation";
 import { resolveThemeColor } from "@/lib/themeColor";
+import { onSchemeChange } from "@/lib/colorScheme";
 import { default as BuefyColor } from "buefy/src/utils/color";
 
 // The arrow keys step by the playhead preroll, so stepping and the preview jump
@@ -251,7 +252,7 @@ export default defineComponent({
       debouncedSubtitles: "",
       _subtitleDebounceTimer: null as ReturnType<typeof setTimeout> | null,
       previewColors: resolvePreviewColors(),
-      _schemeQuery: null as MediaQueryList | null,
+      _unsubscribeScheme: null as (() => void) | null,
     };
   },
   computed: {
@@ -293,12 +294,11 @@ export default defineComponent({
     // so we have to get in ahead of them and cancel the native behavior.
     // A bubble-phase listener runs too late and both act.
     window.addEventListener("keydown", this.onKeyDown, true);
-    this._schemeQuery = window.matchMedia?.("(prefers-color-scheme: dark)") ?? null;
-    this._schemeQuery?.addEventListener("change", this.applyPreviewColors);
+    this._unsubscribeScheme = onSchemeChange(this.applyPreviewColors);
   },
   beforeUnmount() {
     window.removeEventListener("keydown", this.onKeyDown, true);
-    this._schemeQuery?.removeEventListener("change", this.applyPreviewColors);
+    this._unsubscribeScheme?.();
     if (this._subtitleDebounceTimer) {
       clearTimeout(this._subtitleDebounceTimer);
     }

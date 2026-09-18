@@ -12,6 +12,7 @@ import { defineComponent, markRaw, PropType } from "vue";
 import WaveSurfer from "wavesurfer.js";
 import type { GenericPlugin } from "wavesurfer.js/dist/base-plugin";
 import RegionsPlugin, { Region, RegionParams } from "@/lib/wavesurferPlugins/OpenEndedRegionPlugin";
+import { onSchemeChange } from "@/lib/colorScheme";
 
 // WaveSurfer paints to a canvas, so custom properties have to be resolved to literal colors rather than inherited.
 function schemeColor(name: string, fallback: string): string {
@@ -63,7 +64,7 @@ export default defineComponent({
       _observer: null as IntersectionObserver | null,
       _resizeObserver: null as ResizeObserver | null,
       _zoomAnchor: null as { time: number; cursorX: number } | null,
-      _schemeQuery: null as MediaQueryList | null,
+      _unsubscribeScheme: null as (() => void) | null,
       _savedScrollLeft: 0,
       // Set when a drag/resize updates a region.
       // The drag has already moved the region's DOM to its final position, so when the resulting timings round-trip
@@ -145,8 +146,7 @@ export default defineComponent({
       this.$emit("regions-updated", regions);
     });
 
-    this._schemeQuery = window.matchMedia("(prefers-color-scheme: dark)");
-    this._schemeQuery.addEventListener("change", this.applySchemeColors);
+    this._unsubscribeScheme = onSchemeChange(this.applySchemeColors);
   },
   watch: {
     audioData(newAudioData: Blob) {
@@ -290,7 +290,7 @@ export default defineComponent({
   beforeUnmount() {
     this._observer?.disconnect();
     this._resizeObserver?.disconnect();
-    this._schemeQuery?.removeEventListener("change", this.applySchemeColors);
+    this._unsubscribeScheme?.();
     this.scrollElement()?.removeEventListener("scroll", this.rememberScroll);
     if (this.wavesurfer) {
       this.wavesurfer.destroy();

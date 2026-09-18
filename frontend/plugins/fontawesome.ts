@@ -30,6 +30,9 @@ import {
   faWandMagicSparkles,
   faArrowRotateLeft,
   faPenToSquare,
+  faSun,
+  faMoon,
+  faCircleHalfStroke,
 } from "@fortawesome/free-solid-svg-icons";
 
 // Import from brands
@@ -65,6 +68,9 @@ library.add(
   faSpinner,
   faWandMagicSparkles,
   faArrowRotateLeft,
+  faSun,
+  faMoon,
+  faCircleHalfStroke,
 
   // Brand icons
   faGithub,
