@@ -256,6 +256,21 @@ test("createAssFile handles timings without lyrics", () => {
   expect(assFile).toBe(headerOnly);
 });
 
+test("createAssFile declares the canvas width it is given", () => {
+  const assFile = createAssFile(
+    testLyrics,
+    shortIntroTestEvents,
+    60.0,
+    "It's Cøøl to Tüül",
+    "TÜ/ÜL",
+    DEFAULT_OPTIONS,
+    512,
+  );
+  expect(assFile).toContain("PlayResX: 512");
+  expect(assFile).toContain("LayoutResX: 512");
+  expect(assFile).toContain("PlayResY: 288");
+});
+
 test("addCountIn", () => {
   const songDuration = 60.0;
   const lyrics = "That was a long intro\nToo bad nothing rhymes with intro";

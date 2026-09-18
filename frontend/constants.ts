@@ -18,6 +18,13 @@ export const SUBTITLE_CANVAS = {
   height: 288,
 };
 
+// PlayResX to declare when the canvas is rendered into a 16:9 frame. libass takes the font
+// scale from PlayResY alone and scales X by frame width / PlayResX, so a canvas whose aspect
+// differs from the frame's comes out anamorphically stretched; widening PlayResX to match
+// the frame is what keeps glyphs at their natural shape. Only the header changes: nothing is
+// laid out against the canvas width.
+export const WIDESCREEN_CANVAS_WIDTH = (SUBTITLE_CANVAS.height * 16) / 9;
+
 export const TITLE_SCREEN_DURATION = 4.0;
 export const INSTRUMENTAL_SCREEN_THRESHOLD = 8.0;
 

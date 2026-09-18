@@ -110,7 +110,8 @@
       ref="subtitleDisplay"
       :subtitles="debouncedSubtitles"
       :fonts="{}"
-      :backgroundColor="settingsStore.videoOptions.color.background.toString()"
+      :backgroundColor="previewColors.background.toString()"
+      :aspectRatio="PREVIEW_ASPECT_RATIO"
     />
     <timing-adjuster
       v-if="songFile && adjustmentSubtitles"
@@ -147,10 +148,39 @@ import { storeToRefs } from "pinia";
 import { BButton, BField, BNumberinput, BSelect, BSwitch } from "buefy";
 import { VoiceId } from "@/lib/voices";
 import { clampTimingOverlaps } from "@/lib/timingValidation";
+import { WIDESCREEN_CANVAS_WIDTH } from "@/constants";
+import { resolveThemeColor } from "@/lib/themeColor";
+import { default as BuefyColor } from "buefy/src/utils/color";
 
 // The arrow keys step by the playhead preroll, so stepping and the preview jump
 // after a drag agree on what one step is worth. Shift takes five of them.
 const COARSE_STEP_MULTIPLIER = 5;
+
+// The preview here is a working view of the timings, not a proxy for the final video, so it
+// uses the app's own palette and a fixed size rather than the video settings. The size is in
+// SUBTITLE_CANVAS units, so it scales with the preview instead of being a pixel height.
+const PREVIEW_FONT_SIZE = 20;
+
+// The output video is 16:9, so the preview is too. WIDESCREEN_CANVAS_WIDTH goes with it: the
+// wider frame would otherwise stretch the default 4:3 canvas across it.
+const PREVIEW_ASPECT_RATIO = "16 / 9";
+
+// Fallbacks are the light-theme values; they only apply where the stylesheet is absent.
+const PREVIEW_PALETTE = {
+  background: ["var(--bulma-body-background-color)", "#ffffff"],
+  primary: ["var(--bulma-primary)", "#7957d5"],
+  secondary: ["var(--bulma-grey-light)", "#abb1bf"],
+} as const;
+
+type PreviewColors = Record<keyof typeof PREVIEW_PALETTE, BuefyColor>;
+
+function resolvePreviewColors(): PreviewColors {
+  return {
+    background: resolveThemeColor(...PREVIEW_PALETTE.background),
+    primary: resolveThemeColor(...PREVIEW_PALETTE.primary),
+    secondary: resolveThemeColor(...PREVIEW_PALETTE.secondary),
+  };
+}
 
 interface AdjustVoiceState {
   playhead: number;
@@ -226,6 +256,9 @@ export default defineComponent({
       // so we defer it until dragging settles.
       debouncedSubtitles: "",
       _subtitleDebounceTimer: null as ReturnType<typeof setTimeout> | null,
+      PREVIEW_ASPECT_RATIO,
+      previewColors: resolvePreviewColors(),
+      _schemeQuery: null as MediaQueryList | null,
     };
   },
   computed: {
@@ -254,7 +287,15 @@ export default defineComponent({
       return this.timingsStore.length > 0;
     },
     adjustmentSubtitles(): string {
-      return this.subtitles({ addTitleScreen: false, countInMode: "none" });
+      return this.subtitles(
+        {
+          addTitleScreen: false,
+          countInMode: "none",
+          font: { size: PREVIEW_FONT_SIZE },
+          color: this.previewColors,
+        },
+        WIDESCREEN_CANVAS_WIDTH,
+      );
     },
   },
   mounted() {
@@ -262,9 +303,12 @@ export default defineComponent({
     // so we have to get in ahead of them and cancel the native behavior.
     // A bubble-phase listener runs too late and both act.
     window.addEventListener("keydown", this.onKeyDown, true);
+    this._schemeQuery = window.matchMedia?.("(prefers-color-scheme: dark)") ?? null;
+    this._schemeQuery?.addEventListener("change", this.applyPreviewColors);
   },
   beforeUnmount() {
     window.removeEventListener("keydown", this.onKeyDown, true);
+    this._schemeQuery?.removeEventListener("change", this.applyPreviewColors);
     if (this._subtitleDebounceTimer) {
       clearTimeout(this._subtitleDebounceTimer);
     }
@@ -304,6 +348,9 @@ export default defineComponent({
     },
   },
   methods: {
+    applyPreviewColors() {
+      this.previewColors = resolvePreviewColors();
+    },
     // $refs is not reactive, so these must be read on each call rather than cached.
     subtitleDisplayRef() {
       return this.$refs.subtitleDisplay as InstanceType<typeof SubtitleDisplay> | undefined;
@@ -404,6 +451,16 @@ export default defineComponent({
   flex-direction: column;
 }
 
+/* The preview is taller than a short window's share of the tab, and the waveform below it is
+the point of the tab, so it has to scroll. Buefy pins .tab-item at flex-shrink: 0, which with
+min-height: auto would hold this one open at content height and leave nothing to scroll. */
+.b-tabs .tab-content .timing-adjustment-tab {
+  flex-shrink: 1;
+  min-height: 0;
+  overflow-x: hidden;
+  overflow-y: auto;
+}
+
 .title-row {
   display: flex;
   flex-direction: row;
@@ -477,7 +534,7 @@ generates these wrappers itself and forwards no class, so it has to be CSS. */
 
 /* Labels move beside their control once each column can hold both, plus room for
 the Apply button beside the widest row: 13rem of label and 10em of control. */
-@container (min-width: 62rem) {
+@container (min-width: 50rem) {
   /* Both columns get the same label and control tracks, so every field is the same width.
   The floor clears the longest label; max-content grows a longer one rather than clipping it,
   at the cost of that column no longer matching. The empty outer tracks of each pair split the leftover space,
@@ -517,8 +574,11 @@ the Apply button beside the widest row: 13rem of label and 10em of control. */
   padding-inline: 0.25em;
 }
 
+/* 480px tall at 16:9. libass takes the glyph scale from the frame height, so the preview's
+height is what its text size follows. */
 .subtitle-display {
   align-self: center;
-  width: 320px;
+  width: 100%;
+  max-width: calc(480px * 16 / 9);
 }
 </style>
