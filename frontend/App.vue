@@ -23,6 +23,9 @@
             >
               <b-icon icon="arrow-rotate-left" size="is-large" title="Start Over"></b-icon>
             </b-button>
+            <b-button type="is-text" @click="themeStore.cycle()" :title="themeTitle">
+              <b-icon :icon="themeButton.icon" size="is-large" :title="themeButton.label"></b-icon>
+            </b-button>
             <b-button v-if="DONATE_URL" tag="a" :href="DONATE_URL" type="is-text" target="_blank">
               <b-icon icon="circle-dollar-to-slot" size="is-large" title="Buy Me A Coffee">
               </b-icon>
@@ -80,7 +83,15 @@ import { useMediaStore } from "@/stores/media";
 import { useLyricsStore } from "@/stores/lyrics";
 import { useTimingsStore } from "@/stores/timings";
 import { useHelpStore } from "@/stores/help";
+import { useThemeStore } from "@/stores/theme";
+import { ThemePreference } from "@/lib/colorScheme";
 import { useTabRoute } from "@/lib/tabRoute";
+
+const THEME_BUTTONS: Record<ThemePreference, { icon: string; label: string }> = {
+  system: { icon: "circle-half-stroke", label: "Theme: follow system" },
+  light: { icon: "sun", label: "Theme: light" },
+  dark: { icon: "moon", label: "Theme: dark" },
+};
 
 export default defineComponent({
   components: {
@@ -96,6 +107,7 @@ export default defineComponent({
   setup() {
     return {
       helpStore: useHelpStore(),
+      themeStore: useThemeStore(),
       ...useTabRoute(),
     };
   },
@@ -109,6 +121,12 @@ export default defineComponent({
 
   computed: {
     isMobile,
+    themeButton(): { icon: string; label: string } {
+      return THEME_BUTTONS[this.themeStore.preference];
+    },
+    themeTitle(): string {
+      return `${this.themeButton.label} — click to change`;
+    },
   },
   methods: {
     confirmStartOver() {

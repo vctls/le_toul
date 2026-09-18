@@ -57,27 +57,42 @@
   --bulma-content-heading-weight: var(--bulma-weight-semibold);
 }
 
-// No CSS rule consumes this: WaveSurfer paints the waveform to a canvas,
+// No CSS rule consumes --waveform-wave: WaveSurfer paints the waveform to a canvas,
 // so it has to be resolved to a literal colour in JS.
-:root {
-  --waveform-wave: rgba(0, 0, 0, 0.1);
-}
-
-// Dark mode keeps one colour across the whole label,
+// Dark mode keeps one colour across the whole region label,
 //  so the fill has to be dark enough to read white on: 5.5:1 at rgb(35, 113, 149).
-:root {
+@mixin scheme-light {
+  --waveform-wave: rgba(0, 0, 0, 0.1);
   --region-fill: rgba(102, 209, 255, 1);
   --region-label-on-fill: black;
   --region-label-on-waveform: var(--bulma-text-strong);
 }
 
+@mixin scheme-dark {
+  --waveform-wave: hsl(221deg, 14%, 53%);
+  --region-fill: rgb(35, 113, 149);
+  --region-label-on-fill: white;
+  --region-label-on-waveform: white;
+}
+
+:root {
+  @include scheme-light;
+}
+
 @media (prefers-color-scheme: dark) {
   :root {
-    --waveform-wave: hsl(221deg, 14%, 53%);
-    --region-fill: rgb(35, 113, 149);
-    --region-label-on-fill: white;
-    --region-label-on-waveform: white;
+    @include scheme-dark;
   }
+}
+
+// Bulma's own layering: `[data-theme]` ties with `:root` on specificity,
+// so a forced theme only beats the media query by coming after it.
+[data-theme="light"] {
+  @include scheme-light;
+}
+
+[data-theme="dark"] {
+  @include scheme-dark;
 }
 
 // Icon sizing fix
