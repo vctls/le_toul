@@ -19,6 +19,9 @@
         Press <kbd>{{ endKeyLabel }}</kbd> when the singer finishes the <em>previous</em>
         highlighted segment.
       </p>
+      <p>
+        Press <kbd>{{ redoKeyLabel }}</kbd> to jump back and redo the current screen.
+      </p>
       <p>Adjust the playback speed to slow down fast parts or skip through long instrumentals.</p>
     </help-section>
     <b-message
@@ -54,7 +57,12 @@
           <b-button type="is-primary" @click="playPause" name="song-timing-play-pause">
             {{ isPlaying ? "Pause" : "Play" }}
           </b-button>
-          <b-button type="is-primary" @click="redoScreen" :active="isPlaying">
+          <b-button
+            type="is-primary"
+            @click="redoScreen"
+            :active="isPlaying"
+            :title="`Redo the current screen (${redoKeyLabel})`"
+          >
             &laquo; Redo This Screen
           </b-button>
           <div class="field">
@@ -109,6 +117,11 @@
         label="End key"
         :model-value="timingKeys.end"
         @update:model-value="(name: string) => settingsStore.setTimingKey('end', name)"
+      />
+      <key-name-input
+        label="Redo key"
+        :model-value="timingKeys.redo"
+        @update:model-value="(name: string) => settingsStore.setTimingKey('redo', name)"
       />
     </div>
 
@@ -184,8 +197,8 @@ export default defineComponent({
   },
   data() {
     return {
-      // Per-voice control state, keyed by voice id. Switching voices swaps the whole
-      // context (current segment, playback speed, playhead).
+      // Per-voice control state, keyed by voice id. Switching voices swaps the whole context (current segment,
+      // playback speed, playhead).
       voiceState: {} as Record<VoiceId, VoiceTimingState>,
       isPlaying: false,
       // Default off: the browser's stretcher warbles at slow rates,
@@ -216,6 +229,9 @@ export default defineComponent({
     },
     endKeyLabel(): string {
       return formatKeyName(this.timingKeys.end);
+    },
+    redoKeyLabel(): string {
+      return formatKeyName(this.timingKeys.redo);
     },
     activeVoice(): VoiceId {
       return this.timingsStore.activeVoice;
@@ -348,6 +364,11 @@ export default defineComponent({
     onKeyDown(e: KeyboardEvent) {
       if (this.isTypingTarget(e.target)) {
         return;
+      }
+      if (eventMatchesKey(e.code, this.timingKeys.redo)) {
+        this.redoScreen();
+        e.preventDefault();
+        return false;
       }
       const marker = this.timingMarker(e.code);
       const audio = this.audioElement();
