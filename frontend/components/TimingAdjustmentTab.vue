@@ -411,6 +411,13 @@ export default defineComponent({
   align-items: center;
   gap: 1rem;
   flex-wrap: wrap;
+  margin-bottom: var(--bulma-block-spacing);
+}
+
+/* Bulma only spaces a title that is :not(:last-child), and the voice selector beside it
+   is v-if'd away for single-voice songs. The row owns the spacing instead. */
+.title-row .title {
+  margin-bottom: 0;
 }
 
 /* Two columns for as long as they fit, in labels-beside-control form while there is room for that and stacked below.
