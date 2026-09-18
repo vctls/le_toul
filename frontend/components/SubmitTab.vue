@@ -447,7 +447,7 @@ export default defineComponent({
         settings: { above: false, below: false },
         preview: { above: false, below: false },
       },
-      // Nothing rendered here; keep Vue out of it.
+      // Nothing rendered here, so keep Vue out of it.
       hintObserver: markRaw({ observer: null as ResizeObserver | null }),
     };
   },
@@ -456,7 +456,7 @@ export default defineComponent({
     if (this.videoBlob != null) {
       this.videoOptions.useBackgroundVideo = true;
     }
-    // The tab starts hidden, so the columns have no size to measure until it is opened; the
+    // The tab starts hidden, so the columns have no size to measure until it is opened. The
     // observer's first callback is what catches that, and the tab strip resizing it later.
     this.hintObserver.observer = new ResizeObserver(() => this.updateScrollHints());
     for (const column of ["settings", "preview"] as const) {

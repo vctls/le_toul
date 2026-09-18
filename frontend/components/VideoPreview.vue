@@ -83,19 +83,16 @@ export default defineComponent({
       audioDataUrl: "",
       // Nothing here is rendered, hence markRaw.
       view: markRaw({
-        // Object URLs of already-prepared (silence-prepended) tracks, keyed by
-        // source blob and the amount of prepended silence (the audio delay can
-        // change while the preview is mounted, e.g. when count-ins are toggled
-        // or timings are edited). Caching makes repeat track switches instant
-        // (preparing a full song takes seconds) and means URLs live until
-        // unmount, so an in-use URL is never revoked (revoking one mid-playback
-        // aborts the media fetch and wedges the <audio> element, notably in
-        // Firefox).
+        // Object URLs of already-prepared (silence-prepended) tracks, keyed by source blob and the
+        // amount of prepended silence (the audio delay can change while the preview is mounted,
+        // e.g. when count-ins are toggled or timings are edited). Caching makes repeat track
+        // switches instant (preparing a full song takes seconds) and means URLs live until unmount,
+        // so an in-use URL is never revoked (revoking one mid-playback aborts the media fetch and
+        // wedges the <audio> element, notably in Firefox).
         preparedTrackUrls: new Map<Blob, Map<number, string>>(),
-        // The preview stays mounted when its tab is hidden, but its inputs keep
-        // changing (every timing tap updates the audio delay). Preparing audio
-        // is expensive, so while hidden we only remember the latest requested
-        // update and apply it when the preview becomes visible again.
+        // The preview stays mounted when its tab is hidden, but its inputs keep changing (every
+        // timing tap updates the audio delay). Preparing audio is expensive, so while hidden we only
+        // remember the latest requested update and apply it when the preview becomes visible again.
         isDisplayed: true,
         pendingAudioUpdate: null as { audio: Blob; silence: number } | null,
         visibilityObserver: null as IntersectionObserver | null,

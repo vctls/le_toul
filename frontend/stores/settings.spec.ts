@@ -282,7 +282,7 @@ describe("Settings Store", () => {
   });
 
   describe("custom font", () => {
-    // Earlier tests leave settings in localStorage, which a new store would load; these
+    // Earlier tests leave settings in localStorage, which a new store would load. These
     // cases are about the defaults and the uploaded font.
     beforeEach(() => {
       window.localStorage.clear();
@@ -374,10 +374,10 @@ describe("Settings Store", () => {
       setActivePinia(createPinia());
     });
 
-    test("defaults to spacebar and enter", () => {
+    test("defaults to spacebar, enter and backspace", () => {
       const store = useSettingsStore();
 
-      expect(store.timingKeys).toEqual({ start: "Space", end: "Enter" });
+      expect(store.timingKeys).toEqual({ start: "Space", end: "Enter", redo: "Backspace" });
     });
 
     test("stores a rebound key", async () => {
@@ -386,33 +386,52 @@ describe("Settings Store", () => {
       store.setTimingKey("start", "KeyZ");
       await nextTick();
 
-      expect(store.timingKeys).toEqual({ start: "KeyZ", end: "Enter" });
+      expect(store.timingKeys).toEqual({ start: "KeyZ", end: "Enter", redo: "Backspace" });
       expect(JSON.parse(localStorage.getItem("timingKeys")!)).toEqual({
         start: "KeyZ",
         end: "Enter",
+        redo: "Backspace",
       });
     });
 
-    test("binding the other role's key swaps the two", () => {
+    test("binding another role's key swaps the two", () => {
       const store = useSettingsStore();
 
       store.setTimingKey("start", "Enter");
 
-      expect(store.timingKeys).toEqual({ start: "Enter", end: "Space" });
+      expect(store.timingKeys).toEqual({ start: "Enter", end: "Space", redo: "Backspace" });
+    });
+
+    test("swaps with whichever role holds the key", () => {
+      const store = useSettingsStore();
+
+      store.setTimingKey("redo", "Space");
+
+      expect(store.timingKeys).toEqual({ start: "Backspace", end: "Enter", redo: "Space" });
     });
 
     test("loads stored keys", () => {
-      localStorage.setItem("timingKeys", JSON.stringify({ start: "KeyA", end: "KeyB" }));
+      localStorage.setItem(
+        "timingKeys",
+        JSON.stringify({ start: "KeyA", end: "KeyB", redo: "KeyC" }),
+      );
       setActivePinia(createPinia());
 
-      expect(useSettingsStore().timingKeys).toEqual({ start: "KeyA", end: "KeyB" });
+      expect(useSettingsStore().timingKeys).toEqual({ start: "KeyA", end: "KeyB", redo: "KeyC" });
     });
 
     test("falls back to the default for a stored name no key has", () => {
-      localStorage.setItem("timingKeys", JSON.stringify({ start: "Spacebar", end: "KeyB" }));
+      localStorage.setItem(
+        "timingKeys",
+        JSON.stringify({ start: "Spacebar", end: "KeyB", redo: "Erase" }),
+      );
       setActivePinia(createPinia());
 
-      expect(useSettingsStore().timingKeys).toEqual({ start: "Space", end: "KeyB" });
+      expect(useSettingsStore().timingKeys).toEqual({
+        start: "Space",
+        end: "KeyB",
+        redo: "Backspace",
+      });
     });
 
     test("resetSettings restores the defaults", () => {
@@ -421,7 +440,7 @@ describe("Settings Store", () => {
 
       store.resetSettings();
 
-      expect(store.timingKeys).toEqual({ start: "Space", end: "Enter" });
+      expect(store.timingKeys).toEqual({ start: "Space", end: "Enter", redo: "Backspace" });
     });
   });
 });

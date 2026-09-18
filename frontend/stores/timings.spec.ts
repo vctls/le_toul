@@ -218,8 +218,8 @@ describe("Timings Store", () => {
   });
 
   describe("voice reconciliation", () => {
-    // Timings tapped out before any voice tag existed live under the default voice. Adding
-    // a tag renames that voice, and the timings must follow it.
+    // Timings tapped out before any voice tag existed live under the default voice.
+    // Adding a tag renames that voice, and the timings must follow it.
     const timeSingleVoice = (lyrics = "hello\nworld") => {
       const timingsStore = useTimingsStore();
       const lyricsStore = useLyricsStore();

@@ -1,9 +1,8 @@
-// libass matches an ASS style's `Fontname` against the family name stored inside the
-// font, not against the file's name, both in the browser preview and in FFmpeg's ass filter.
+// libass matches an ASS style's `Fontname` against the family name stored inside the font, not against the file's name,
+// both in the browser preview and in FFmpeg's ass filter.
 
-// Family name IDs from the OpenType `name` table, preferred first: 16 is the typographic
-// family, 1 the legacy one, which on multi-style fonts carries a split-out name like
-// "Metal Mania Semibold".
+// Family name IDs from the OpenType `name` table, preferred first: 16 is the typographic family, 1 the legacy one,
+// which on multi-style fonts carries a split-out name like "Metal Mania Semibold".
 const FAMILY_NAME_IDS = [16, 1];
 
 const PLATFORM_UNICODE = 0;
@@ -34,7 +33,7 @@ function sfntOffset(view: DataView): number {
     if (view.byteLength < 16) {
       throw new UnreadableFontError("This font collection file is truncated.");
     }
-    // A collection holds several faces; the file is identified by its first.
+    // A collection holds several faces, and the file is identified by its first.
     return view.getUint32(12);
   }
   if (WOFF_TAGS.includes(tag)) {

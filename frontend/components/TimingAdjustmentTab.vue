@@ -154,12 +154,12 @@ import { default as BuefyColor } from "buefy/src/utils/color";
 // after a drag agree on what one step is worth. Shift takes five of them.
 const COARSE_STEP_MULTIPLIER = 5;
 
-// The preview here is a working view of the timings, not a proxy for the final video, so it
-// uses the app's own palette and a fixed size rather than the video settings. The size is in
-// SUBTITLE_CANVAS units, so it scales with the preview instead of being a pixel height.
+// The preview here is a working view of the timings, not a proxy for the final video,
+// so it uses the app's own palette and a fixed size rather than the video settings.
+// The size is in SUBTITLE_CANVAS units, so it scales with the preview instead of being a pixel height.
 const PREVIEW_FONT_SIZE = 20;
 
-// Fallbacks are the light-theme values; they only apply where the stylesheet is absent.
+// Fallbacks are the light-theme values, applied only where the stylesheet is absent.
 const PREVIEW_PALETTE = {
   background: ["var(--bulma-body-background-color)", "#ffffff"],
   primary: ["var(--bulma-primary)", "#7957d5"],
@@ -239,7 +239,7 @@ export default defineComponent({
       // Default off: the browser's stretcher warbles at slow rates,
       // and a dropped key costs nothing while tapping timings.
       preservePitch: false,
-      // Which track to play back; the waveform always stays on the vocals.
+      // Which track to play back. The waveform always stays on the vocals.
       playbackTrackChoice: "full" as "full" | "vocals",
       // Per-voice control state.
       // The flat fields above are the *active* voice's values.
@@ -425,8 +425,8 @@ export default defineComponent({
         this.playhead = newPlayhead;
       }
     },
-    // Every seek is a deliberate move of the playhead (playback progress comes
-    // through as a timeupdate instead), so it becomes the Enter replay point.
+    // Every seek is a deliberate move of the playhead (playback progress comes through as a timeupdate instead),
+    // so it becomes the Enter replay point.
     onSeek(newPlayhead: number) {
       this.manualPlayhead = newPlayhead;
       this.onPlayheadUpdate(newPlayhead);

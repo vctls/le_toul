@@ -26,8 +26,8 @@ READING_STAGE = "reading the song"
 SEPARATING_STAGE = "separating the vocals"
 PACKAGING_STAGE = "packaging the tracks"
 
-# Share of the bar given to the model download. It happens only the first time a
-# model is used, and the separation dwarfs it.
+# Share of the bar given to the model download. It happens only the first time a model is used,
+# and the separation dwarfs it.
 _DOWNLOAD_SHARE = 0.05
 
 _DOWNLOAD_MODULE = "audio_separator.separator.separator"
@@ -131,9 +131,9 @@ class _ChunkBar(tqdm):
 
 
 class _MdxChunkBar(_ChunkBar):
-    # MDX demixes twice: once for the primary stem, then again in match_mix mode
-    # to derive the secondary one. The second pass skips the model itself, so it
-    # takes a small fraction of the time despite its comparable chunk count.
+    # MDX demixes twice: once for the primary stem, then again in match_mix
+    # mode to derive the secondary one. The second pass skips the model itself,
+    # so it takes a small fraction of the time despite its comparable chunk count.
     pass_weights = (0.9, 0.1)
 
 

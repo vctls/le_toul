@@ -60,10 +60,9 @@ export default defineComponent({
     return {
       subtitleManager: null as SubtitlesOctopus | null,
       currentTime: null as number | null,
-      // The display stays mounted when its tab is hidden, but the subtitles keep
-      // changing (every timing tap regenerates them). While hidden we only remember
-      // the latest version and hand it to the renderer when the display becomes
-      // visible again. Nothing here is rendered, hence markRaw.
+      // The display stays mounted when its tab is hidden, but the subtitles keep changing (every
+      // timing tap regenerates them). While hidden we only remember the latest version and hand it to
+      // the renderer when the display becomes visible again. Nothing here is rendered, hence markRaw.
       view: markRaw({
         isDisplayed: true,
         pendingSubtitles: null as string | null,

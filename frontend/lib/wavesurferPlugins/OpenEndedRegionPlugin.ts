@@ -301,9 +301,9 @@ class SingleRegion extends EventEmitter<RegionEvents> implements Region {
       ),
     );
 
-    // Always create a right handle. For open-ended regions it acts as a
-    // "ghost" handle: hidden by default, revealed on hover. Dragging it
-    // materializes the explicit end (introduces a gap before the next region).
+    // Always create a right handle. For open-ended regions it acts as a "ghost" handle: hidden by default,
+    // revealed on hover. Dragging it materializes the explicit end (introduces a gap before the next
+    // region).
     const rightHandle = createElement(
       "div",
       {
@@ -419,7 +419,7 @@ class SingleRegion extends EventEmitter<RegionEvents> implements Region {
       this.addResizeHandles(element);
     }
 
-    // The body drives group moves; the plugin ignores the drag unless this
+    // The body drives group moves, and the plugin ignores the drag unless this
     // region is part of the current selection.
     this.subscriptions.push(
       makeDraggable(
@@ -503,8 +503,8 @@ class SingleRegion extends EventEmitter<RegionEvents> implements Region {
   private onEndResizing() {
     if (!this.resize) return;
 
-    // If the user dragged the end up against the next region's start (or
-    // the end of the audio), drop the explicit end and revert to open-ended.
+    // If the user dragged the end up against the next region's start (or the end of the audio),
+    // drop the explicit end and revert to open-ended.
     if (this._explicitEnd != null) {
       const snapThreshold = 0.05;
       const ceiling = this._nextRegion?.start ?? this.totalDuration;
@@ -944,9 +944,8 @@ class RegionsPlugin extends BasePlugin<RegionsPluginEvents, RegionsPluginOptions
 
     const regionSubscriptions = [
       region.on("update", (side) => {
-        // Undefined side indicates that we are dragging not resizing.
-        // A group drag scrolls once for the region under the cursor
-        // instead, or every member would fight over the scroll position.
+        // Undefined side indicates that we are dragging not resizing. A group drag scrolls once for
+        // the region under the cursor instead, or every member would fight over the scroll position.
         if (!side && !this.groupDrag) {
           this.adjustScroll(region);
         }

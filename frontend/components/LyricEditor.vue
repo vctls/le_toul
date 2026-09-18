@@ -53,7 +53,7 @@ export default defineComponent({
     },
     rememberScroll() {
       const input = this.textarea();
-      // Hiding the tab zeroes scrollTop; ignore that so the saved offset survives.
+      // Hiding the tab zeroes scrollTop. Ignore that so the saved offset survives.
       if (input.clientHeight > 0) {
         this.scrollTop = input.scrollTop;
       }

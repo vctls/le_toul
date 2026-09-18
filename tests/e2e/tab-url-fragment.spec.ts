@@ -42,8 +42,8 @@ test.describe("Tab URL fragment", () => {
     await expect.poll(() => fragment(page)).toBe("#help");
   });
 
-  // The Song Timing tab is gated on the song file, which comes back from IndexedDB
-  // after the first paint, so this covers landing on a step that isn't reachable yet.
+  // The Song Timing tab is gated on the song file, which comes back from IndexedDB after the first paint,
+  // so this covers landing on a step that isn't reachable yet.
   test("a reload returns to the step named by the fragment", async ({ page }) => {
     await setupBasicInputs(
       page,
@@ -84,8 +84,8 @@ test.describe("Tab URL fragment", () => {
     await expect(page.locator('h2:has-text("Adjust Timings")')).toBeVisible();
     await scrollWaveformIntoView(page);
 
-    // The waveform has no duration to lay regions out against until the audio is
-    // decoded. Laid out too early, they collapse onto the left edge or never render.
+    // The waveform has no duration to lay regions out against until the audio is decoded. Laid out too early,
+    // they collapse onto the left edge or never render.
     const xs: number[] = [];
     for (let segment = 0; segment < 4; segment++) {
       const region = regionLocator(page, segment);

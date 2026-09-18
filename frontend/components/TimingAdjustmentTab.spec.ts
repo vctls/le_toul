@@ -56,8 +56,8 @@ function mountTab() {
       },
     },
   });
-  // The shortcuts only fire while the tab is on screen. happy-dom leaves
-  // offsetParent null, so make the root element look displayed.
+  // The shortcuts only fire while the tab is on screen. happy-dom leaves offsetParent null,
+  // so make the root element look displayed.
   Object.defineProperty(wrapper.vm.$el, "offsetParent", { value: document.body });
   mountedTabs.push(wrapper);
   return wrapper;
@@ -205,10 +205,9 @@ describe("TimingAdjustmentTab shortcuts", () => {
     audio.remove();
   });
 
-  // The audio element's built-in controls handle these same keys, and a
-  // bubble-phase listener runs after them: verified in Chromium, where the
-  // native seek and play/pause still fired on top of ours. Only a
-  // capture-phase preventDefault suppresses them.
+  // The audio element's built-in controls handle these same keys, and a bubble-phase listener runs after them:
+  // verified in Chromium, where the native seek and play/pause still fired on top of ours.
+  // Only a capture-phase preventDefault suppresses them.
   it("listens in the capture phase so the player cannot act first", () => {
     const addEventListener = vi.spyOn(window, "addEventListener");
     mountTab();

@@ -31,20 +31,20 @@ const TIMINGS = path.join(FIXTURES, "timings.json");
 const SETTINGS = path.join(FIXTURES, "settings.yaml");
 const SPLIT_ZIP = path.join(FIXTURES, "split_song.zip");
 
-// Frame rate the GIFs are assembled at. The captures pace their own sleeps to
-// roughly match, so raising it makes the result quicker rather than smoother.
+// Frame rate the GIFs are assembled at. The captures pace their own sleeps to roughly match,
+// so raising it makes the result quicker rather than smoother.
 const FPS = 20;
 
-// Every GIF is rendered at this width so they line up down the README. Each
-// capture picks its own clip, so only the heights differ.
+// Every GIF is rendered at this width so they line up down the README. Each capture picks its own clip,
+// so only the heights differ.
 const WIDTH = 900;
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
 /** Assembles a numbered PNG sequence into an optimized GIF via ffmpeg. */
 async function assembleGif(framesDir, outPath, { fps = FPS, width = WIDTH } = {}) {
-  // No dithering: the captures are flat UI, so dither only stipples the solid
-  // areas, which looks worse and costs a third of the file size.
+  // No dithering: the captures are flat UI, so dither only stipples the solid areas,
+  // which looks worse and costs a third of the file size.
   const vf =
     `fps=${fps},scale=${width}:-1:flags=lanczos,` +
     `split[s0][s1];[s0]palettegen=stats_mode=diff[p];` +
@@ -424,8 +424,8 @@ async function captureSplit(page) {
   const pointer = new Pointer(page);
   await pointer.install();
 
-  // Scroll the waveform into place before measuring anything: the region rects
-  // are viewport coordinates, and the pointer has to land on them to zoom.
+  // Scroll the waveform into place before measuring anything: the region rects are viewport coordinates,
+  // and the pointer has to land on them to zoom.
   const container = await clipFor(page, page.locator(".wavesurfer-container"));
 
   const target = await findOpenEndedRegion(page);
@@ -518,8 +518,8 @@ async function captureGroupDrag(page) {
   await wheelZoom(page, 10, 1, null, 55);
   await sleep(400);
 
-  // A run of four consecutive rectangles, as near the middle of the waveform as
-  // the layout allows, so the drag has room on both sides.
+  // A run of four consecutive rectangles, as near the middle of the waveform as the layout allows,
+  // so the drag has room on both sides.
   const visible = await visibleSegments(page, container);
   const runs = [];
   for (let i = 0; i + 3 < visible.length; i++) {
@@ -615,8 +615,8 @@ async function captureSessionRoundTrip(page) {
   const pointer = new Pointer(page);
   await pointer.install();
 
-  // One frame has to hold the navbar button at the top right, the song details
-  // that empty and refill, the folder picker down in Advanced, and the toast.
+  // One frame has to hold the navbar button at the top right, the song details that empty and refill,
+  // the folder picker down in Advanced, and the toast.
   await page.evaluate(() => window.scrollTo(0, 0));
   await sleep(200);
   const form = await page.locator(".song-info-tab").boundingBox();
@@ -771,8 +771,8 @@ async function captureTimingControls(page) {
   await rec.init();
   await rec.hold(5);
 
-  // Drop to half speed for a fast passage, and hold the original key while there.
-  // Buefy hides the radio itself; the clickable target is its label.
+  // Drop to half speed for a fast passage, and hold the original key while there. Buefy hides the radio itself;
+  // the clickable target is its label.
   const slow = page.locator('.playback-speed input[type="radio"][value="0.5"]').locator("xpath=..");
   const sbox = await slow.boundingBox();
   await pointer.glideTo(sbox.x + sbox.width / 2, sbox.y + sbox.height / 2, rec, 8, 30);
@@ -896,8 +896,8 @@ async function captureSeparation(page) {
   await rec.frame();
   await pointer.release();
 
-  // Follow the stages until the finished track lands. Driven by the bar rather
-  // than a frame count, since a screenshot costs more wall time than a poll.
+  // Follow the stages until the finished track lands. Driven by the bar rather than a frame count,
+  // since a screenshot costs more wall time than a poll.
   const bar = page.locator(".separation-progress");
   for (let i = 0; i < 90; i++) {
     await rec.frame();
@@ -924,9 +924,9 @@ async function shootEditTab(page, outPath) {
   await sleep(200);
   const box = await field.boundingBox();
 
-  // The editor is `white-space: pre`, and the fixture's first line is far longer
-  // than the rest. Start the crop at the second line so none of them runs off
-  // the edge, and keep it narrow enough that the tags stay readable.
+  // The editor is `white-space: pre`, and the fixture's first line is far longer than the rest.
+  // Start the crop at the second line so none of them runs off the edge, and keep it narrow enough
+  // that the tags stay readable.
   const metrics = await page.locator(".timing-editor-textarea").evaluate((el) => {
     const cs = getComputedStyle(el);
     return { lineHeight: parseFloat(cs.lineHeight), padTop: parseFloat(cs.paddingTop) };

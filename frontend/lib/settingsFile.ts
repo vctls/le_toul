@@ -1,9 +1,9 @@
 // Reading back the `settings.yaml` file the app exports (see SubmitTab.settingsYaml).
 //
-// The file is meant to be hand-editable as well as round-tripped, so parsing is
-// deliberately lenient: an entry that is unknown or of the wrong type is skipped and
-// reported as a warning rather than failing the whole load. Only a file that isn't a
-// YAML mapping at all is rejected outright, since there is nothing to apply.
+// The file is meant to be hand-editable as well as round-tripped, so parsing is deliberately lenient:
+// an entry that is unknown or of the wrong type is skipped and reported as a warning rather than
+// failing the whole load. Only a file that isn't a YAML mapping at all is rejected outright,
+// since there is nothing to apply.
 
 import yaml from "js-yaml";
 import Color from "buefy/src/utils/color";
@@ -63,8 +63,8 @@ const POSITIVE_NUMBER_OPTIONS = ["countInThreshold", "countInDuration"] as const
 // Files written before count-ins gained a "line" mode say addCountIns: true/false.
 const LEGACY_COUNT_IN_KEY = "addCountIns";
 
-// The exporter writes the enum's numeric value, but a hand-written file is much clearer
-// with a name, so accept either.
+// The exporter writes the enum's numeric value, but a hand-written file is much clearer with a name,
+// so accept either.
 const ALIGNMENT_NAMES: Record<string, VerticalAlignment> = {
   top: VerticalAlignment.Top,
   middle: VerticalAlignment.Middle,
@@ -291,8 +291,8 @@ function parseVideoOptions(raw: unknown, warnings: string[]): Partial<VideoSetti
   const outputFormat = readOutputFormat(raw.outputFormat, "videoOptions.outputFormat", warnings);
   if (outputFormat !== undefined) options.outputFormat = outputFormat;
 
-  // The exporter writes the separation model at the top level, but accept the store's
-  // own field name too, since that is what a settings dump from localStorage looks like.
+  // The exporter writes the separation model at the top level, but accept the store's own field name too,
+  // since that is what a settings dump from localStorage looks like.
   const model = readSeparationModel(
     raw.vocalSeparationModel,
     "videoOptions.vocalSeparationModel",
@@ -384,7 +384,7 @@ function parseVoiceStyles(
 }
 
 // Parse the contents of a settings.yaml file. Throws only when the file cannot be
-// understood as a settings mapping at all; everything else surfaces in `warnings`.
+// understood as a settings mapping at all. Everything else surfaces in `warnings`.
 export function parseSettingsYaml(text: string): ParsedSettingsFile {
   let document: unknown;
   try {

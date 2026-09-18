@@ -52,12 +52,12 @@ LOCAL_JOB_DIR = Path(
     os.getenv("LOCAL_JOB_DIR", Path(tempfile.gettempdir()) / "tuul_jobs")
 )
 
-# How long finished results are kept before being pruned. Each is about the size
-# of two uncompressed WAVs. Set to 0 to keep them indefinitely.
+# How long finished results are kept before being pruned. Each is about
+# the size of two uncompressed WAVs. Set to 0 to keep them indefinitely.
 LOCAL_JOB_RESULT_TTL_SECONDS = int(
     os.getenv("LOCAL_JOB_RESULT_TTL_SECONDS", str(7 * 24 * 60 * 60))
 )
 
-# A job still marked as processing after this long is assumed dead, its worker
-# having been killed. Matches the default gunicorn timeout.
+# A job still marked as processing after this long is assumed dead, its worker having been killed.
+# Matches the default gunicorn timeout.
 LOCAL_JOB_STALE_AFTER_SECONDS = int(os.getenv("LOCAL_JOB_STALE_AFTER_SECONDS", "7200"))

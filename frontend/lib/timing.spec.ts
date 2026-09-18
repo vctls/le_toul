@@ -237,8 +237,8 @@ test("createAssFileForShortIntroSong", () => {
 });
 
 test("createAssFile handles timings without lyrics", () => {
-  // A timings file can be loaded before lyrics are entered. That should
-  // yield an event-less ASS file, not a crash in the screen decorators.
+  // A timings file can be loaded before lyrics are entered. That should yield an event-less ASS file,
+  // not a crash in the screen decorators.
   const songDuration = 60.0;
   const timings: LyricEvent[] = [
     [1.0, LYRIC_MARKERS.SEGMENT_START],
@@ -361,7 +361,7 @@ test("adjustSegmentTiming adds a SEGMENT_END to an open-ended segment", () => {
 test("adjustSegmentTiming removes an existing SEGMENT_END when end is undefined", () => {
   // Segment 0 in testEvents has an explicit SEGMENT_END at 2.0.
   const adjusted = adjustSegmentTiming(0, testEvents, { start: 1.0, end: undefined });
-  // The SEGMENT_END marker should be gone; segment 1's SEGMENT_START at 3.0 follows directly.
+  // The SEGMENT_END marker should be gone. Segment 1's SEGMENT_START at 3.0 follows directly.
   expect(adjusted[0]).toEqual([1.0, LYRIC_MARKERS.SEGMENT_START]);
   expect(adjusted[1]).toEqual([3.0, LYRIC_MARKERS.SEGMENT_START]);
   expect(adjusted.length).toBe(testEvents.length - 1);
@@ -454,14 +454,14 @@ describe("multi-voice vertical lanes", () => {
   it("centers lines within the lane when verticalZone is set", () => {
     const screen = new LyricsScreen([new LyricsLine([new LyricSegment("a", 1, 2)])]);
     screen.verticalZone = { top: 160, height: 160 };
-    // 1 line, fontSize 20 => lineHeight 30; lane middle 240; top = 240 - 15
+    // 1 line, fontSize 20 => lineHeight 30, lane middle 240, top = 240 - 15
     expect(screen.getLineY(0, 20)).toBe(225);
   });
 
   it("keeps the staggered line-count correction inside a lane", () => {
     const screen = new LyricsScreen([new LyricsLine([new LyricSegment("a", 1, 2)])]);
     screen.verticalZone = { top: 0, height: 144 };
-    // Lane middle 72; as its own 1-line block, fontSize 20 => 72 - 15
+    // Lane middle 72. As its own 1-line block, fontSize 20 => 72 - 15
     expect(screen.getLineY(0, 20)).toBe(57);
     // Laid out as the 2-line block it displaces => 72 - 30, the lane's top slot
     screen.positionAsLineCount = 2;
@@ -469,10 +469,10 @@ describe("multi-voice vertical lanes", () => {
   });
 
   it("puts a staggered line in the lane's top slot, not between the lines it replaces", () => {
-    // A short screen displayed early over a 2-line screen must land where that screen's
-    // first line was. Lanes are assigned after the staggering pass, so a correction
-    // expressed as an absolute Y would be computed for the full frame and then dropped,
-    // leaving the early line halfway down the outgoing block and colliding with it.
+    // A short screen displayed early over a 2-line screen must land where that screen's first line was.
+    // Lanes are assigned after the staggering pass, so a correction expressed as an absolute Y would
+    // be computed for the full frame and then dropped, leaving the early line halfway down the
+    // outgoing block and colliding with it.
     const staggered: KaraokeOptions = {
       ...DEFAULT_OPTIONS,
       addTitleScreen: false,
@@ -499,8 +499,8 @@ describe("multi-voice vertical lanes", () => {
       },
     ];
     const v0 = marginVsForStyle(createMultiVoiceAssFile(tracks, 10, "T", "A"), "V0");
-    // lineHeight 30, lane 0 spans 0..144 so its middle is 72: a 2-line block sits at
-    // 42 and 72, and the early single line joins it at 42.
+    // lineHeight 30, lane 0 spans 0..144 so its middle is 72: a 2-line block sits at 42 and 72,
+    // and the early single line joins it at 42.
     expect(v0).toContain(42);
     // 57 would be a lone line centred in the lane, overlapping the outgoing line at 72.
     expect(v0).not.toContain(57);

@@ -89,8 +89,8 @@ describe("Lyrics Store", () => {
     lyricsStore.setLyrics("Hello\nWorld");
 
     expect(lyricsStore.voices).toEqual([DEFAULT_VOICE_ID]);
-    // The default voice's text is the verbatim input, and its segments match the
-    // whole-text segments, so the existing single-voice pipeline is unchanged.
+    // The default voice's text is the verbatim input, and its segments match the whole-text segments,
+    // so the existing single-voice pipeline is unchanged.
     expect(lyricsStore.lyricTextForVoice(DEFAULT_VOICE_ID)).toBe("Hello\nWorld");
     expect(lyricsStore.segmentsForVoice(DEFAULT_VOICE_ID)).toEqual(lyricsStore.lyricSegments);
   });

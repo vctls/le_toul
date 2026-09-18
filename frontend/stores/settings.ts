@@ -41,6 +41,7 @@ function loadTimingKeys(): TimingKeys {
     return {
       start: isKeyName(raw.start) ? raw.start : DEFAULT_TIMING_KEYS.start,
       end: isKeyName(raw.end) ? raw.end : DEFAULT_TIMING_KEYS.end,
+      redo: isKeyName(raw.redo) ? raw.redo : DEFAULT_TIMING_KEYS.redo,
     };
   } catch (e) {
     console.error("Error loading timing keys:", e);
@@ -128,7 +129,7 @@ export const useSettingsStore = defineStore("settings", () => {
   // are about how the tapping tab is driven, not about the video.
   const timingKeys = ref<TimingKeys>(loadTimingKeys());
 
-  // Kept out of `videoOptions`, which is JSON-serialized to localStorage wholesale; the
+  // Kept out of `videoOptions`, which is JSON-serialized to localStorage wholesale. The
   // file goes to IndexedDB instead.
   const customFont = ref<File | null>(null);
   // The name the font declares for itself, which is what an ASS style row must carry.
@@ -141,9 +142,9 @@ export const useSettingsStore = defineStore("settings", () => {
   // Load saved settings when the store is initialized
   loadSettings();
 
-  // A count-in longer than the gap that triggers it would start before the previous line
-  // ends, so the threshold caps the duration. Enforced here because a loaded settings file
-  // and stored settings bypass the Submit tab's own bounds.
+  // A count-in longer than the gap that triggers it would start before the previous line ends,
+  // so the threshold caps the duration. Enforced here because a loaded settings file and stored
+  // settings bypass the Submit tab's own bounds.
   watch(
     () => [videoOptions.countInThreshold, videoOptions.countInDuration],
     ([threshold, duration]) => {
@@ -222,13 +223,15 @@ export const useSettingsStore = defineStore("settings", () => {
       : videoOptions,
   );
 
-  // Binding the key the other role holds swaps the two, so the pair never both point at
-  // the same key, which would make one of the two markers unreachable.
+  // Binding a key another role already holds swaps the two, so no two roles point at the same key,
+  // which would make one of them unreachable.
   function setTimingKey(role: keyof TimingKeys, name: string): void {
-    const other = role === "start" ? "end" : "start";
     const next: TimingKeys = { ...timingKeys.value };
-    if (next[other] === name) {
-      next[other] = next[role];
+    const clash = (Object.keys(next) as (keyof TimingKeys)[]).find(
+      (other) => other !== role && next[other] === name,
+    );
+    if (clash) {
+      next[clash] = next[role];
     }
     next[role] = name;
     timingKeys.value = next;
@@ -257,9 +260,9 @@ export const useSettingsStore = defineStore("settings", () => {
     voiceStyles.value = rest;
   }
 
-  // Move a style override onto another voice id. Used when a lyric tag edit renames a
-  // voice, so the style follows the voice instead of being orphaned. No-op when the
-  // source has no override or the target already has one.
+  // Move a style override onto another voice id. Used when a lyric tag edit renames a voice,
+  // so the style follows the voice instead of being orphaned. No-op when the source has no override
+  // or the target already has one.
   function renameVoiceStyle(from: VoiceId, to: VoiceId) {
     const style = voiceStyles.value[from];
     if (!style || voiceStyles.value[to]) {
@@ -269,9 +272,9 @@ export const useSettingsStore = defineStore("settings", () => {
     voiceStyles.value = { ...rest, [to]: style };
   }
 
-  // Merge a partial set of options over the current ones, e.g. from a loaded
-  // settings.yaml. The nested font and color groups merge field by field, so a file that
-  // only mentions one color leaves the others untouched.
+  // Merge a partial set of options over the current ones, e.g. from a loaded settings.yaml.
+  // The nested font and color groups merge field by field, so a file that only mentions one color
+  // leaves the others untouched.
   function applyVideoOptions(options: Partial<VideoSettings>): void {
     const { font, color, ...rest } = options;
     Object.assign(videoOptions, rest);

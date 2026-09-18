@@ -19,7 +19,7 @@ function fontSelect(page: Page) {
   return exactFieldFor(page, "Font").locator("select");
 }
 
-// A bundled font stands in for the user's own file; its family name ("Metal Mania")
+// A bundled font stands in for the user's own file. Its family name ("Metal Mania")
 // deliberately differs from the file name.
 function bundledFontPath(): string {
   return path.join(getFixturesDir(), "../../api/assets/fonts/MetalMania.ttf");
@@ -92,7 +92,7 @@ test.describe("Custom Font Upload", () => {
     );
     await uploadTimingsFile(page, defaultTestConfig.timingsFile);
     await openFontSettings(page);
-    // Seeking paints the frame at that moment; libass only draws on a time update.
+    // Seeking paints the frame at that moment, since libass only draws on a time update.
     await page.locator(".submit-tab .preview-container audio").evaluate((el: HTMLAudioElement) => {
       el.muted = true;
       el.currentTime = 1;

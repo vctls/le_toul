@@ -45,7 +45,7 @@ def patch_architecture(monkeypatch, bar_class):
 
 
 def run_chunks(module, count):
-    # mininterval=0 so every chunk is reported; tqdm otherwise skips reports
+    # mininterval=0 so every chunk is reported, since tqdm otherwise skips reports
     # that fall inside its print interval, which a test is too fast to clear.
     for _ in module.tqdm(range(count), mininterval=0):
         pass
