@@ -143,9 +143,9 @@ export type ShiftBounds = {
 };
 
 /**
- * How far a contiguous run of selected regions may shift before it would cross
- * a region outside the selection. An open-ended neighbour stretches or shrinks
- * instead of blocking, so on that side the limit is its start rather than its end.
+ * How far a contiguous run of selected regions may shift before it would cross a region outside the selection.
+ * An open-ended neighbor stretches or shrinks instead of blocking,
+ * so on that side the limit is its start rather than its end.
  */
 export function clampGroupShift(
   bounds: { first: ShiftBounds; last: ShiftBounds; prev?: ShiftBounds; next?: ShiftBounds },
@@ -175,6 +175,7 @@ class SingleRegion extends EventEmitter<RegionEvents> implements Region {
   public channelIdx: number;
   public contentEditable = false;
   public selected = false;
+  public isAttached = false;
   public subscriptions: (() => void)[] = [];
 
   private _explicitEnd?: number;
@@ -364,10 +365,9 @@ class SingleRegion extends EventEmitter<RegionEvents> implements Region {
   }
 
   private onStartRightResize() {
-    // If this is a ghost handle, materialize the implicit end so the
-    // standard end-resize math works for the rest of the drag. Loose
-    // equality so we catch both `undefined` and `null`. Regions are
-    // commonly constructed with `end: null`.
+    // If this is a ghost handle, materialize the implicit end so the standard end-resize math works
+    // for the rest of the drag. Loose equality so we catch both `undefined` and `null`.
+    // Regions are commonly constructed with `end: null`.
     if (this._explicitEnd == null) {
       this._explicitEnd = this.end;
       const rightHandle = this.element.querySelector(
@@ -419,8 +419,7 @@ class SingleRegion extends EventEmitter<RegionEvents> implements Region {
       this.addResizeHandles(element);
     }
 
-    // The body drives group moves, and the plugin ignores the drag unless this
-    // region is part of the current selection.
+    // The body drives group moves, and the plugin ignores the drag unless this region is part of the current selection.
     this.subscriptions.push(
       makeDraggable(
         element,
@@ -463,8 +462,7 @@ class SingleRegion extends EventEmitter<RegionEvents> implements Region {
     const newEnd = side === "end" ? (this._explicitEnd ?? this.end) + deltaSeconds : this.end;
     const length = newEnd - newStart;
 
-    // If previous region is open-ended, we can't resize past its start. Otherwise
-    // we can't resize past its end.
+    // If previous region is open-ended, we can't resize past its start. Otherwise, we can't resize past its end.
     const hasBadOverlap =
       this.prevRegion &&
       ((newStart < this.prevRegion.end && !this.prevRegion.isOpenEnded) ||
@@ -595,8 +593,8 @@ class SingleRegion extends EventEmitter<RegionEvents> implements Region {
     // Markers draw no fill of their own, so the whole label sits on the waveform.
     if (this.contentEditable || this.isMarker) return;
 
-    // An opaque copy of the fill, clipped to the region box, buries the halo and the waveform-coloured text.
-    // Its own copy of the label then repaints just that part in a colour suited to the fill.
+    // An opaque copy of the fill, clipped to the region box, buries the halo and the waveform-colored text.
+    // Its own copy of the label then repaints just that part in a color suited to the fill.
     // The overhang is left untouched.
     this.contentOverlay = createElement("div", {
       style: {
@@ -677,13 +675,14 @@ class SingleRegion extends EventEmitter<RegionEvents> implements Region {
 
 class RegionsPlugin extends BasePlugin<RegionsPluginEvents, RegionsPluginOptions> {
   private regions: Region[] = [];
-  private regionsContainer: HTMLElement;
+  private readonly regionsContainer: HTMLElement;
   private firstRegion?: Region;
   // Kept as ids rather than references so a selection survives the
   // teardown-and-rebuild the host does whenever the timings change.
   private selectedIds = new Set<string>();
   private anchorId?: string;
   private groupDrag?: Region[];
+  private visibilityFrame = 0;
 
   /** Create an instance of RegionsPlugin */
   constructor(options?: RegionsPluginOptions) {
@@ -703,6 +702,12 @@ class RegionsPlugin extends BasePlugin<RegionsPluginEvents, RegionsPluginOptions
     }
     this.wavesurfer.getWrapper().appendChild(this.regionsContainer);
 
+    // A zoom moves every region without necessarily scrolling, so redraw has to drive the pass too.
+    this.subscriptions.push(
+      this.wavesurfer.on("scroll", () => this.scheduleVisibilityPass()),
+      this.wavesurfer.on("redraw", () => this.scheduleVisibilityPass()),
+    );
+
     let activeRegions: Region[] = [];
     this.subscriptions.push(
       this.wavesurfer.on("timeupdate", (currentTime) => {
@@ -720,7 +725,7 @@ class RegionsPlugin extends BasePlugin<RegionsPluginEvents, RegionsPluginOptions
           }
         });
 
-        // Trigger region-out when activeRegions include a un-played regions
+        // Trigger region-out when activeRegions include an un-played regions
         activeRegions.forEach((region) => {
           if (!playedRegions.includes(region)) {
             this.emit("region-out", region);
@@ -745,11 +750,6 @@ class RegionsPlugin extends BasePlugin<RegionsPluginEvents, RegionsPluginOptions
         pointerEvents: "none",
       },
     });
-  }
-
-  /** Get all created regions */
-  public getRegions(): Region[] {
-    return this.regions;
   }
 
   private avoidOverlapping(newRegion: Region) {
@@ -906,38 +906,41 @@ class RegionsPlugin extends BasePlugin<RegionsPluginEvents, RegionsPluginOptions
     }
   }
 
-  private virtualAppend(region: Region, container: HTMLElement, element: HTMLElement) {
-    const renderIfVisible = () => {
-      if (!this.wavesurfer) return;
-      const clientWidth = this.wavesurfer.getWidth();
-      const scrollLeft = this.wavesurfer.getScroll();
-      const scrollWidth = container.clientWidth;
-      const duration = this.wavesurfer.getDuration();
-      const start = Math.round((region.start / duration) * scrollWidth);
-      const width = Math.round(((region.end - region.start) / duration) * scrollWidth) || 1;
+  private scheduleVisibilityPass() {
+    if (this.visibilityFrame) return;
+    this.visibilityFrame = requestAnimationFrame(() => {
+      this.visibilityFrame = 0;
+      this.updateVisibility();
+    });
+  }
 
-      // Check if the region is between the scrollLeft and scrollLeft + clientWidth
-      const isVisible = start + width > scrollLeft && start < scrollLeft + clientWidth;
+  // Measured once and mutated only where visibility flipped: reading layout back after a DOM write
+  // forces a reflow, and a zoom relays out every region, so a read/write per region is quadratic.
+  private updateVisibility() {
+    if (!this.wavesurfer) return;
+    const duration = this.wavesurfer.getDuration();
+    const trackWidth = this.regionsContainer.clientWidth;
+    if (!duration || !trackWidth) return;
+    const viewLeft = this.wavesurfer.getScroll();
+    const viewRight = viewLeft + this.wavesurfer.getWidth();
 
-      if (isVisible) {
-        container.appendChild(element);
-      } else {
-        element.remove();
-      }
-    };
-
-    setTimeout(() => {
-      if (!this.wavesurfer) return;
-      renderIfVisible();
-
-      const unsubscribe = this.wavesurfer.on("scroll", renderIfVisible);
-      this.subscriptions.push(region.once("remove", unsubscribe), unsubscribe);
-    }, 0);
+    const entering = document.createDocumentFragment();
+    for (const region of this.regions) {
+      if (!region.element) continue;
+      const start = (region.start / duration) * trackWidth;
+      const width = ((region.end - region.start) / duration) * trackWidth || 1;
+      const isVisible = start + width > viewLeft && start < viewRight;
+      if (isVisible === region.isAttached) continue;
+      region.isAttached = isVisible;
+      if (isVisible) entering.appendChild(region.element);
+      else region.element.remove();
+    }
+    this.regionsContainer.appendChild(entering);
   }
 
   private saveRegion(region: Region) {
     region.setSelected(this.selectedIds.has(region.id));
-    this.virtualAppend(region, this.regionsContainer, region.element);
+    this.scheduleVisibilityPass();
     this.avoidOverlapping(region);
     this.setNextRegion(region);
     this.regions.push(region);
@@ -984,8 +987,8 @@ class RegionsPlugin extends BasePlugin<RegionsPluginEvents, RegionsPluginOptions
         this.emit("region-removed", region);
       }),
     ];
-
-    this.subscriptions.push(...regionSubscriptions);
+    // Deliberately not in this.subscriptions: that array is never pruned, and the remove handler
+    // above already owns these, so every rebuild would retain its whole generation of regions.
 
     this.emit("region-created", region);
   }
@@ -1023,6 +1026,7 @@ class RegionsPlugin extends BasePlugin<RegionsPluginEvents, RegionsPluginOptions
 
   /** Destroy the plugin and clean up */
   public destroy() {
+    if (this.visibilityFrame) cancelAnimationFrame(this.visibilityFrame);
     this.clearRegions();
     super.destroy();
     this.regionsContainer.remove();

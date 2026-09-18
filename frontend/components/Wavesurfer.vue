@@ -227,7 +227,7 @@ export default defineComponent({
       // Measured off the laid-out waveform rather than minPxPerSec, which the zoom only asks for.
       const pxPerSec = scrollWidth / duration;
       const endPx = Math.min(scrollWidth, scrollLeft + clientWidth);
-      // A playhead landing outside the viewport makes wavesurfer re-centre the waveform, and on an
+      // A playhead landing outside the viewport makes wavesurfer re-center the waveform, and on an
       // exact edge float rounding decides that either way. Both ends are held a half pixel inside,
       // except where the viewport is against the track's own end and the arithmetic is exact.
       return {
@@ -242,12 +242,6 @@ export default defineComponent({
       if (this.wavesurfer) {
         this.wavesurfer.setTime(time);
       }
-    },
-    getCurrentTime() {
-      if (this.wavesurfer) {
-        return this.wavesurfer.getCurrentTime();
-      }
-      return 0;
     },
     isReady() {
       return this.wavesurfer && this.wavesurfer.getDecodedData();
