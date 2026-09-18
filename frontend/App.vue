@@ -30,7 +30,7 @@
               <b-icon icon="circle-dollar-to-slot" size="is-large" title="Buy Me A Coffee">
               </b-icon>
             </b-button>
-            <b-button tag="a" href="https://github.com/vctls/the_tuul" type="is-text">
+            <b-button tag="a" href="https://github.com/vctls/le_toul" type="is-text">
               <b-icon pack="fab" icon="github" size="is-large" title="GitHub"> </b-icon>
             </b-button>
           </div>

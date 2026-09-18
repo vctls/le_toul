@@ -31,7 +31,7 @@ Both take a while the first time.
   - _Keep them:_ MDX-Net (fast), Mel-Band Roformer (aufr33/viperx), Mel-Band Roformer (becruily).
   - _Remove them:_ MDX-Net Inst HQ (fast), BS-Roformer (highest SDR, slowest on CPU).
 - The separation process shows an actual progress indicator as soon as possible.
-- Separation progress also replaces the icon on the Song File tab header, so it stays visible from any other tab.
+- Separation progress also replaces the icon on the Files tab header, so it stays visible from any other tab.
 - **Cancellable jobs.** Separation runs as a background task, so the request no longer blocks, and a
   Cancel button stops a job you started by mistake instead of leaving you to wait it out.
 - Already have an instrumental or an a cappella? Load them directly and skip separation.
@@ -54,10 +54,11 @@ its own pass through the timing tabs, and optionally its own font, weight and co
 
 ### Tapping out the timings
 
-The keys used to tap timing region start and end can now be remapped.  
+The keys used to tap timing region start and end can now be remapped, and so can a third one that
+jumps back to redo the current screen without reaching for the mouse.  
 When changing playback speed, pitch preservation can now be toggled on or off.
 
-![Playback speed, pitch preservation and tapping timings against the seek bar](docs/media/timing-controls.gif)
+![Remapping the start, end and redo keys, the playback speed and pitch preservation, and tapping timings against the seek bar](docs/media/timing-controls.gif)
 
 ### Adjusting timings manually
 
@@ -84,10 +85,12 @@ When changing playback speed, pitch preservation can now be toggled on or off.
 - **Controls for playback rate, pitch preservation, zoom level, playhead preroll, and a global shift**
   in milliseconds for when everything is late by the same amount.
 - **Listen to the vocals alone** while you adjust, instead of the full mix.
+- **A preview of the screen you are on** above the waveform, sized to the window and painted in the
+  app's own colors rather than the video's, so it stays readable in either theme.
 
 ### Editing the timings
 
-- **A advanced Edit tab** for editing timings as `<MM:SS.cc>` text.
+- **An advanced Edit tab** for editing timings as `<MM:SS.cc>` text.
   This makes it possible to fix subtle issues, adjust timings as precisely as you want,
   or copy and paste blocks of timings which can be useful for multi-voice tracks with partial unison.
 
@@ -109,7 +112,8 @@ and a **Start Over** button discards it when you do want a clean slate.
 
 Nothing is lost either way. The Submit tab hands you every source file: lyrics, timings, subtitles,
 settings, fonts and the separated tracks.
-Point the Advanced panel at that folder once extracted to restore the whole project.
+Point **Restore existing files**, on the Files tab, at that folder once extracted to restore the
+whole project.
 Any subset works: a folder with only lyrics and timings restores those, and each file can also be
 loaded on its own.
 
@@ -124,9 +128,14 @@ loaded on its own.
 
 ### Layout and dark theme
 
-The interface follows the system dark theme, waveform and timing rectangles included.  
+The interface follows the system dark theme, waveform and timing rectangles included, and a navbar
+button cycles between following the system, forcing light and forcing dark. The choice sticks across
+reloads.  
 Forms spread into columns when there's room, and collapse when there isn't.  
-The render settings and preview split the space evenly and resize with the window.
+On the Submit tab the settings take a third of the width and the preview the rest, each scrolling on
+its own so neither pushes the other off-screen.
+
+![The theme button cycling through the system theme, forced light and forced dark, repainting the waveform and the timing rectangles with the rest](docs/media/theme-toggle.gif)
 
 Under the hood: strict TypeScript, Prettier and Ruff formatting, a lint action, unit and end-to-end
 test suites, and Docker Compose stacks for dev, production and GPU-backed separation.
@@ -135,7 +144,7 @@ test suites, and Docker Compose stacks for dev, production and GPU-backed separa
 
 The dev stack runs either on the host directly, or in Docker.
 
-To run locally, it requires python 3.13, [poetry](http://python-poetry.org), npm and ffmpeg.
+To run locally, it requires python 3.13, [poetry](http://python-poetry.org), npm and FFmpeg.
 Install it on the host with `make install`.
 
 Copy .env.example to .env and fill out the variables.
