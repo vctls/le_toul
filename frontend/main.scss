@@ -61,7 +61,10 @@
 // so it has to be resolved to a literal colour in JS.
 // Dark mode keeps one colour across the whole region label,
 //  so the fill has to be dark enough to read white on: 5.5:1 at rgb(35, 113, 149).
+// Sadly, this doesn't affect audio players in Firefox.
 @mixin scheme-light {
+  color-scheme: light;
+
   --waveform-wave: rgba(0, 0, 0, 0.1);
   --region-fill: rgba(102, 209, 255, 1);
   --region-label-on-fill: black;
@@ -69,6 +72,8 @@
 }
 
 @mixin scheme-dark {
+  color-scheme: dark;
+
   --waveform-wave: hsl(221deg, 14%, 53%);
   --region-fill: rgb(35, 113, 149);
   --region-label-on-fill: white;
