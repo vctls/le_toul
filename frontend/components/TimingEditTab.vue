@@ -144,6 +144,13 @@ export default defineComponent({
   align-items: center;
   gap: 1rem;
   flex-wrap: wrap;
+  margin-bottom: var(--bulma-block-spacing);
+}
+
+/* Bulma only spaces a title that is :not(:last-child), and the voice selector beside it
+   is v-if'd away for single-voice songs. The row owns the spacing instead. */
+.title-row .title {
+  margin-bottom: 0;
 }
 
 .timing-edit-tab :deep(.timing-editor-textarea) {
