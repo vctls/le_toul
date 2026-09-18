@@ -10,8 +10,8 @@
       <div
         class="column is-4 settings-column"
         :class="{
-          'has-more-above': scrollHints.settings.above,
-          'has-more-below': scrollHints.settings.below,
+          'has-more-above': scrollHints.above,
+          'has-more-below': scrollHints.below,
         }"
         ref="settingsColumn"
         @scroll="updateScrollHints"
@@ -261,16 +261,7 @@
           <voice-style-settings v-if="voices.length > 1" :fonts="fonts" />
         </b-collapse>
       </div>
-      <div
-        class="column is-8 preview-column"
-        :class="{
-          'has-more-above': scrollHints.preview.above,
-          'has-more-below': scrollHints.preview.below,
-        }"
-        ref="previewColumn"
-        @scroll="updateScrollHints"
-        @transitionend="updateScrollHints"
-      >
+      <div class="column is-8 preview-column">
         <h3 class="title">Video Preview</h3>
         <b-field v-if="backingTrack" label="Preview audio" horizontal style="margin-bottom: 0.5em">
           <b-select v-model="previewTrack">
@@ -442,32 +433,26 @@ export default defineComponent({
       isShowingFontsAndColors: true,
       // Vue would proxy the controller, whose methods need the instance itself.
       creation: markRaw({ abort: null as AbortController | null }),
-      // Whether each column has content past its top and bottom edges. See the fade in the styles.
-      scrollHints: {
-        settings: { above: false, below: false },
-        preview: { above: false, below: false },
-      },
+      // Whether the settings column has content past its top and bottom edges. See the fade in the styles.
+      scrollHints: { above: false, below: false },
       // Nothing rendered here, so keep Vue out of it.
       hintObserver: markRaw({ observer: null as ResizeObserver | null }),
     };
   },
   mounted() {
-    // Initialize useBackgroundVideo based on whether the song has a video
     if (this.videoBlob != null) {
       this.videoOptions.useBackgroundVideo = true;
     }
-    // The tab starts hidden, so the columns have no size to measure until it is opened. The
-    // observer's first callback is what catches that, and the tab strip resizing it later.
+    // The tab starts hidden, so the column has no size to measure until it is opened.
+    // The observer's first callback is what catches that, and the tab strip resizing it later.
     this.hintObserver.observer = new ResizeObserver(() => this.updateScrollHints());
-    for (const column of ["settings", "preview"] as const) {
-      const el = this.$refs[`${column}Column`] as HTMLElement | undefined;
-      if (el) {
-        this.hintObserver.observer.observe(el);
-      }
+    const settingsColumn = this.$refs.settingsColumn as HTMLElement | undefined;
+    if (settingsColumn) {
+      this.hintObserver.observer.observe(settingsColumn);
     }
   },
-  // Fields appear and disappear with the count-in mode and the uploaded font, which changes
-  // how far a column scrolls without anyone scrolling it.
+  // Fields appear and disappear with the count-in mode and the uploaded font,
+  // which changes how far a column scrolls without anyone scrolling it.
   updated() {
     this.updateScrollHints();
   },
@@ -532,17 +517,17 @@ export default defineComponent({
     videoBlob(): Blob | null {
       return this.mediaStore.backgroundVideo as Blob | null;
     },
-    // subtitles now comes from the timings store
     audioDelay(): number {
-      // The shared title/count-in screens (which delay the audio) come from the primary
-      // voice — the first voice with timings. Falls back to the active voice's timings.
+      // The shared title/count-in screens (which delay the audio) come from the primary voice,
+      // the first voice with timings.
+      // Falls back to the active voice's timings.
       const primaryVoice = this.timingsStore.voicesWithTimings[0];
       const lyrics = primaryVoice
         ? this.lyricsStore.lyricTextForVoice(primaryVoice)
         : this.lyricText;
       const timings = primaryVoice ? this.timingsStore.timingsForVoice(primaryVoice) : this.timings;
-      // createScreens tolerates partial or missing timings, so this works
-      // even before the timing step is finished.
+      // createScreens tolerates partial or missing timings,
+      // so this works even before the timing step is finished.
       const screens = createScreens(
         lyrics,
         timings,
@@ -571,8 +556,8 @@ export default defineComponent({
       return this.timingsStore.allTimings;
     },
     settingsYaml(): string {
-      // Exports the picked font, not the uploaded one: a settings file naming a font it
-      // can't carry would no longer load back.
+      // Exports the picked font, not the uploaded one:
+      // a settings file naming a font it can't carry would no longer load back.
       const { vocalSeparationModel, color, ...rest } = this.videoOptions;
       const styledVoices = Object.entries(this.settingsStore.voiceStyles).filter(
         ([, style]) => !isEmptyOverride(style),
@@ -605,13 +590,10 @@ export default defineComponent({
   },
   methods: {
     updateScrollHints() {
-      for (const column of ["settings", "preview"] as const) {
-        const el = this.$refs[`${column}Column`] as HTMLElement | undefined;
-        const hint = this.scrollHints[column];
-        // Sub-pixel leftovers are rounding, not content.
-        hint.above = !!el && el.scrollTop > 1;
-        hint.below = !!el && el.scrollHeight - el.scrollTop - el.clientHeight > 1;
-      }
+      const el = this.$refs.settingsColumn as HTMLElement | undefined;
+      // Sub-pixel leftovers are rounding, not content.
+      this.scrollHints.above = !!el && el.scrollTop > 1;
+      this.scrollHints.below = !!el && el.scrollHeight - el.scrollTop - el.clientHeight > 1;
     },
     async onCustomFontChange(file: File | null) {
       try {
@@ -761,31 +743,31 @@ export default defineComponent({
 });
 </script>
 <style>
-/* .fit-content {
-  width: max-content;
-} */
 .field.is-horizontal .field-label {
   flex-grow: 3;
 }
 
-/* These tooltips are appended to the body so the scrolling column can't clip them, which also
-puts them out of reach of this component's scoped styles. Bulma sets the multiline width per
-size class, so overriding its 240px takes a selector naming the size too. */
+/* These tooltips are appended to the body so the scrolling column can't clip them,
+which also puts them out of reach of this component's scoped styles.
+Bulma sets the multiline width per size class, so overriding its 240px takes a selector naming the size too. */
 .b-tooltip.is-multiline.is-medium .tooltip-content.wide-tooltip {
   width: 24rem;
 }
 
-/* Buefy drops the appended wrapper to z-index: -1 as soon as the tooltip starts closing, so
-the fade-out plays out behind the page. Hold it in front for good: once hidden the wrapper is
-zero-sized and its content is display:none, so it covers nothing. Only an ancestor selector
-can reach the wrapper, which Buefy builds in JS and gives no class of its own. */
+/* Buefy drops the appended wrapper to z-index: -1 as soon as the tooltip starts closing,
+so the fade-out plays out behind the page.
+Hold it in front for good:
+once hidden the wrapper is zero-sized and its content is display:none, so it covers nothing.
+Only an ancestor selector can reach the wrapper,
+which Buefy builds in JS and gives no class of its own. */
 body > div:has(> .b-tooltip > .tooltip-content.wide-tooltip) {
   z-index: 99 !important;
 }
 </style>
 <style scoped>
-/* Buefy pins every .tab-item at flex-shrink: 0, which would hold the tab open at its content
-height inside the clipped .tab-content and leave nothing for overflow to scroll. */
+/* Buefy pins every .tab-item at flex-shrink: 0,
+which would hold the tab open at its content height inside the clipped .tab-content
+and leave nothing for overflow to scroll. */
 .b-tabs .tab-content .submit-tab {
   display: flex;
   flex-direction: column;
@@ -795,9 +777,10 @@ height inside the clipped .tab-content and leave nothing for overflow to scroll.
   overflow-y: auto;
 }
 
-/* Bulma only lays the columns side by side from its tablet breakpoint up. There, each column
-scrolls on its own, so a long settings list runs out of room rather than pushing Create Video
-off the bottom. Below it the columns are stacked blocks and the tab scrolls as one. */
+/* Bulma only lays the columns side by side from its tablet breakpoint up.
+Once they are, the settings list scrolls on its own rather than pushing Create Video off the bottom,
+and the preview fits itself to the height beside it.
+Below the breakpoint the columns are stacked blocks and the tab scrolls as one. */
 @media screen and (min-width: 769px) {
   .b-tabs .tab-content .submit-tab {
     overflow-y: hidden;
@@ -808,19 +791,33 @@ off the bottom. Below it the columns are stacked blocks and the tab scrolls as o
     min-height: 0;
   }
 
-  /* A themed, always-present scrollbar where the browser has one to give. Firefox on a
-  desktop with overlay scrolling has not: the spec exempts overlay scrollbars from
-  scrollbar-gutter, and Firefox keeps them whatever these properties say. Hence the fade. */
   .submit-tab > .columns > .column {
     min-height: 0;
+  }
+
+  /* Themed, always-on scrollbar for supporting browsers (not Firefox). */
+  .settings-column {
     overflow-y: auto;
     scrollbar-color: var(--bulma-border) transparent;
     scrollbar-gutter: stable;
   }
 
+  .preview-column {
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+  }
+
+  /* The height the heading and the track picker leave, which the preview fits itself into. */
+  .preview-column > .preview-container {
+    flex: 1 1 auto;
+    min-height: 0;
+  }
+
   /* Fading the content out at an edge reads as "there is more this way" in every browser,
-  scrollbar or no scrollbar. Each class contributes its own stop, so a column scrolled to the
-  middle fades both ends; an edge with nothing past it keeps its stop at zero and stays crisp,
+  scrollbar or no scrollbar.
+  Each class contributes its own stop, so a column scrolled to the middle fades both ends.
+  An edge with nothing past it keeps its stop at zero and stays crisp,
   rather than sitting there permanently dimmed. */
   .submit-tab > .columns > .column.has-more-above,
   .submit-tab > .columns > .column.has-more-below {
@@ -850,20 +847,20 @@ off the bottom. Below it the columns are stacked blocks and the tab scrolls as o
   text-align: center;
 }
 
-/* Flex items default to refusing to shrink below their content, which here means a long file
-name widens its field until it overflows the column. */
+/* Flex items default to refusing to shrink below their content,
+which here means a long file name widens its field until it overflows the column. */
 .submit-tab :deep(.field-body > .field) {
   min-width: 0;
 }
 
-/* Bulma decides label-beside-control on the viewport, from its tablet breakpoint up. This
-column is a third of the viewport, so it has to answer to its own width instead. */
+/* Bulma decides label-beside-control on the viewport, from its tablet breakpoint up.
+This column is a third of the viewport, so it has to answer to its own width instead. */
 .settings-column {
   container-type: inline-size;
 }
 
-/* An even split with the control, rather than the global 3:5: this is the narrow column, and
-at 3:5 twice as many of its labels wrap onto a second line. */
+/* An even split with the control, rather than the global 3:5:
+this is the narrow column, and at 3:5 twice as many of its labels wrap onto a second line. */
 @container (min-width: 30rem) {
   .settings-column :deep(.field.is-horizontal > .field-label) {
     flex-grow: 5;
@@ -883,9 +880,9 @@ at 3:5 twice as many of its labels wrap onto a second line. */
     text-align: left;
   }
 
-  /* Bulma lays .field-body's controls out in a row from its tablet breakpoint up, which is
-  what keeps a multi-control field (the count-in buttons) on one line once the label moves
-  off it. Only the wrapping is ours, for when even that row runs out of room. */
+  /* Bulma lays .field-body's controls out in a row from its tablet breakpoint up,
+  which keeps a multi-control field (the count-in buttons) on one line once the label moves off it.
+  Only the wrapping is ours, for when even that row runs out of room. */
   .settings-column :deep(.field-body) {
     flex-wrap: wrap;
     row-gap: 0.5rem;

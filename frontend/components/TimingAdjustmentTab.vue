@@ -151,13 +151,15 @@ import { resolveThemeColor } from "@/lib/themeColor";
 import { onSchemeChange } from "@/lib/colorScheme";
 import { default as BuefyColor } from "buefy/src/utils/color";
 
-// The arrow keys step by the playhead preroll, so stepping and the preview jump
-// after a drag agree on what one step is worth. Shift takes five of them.
+// The arrow keys step by the playhead preroll,
+// so stepping and the preview jump after a drag agree on what one step is worth.
+// Shift takes five of them.
 const COARSE_STEP_MULTIPLIER = 5;
 
 // The preview here is a working view of the timings, not a proxy for the final video,
 // so it uses the app's own palette and a fixed size rather than the video settings.
-// The size is in SUBTITLE_CANVAS units, so it scales with the preview instead of being a pixel height.
+// The size is in SUBTITLE_CANVAS units,
+// so it scales with the preview instead of being a pixel height.
 const PREVIEW_FONT_SIZE = 20;
 
 // Fallbacks are the light-theme values, applied only where the stylesheet is absent.
@@ -229,8 +231,9 @@ export default defineComponent({
     return {
       // Controls playhead in video and adjuster (in seconds)
       playhead: 0.0,
-      // Last playhead position the user set on purpose (waveform click, player seek,
-      // or the preroll jump after a timing drag), as opposed to one reached by playback running on.
+      // Last playhead position the user set on purpose
+      // (waveform click, player seek, or the preroll jump after a timing drag),
+      // as opposed to one reached by playback running on.
       // Enter replays from here.
       manualPlayhead: 0.0,
       prerollSeconds: 1,
@@ -247,7 +250,8 @@ export default defineComponent({
       // On a voice switch they are saved here and the incoming voice's values are loaded.
       voiceState: {} as Record<VoiceId, AdjustVoiceState>,
       // Debounced copy of `adjustmentSubtitles` fed to the SubtitleDisplay.
-      // Regenerating the ASS file and re-rendering it (SubtitlesOctopus.setTrack, a WASM re-parse) is expensive,
+      // Regenerating the ASS file and re-rendering it is expensive
+      // (SubtitlesOctopus.setTrack is a WASM re-parse),
       // so we defer it until dragging settles.
       debouncedSubtitles: "",
       _subtitleDebounceTimer: null as ReturnType<typeof setTimeout> | null,
@@ -425,7 +429,8 @@ export default defineComponent({
         this.playhead = newPlayhead;
       }
     },
-    // Every seek is a deliberate move of the playhead (playback progress comes through as a timeupdate instead),
+    // Every seek is a deliberate move of the playhead
+    // (playback progress comes through as a timeupdate instead),
     // so it becomes the Enter replay point.
     onSeek(newPlayhead: number) {
       this.manualPlayhead = newPlayhead;
@@ -437,13 +442,16 @@ export default defineComponent({
 
 <style scoped>
 .timing-adjustment-tab {
+  container-type: inline-size;
   display: flex;
   flex-direction: column;
 }
 
-/* The preview is taller than a short window's share of the tab, and the waveform below it is
-the point of the tab, so it has to scroll. Buefy pins .tab-item at flex-shrink: 0, which with
-min-height: auto would hold this one open at content height and leave nothing to scroll. */
+/* Once the preview is down to its floor, a short window still cannot show the rest,
+and the waveform is the point of the tab, so it scrolls.
+Buefy pins .tab-item at flex-shrink: 0,
+which with min-height: auto would hold this one open at content height
+and leave nothing to scroll. */
 .b-tabs .tab-content .timing-adjustment-tab {
   flex-shrink: 1;
   min-height: 0;
@@ -461,15 +469,18 @@ min-height: auto would hold this one open at content height and leave nothing to
   margin-bottom: var(--bulma-block-spacing);
 }
 
-/* Bulma only spaces a title that is :not(:last-child), and the voice selector beside it
-   is v-if'd away for single-voice songs. The row owns the spacing instead. */
+/* Bulma only spaces a title that is :not(:last-child),
+and the voice selector beside it is v-if'd away for single-voice songs.
+The row owns the spacing instead. */
 .title-row .title {
   margin-bottom: 0;
 }
 
-/* Two columns for as long as they fit, in labels-beside-control form while there is room for that and stacked below.
-Bulma keys the same switch off the viewport, which overshoots here: the tab strip takes a fixed slice of it.
-The query has to be answered by an ancestor, hence the wrapper around the grid. */
+/* Two columns for as long as they fit,
+with labels beside their control while there is room for that and stacked below.
+Bulma keys the same switch off the viewport, which overshoots here:
+the tab strip takes a fixed slice of it.
+A container query has to be answered by an ancestor, so the grid needs this wrapper. */
 .adjustment-form {
   container-type: inline-size;
 }
@@ -496,7 +507,8 @@ The query has to be answered by an ancestor, hence the wrapper around the grid. 
   margin: 0 0 0.25rem;
 }
 
-/* Bulma only makes this a row, and only spaces and de-margins its children, from its tablet breakpoint up.
+/* Bulma only makes this a row, and only spaces and de-margins its children,
+from its tablet breakpoint up.
 This tab switches on the container, not the viewport. */
 .adjustment-fields :deep(.field-body) {
   display: flex;
@@ -508,8 +520,8 @@ This tab switches on the container, not the viewport. */
   margin: 0;
 }
 
-/* Bulma's own opt-out for this is .field-body > .field.is-narrow, but BFieldBody
-generates these wrappers itself and forwards no class, so it has to be CSS. */
+/* Bulma's own opt-out for this is .field-body > .field.is-narrow,
+but BFieldBody generates these wrappers itself and forwards no class, so it has to be CSS. */
 .adjustment-fields :deep(.field-body > .field) {
   flex-grow: 0;
   min-width: 0;
@@ -522,12 +534,14 @@ generates these wrappers itself and forwards no class, so it has to be CSS. */
   }
 }
 
-/* Labels move beside their control once each column can hold both, plus room for
-the Apply button beside the widest row: 13rem of label and 10em of control. */
+/* Labels move beside their control once each column can hold both,
+plus room for the Apply button beside the widest row: 13rem of label and 10em of control. */
 @container (min-width: 50rem) {
   /* Both columns get the same label and control tracks, so every field is the same width.
-  The floor clears the longest label; max-content grows a longer one rather than clipping it,
-  at the cost of that column no longer matching. The empty outer tracks of each pair split the leftover space,
+  The floor clears the longest label.
+  max-content grows a longer one rather than clipping it,
+  at the cost of that column no longer matching.
+  The empty outer tracks of each pair split the leftover space,
   centering the label and control in their column. */
   .adjustment-fields {
     grid-template-columns: repeat(
@@ -544,7 +558,8 @@ the Apply button beside the widest row: 13rem of label and 10em of control. */
     display: grid;
     grid-column: span 4;
     grid-template-columns: subgrid;
-    /* Rows stretch to the tallest control on the line; centering keeps each label on its own control. */
+    /* Rows stretch to the tallest control on the line;
+    centering keeps each label on its own control. */
     align-items: center;
   }
 
@@ -564,11 +579,15 @@ the Apply button beside the widest row: 13rem of label and 10em of control. */
   padding-inline: 0.25em;
 }
 
-/* 480px tall at 16:9. libass takes the glyph scale from the frame height, so the preview's
-height is what its text size follows. */
-.subtitle-display {
+/* libass takes the glyph scale from the frame height,
+so 480px is a readable preview and the floor is where it stops being one.
+Shrinking below 480 keeps the waveform on screen.
+The width follows from the height, so the frame is centred. */
+.timing-adjustment-tab > .subtitle-display {
   align-self: center;
-  width: 100%;
-  max-width: calc(480px * 16 / 9);
+  flex: 0 1 auto;
+  height: min(480px, 100cqw * 9 / 16);
+  min-height: 15rem;
+  width: auto;
 }
 </style>
