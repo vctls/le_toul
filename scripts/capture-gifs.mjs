@@ -210,14 +210,16 @@ async function enterLyrics(page, text) {
 /** Uploading a timings file marks timings complete, which enables the Adjust tab. */
 async function uploadTimings(page) {
   await page.click("nav.tabs .song-info-tab-header");
-  await page.click("button:has-text('Advanced')");
   await page.locator('[name="timings-file-upload"] input[type="file"]').setInputFiles(TIMINGS);
 }
 
 async function openAdjustTab(page) {
   await page.click("nav.tabs .timing-adjustment-tab-header");
   await page.locator('h2:has-text("Adjust Timings")').waitFor();
-  await page.locator(".wavesurfer-container").waitFor();
+  const waveform = page.locator(".wavesurfer-container");
+  await waveform.waitFor();
+  // The tab scrolls, and regions are only built while the waveform is on screen.
+  await waveform.scrollIntoViewIfNeeded();
   await page.locator('[part^="region segment_"]').first().waitFor({ timeout: 30000 });
   await sleep(1200);
 }
@@ -601,14 +603,13 @@ async function makeProjectFolder() {
 
 /**
  * The session round trip: Start Over throws the project away, then pointing the
- * Advanced panel at an exported folder brings all of it back.
+ * restore picker at an exported folder brings all of it back.
  */
 async function captureSessionRoundTrip(page) {
   const folder = await makeProjectFolder();
   await gotoApp(page);
   await uploadSong(page);
   await page.locator('[name="title"]').waitFor();
-  await page.click("button:has-text('Advanced')");
   await page.locator('[name="project-folder-upload"]').waitFor();
   await sleep(500);
 
@@ -616,16 +617,19 @@ async function captureSessionRoundTrip(page) {
   await pointer.install();
 
   // One frame has to hold the navbar button at the top right, the song details that empty and refill,
-  // the folder picker down in Advanced, and the toast.
+  // the folder picker in the restore box, and the toast.
   await page.evaluate(() => window.scrollTo(0, 0));
   await sleep(200);
   const form = await page.locator(".song-info-tab").boundingBox();
   const view = page.viewportSize();
+  // The tab fills the viewport whatever its content does, so the height comes from the boxes instead.
+  // The margin covers the left box growing as the restored model name wraps.
+  const boxes = await page.locator(".song-info-tab .columns").boundingBox();
   const clip = {
     x: Math.max(0, Math.round(form.x - 12)),
     y: 0,
     width: Math.round(Math.min(view.width - Math.max(0, form.x - 12), form.width + 24)),
-    height: Math.round(Math.min(form.y + form.height + 12, view.height)),
+    height: Math.round(Math.min(boxes.y + boxes.height + 80, view.height)),
   };
 
   const rec = new Recorder(page, "session-round-trip", clip);
@@ -659,21 +663,7 @@ async function captureSessionRoundTrip(page) {
   }
   await rec.hold(6);
 
-  // Start Over resets the tab's own state too, so Advanced has to be reopened
-  // before the folder picker is there to aim at.
   const upload = page.locator('[name="project-folder-upload"] .file-cta');
-  if ((await upload.count()) === 0) {
-    const advanced = page.locator("button:has-text('Advanced')");
-    const abox = await advanced.boundingBox();
-    await pointer.glideTo(abox.x + abox.width / 2, abox.y + abox.height / 2, rec, 7, 30);
-    await pointer.click(abox.x + abox.width / 2, abox.y + abox.height / 2);
-    await upload.waitFor();
-    for (let i = 0; i < 7; i++) {
-      await sleep(50);
-      await rec.frame();
-    }
-  }
-
   const ubox = await upload.boundingBox();
   const ux = ubox.x + ubox.width / 2;
   const uy = ubox.y + ubox.height / 2;
@@ -974,6 +964,48 @@ async function shootSubmitTab(page, outPath) {
   await normalizeStill(outPath);
 }
 
+/** The navbar button cycling the theme, with the waveform and its rectangles repainting along. */
+async function captureTheme(page) {
+  // Start on a dark system so the forced light step in the middle is the one that stands out.
+  await page.emulateMedia({ colorScheme: "dark" });
+  await setupAdjustView(page);
+  const pointer = new Pointer(page);
+  await pointer.install();
+
+  const waveform = await clipFor(page, page.locator(".wavesurfer-container"));
+  const view = page.viewportSize();
+  // From the navbar down to the bottom of the waveform: the button and what it repaints in one frame.
+  const clip = {
+    x: 0,
+    y: 0,
+    width: view.width,
+    height: Math.round(Math.min(waveform.y + waveform.height + 12, view.height)),
+  };
+
+  const button = page.locator('.navbar button[title^="Theme:"]');
+  const box = await button.boundingBox();
+  const bx = Math.round(box.x + box.width / 2);
+  const by = Math.round(box.y + box.height / 2);
+
+  const rec = new Recorder(page, "theme", clip);
+  await rec.init();
+  await pointer.moveTo(bx, by + 180);
+  await rec.hold(6);
+  await pointer.glideTo(bx, by, rec, 8, 30);
+  await rec.hold(8);
+
+  // system, light, dark and back, holding on each so the repaint is readable.
+  for (let i = 0; i < 3; i++) {
+    await pointer.click(bx, by);
+    for (let f = 0; f < 6; f++) {
+      await sleep(60);
+      await rec.frame();
+    }
+    await rec.hold(16);
+  }
+  return { rec };
+}
+
 const DEFAULT_VIEWPORT = { width: 1280, height: 900 };
 
 const CAPTURES = {
@@ -983,11 +1015,12 @@ const CAPTURES = {
   "round-trip": {
     fn: captureSessionRoundTrip,
     out: "start-over-and-restore.gif",
-    // Tall enough for the whole Song Info form with Advanced open.
+    // Tall enough for both columns of the Files tab.
     viewport: { width: 1180, height: 1180 },
   },
   "multi-voice": { fn: captureMultiVoice, out: "multi-voice.gif" },
   "timing-controls": { fn: captureTimingControls, out: "timing-controls.gif" },
+  theme: { fn: captureTheme, out: "theme-toggle.gif" },
   separation: {
     fn: captureSeparation,
     out: "separation-progress.gif",
