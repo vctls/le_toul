@@ -3,26 +3,28 @@
     <b-message v-if="previewNote" type="is-info" :closable="false">
       {{ previewNote }}
     </b-message>
-    <subtitle-display
-      ref="subtitleDisplay"
-      @click="togglePlayback"
-      :subtitles="subtitles"
-      :audioDelay="audioDelay"
-      :fonts="fonts"
-      :backgroundColor="backgroundColor"
-      :videoBlob="videoBlob"
-    />
-    <smooth-audio-player
-      ref="player"
-      :src="audioDataUrl"
-      controls
-      @timeupdate="onAudioTimeUpdate"
-      @play="onAudioPlaying"
-      @pause="onAudioPause"
-      @seeking="onAudioSeeking"
-      @seeked="onAudioSeeked"
-      @waiting="onAudioWaiting"
-    />
+    <div class="preview-stage">
+      <subtitle-display
+        ref="subtitleDisplay"
+        @click="togglePlayback"
+        :subtitles="subtitles"
+        :audioDelay="audioDelay"
+        :fonts="fonts"
+        :backgroundColor="backgroundColor"
+        :videoBlob="videoBlob"
+      />
+      <smooth-audio-player
+        ref="player"
+        :src="audioDataUrl"
+        controls
+        @timeupdate="onAudioTimeUpdate"
+        @play="onAudioPlaying"
+        @pause="onAudioPause"
+        @seeking="onAudioSeeking"
+        @seeked="onAudioSeeked"
+        @waiting="onAudioWaiting"
+      />
+    </div>
   </div>
 </template>
 
@@ -81,18 +83,21 @@ export default defineComponent({
   data() {
     return {
       audioDataUrl: "",
-      // Nothing here is rendered, hence markRaw.
+      // Nothing in here is rendered, so none of it needs to be reactive.
       view: markRaw({
-        // Object URLs of already-prepared (silence-prepended) tracks, keyed by source blob and the
-        // amount of prepended silence (the audio delay can change while the preview is mounted,
-        // e.g. when count-ins are toggled or timings are edited). Caching makes repeat track
-        // switches instant (preparing a full song takes seconds) and means URLs live until unmount,
-        // so an in-use URL is never revoked (revoking one mid-playback aborts the media fetch and
-        // wedges the <audio> element, notably in Firefox).
+        // Object URLs of already-prepared (silence-prepended) tracks,
+        // keyed by source blob and by how much silence was prepended.
+        // The audio delay can change while the preview is mounted,
+        // for example when count-ins are toggled or timings are edited.
+        // Caching makes repeat track switches instant, since preparing a full song takes seconds.
+        // URLs also live until unmount, so one in use is never revoked:
+        // revoking mid-playback aborts the media fetch and wedges the <audio> element,
+        // notably in Firefox.
         preparedTrackUrls: new Map<Blob, Map<number, string>>(),
-        // The preview stays mounted when its tab is hidden, but its inputs keep changing (every
-        // timing tap updates the audio delay). Preparing audio is expensive, so while hidden we only
-        // remember the latest requested update and apply it when the preview becomes visible again.
+        // The preview stays mounted when its tab is hidden, but its inputs keep changing:
+        // every timing tap updates the audio delay.
+        // Preparing audio is expensive, so while hidden we only remember the latest update
+        // and apply it when the preview becomes visible again.
         isDisplayed: true,
         pendingAudioUpdate: null as { audio: Blob; silence: number } | null,
         visibilityObserver: null as IntersectionObserver | null,
@@ -213,7 +218,6 @@ export default defineComponent({
       audio.addEventListener("loadedmetadata", onLoaded, { once: true });
     },
     async prependSilence(audioData: Blob, secondsOfSilence: number): Promise<Blob> {
-      // Prepend N seconds of silence to the start of the songfile
       if (secondsOfSilence == 0) {
         return audioData;
       }
@@ -223,43 +227,31 @@ export default defineComponent({
       const arrayBuffer = await audioData.arrayBuffer();
       const audioBuffer = await audioContext.decodeAudioData(arrayBuffer);
 
-      // Create an OfflineAudioContext with the desired duration
       const offlineAudioContext = new OfflineAudioContext({
         numberOfChannels: audioBuffer.numberOfChannels,
         length: audioBuffer.length + secondsOfSilence * audioBuffer.sampleRate,
         sampleRate: audioBuffer.sampleRate,
       });
 
-      // Create a source node from the original audio buffer
       const source = offlineAudioContext.createBufferSource();
       source.buffer = audioBuffer;
-
-      // Connect the source node to the destination node (output)
       source.connect(offlineAudioContext.destination);
-
-      // Start rendering the audio
       source.start();
 
-      // Wait for the audio to finish rendering
       const songBuffer = await offlineAudioContext.startRendering();
 
-      // Create a new AudioBuffer with the desired length
       const songWithSilenceBuffer = audioContext.createBuffer(
         songBuffer.numberOfChannels,
         songBuffer.length + secondsOfSilence * audioBuffer.sampleRate,
         songBuffer.sampleRate,
       );
 
-      // Get the channel data from the result buffer
       for (let channel = 0; channel < songBuffer.numberOfChannels; channel++) {
         const resultData = songBuffer.getChannelData(channel);
         const silenceData = songWithSilenceBuffer.getChannelData(channel);
-
-        // Copy the result data to the end of the silence buffer
         silenceData.set(resultData, secondsOfSilence * audioBuffer.sampleRate);
       }
 
-      // Convert the result buffer to a wav
       const wavAudio: ArrayBuffer = bufferToWav(songWithSilenceBuffer);
       return new Blob([new DataView(wavAudio)], {
         type: "audio/wav",
@@ -271,8 +263,8 @@ export default defineComponent({
       this.setPlayhead(currentTime);
       this.$emit("timeupdate", currentTime);
     },
-    // These listeners call some internal libass-wasm functions that dramatically
-    // improve rendering performance
+    // These listeners call some internal libass-wasm functions
+    // that dramatically improve rendering performance
     onAudioPlaying() {
       this.subtitleDisplayRef()?.play();
       this.$emit("playing");
@@ -313,11 +305,35 @@ export default defineComponent({
 </script>
 <style scoped>
 .preview-container {
+  display: flex;
+  flex-direction: column;
   text-align: center;
   width: 100%;
 }
 
+/* The pair is centred as one, so no spare height opens up between the frame and the controls. */
+.preview-stage {
+  container-type: inline-size;
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  justify-content: center;
+  min-height: 0;
+}
+
+/* The frame prefers the height 16:9 wants at the stage's full width,
+and shrinks from there to leave the player its own.
+Its width follows from the height, so the ratio is measured against cqw. */
+.preview-stage :deep(.video-container) {
+  align-self: center;
+  flex: 0 1 auto;
+  height: calc(100cqw * 9 / 16);
+  min-height: 0;
+  width: auto;
+}
+
 .preview-container :deep(audio) {
+  flex-shrink: 0;
   width: 100%;
 }
 
