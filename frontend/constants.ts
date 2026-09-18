@@ -12,18 +12,15 @@ export const LYRIC_MARKERS = {
 // coordinate we compute (line Y positions, voice lanes) is in these units and NOT in output
 // pixels. This must stay in sync with the header written by renderAssDocument: laying out
 // against a different height than we declare puts the text off-centre and can push the
-// lowest lane off the bottom of the frame. 384x288 is libass's default canvas.
+// lowest lane off the bottom of the frame.
+//
+// 16:9, to match the frame we render into (1280x720, see lib/video.ts). libass takes the font
+// scale from PlayResY alone and scales X by frame width / PlayResX, so a canvas of a different
+// aspect than the frame comes out anamorphically stretched. Height is libass's own default.
 export const SUBTITLE_CANVAS = {
-  width: 384,
+  width: 512,
   height: 288,
 };
-
-// PlayResX to declare when the canvas is rendered into a 16:9 frame. libass takes the font
-// scale from PlayResY alone and scales X by frame width / PlayResX, so a canvas whose aspect
-// differs from the frame's comes out anamorphically stretched; widening PlayResX to match
-// the frame is what keeps glyphs at their natural shape. Only the header changes: nothing is
-// laid out against the canvas width.
-export const WIDESCREEN_CANVAS_WIDTH = (SUBTITLE_CANVAS.height * 16) / 9;
 
 export const TITLE_SCREEN_DURATION = 4.0;
 export const INSTRUMENTAL_SCREEN_THRESHOLD = 8.0;

@@ -38,7 +38,7 @@ test.describe("Tab URL fragment", () => {
   test("an unknown fragment falls back to the first tab", async ({ page }) => {
     await page.goto("/#not-a-tab");
 
-    await expect(page.locator("nav.tabs li.is-active")).toHaveText("Introduction");
+    await expect(page.locator("nav.tabs li.is-active")).toHaveText("Intro");
     await expect.poll(() => fragment(page)).toBe("#help");
   });
 

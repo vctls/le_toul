@@ -38,8 +38,8 @@ test.describe("Settings File Upload", () => {
 
     // ...as are the video options, over on the Submit tab
     await navigateToTab(page, TabId.Submit);
-    await expect(radioFor(page, "Add Count-Ins", "line")).toBeChecked();
-    await expect(switchFor(page, "Add Instrumental Breaks")).toBeChecked();
+    await expect(radioFor(page, "Count-Ins", "line")).toBeChecked();
+    await expect(switchFor(page, "Instrumental Breaks")).toBeChecked();
     await expect(fieldFor(page, "Video Format").locator("select")).toHaveValue("mkv");
 
     await page.click("a:has-text('Fonts and Colors')");
@@ -59,6 +59,6 @@ test.describe("Settings File Upload", () => {
     await expect(page.locator(".toast.is-danger")).toBeVisible();
 
     await navigateToTab(page, TabId.Submit);
-    await expect(radioFor(page, "Add Count-Ins", "screen")).toBeChecked();
+    await expect(radioFor(page, "Count-Ins", "screen")).toBeChecked();
   });
 });

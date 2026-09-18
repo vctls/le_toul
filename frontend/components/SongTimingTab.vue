@@ -1,7 +1,7 @@
 <template>
   <b-tab-item
     value="timing"
-    label="Song Timing"
+    label="Timing"
     icon="stopwatch"
     class="wrapper song-timing-tab"
     headerClass="song-timing-tab-header"

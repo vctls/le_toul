@@ -111,7 +111,6 @@
       :subtitles="debouncedSubtitles"
       :fonts="{}"
       :backgroundColor="previewColors.background.toString()"
-      :aspectRatio="PREVIEW_ASPECT_RATIO"
     />
     <timing-adjuster
       v-if="songFile && adjustmentSubtitles"
@@ -148,7 +147,6 @@ import { storeToRefs } from "pinia";
 import { BButton, BField, BNumberinput, BSelect, BSwitch } from "buefy";
 import { VoiceId } from "@/lib/voices";
 import { clampTimingOverlaps } from "@/lib/timingValidation";
-import { WIDESCREEN_CANVAS_WIDTH } from "@/constants";
 import { resolveThemeColor } from "@/lib/themeColor";
 import { default as BuefyColor } from "buefy/src/utils/color";
 
@@ -160,10 +158,6 @@ const COARSE_STEP_MULTIPLIER = 5;
 // uses the app's own palette and a fixed size rather than the video settings. The size is in
 // SUBTITLE_CANVAS units, so it scales with the preview instead of being a pixel height.
 const PREVIEW_FONT_SIZE = 20;
-
-// The output video is 16:9, so the preview is too. WIDESCREEN_CANVAS_WIDTH goes with it: the
-// wider frame would otherwise stretch the default 4:3 canvas across it.
-const PREVIEW_ASPECT_RATIO = "16 / 9";
 
 // Fallbacks are the light-theme values; they only apply where the stylesheet is absent.
 const PREVIEW_PALETTE = {
@@ -256,7 +250,6 @@ export default defineComponent({
       // so we defer it until dragging settles.
       debouncedSubtitles: "",
       _subtitleDebounceTimer: null as ReturnType<typeof setTimeout> | null,
-      PREVIEW_ASPECT_RATIO,
       previewColors: resolvePreviewColors(),
       _schemeQuery: null as MediaQueryList | null,
     };
@@ -287,15 +280,12 @@ export default defineComponent({
       return this.timingsStore.length > 0;
     },
     adjustmentSubtitles(): string {
-      return this.subtitles(
-        {
-          addTitleScreen: false,
-          countInMode: "none",
-          font: { size: PREVIEW_FONT_SIZE },
-          color: this.previewColors,
-        },
-        WIDESCREEN_CANVAS_WIDTH,
-      );
+      return this.subtitles({
+        addTitleScreen: false,
+        countInMode: "none",
+        font: { size: PREVIEW_FONT_SIZE },
+        color: this.previewColors,
+      });
     },
   },
   mounted() {

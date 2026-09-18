@@ -47,9 +47,8 @@ export const useMediaStore = defineStore("media", () => {
   // Background video (if the song is from YouTube)
   const backgroundVideo = shallowRef<Blob | null>(null);
 
-  // Files surfaced in the "Advanced" section of SongInfoTab. The semantic
-  // state they map to (timings array, lyric text, separatedTrack.backing) is held
-  // elsewhere; these refs exist so the FileUpload widgets can re-display the
+  // The semantic state these map to (timings array, lyric text, separatedTrack.backing)
+  // is held elsewhere; these refs exist so the FileUpload widgets can re-display the
   // user's selection after a reload.
   const timingsFile = shallowRef<File | null>(null);
   const lyricsFile = shallowRef<File | null>(null);

@@ -7,35 +7,60 @@
     headerClass="submit-tab-header"
   >
     <div class="columns is-variable is-5">
-      <div class="column settings-column">
+      <div
+        class="column is-4 settings-column"
+        :class="{
+          'has-more-above': scrollHints.settings.above,
+          'has-more-below': scrollHints.settings.below,
+        }"
+        ref="settingsColumn"
+        @scroll="updateScrollHints"
+        @transitionend="updateScrollHints"
+      >
         <h2 class="title">More Settings</h2>
         <b-field horizontal>
           <template #label>
-            Add Count-Ins
+            Count-Ins
             <b-tooltip
+              append-to-body
+              content-class="wide-tooltip"
               multilined
-              label="Add count-in dots so you know when to start singing: before each screen, or before any line that follows a gap"
+              label="Add count-in characters so you know when to start singing: before each screen, or before any line that follows a gap"
             >
               <b-icon size="is-small" icon="circle-question"></b-icon>
             </b-tooltip>
           </template>
-          <div class="radios">
-            <b-radio v-model="videoOptions.countInMode" name="countInMode" native-value="none">
-              None
-            </b-radio>
-            <b-radio v-model="videoOptions.countInMode" name="countInMode" native-value="screen">
-              Screen start
-            </b-radio>
-            <b-radio v-model="videoOptions.countInMode" name="countInMode" native-value="line">
-              Line start
-            </b-radio>
-          </div>
+          <b-radio-button
+            v-model="videoOptions.countInMode"
+            native-value="none"
+            type="is-primary is-light is-outlined"
+          >
+            <span>None</span>
+          </b-radio-button>
+          <b-radio-button
+            v-model="videoOptions.countInMode"
+            native-value="screen"
+            type="is-primary is-light is-outlined"
+          >
+            <span>Screen start</span>
+          </b-radio-button>
+          <b-radio-button
+            v-model="videoOptions.countInMode"
+            native-value="line"
+            type="is-primary is-light is-outlined"
+          >
+            <span>Line start</span>
+          </b-radio-button>
         </b-field>
         <template v-if="videoOptions.countInMode !== 'none'">
           <b-field horizontal>
             <template #label>
               Count-In Text
-              <b-tooltip label="What a count-in shows before the singing starts">
+              <b-tooltip
+                append-to-body
+                content-class="wide-tooltip"
+                label="What a count-in shows before the singing starts"
+              >
                 <b-icon size="is-small" icon="circle-question"></b-icon>
               </b-tooltip>
             </template>
@@ -50,6 +75,8 @@
             <template #label>
               Count-In Gap
               <b-tooltip
+                append-to-body
+                content-class="wide-tooltip"
                 multilined
                 label="Add a count-in when a line starts more than this many seconds after the previous line ends"
               >
@@ -72,6 +99,8 @@
             <template #label>
               Count-In Length
               <b-tooltip
+                append-to-body
+                content-class="wide-tooltip"
                 label="How many seconds a count-in lasts. Can't be longer than the gap above."
               >
                 <b-icon size="is-small" icon="circle-question"></b-icon>
@@ -93,8 +122,12 @@
         </template>
         <b-field horizontal>
           <template #label>
-            Add Instrumental Breaks
-            <b-tooltip label="Add screens that count down long instrumentals">
+            Instrumental Breaks
+            <b-tooltip
+              append-to-body
+              content-class="wide-tooltip"
+              label="Add screens that count down long instrumentals"
+            >
               <b-icon size="is-small" icon="circle-question"></b-icon>
             </b-tooltip> </template
           ><b-switch v-model="videoOptions.addInstrumentalScreens"></b-switch
@@ -103,6 +136,8 @@
           <template #label>
             Show Fast Lines Early
             <b-tooltip
+              append-to-body
+              content-class="wide-tooltip"
               label="Show the first few lines of a screen early if it starts right after the previous screen ends"
             >
               <b-icon size="is-small" icon="circle-question"></b-icon>
@@ -116,6 +151,8 @@
           <template #label>
             Video Format
             <b-tooltip
+              append-to-body
+              content-class="wide-tooltip"
               multilined
               label="MKV also carries the vocals and the original mix as extra audio tracks, for players that can switch between them"
             >
@@ -155,6 +192,8 @@
             <template #label>
               Custom Font
               <b-tooltip
+                append-to-body
+                content-class="wide-tooltip"
                 label="Upload your own .ttf or .otf font file. It overrides the font picked above."
               >
                 <b-icon size="is-small" icon="circle-question"></b-icon>
@@ -222,7 +261,16 @@
           <voice-style-settings v-if="voices.length > 1" :fonts="fonts" />
         </b-collapse>
       </div>
-      <div class="column">
+      <div
+        class="column is-8 preview-column"
+        :class="{
+          'has-more-above': scrollHints.preview.above,
+          'has-more-below': scrollHints.preview.below,
+        }"
+        ref="previewColumn"
+        @scroll="updateScrollHints"
+        @transitionend="updateScrollHints"
+      >
         <h3 class="title">Video Preview</h3>
         <b-field v-if="backingTrack" label="Preview audio" horizontal style="margin-bottom: 0.5em">
           <b-select v-model="previewTrack">
@@ -394,6 +442,13 @@ export default defineComponent({
       isShowingFontsAndColors: true,
       // Vue would proxy the controller, whose methods need the instance itself.
       creation: markRaw({ abort: null as AbortController | null }),
+      // Whether each column has content past its top and bottom edges. See the fade in the styles.
+      scrollHints: {
+        settings: { above: false, below: false },
+        preview: { above: false, below: false },
+      },
+      // Nothing rendered here; keep Vue out of it.
+      hintObserver: markRaw({ observer: null as ResizeObserver | null }),
     };
   },
   mounted() {
@@ -401,6 +456,23 @@ export default defineComponent({
     if (this.videoBlob != null) {
       this.videoOptions.useBackgroundVideo = true;
     }
+    // The tab starts hidden, so the columns have no size to measure until it is opened; the
+    // observer's first callback is what catches that, and the tab strip resizing it later.
+    this.hintObserver.observer = new ResizeObserver(() => this.updateScrollHints());
+    for (const column of ["settings", "preview"] as const) {
+      const el = this.$refs[`${column}Column`] as HTMLElement | undefined;
+      if (el) {
+        this.hintObserver.observer.observe(el);
+      }
+    }
+  },
+  // Fields appear and disappear with the count-in mode and the uploaded font, which changes
+  // how far a column scrolls without anyone scrolling it.
+  updated() {
+    this.updateScrollHints();
+  },
+  beforeUnmount() {
+    this.hintObserver.observer?.disconnect();
   },
 
   computed: {
@@ -532,6 +604,15 @@ export default defineComponent({
     },
   },
   methods: {
+    updateScrollHints() {
+      for (const column of ["settings", "preview"] as const) {
+        const el = this.$refs[`${column}Column`] as HTMLElement | undefined;
+        const hint = this.scrollHints[column];
+        // Sub-pixel leftovers are rounding, not content.
+        hint.above = !!el && el.scrollTop > 1;
+        hint.below = !!el && el.scrollHeight - el.scrollTop - el.clientHeight > 1;
+      }
+    },
     async onCustomFontChange(file: File | null) {
       try {
         await this.settingsStore.setCustomFont(file);
@@ -686,19 +767,129 @@ export default defineComponent({
 .field.is-horizontal .field-label {
   flex-grow: 3;
 }
+
+/* These tooltips are appended to the body so the scrolling column can't clip them, which also
+puts them out of reach of this component's scoped styles. Bulma sets the multiline width per
+size class, so overriding its 240px takes a selector naming the size too. */
+.b-tooltip.is-multiline.is-medium .tooltip-content.wide-tooltip {
+  width: 24rem;
+}
+
+/* Buefy drops the appended wrapper to z-index: -1 as soon as the tooltip starts closing, so
+the fade-out plays out behind the page. Hold it in front for good: once hidden the wrapper is
+zero-sized and its content is display:none, so it covers nothing. Only an ancestor selector
+can reach the wrapper, which Buefy builds in JS and gives no class of its own. */
+body > div:has(> .b-tooltip > .tooltip-content.wide-tooltip) {
+  z-index: 99 !important;
+}
 </style>
 <style scoped>
-.submit-tab {
+/* Buefy pins every .tab-item at flex-shrink: 0, which would hold the tab open at its content
+height inside the clipped .tab-content and leave nothing for overflow to scroll. */
+.b-tabs .tab-content .submit-tab {
+  display: flex;
+  flex-direction: column;
+  flex-shrink: 1;
+  min-height: 0;
   overflow-x: hidden;
   overflow-y: auto;
+}
+
+/* Bulma only lays the columns side by side from its tablet breakpoint up. There, each column
+scrolls on its own, so a long settings list runs out of room rather than pushing Create Video
+off the bottom. Below it the columns are stacked blocks and the tab scrolls as one. */
+@media screen and (min-width: 769px) {
+  .b-tabs .tab-content .submit-tab {
+    overflow-y: hidden;
+  }
+
+  .submit-tab > .columns {
+    flex: 1 1 auto;
+    min-height: 0;
+  }
+
+  /* A themed, always-present scrollbar where the browser has one to give. Firefox on a
+  desktop with overlay scrolling has not: the spec exempts overlay scrollbars from
+  scrollbar-gutter, and Firefox keeps them whatever these properties say. Hence the fade. */
+  .submit-tab > .columns > .column {
+    min-height: 0;
+    overflow-y: auto;
+    scrollbar-color: var(--bulma-border) transparent;
+    scrollbar-gutter: stable;
+  }
+
+  /* Fading the content out at an edge reads as "there is more this way" in every browser,
+  scrollbar or no scrollbar. Each class contributes its own stop, so a column scrolled to the
+  middle fades both ends; an edge with nothing past it keeps its stop at zero and stays crisp,
+  rather than sitting there permanently dimmed. */
+  .submit-tab > .columns > .column.has-more-above,
+  .submit-tab > .columns > .column.has-more-below {
+    mask-image: linear-gradient(
+      to bottom,
+      transparent 0,
+      #000 var(--fade-above, 0px),
+      #000 calc(100% - var(--fade-below, 0px)),
+      transparent 100%
+    );
+  }
+
+  .submit-tab > .columns > .column.has-more-above {
+    --fade-above: 2.5rem;
+  }
+
+  .submit-tab > .columns > .column.has-more-below {
+    --fade-below: 2.5rem;
+  }
+
+  .submit-button-container {
+    flex-shrink: 0;
+  }
 }
 
 .submit-tab .column {
   text-align: center;
 }
 
-.settings-column :deep(.b-tooltip.is-multiline .tooltip-content) {
-  width: 24rem;
+/* Flex items default to refusing to shrink below their content, which here means a long file
+name widens its field until it overflows the column. */
+.submit-tab :deep(.field-body > .field) {
+  min-width: 0;
+}
+
+/* Bulma decides label-beside-control on the viewport, from its tablet breakpoint up. This
+column is a third of the viewport, so it has to answer to its own width instead. */
+.settings-column {
+  container-type: inline-size;
+}
+
+/* An even split with the control, rather than the global 3:5: this is the narrow column, and
+at 3:5 twice as many of its labels wrap onto a second line. */
+@container (min-width: 30rem) {
+  .settings-column :deep(.field.is-horizontal > .field-label) {
+    flex-grow: 5;
+  }
+}
+
+/* Undo what Bulma's own breakpoint adds, which is all that makes the row. */
+@container (max-width: 30rem) {
+  .settings-column :deep(.field.is-horizontal) {
+    display: block;
+  }
+
+  .settings-column :deep(.field-label) {
+    flex: initial;
+    margin-block-end: 0.5rem;
+    margin-inline-end: 0;
+    text-align: left;
+  }
+
+  /* Bulma lays .field-body's controls out in a row from its tablet breakpoint up, which is
+  what keeps a multi-control field (the count-in buttons) on one line once the label moves
+  off it. Only the wrapping is ours, for when even that row runs out of room. */
+  .settings-column :deep(.field-body) {
+    flex-wrap: wrap;
+    row-gap: 0.5rem;
+  }
 }
 
 /* Bulma's label padding assumes a one-line input; these rows hold taller controls. */

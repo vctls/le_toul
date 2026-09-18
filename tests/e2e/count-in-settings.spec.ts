@@ -8,20 +8,20 @@ test.describe("Count-In Settings", () => {
   });
 
   test("count-ins are on a screen's first line by default", async ({ page }) => {
-    await expect(radioFor(page, "Add Count-Ins", "screen")).toBeChecked();
+    await expect(radioFor(page, "Count-Ins", "screen")).toBeChecked();
   });
 
   test("the count-in fields are only shown when count-ins are on", async ({ page }) => {
     await expect(fieldFor(page, "Count-In Text")).toBeVisible();
 
-    // The real radio sits under Buefy's own markup, so click its label instead.
-    await fieldFor(page, "Add Count-Ins").locator(".radio", { hasText: "None" }).click();
-    await expect(radioFor(page, "Add Count-Ins", "none")).toBeChecked();
+    // The real radio sits under Buefy's own markup, so click its button instead.
+    await fieldFor(page, "Count-Ins").locator("label.button", { hasText: "None" }).click();
+    await expect(radioFor(page, "Count-Ins", "none")).toBeChecked();
 
     await expect(fieldFor(page, "Count-In Text")).toBeHidden();
 
-    await fieldFor(page, "Add Count-Ins").locator(".radio", { hasText: "Line start" }).click();
-    await expect(radioFor(page, "Add Count-Ins", "line")).toBeChecked();
+    await fieldFor(page, "Count-Ins").locator("label.button", { hasText: "Line start" }).click();
+    await expect(radioFor(page, "Count-Ins", "line")).toBeChecked();
     await expect(fieldFor(page, "Count-In Text")).toBeVisible();
   });
 

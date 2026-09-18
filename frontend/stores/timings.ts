@@ -118,7 +118,7 @@ export const useTimingsStore = defineStore("timings", {
     },
 
     subtitles() {
-      return (options: VideoSettingsOverride = {}, canvasWidth?: number): string => {
+      return (options: VideoSettingsOverride = {}): string => {
         // Return empty string if there are no timings at all
         if (this.length === 0) {
           return "";
@@ -152,7 +152,6 @@ export const useTimingsStore = defineStore("timings", {
             mediaStore.songTitle ?? "",
             mediaStore.songArtist ?? "",
             adjustedOptions,
-            canvasWidth,
           );
         } catch (e) {
           console.error("Failed to create subtitles", e);
