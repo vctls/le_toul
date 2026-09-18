@@ -16,6 +16,13 @@ const TIMINGS_STORAGE_KEY = "timings._timings";
 const ACTIVE_VOICE_STORAGE_KEY = "timings._activeVoice";
 
 type Timings = Array<[number, number]>;
+
+// Video settings as a subtitle caller may override them: any subset, down to a single
+// font or color field.
+type VideoSettingsOverride = Partial<Omit<VideoSettings, "font" | "color">> & {
+  font?: Partial<VideoSettings["font"]>;
+  color?: Partial<VideoSettings["color"]>;
+};
 type TimingsByVoice = Record<VoiceId, Timings>;
 
 function loadTimingsByVoice(): TimingsByVoice {
@@ -111,7 +118,7 @@ export const useTimingsStore = defineStore("timings", {
     },
 
     subtitles() {
-      return (options: Partial<VideoSettings> = {}): string => {
+      return (options: VideoSettingsOverride = {}, canvasWidth?: number): string => {
         // Return empty string if there are no timings at all
         if (this.length === 0) {
           return "";
@@ -129,9 +136,13 @@ export const useTimingsStore = defineStore("timings", {
             settingsStore.getVoiceStyle(this.activeVoice),
           );
 
+          // font and color merge field by field, so a caller can override one of them
+          // (the Adjust preview's own palette) without restating the rest.
           const adjustedOptions = {
             ...voiceOptions,
             ...options,
+            font: { ...voiceOptions.font, ...options.font },
+            color: { ...voiceOptions.color, ...options.color },
           };
 
           return createAssFile(
@@ -141,6 +152,7 @@ export const useTimingsStore = defineStore("timings", {
             mediaStore.songTitle ?? "",
             mediaStore.songArtist ?? "",
             adjustedOptions,
+            canvasWidth,
           );
         } catch (e) {
           console.error("Failed to create subtitles", e);
