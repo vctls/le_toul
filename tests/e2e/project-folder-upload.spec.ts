@@ -44,7 +44,6 @@ async function makeProjectFolder(): Promise<string> {
 
 async function loadProjectFolder(page: Page, folder: string): Promise<void> {
   await navigateToTab(page, TabId.SongInfo);
-  await page.click("button:has-text('Advanced')");
   await page.locator('[name="project-folder-upload"] input[type="file"]').setInputFiles(folder);
 }
 

@@ -15,7 +15,6 @@ async function uploadSettingsFile(
   files: Parameters<ReturnType<Page["locator"]>["setInputFiles"]>[0],
 ) {
   await navigateToTab(page, TabId.SongInfo);
-  await page.click("button:has-text('Advanced')");
   await page.locator('[name="settings-file-upload"] input[type="file"]').setInputFiles(files);
 }
 

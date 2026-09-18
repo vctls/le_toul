@@ -92,16 +92,13 @@ export async function loadAndEnterLyrics(
 }
 
 /**
- * Uploads a timings file through the advanced options
+ * Uploads a timings file through the restore box on the Files tab
  */
 export async function uploadTimingsFile(page: Page, timingsFilename: string): Promise<void> {
   // Navigate to song info tab if not already there
   if (!(await page.locator(".song-info-tab").isVisible())) {
     await navigateToTab(page, TabId.SongInfo);
   }
-
-  // Click advanced button to reveal timings file upload
-  await page.click("button:has-text('Advanced')");
 
   // Upload the timings file
   const timingsFilePath = getFixturePath(timingsFilename);
