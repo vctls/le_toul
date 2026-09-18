@@ -1,5 +1,5 @@
 <template>
-  <div class="video-container" :style="{ aspectRatio }">
+  <div class="video-container">
     <video class="background-video" v-if="videoBlob" ref="video" :src="videoDataUrl" />
     <canvas
       class="subtitle-canvas"
@@ -45,10 +45,6 @@ export default defineComponent({
     backgroundColor: {
       type: String,
       default: "#000000",
-    },
-    aspectRatio: {
-      type: String,
-      default: "4 / 3",
     },
     videoBlob: {
       type: Blob,
@@ -207,9 +203,11 @@ export default defineComponent({
 </script>
 
 <style scoped>
+/* The shape of the output video, which frontend/lib/video.ts renders at 1280x720. */
 .video-container {
   position: relative;
   width: 100%;
+  aspect-ratio: 16 / 9;
 }
 
 .background-video {

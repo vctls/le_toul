@@ -1,10 +1,10 @@
 <template>
-  <b-tab-item value="help" label="Introduction" icon="circle-info" class="scroll-wrapper">
+  <b-tab-item value="help" label="Intro" icon="circle-info" class="scroll-wrapper">
     <div class="content">
       <p>
-        <strong>Step 1: Choose a music file.</strong> Click the <code>Song File</code> tab and pick
-        your song via a YouTube URL or local file. Easy. Click `Start Separation` to start the
-        process of creating the instrumental track while you work on the rest of it.
+        <strong>Step 1: Choose a music file.</strong> Click the <code>Files</code> tab and pick your
+        song via a YouTube URL or local file. Easy. Click `Start Separation` to start the process of
+        creating the instrumental track while you work on the rest of it.
       </p>
       <p>
         <strong>Step 2: Prepare the lyrics.</strong> Paste song lyrics into the
@@ -41,8 +41,8 @@
       <p>
         If your song has multiple voices, you will have to do the whole timing process for each
         voice. The voice to work on will be selectable from the upper right menu, next to the title
-        of the Song Timing, Adjust and Edit tabs. If you want to have perfectly matching unison, you
-        can copy-paste blocks of timings between voices using the Edit tab.
+        of the Timing, Adjust and Edit tabs. If you want to have perfectly matching unison, you can
+        copy-paste blocks of timings between voices using the Edit tab.
       </p>
       <p>
         <strong>Step 6: Create The Video.</strong> After you've given an Enter press to the last

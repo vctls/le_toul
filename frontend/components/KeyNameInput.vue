@@ -79,7 +79,10 @@ export default defineComponent({
 </script>
 
 <style scoped>
-.key-name-input {
+/* These sit in a flex row with its own gap, so Bulma's spacing between stacked fields only
+pushes the non-last one out of line.
+Qualified with .field to win the specificity tie against Bulma's own .field:not(:last-child). */
+.field.key-name-input {
   margin-bottom: 0;
 }
 

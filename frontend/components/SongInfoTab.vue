@@ -12,187 +12,189 @@
         </span>
         <span v-else class="icon is-small loader"></span>
       </b-tooltip>
-      <span> Song File</span>
+      <span> Files</span>
     </template>
     <h2 class="title">Get Your Song Ready</h2>
-    <file-upload
-      name="song-file-upload"
-      label="Upload a file from your computer:"
-      tooltip="The full song, as audio or video. Its vocals are separated out to make the backing track."
-      v-model="mediaStore.songFile"
-    ></file-upload>
-    <b-field label="Or paste a YouTube video URL:" :type="youtubeError ? 'is-danger' : ''">
-      <template #message>
-        <span v-html="youtubeError"></span>
-      </template>
-      <b-input
-        type="text"
-        :model-value="mediaStore.youtubeUrl ?? ''"
-        @update:model-value="
-          (v: string | number | undefined) => {
-            mediaStore.youtubeUrl = v == null ? null : String(v);
-          }
-        "
-      />
-      <b-button
-        label="Load"
-        :type="mediaStore.youtubeUrl ? 'is-primary' : 'is-light'"
-        :disabled="!mediaStore.youtubeUrl"
-        @click="loadYouTubeUrl"
-        :loading="isLoadingYouTube"
-      />
-    </b-field>
-    <b-field label="Song Artist">
-      <b-input
-        class="metadata-input"
-        name="artist"
-        :model-value="mediaStore.songArtist ?? ''"
-        @update:model-value="
-          (v: string | number | undefined) => {
-            mediaStore.songArtist = v == null ? null : String(v);
-          }
-        "
-      />
-    </b-field>
-    <b-field label="Song Title">
-      <b-input
-        class="metadata-input"
-        name="title"
-        :model-value="mediaStore.songTitle ?? ''"
-        @update:model-value="
-          (v: string | number | undefined) => {
-            mediaStore.songTitle = v == null ? null : String(v);
-          }
-        "
-      />
-    </b-field>
-    <b-field label="Separation Model" class="separation-model-field">
-      <div class="separation-model-radios">
-        <div class="model-group-label">Keep backing vocals</div>
-        <b-radio
-          v-model="mediaStore.separationModel"
-          :native-value="BACKING_VOCALS_SEPARATOR_MODEL"
-        >
-          MDX-Net <span class="hint">(fast)</span>
-        </b-radio>
-        <b-radio
-          v-model="mediaStore.separationModel"
-          :native-value="BACKING_VOCALS_HQ_SEPARATOR_MODEL"
-        >
-          Mel-Band Roformer (aufr33/viperx)
-          <span class="hint">(high quality · minutes per song on CPU)</span>
-        </b-radio>
-        <b-radio
-          v-model="mediaStore.separationModel"
-          :native-value="BACKING_VOCALS_HQ_ALT_SEPARATOR_MODEL"
-        >
-          Mel-Band Roformer (becruily)
-          <span class="hint">(high quality, newer · minutes per song on CPU)</span>
-        </b-radio>
-        <div class="model-group-label">Remove backing vocals</div>
-        <b-radio v-model="mediaStore.separationModel" :native-value="NO_VOCALS_SEPARATOR_MODEL">
-          MDX-Net Inst HQ <span class="hint">(fast)</span>
-        </b-radio>
-        <b-radio v-model="mediaStore.separationModel" :native-value="NO_VOCALS_HQ_SEPARATOR_MODEL">
-          BS-Roformer
-          <span class="hint">(highest SDR · slowest on CPU)</span>
-        </b-radio>
-      </div>
-    </b-field>
+    <div class="columns is-desktop is-variable is-5">
+      <div class="column">
+        <div class="box">
+          <file-upload
+            name="song-file-upload"
+            label="Upload a file from your computer"
+            tooltip="The full song, as audio or video. Its vocals are separated out to make the backing track."
+            v-model="mediaStore.songFile"
+          ></file-upload>
+          <b-field label="Or paste a YouTube video URL" :type="youtubeError ? 'is-danger' : ''">
+            <template #message>
+              <span v-html="youtubeError"></span>
+            </template>
+            <b-input
+              type="text"
+              :model-value="mediaStore.youtubeUrl ?? ''"
+              @update:model-value="
+                (v: string | number | undefined) => {
+                  mediaStore.youtubeUrl = v == null ? null : String(v);
+                }
+              "
+            />
+            <b-button
+              label="Load"
+              :type="mediaStore.youtubeUrl ? 'is-primary' : 'is-light'"
+              :disabled="!mediaStore.youtubeUrl"
+              @click="loadYouTubeUrl"
+              :loading="isLoadingYouTube"
+            />
+          </b-field>
+          <b-field label="Song Artist">
+            <b-input
+              class="metadata-input"
+              name="artist"
+              :model-value="mediaStore.songArtist ?? ''"
+              @update:model-value="
+                (v: string | number | undefined) => {
+                  mediaStore.songArtist = v == null ? null : String(v);
+                }
+              "
+            />
+          </b-field>
+          <b-field label="Song Title">
+            <b-input
+              class="metadata-input"
+              name="title"
+              :model-value="mediaStore.songTitle ?? ''"
+              @update:model-value="
+                (v: string | number | undefined) => {
+                  mediaStore.songTitle = v == null ? null : String(v);
+                }
+              "
+            />
+          </b-field>
+          <b-field label="Separation Model" class="separation-model-field">
+            <div class="separation-model-radios">
+              <div class="model-group-label">Keep backing vocals</div>
+              <b-radio
+                v-model="mediaStore.separationModel"
+                :native-value="BACKING_VOCALS_SEPARATOR_MODEL"
+              >
+                MDX-Net <span class="hint">(fast)</span>
+              </b-radio>
+              <b-radio
+                v-model="mediaStore.separationModel"
+                :native-value="BACKING_VOCALS_HQ_SEPARATOR_MODEL"
+              >
+                Mel-Band Roformer (aufr33/viperx)
+                <span class="hint">(high quality · minutes per song on CPU)</span>
+              </b-radio>
+              <b-radio
+                v-model="mediaStore.separationModel"
+                :native-value="BACKING_VOCALS_HQ_ALT_SEPARATOR_MODEL"
+              >
+                Mel-Band Roformer (becruily)
+                <span class="hint">(high quality, newer · minutes per song on CPU)</span>
+              </b-radio>
+              <div class="model-group-label">Remove backing vocals</div>
+              <b-radio
+                v-model="mediaStore.separationModel"
+                :native-value="NO_VOCALS_SEPARATOR_MODEL"
+              >
+                MDX-Net Inst HQ <span class="hint">(fast)</span>
+              </b-radio>
+              <b-radio
+                v-model="mediaStore.separationModel"
+                :native-value="NO_VOCALS_HQ_SEPARATOR_MODEL"
+              >
+                BS-Roformer
+                <span class="hint">(highest SDR · slowest on CPU)</span>
+              </b-radio>
+            </div>
+          </b-field>
 
-    <b-collapse v-model="isShowingAdvanced">
-      <template #trigger="props">
-        <b-button type="is-text" aria-controls="contentIdForA11y4" :aria-expanded="props.open">
-          <span>Advanced</span>
-          <b-icon :icon="props.open ? 'angle-down' : 'angle-right'"></b-icon>
-        </b-button>
-      </template>
-      <div class="box">
-        <div class="columns is-multiline is-variable is-4">
-          <div class="column is-full">
-            <folder-upload
-              name="project-folder-upload"
-              expanded
-              label="Project Folder"
-              tooltip="A folder of files downloaded from the Submit tab and extracted. Loads whichever of the song, lyrics, timings, settings, tracks and font it holds."
-              @select="onProjectFolderSelect"
-            />
+          <div class="buttons">
+            <b-tooltip
+              position="is-right"
+              :label="separatingTrackMessage"
+              :always="isSeparatingTrack"
+            >
+              <b-button
+                label="Separate Track"
+                type="is-primary"
+                :disabled="!mediaStore.songFile || isSeparatingTrack"
+                :loading="isSeparatingTrack"
+                @click="separateTrack"
+              />
+            </b-tooltip>
           </div>
-          <div class="column is-half-tablet is-one-third-desktop">
-            <file-upload
-              name="settings-file-upload"
-              :accept="['.yaml', '.yml']"
-              label="Settings File"
-              tooltip="A settings.yaml exported from the Submit tab. Restores the video options, voice styles and song details."
-              v-model="mediaStore.settingsFile"
-              @update:modelValue="onSettingsFileChange"
-            />
-          </div>
-          <div class="column is-half-tablet is-one-third-desktop">
-            <file-upload
-              name="lyrics-file-upload"
-              :accept="['.txt', 'text/plain']"
-              label="Lyrics File"
-              tooltip="A plain text lyrics file. Its contents replace whatever is in the Lyrics tab."
-              v-model="mediaStore.lyricsFile"
-              @update:modelValue="onLyricsFileChange"
-            />
-          </div>
-          <div class="column is-half-tablet is-one-third-desktop">
-            <file-upload
-              name="timings-file-upload"
-              :accept="['.json']"
-              label="Timings File"
-              tooltip="A timings.json exported from the Submit tab. Restores the timings you tapped out, so you can pick up where you left off."
-              v-model="mediaStore.timingsFile"
-              @update:modelValue="onTimingsFileChange"
-            />
-          </div>
-          <div class="column is-half-tablet is-one-third-desktop">
-            <file-upload
-              name="backing-track-upload"
-              label="Backing Track"
-              tooltip="An instrumental track you already have. Skips the separation step."
-              v-model="mediaStore.backingTrackFile"
-              @update:modelValue="onBackingTrackFileChange"
-            />
-          </div>
-          <div class="column is-half-tablet is-one-third-desktop">
-            <file-upload
-              name="vocal-track-upload"
-              label="Vocal Track"
-              tooltip="A vocals-only track you already have. Used to check your timings against the singing."
-              v-model="mediaStore.vocalTrackFile"
-              @update:modelValue="onVocalTrackFileChange"
-            />
+          <div class="separation-progress" v-if="isSeparatingTrack">
+            <b-progress
+              type="is-primary"
+              size="is-medium"
+              :rounded="false"
+              :value="separationPercent"
+              show-value
+            >
+              {{ separationProgressMessage }}
+            </b-progress>
+            <!-- Beside the Separate Track button, its always-on tooltip would swallow the clicks. -->
+            <b-button label="Cancel" type="is-danger is-light" @click="cancelSeparation" />
           </div>
         </div>
       </div>
-    </b-collapse>
 
-    <div class="buttons">
-      <b-tooltip position="is-right" :label="separatingTrackMessage" :always="isSeparatingTrack">
-        <b-button
-          label="Separate Track"
-          type="is-primary"
-          :disabled="!mediaStore.songFile || isSeparatingTrack"
-          :loading="isSeparatingTrack"
-          @click="separateTrack"
-        />
-      </b-tooltip>
-    </div>
-    <div class="separation-progress" v-if="isSeparatingTrack">
-      <b-progress
-        type="is-primary"
-        size="is-medium"
-        :rounded="false"
-        :value="separationPercent"
-        show-value
-      >
-        {{ separationProgressMessage }}
-      </b-progress>
-      <!-- Beside the Separate Track button, its always-on tooltip would swallow the clicks. -->
-      <b-button label="Cancel" type="is-danger is-light" @click="cancelSeparation" />
+      <div class="column">
+        <div class="box existing-files">
+          <h3 class="title is-5">Restore existing files</h3>
+          <folder-upload
+            name="project-folder-upload"
+            expanded
+            label="Project Folder"
+            tooltip="A folder of files downloaded from the Submit tab and extracted. Loads whichever of the song, lyrics, timings, settings, tracks and font it holds."
+            @select="onProjectFolderSelect"
+          />
+          <file-upload
+            expanded
+            name="settings-file-upload"
+            :accept="['.yaml', '.yml']"
+            label="Settings File"
+            tooltip="A settings.yaml exported from the Submit tab. Restores the video options, voice styles and song details."
+            v-model="mediaStore.settingsFile"
+            @update:modelValue="onSettingsFileChange"
+          />
+          <file-upload
+            expanded
+            name="lyrics-file-upload"
+            :accept="['.txt', 'text/plain']"
+            label="Lyrics File"
+            tooltip="A plain text lyrics file. Its contents replace whatever is in the Lyrics tab."
+            v-model="mediaStore.lyricsFile"
+            @update:modelValue="onLyricsFileChange"
+          />
+          <file-upload
+            expanded
+            name="timings-file-upload"
+            :accept="['.json']"
+            label="Timings File"
+            tooltip="A timings.json exported from the Submit tab. Restores the timings you tapped out, so you can pick up where you left off."
+            v-model="mediaStore.timingsFile"
+            @update:modelValue="onTimingsFileChange"
+          />
+          <file-upload
+            expanded
+            name="backing-track-upload"
+            label="Backing Track"
+            tooltip="An instrumental track you already have. Skips the separation step."
+            v-model="mediaStore.backingTrackFile"
+            @update:modelValue="onBackingTrackFileChange"
+          />
+          <file-upload
+            expanded
+            name="vocal-track-upload"
+            label="Vocal Track"
+            tooltip="A vocals-only track you already have. Used to check your timings against the singing."
+            v-model="mediaStore.vocalTrackFile"
+            @update:modelValue="onVocalTrackFileChange"
+          />
+        </div>
+      </div>
     </div>
 
     <confirm-modal
@@ -279,7 +281,6 @@ export default defineComponent({
       BACKING_VOCALS_HQ_SEPARATOR_MODEL,
       BACKING_VOCALS_HQ_ALT_SEPARATOR_MODEL,
       NO_VOCALS_HQ_SEPARATOR_MODEL,
-      isShowingAdvanced: false,
       isConfirmingSeparation: false,
     };
   },

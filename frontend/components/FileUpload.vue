@@ -75,4 +75,12 @@ export default defineComponent({
   flex: 1;
   max-width: none;
 }
+
+/* Dropping Bulma's 16em cap above also drops the only bound on the control's max-content
+width, which a flex parent takes as the width it may not shrink below. A long file name then
+pushes the delete button out of a narrow column instead of ellipsising. */
+.upload.is-expanded,
+.upload.is-expanded .file-name {
+  min-width: 0;
+}
 </style>
