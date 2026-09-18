@@ -1,13 +1,18 @@
-// The keys a user taps to mark the start and end of a timing. Stored as
-// KeyboardEvent.code names; the timings store still speaks legacy keyCode numbers, so
+// The keys a user taps while timing a song: the two timing markers and the redo-screen shortcut.
+// Stored as KeyboardEvent.code names. The timings store still speaks legacy keyCode numbers, so
 // SongTimingTab translates at the boundary.
 
 export interface TimingKeys {
   start: string;
   end: string;
+  redo: string;
 }
 
-export const DEFAULT_TIMING_KEYS: TimingKeys = { start: "Space", end: "Enter" };
+export const DEFAULT_TIMING_KEYS: TimingKeys = {
+  start: "Space",
+  end: "Enter",
+  redo: "Backspace",
+};
 
 function suffixed(prefix: string, suffixes: string): string[] {
   return [...suffixes].map((suffix) => prefix + suffix);

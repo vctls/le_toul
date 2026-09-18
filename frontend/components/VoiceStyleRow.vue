@@ -58,7 +58,7 @@ export default defineComponent({
   },
   data() {
     return {
-      // Expanded when the voice already has an override; toggled by the switch otherwise.
+      // Expanded when the voice already has an override, toggled by the switch otherwise.
       expanded: !isEmptyOverride(useSettingsStore().getVoiceStyle(this.voice)),
     };
   },

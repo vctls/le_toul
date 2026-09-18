@@ -77,9 +77,9 @@ export default defineComponent({
     isEnabled(): boolean {
       return this.timingsStore.length > 0;
     },
-    // The readable projection of the active voice's stored timings.
-    // Recomputes whenever the timings, lyrics, or active voice change; the watcher below reloads the draft,
-    // so switching voices shows that voice's timings.
+    // The readable projection of the active voice's stored timings. Recomputes whenever the timings, lyrics,
+    // or active voice change. The watcher below reloads the draft, so switching voices shows that
+    // voice's timings.
     current(): string {
       return serializeTimings(
         this.lyricsStore.lyricTextForVoice(this.activeVoice),

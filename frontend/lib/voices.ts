@@ -1,27 +1,25 @@
 // Multi-voice lyric annotation parsing.
 //
 // A single lyrics input can carry multiple voices, identified by sticky bracket tags at
-// the start of a line (`[Anna]`, `[Ben]`, `[lead vocal]`). The tag content is an arbitrary
-// string; `+` is the only special character and means "duplicate this line into each
-// member voice" — `[Anna+Ben]` puts the line into BOTH Anna's and Ben's streams, exactly
-// as if it had been written twice. There is no combined "Anna+Ben" voice.
+// the start of a line (`[Anna]`, `[Ben]`, `[lead vocal]`). The tag content is an arbitrary string;
+// `+` is the only special character and means "duplicate this line into each member voice" — `[Anna+Ben]`
+// puts the line into BOTH Anna's and Ben's streams, exactly as if it had been written twice.
+// There is no combined "Anna+Ben" voice.
 //
-// The result is, per voice, an ordinary lyric string (with the usual `_`, `/`, `\n`, `\n\n`
-// markup) that feeds the existing single-voice pipeline unchanged. See
-// docs/multi-voice-spec.md.
+// The result is, per voice, an ordinary lyric string (with the usual `_`, `/`, `\n`, `\n\n` markup)
+// that feeds the existing single-voice pipeline unchanged. See docs/multi-voice-spec.md.
 //
-// Design choice: voices are kept COMPLETELY INDEPENDENT — each has its own lyric subset,
-// its own timings, its own per-tab control state, and its own style. Nothing is shared
-// except the audio. The reason is overlap: voices can sing at the same time (unison,
-// simultaneous-but-different lines), and a single shared timeline cannot represent two
-// voices singing different things at once. Treating each voice as its own self-contained
-// single-voice project sidesteps that entirely — overlap "just works" because there is no
-// shared timeline to reconcile, and the whole existing single-voice pipeline
-// (compile -> denormalize -> render) can be reused per voice with no changes. The cost is
-// that voices are timed in separate passes rather than together; we deliberately accept
-// that to be able to handle every scenario. `+` is purely an authoring convenience to
-// avoid writing a shared line twice; it expands to independent copies, so even unison
-// stays "independent voices that happen to coincide", not a special shared entity.
+// Design choice: voices are kept COMPLETELY INDEPENDENT — each has its own lyric subset, its own timings,
+// its own per-tab control state, and its own style. Nothing is shared except the audio. The reason is overlap:
+// voices can sing at the same time (unison, simultaneous-but-different lines),
+// and a single shared timeline cannot represent two voices singing different things at once.
+// Treating each voice as its own self-contained single-voice project sidesteps that entirely — overlap
+// "just works" because there is no shared timeline to reconcile, and the whole existing single-voice
+// pipeline (compile -> denormalize -> render) can be reused per voice with no changes. The cost is that
+// voices are timed in separate passes rather than together, which we deliberately accept to be able to
+// handle every scenario. `+` is purely an authoring convenience to avoid writing a shared line twice;
+// it expands to independent copies, so even unison stays "independent voices that happen to coincide",
+// not a special shared entity.
 
 export type VoiceId = string;
 
@@ -68,7 +66,7 @@ export function parseAnnotatedLyrics(text: string): AnnotatedLyrics {
     const content = match ? rawLine.slice(match[0].length) : rawLine;
 
     if (content.trim() === "") {
-      // A blank line is a screen break; record it for every voice already in play. A
+      // A blank line is a screen break, so record it for every voice already in play. A
       // tag-only line (e.g. "[Anna]") just switches the voice and contributes no content.
       if (!match) {
         for (const v of order) {

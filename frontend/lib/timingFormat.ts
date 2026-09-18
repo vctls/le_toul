@@ -1,24 +1,22 @@
 // Human-readable, editable projection of lyric timings.
 //
-// The internal timing representation (`Array<[seconds, marker]>`) is positionally
-// coupled to a separate lyric blob and is unreadable/uneditable by hand. This module
-// fuses lyrics + timings into one text where each syllable is preceded by an absolute
-// timestamp tag `<MM:SS.cc>`, and parses that text back into the internal array.
+// The internal timing representation (`Array<[seconds, marker]>`) is positionally coupled to a
+// separate lyric blob and is unreadable/uneditable by hand. This module fuses lyrics + timings
+// into one text where each syllable is preceded by an absolute timestamp tag `<MM:SS.cc>`,
+// and parses that text back into the internal array.
 //
 // Design notes (see docs/multi-voice-spec.md):
-//   - Time tags use angle brackets `<...>` ONLY. Square brackets `[...]` are reserved
-//     for future per-voice annotations (`[1]`, `[1+2]`), so the two parsers never
-//     compete for the same delimiter.
-//   - These functions are voice-agnostic and pure: they take/return a SINGLE voice's
-//     lyrics + timing array and never touch a store. Multi-voice support will simply
-//     call them per voice.
-//   - Lyrics stay owned by the lyrics store; `parseTimings` extracts timestamps only and
-//     never restructures the lyric text.
-//   - A `SEGMENT_START` is a tag immediately followed by syllable text. A `SEGMENT_END`
-//     (a rest before silence) is a bare tag with no following syllable, mirroring the
-//     blank-gap segment that `decorateAssLine` inserts.
-//   - Times are quantized to centiseconds, which is lossless with respect to the rendered
-//     output (ASS karaoke timing is itself centisecond-based).
+// - Time tags use angle brackets `<...>` ONLY. Square brackets `[...]` are reserved for future
+// per-voice annotations (`[1]`, `[1+2]`), so the two parsers never compete for the same delimiter.
+// - These functions are voice-agnostic and pure: they take/return a SINGLE voice's lyrics + timing
+// array and never touch a store. Multi-voice support will simply call them per voice.
+// - Lyrics stay owned by the lyrics store; `parseTimings` extracts timestamps only and never
+// restructures the lyric text.
+// - A `SEGMENT_START` is a tag immediately followed by syllable text. A `SEGMENT_END` (a rest
+// before silence) is a bare tag with no following syllable, mirroring the blank-gap segment that
+// `decorateAssLine` inserts.
+// - Times are quantized to centiseconds, which is lossless with respect to the rendered output (ASS
+// karaoke timing is itself centisecond-based).
 
 import { LYRIC_MARKERS } from "@/constants";
 import { parseLyrics, LyricEvent } from "./timing";
@@ -39,8 +37,8 @@ export function formatTimecode(seconds: number): string {
   return `${pad(mm)}:${pad(ss)}.${pad(cc)}`;
 }
 
-// Split a markup-preserving segment into [word, trailingSeparator]. The separator is the
-// `_`, `/`, `\n`, or `\n\n` that terminated the segment (empty for the final segment).
+// Split a markup-preserving segment into [word, trailingSeparator]. The separator is the `_`, `/`, `\n`,
+// or `\n\n` that terminated the segment (empty for the final segment).
 function splitTrailingSeparator(text: string): [string, string] {
   const match = text.match(/(\n\n|[\n/_])$/);
   if (match) {
@@ -49,8 +47,8 @@ function splitTrailingSeparator(text: string): [string, string] {
   return [text, ""];
 }
 
-// Render (lyrics, timings) as editable timestamped text. Untimed segments are emitted
-// without a tag, so partially-timed lyrics round-trip cleanly.
+// Render (lyrics, timings) as editable timestamped text. Untimed segments are emitted without a tag,
+// so partially-timed lyrics round-trip cleanly.
 export function serializeTimings(lyricText: string, timings: LyricEvent[]): string {
   const segments = parseLyrics(lyricText, true);
   const starts: (number | null)[] = segments.map(() => null);

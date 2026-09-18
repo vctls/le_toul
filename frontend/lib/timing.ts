@@ -30,8 +30,8 @@ export interface KaraokeOptions {
   addTitleScreen: boolean;
   countInMode: CountInMode;
   countInText: string;
-  // A line gets a count-in when it starts more than this many seconds after the previous
-  // line ends. Must stay at or above countInDuration.
+  // A line gets a count-in when it starts more than this many seconds after the previous line ends.
+  // Must stay at or above countInDuration.
   countInThreshold: number;
   countInDuration: number;
   addInstrumentalScreens: boolean;
@@ -115,9 +115,9 @@ function colorToString(color: Color): string {
 }
 
 export function floatToTimecode(t: number): string {
-  // Format t (seconds) as HH:MM:SS.cc. Every field is derived from one rounded
-  // centisecond count: rounding the fraction on its own drops the carry at .995 and up,
-  // which silently shifts the timecode a second earlier.
+  // Format t (seconds) as HH:MM:SS.cc. Every field is derived from one rounded centisecond count:
+  // rounding the fraction on its own drops the carry at .995 and up, which silently shifts the
+  // timecode a second earlier.
   const totalCentiseconds = Math.round(t * 100);
   const centiseconds = totalCentiseconds % 100;
   const totalSeconds = (totalCentiseconds - centiseconds) / 100;
@@ -276,15 +276,15 @@ export class LyricsScreen {
   startTimestamp?: Timestamp;
   // Seconds to delay the start of the audio. Only valid on the title screen and first lyrics screen.
   audioDelay: number = 0.0;
-  // For staggered timings, this screen's first lines are displayed early, in the slot the
-  // previous screen's lines are vacating, so the block has to be laid out as if it had that
-  // screen's line count instead of its own. Stored as a line count rather than a ready-made
-  // Y offset so the same correction resolves correctly under any vertical alignment and
-  // inside a voice lane. See displayQuickLinesEarly.
+  // For staggered timings, this screen's first lines are displayed early, in the slot the previous
+  // screen's lines are vacating, so the block has to be laid out as if it had that screen's line
+  // count instead of its own. Stored as a line count rather than a ready-made Y offset so the
+  // same correction resolves correctly under any vertical alignment and inside a voice lane.
+  // See displayQuickLinesEarly.
   positionAsLineCount?: number;
-  // Multi-voice only: when this screen overlaps another voice in time, it is confined to
-  // a vertical "lane" so the voices don't interleave (see createMultiVoiceAssFile). When
-  // unset, the screen uses the full height (normal centered/aligned layout).
+  // Multi-voice only: when this screen overlaps another voice in time, it is confined to a
+  // vertical "lane" so the voices don't interleave (see createMultiVoiceAssFile). When unset,
+  // the screen uses the full height (normal centered/aligned layout).
   verticalZone?: { top: number; height: number } | null = null;
 
   constructor(lines: LyricsLine[] = [], audioDelay = 0.0) {
@@ -395,8 +395,8 @@ export class LyricsScreen {
 export class LyricsLine {
   segments: LyricSegment[];
 
-  // Times to start/end display of the line, as opposed to animation.
-  // If none, screen start/end times will be used.
+  // Times to start/end display of the line, as opposed to animation. If none, screen start/end times
+  // will be used.
   customDisplayStartTime?: Timestamp;
   customDisplayEndTime?: Timestamp;
   fadeInDuration: Seconds = 0.0;
@@ -595,10 +595,10 @@ export function compileLyricTimings(lyrics: string, events: LyricEvent[]): Lyric
 }
 
 export function setSegmentEndTimes(screens: LyricsScreen[], songDuration: number): LyricsScreen[] {
-  // Infer end times of segments if they are not already set, and clamp explicit end times
-  // so a segment can't extend past the next one. Within a single voice you can't sing two
-  // segments at once, so an end later than the next segment's start (e.g. a release dragged
-  // too far in the Adjust tab) would otherwise double-colour two lines at the same time.
+  // Infer end times of segments if they are not already set, and clamp explicit end times so a segment
+  // can't extend past the next one. Within a single voice you can't sing two segments at once,
+  // so an end later than the next segment's start (e.g. a release dragged too far in the Adjust tab)
+  // would otherwise double-colour two lines at the same time.
   const segments: LyricSegment[] = screens.flatMap((s) => s.lines.flatMap((l) => l.segments));
   segments.forEach((segment, i) => {
     const nextStart = i < segments.length - 1 ? segments[i + 1].timestamp : songDuration;
@@ -740,8 +740,8 @@ export function createScreens(
 ): LyricsScreen[] {
   let screens = compileLyricTimings(lyrics, lyricEvents);
   if (screens.length === 0) {
-    // No lyrics yet (e.g. a timings file was loaded before lyrics were
-    // entered). The decorators below index into screens[0], so bail early.
+    // No lyrics yet (e.g. a timings file was loaded before lyrics were entered). The decorators below
+    // index into screens[0], so bail early.
     return screens;
   }
   screens = denormalizeTimestamps(screens, songDuration);
@@ -813,19 +813,17 @@ function styleNameForVoice(index: number): string {
   return `V${index}`;
 }
 
-// Entry point for multi-voice subtitles. Each voice is rendered independently (its own
-// lyrics, timings, and style) and composited into one ASS file. This mirrors the core
-// design choice (see frontend/lib/voices.ts): a voice is a self-contained single-voice
-// project, so we just run the normal `createScreens` per voice and concatenate the
-// resulting dialogue events into one document — ASS handles overlapping events natively,
+// Entry point for multi-voice subtitles. Each voice is rendered independently (its own lyrics, timings, and
+// style) and composited into one ASS file. This mirrors the core design choice (see frontend/lib/voices.ts):
+// a voice is a self-contained single-voice project, so we just run the normal `createScreens` per voice and
+// concatenate the resulting dialogue events into one document — ASS handles overlapping events natively,
 // which is exactly why independent voices compose cleanly here.
 //
-// The title and instrumental-break screens are genuinely global (one song, shown once),
-// so only the FIRST track contributes them; otherwise every voice would draw its own and
-// they'd stack. Count-ins, by contrast, stay PER VOICE — each voice gets its own "***"
-// lead-in before its lines. Non-first voices have no title/instrumental screens to fill
-// the lead-in, so they also get `deferScreenStarts` to stop their text displaying from
-// 0:00 when their first line is deep into the song.
+// The title and instrumental-break screens are genuinely global (one song, shown once), so only the FIRST
+// track contributes them, or else every voice would draw its own and they'd stack. Count-ins, by contrast,
+// stay PER VOICE — each voice gets its own "***" lead-in before its lines. Non-first voices have no
+// title/instrumental screens to fill the lead-in, so they also get `deferScreenStarts` to stop their
+// text displaying from 0:00 when their first line is deep into the song.
 function screensOverlapInTime(a: LyricsScreen, b: LyricsScreen): boolean {
   if (a.startTimestamp == null || b.startTimestamp == null) {
     return false;
@@ -833,11 +831,11 @@ function screensOverlapInTime(a: LyricsScreen, b: LyricsScreen): boolean {
   return a.startTimestamp < b.endTimestamp && b.startTimestamp < a.endTimestamp;
 }
 
-// Per-voice vertical lanes (the "centered alone, lanes when overlapping" layout). A screen
-// that is displayed at the same time as any *other* voice's screen is confined to its
-// voice's horizontal band (voice 0 on top, voice 1 below, ...), so simultaneous voices
-// stack as separate blocks instead of letting libass's collision-avoidance interleave
-// them. Screens with no cross-voice overlap keep their default full-height centered layout.
+// Per-voice vertical lanes (the "centered alone, lanes when overlapping" layout).
+// A screen that is displayed at the same time as any *other* voice's screen is confined to
+// its voice's horizontal band (voice 0 on top, voice 1 below, ...), so simultaneous voices
+// stack as separate blocks instead of letting libass's collision-avoidance interleave them.
+// Screens with no cross-voice overlap keep their default full-height centered layout.
 function assignVoiceLanes(renders: VoiceTrackRender[]): void {
   const voiceCount = renders.length;
   if (voiceCount < 2) {
@@ -868,9 +866,9 @@ export function createMultiVoiceAssFile(
   }
   const renders: VoiceTrackRender[] = tracks.map((track, index) => {
     const isPrimary = index === 0;
-    // The title and instrumental-break screens are global: only the primary voice
-    // contributes them. Count-ins stay per voice. Non-primary voices have no
-    // title/instrumental to fill long gaps, so cap how early their screens display.
+    // The title and instrumental-break screens are global: only the primary voice contributes them.
+    // Count-ins stay per voice. Non-primary voices have no title/instrumental to fill long gaps,
+    // so cap how early their screens display.
     const options: KaraokeOptions = isPrimary
       ? track.options
       : { ...track.options, addTitleScreen: false, addInstrumentalScreens: false };

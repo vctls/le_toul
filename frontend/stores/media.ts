@@ -47,9 +47,8 @@ export const useMediaStore = defineStore("media", () => {
   // Background video (if the song is from YouTube)
   const backgroundVideo = shallowRef<Blob | null>(null);
 
-  // The semantic state these map to (timings array, lyric text, separatedTrack.backing)
-  // is held elsewhere; these refs exist so the FileUpload widgets can re-display the
-  // user's selection after a reload.
+  // The semantic state these map to (timings array, lyric text, separatedTrack.backing) is held elsewhere;
+  // these refs exist so the FileUpload widgets can re-display the user's selection after a reload.
   const timingsFile = shallowRef<File | null>(null);
   const lyricsFile = shallowRef<File | null>(null);
   const backingTrackFile = shallowRef<File | null>(null);

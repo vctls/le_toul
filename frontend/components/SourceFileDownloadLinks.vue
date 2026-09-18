@@ -109,9 +109,8 @@ export default defineComponent({
         if (navigator.clipboard?.writeText) {
           await navigator.clipboard.writeText(text);
         } else {
-          // navigator.clipboard is only available in secure contexts
-          // (HTTPS / localhost). Fall back to the legacy execCommand path
-          // so the app stays functional over plain HTTP.
+          // navigator.clipboard is only available in secure contexts (HTTPS / localhost).
+          // Fall back to the legacy execCommand path so the app stays functional over plain HTTP.
           const textarea = document.createElement("textarea");
           textarea.value = text;
           textarea.setAttribute("readonly", "");

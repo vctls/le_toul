@@ -356,9 +356,9 @@ export default defineComponent({
       }
       this.isLoadingYouTube = false;
     },
-    // Load a settings.yaml (as exported from the Submit tab) back into the app:
-    // video options, per-voice styles, the separation model and the song metadata.
-    // Returns the entries the file had that couldn't be applied.
+    // Load a settings.yaml (as exported from the Submit tab) back into the app: video options, per-voice styles,
+    // the separation model and the song metadata. Returns the entries the file had that couldn't be
+    // applied.
     async applySettingsFile(file: File): Promise<string[]> {
       const settings = parseSettingsYaml(await file.text());
 
@@ -458,8 +458,8 @@ export default defineComponent({
         });
       }
     },
-    // Loads whatever an extracted project folder holds, applying each file exactly as its
-    // own upload field would. What the folder hasn't got is left alone.
+    // Loads whatever an extracted project folder holds, applying each file exactly
+    // as its own upload field would. What the folder hasn't got is left alone.
     async onProjectFolderSelect(files: File[]) {
       const project = classifyProjectFolder(files);
       const loaded: string[] = [];

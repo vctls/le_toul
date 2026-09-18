@@ -97,8 +97,8 @@ async function dragBy(
 
   await page.mouse.move(x, y);
   await page.mouse.down();
-  // wavesurfer's drag stream accumulates per-move deltas and ignores anything
-  // under its threshold, so step the pointer instead of jumping in one move.
+  // wavesurfer's drag stream accumulates per-move deltas and ignores anything under its threshold,
+  // so step the pointer instead of jumping in one move.
   await page.mouse.move(toX, y, { steps: 10 });
   await page.mouse.up();
 
@@ -239,7 +239,7 @@ export async function getCurrentTimings(page: Page): Promise<any> {
   const clipboardContent = await page.evaluate(() => navigator.clipboard.readText());
 
   const exported = JSON.parse(clipboardContent);
-  // The export is a per-voice map; these helpers assert against one voice's stream.
+  // The export is a per-voice map. These helpers assert against one voice's stream.
   // Older exports were a bare array.
   return Array.isArray(exported) ? exported : (exported[DEFAULT_VOICE_ID] ?? []);
 }

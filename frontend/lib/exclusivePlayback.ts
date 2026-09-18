@@ -1,9 +1,9 @@
-// Several tabs stay mounted at once, each with its own audio element. A browser gives the
-// media keys to a single element per document and picks arbitrarily among the ones that are
-// playing, so two players left running both answer the keys.
+// Several tabs stay mounted at once, each with its own audio element. A browser gives the media
+// keys to a single element per document and picks arbitrarily among the ones that are playing,
+// so two players left running both answer the keys.
 //
-// Registered players yield to whichever one the user last started, and the media session
-// handlers follow that same player, so the keys drive the one being listened to.
+// Registered players yield to whichever one the user last started, and the media session handlers
+// follow that same player, so the keys drive the one being listened to.
 
 const players = new Set<HTMLMediaElement>();
 let current: HTMLMediaElement | null = null;

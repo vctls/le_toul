@@ -1,7 +1,7 @@
 // Per-voice style overrides.
 //
-// Each voice can override a limited subset of the base karaoke style. An override is a
-// partial set of fields; resolving merges it field-by-field over the base `KaraokeOptions`,
+// Each voice can override a limited subset of the base karaoke style. An override
+// is a partial set of fields. Resolving merges it field-by-field over the base `KaraokeOptions`,
 // leaving everything else (count-ins, alignment, etc.) shared. See docs/multi-voice-spec.md.
 
 import { default as BuefyColor } from "buefy/src/utils/color";

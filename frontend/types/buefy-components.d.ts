@@ -1,7 +1,6 @@
-// Buefy registers its components globally but ships no GlobalComponents
-// augmentation, so vue-tsc can't match `<b-collapse>` to its typed definition and
-// skips template checking. Without this, a renamed prop (Buefy 0.x `open` ->
-// `modelValue`) fails silently at runtime.
+// Buefy registers its components globally but ships no GlobalComponents augmentation, so vue-tsc
+// can't match `<b-collapse>` to its typed definition and skips template checking. Without this,
+// a renamed prop (Buefy 0.x `open` -> `modelValue`) fails silently at runtime.
 import type {
   BAutocomplete,
   BBreadcrumb,

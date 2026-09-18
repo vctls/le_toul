@@ -31,6 +31,7 @@ describe("isKeyName", () => {
   it("covers the defaults", () => {
     expect(isKeyName(DEFAULT_TIMING_KEYS.start)).toBe(true);
     expect(isKeyName(DEFAULT_TIMING_KEYS.end)).toBe(true);
+    expect(isKeyName(DEFAULT_TIMING_KEYS.redo)).toBe(true);
   });
 });
 

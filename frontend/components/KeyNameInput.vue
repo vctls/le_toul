@@ -22,8 +22,8 @@
 </template>
 
 <script lang="ts">
-// Picks one KeyboardEvent.code name. Free text so a key can be typed, but only a real
-// code is ever emitted: anything else reverts when the field loses focus.
+// Picks one KeyboardEvent.code name. Free text so a key can be typed, but only a real code is ever emitted:
+// anything else reverts when the field loses focus.
 
 import { defineComponent } from "vue";
 import { isMobile } from "@/lib/device";

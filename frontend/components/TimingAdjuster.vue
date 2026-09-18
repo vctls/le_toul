@@ -72,10 +72,9 @@ export default defineComponent({
     return {
       regions: [] as RegionParams[],
       audioSource: null as string | null,
-      // Object URLs keyed by source blob. URLs live until unmount so an in-use
-      // URL is never revoked (revoking one mid-playback aborts the media fetch
-      // and wedges the <audio> element, notably in Firefox). Nothing here is
-      // rendered, hence markRaw.
+      // Object URLs keyed by source blob. URLs live until unmount so an in-use URL is never revoked (revoking
+      // one mid-playback aborts the media fetch and wedges the <audio> element, notably in Firefox).
+      // Nothing here is rendered, hence markRaw.
       trackUrls: markRaw(new Map<Blob, string>()),
     };
   },

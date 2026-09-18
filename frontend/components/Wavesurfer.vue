@@ -94,9 +94,8 @@ export default defineComponent({
     // Start observing the container
     this._observer.observe(this.$refs["wavesurfer-container"] as HTMLElement);
 
-    // Hiding the container (display: none) drops its scroll box, so the browser resets the scroll
-    // offset. Nothing re-asserts it while playback is paused, so do it whenever the container is
-    // laid out again.
+    // Hiding the container (display: none) drops its scroll box, so the browser resets the scroll offset.
+    // Nothing re-asserts it while playback is paused, so do it whenever the container is laid out again.
     this._resizeObserver = new ResizeObserver(() => this.restoreScroll());
     this._resizeObserver.observe(this.$refs["wavesurfer-container"] as HTMLElement);
 
@@ -173,7 +172,7 @@ export default defineComponent({
     },
     regions: {
       handler: function (newRegions) {
-        // A drag just moved this region in place; the prop change is only the store value catching up.
+        // A drag just moved this region in place, so the prop change is only the store value catching up.
         // The DOM is already correct, so skip the teardown-and-rebuild of every region for this one update.
         if (this._skipNextRegionsUpdate) {
           this._skipNextRegionsUpdate = false;

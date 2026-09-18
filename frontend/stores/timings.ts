@@ -38,21 +38,20 @@ function loadTimingsByVoice(): TimingsByVoice {
 }
 
 export const useTimingsStore = defineStore("timings", {
-  // Timings are stored per voice, never as a single shared stream. Voices are fully
-  // independent (see frontend/lib/voices.ts for why): they can overlap in time, so there
-  // is no one ordered timeline to share. The single-array API below (rawTimings, add,
-  // resetTimings, ...) operates on the *active* voice, which keeps every existing
-  // single-voice consumer working unchanged — for a one-voice project the active voice is
-  // simply the only voice.
+  // Timings are stored per voice, never as a single shared stream. Voices are fully independent (see
+  // frontend/lib/voices.ts for why): they can overlap in time, so there is no one ordered timeline to share.
+  // The single-array API below (rawTimings, add, resetTimings, ...) operates on the *active* voice,
+  // which keeps every existing single-voice consumer working unchanged — for a one-voice project the
+  // active voice is simply the only voice.
   state: () => ({
     _timingsByVoice: loadTimingsByVoice(),
     _activeVoice: loadJsonFromStorage<VoiceId | null>(ACTIVE_VOICE_STORAGE_KEY, null),
   }),
 
   getters: {
-    // The voice currently being timed. All the single-array getters/actions below operate
-    // on this voice, so existing single-voice consumers are unchanged (the active voice is
-    // the only voice). Falls back to the first lyrics voice, then the default.
+    // The voice currently being timed. All the single-array getters/actions below operate on this voice,
+    // so existing single-voice consumers are unchanged (the active voice is the only voice).
+    // Falls back to the first lyrics voice, then the default.
     activeVoice(state): VoiceId {
       const voices = useLyricsStore().voices;
       if (state._activeVoice && voices.includes(state._activeVoice)) {
@@ -169,8 +168,8 @@ export const useTimingsStore = defineStore("timings", {
       return (voice: VoiceId): Timings => state._timingsByVoice[voice] ?? [];
     },
 
-    // Composited subtitles for ALL voices (used by the Submit preview and final video),
-    // as opposed to `subtitles`, which renders only the active voice (used by Adjust).
+    // Composited subtitles for ALL voices (used by the Submit preview and final video), as opposed to `subtitles`,
+    // which renders only the active voice (used by Adjust).
     allVoicesSubtitles() {
       return (options: Partial<VideoSettings> = {}): string => {
         const lyricsStore = useLyricsStore();
@@ -234,8 +233,8 @@ export const useTimingsStore = defineStore("timings", {
     },
 
     handleConflictWithPreviousSegment(segmentStartTimestamp: number) {
-      // If the user has entered a segment start time that is before the end of
-      // the previous segment, adjust the end of the previous segment
+      // If the user has entered a segment start time that is before the end of the previous segment,
+      // adjust the end of the previous segment
       const timings = this._timingsByVoice[this.activeVoice];
       const previousTiming = timings?.at(-1);
       if (!previousTiming || segmentStartTimestamp > previousTiming[0]) {
@@ -292,17 +291,15 @@ export const useTimingsStore = defineStore("timings", {
 
     // Carry timings across a voice rename.
     //
-    // Voices are named by the lyric tags, so tagging previously untagged lyrics — or
-    // editing an existing tag — renames a voice, and timings keyed under the old name
-    // would look lost. When exactly one timed voice has vanished from the lyrics and
-    // exactly one voice in the lyrics has no timings, that is unambiguously a rename, so
-    // the timings (and the style override, if the new name has none) move over. This is
-    // what makes "switch to multi-voice by adding a tag at the top" keep the timings that
-    // were tapped out before any tag existed.
+    // Voices are named by the lyric tags, so tagging previously untagged lyrics — or editing an existing
+    // tag — renames a voice, and timings keyed under the old name would look lost. When exactly one
+    // timed voice has vanished from the lyrics and exactly one voice in the lyrics has no timings,
+    // that is unambiguously a rename, so the timings (and the style override, if the
+    // new name has none) move over. This is what makes "switch to multi-voice by adding a tag at the
+    // top" keep the timings that were tapped out before any tag existed.
     //
-    // Anything more ambiguous (several renames at once, or a voice merged into another
-    // that is already timed) is left alone. Orphaned entries are never deleted, so
-    // re-typing the old tag brings them back.
+    // Anything more ambiguous (several renames at once, or a voice merged into another that is already
+    // timed) is left alone. Orphaned entries are never deleted, so re-typing the old tag brings them back.
     reconcileVoices() {
       const voices = useLyricsStore().voices;
       const timed = (voice: VoiceId) => (this._timingsByVoice[voice]?.length ?? 0) > 0;
@@ -329,9 +326,9 @@ export const useTimingsStore = defineStore("timings", {
       this._timingsByVoice = {};
     },
 
-    // Follow voice renames as the user edits the lyric tags. Registered once at app start
-    // (options stores can't call watch() from a setup scope). Runs immediately so timings
-    // restored from a previous, tag-less session are picked up on load too.
+    // Follow voice renames as the user edits the lyric tags. Registered once at app start (options stores
+    // can't call watch() from a setup scope). Runs immediately so timings restored from a previous,
+    // tag-less session are picked up on load too.
     setupVoiceReconciliation() {
       const lyricsStore = useLyricsStore();
       watch(
