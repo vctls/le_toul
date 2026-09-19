@@ -11,7 +11,6 @@ describe("VideoPreview", () => {
     audioDelay: number;
     videoBlob?: Blob;
     previewTrack?: string;
-    outputFormat?: string;
   }
 
   let props: Props;
@@ -49,25 +48,5 @@ describe("VideoPreview", () => {
     expect(wrapper.find(".preview-container").exists()).toBe(true);
     expect(wrapper.find(".subtitle-canvas").exists()).toBe(true);
     expect(wrapper.find("audio").exists()).toBe(true);
-  });
-
-  it("warns that an mp4 will not carry the vocals it is previewing", () => {
-    const wrapper = shallowMount(VideoPreview, { props });
-
-    expect(wrapper.vm.previewNote).toContain("the finished video won't");
-  });
-
-  it("says nothing about the vocals when they get a track of their own", () => {
-    const wrapper = shallowMount(VideoPreview, { props: { ...props, outputFormat: "mkv" } });
-
-    expect(wrapper.vm.previewNote).toBeNull();
-  });
-
-  it("still names the backing track when previewing it", () => {
-    const wrapper = shallowMount(VideoPreview, {
-      props: { ...props, previewTrack: "backing", outputFormat: "mkv" },
-    });
-
-    expect(wrapper.vm.previewNote).toContain("Previewing the backing track");
   });
 });

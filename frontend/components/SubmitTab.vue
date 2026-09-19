@@ -278,7 +278,6 @@
           :audio-delay="audioDelay"
           :fonts="fontMap"
           :background-color="videoOptions.color.background.toString()"
-          :output-format="videoOptions.outputFormat"
           :video-blob="videoOptions.useBackgroundVideo ? (videoBlob ?? undefined) : undefined"
         />
         <b-message v-else type="is-info" :closable="false"

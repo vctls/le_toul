@@ -1,8 +1,5 @@
 <template>
   <div class="preview-container">
-    <b-message v-if="previewNote" type="is-info" :closable="false">
-      {{ previewNote }}
-    </b-message>
     <div class="preview-stage">
       <subtitle-display
         ref="subtitleDisplay"
@@ -70,11 +67,6 @@ export default defineComponent({
       type: String,
       default: "#000000",
     },
-    // Which container the finished video goes into.
-    outputFormat: {
-      type: String,
-      default: "mp4",
-    },
     videoBlob: {
       type: Blob,
       required: false,
@@ -105,16 +97,6 @@ export default defineComponent({
     };
   },
   computed: {
-    previewNote(): string | null {
-      if (this.previewTrack === "backing") {
-        return "Previewing the backing track. This matches the finished video's audio.";
-      }
-      // An MKV carries the vocals as a track of their own, so nothing is lost.
-      if (this.outputFormat === "mkv") {
-        return null;
-      }
-      return "Audio in this preview includes vocals, but the finished video won't.";
-    },
     activeAudio(): Blob {
       if (this.previewTrack === "backing" && this.backingTrack) {
         return this.backingTrack;
