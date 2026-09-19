@@ -155,11 +155,18 @@ test("marks stand in for a count-in with no text", () => {
     options,
   )[0];
 
-  // fontSize 22 => a 12x13 mark, sitting on the baseline via \pbo, with a trailing space.
-  const mark = `{\\p1\\pbo13}m 0 0 l 12 0 12 -13 0 -13{\\p0} `;
+  // fontSize 22 => a 9x13 mark on the baseline via \pbo, fading in across the three.
+  // The first two carry an empty contour at x=14, widening the bounding box into a fixed gap;
+  // the last takes a word space instead, since the lyrics follow it.
+  const rect = "m 0 0 l 9 0 9 -13 0 -13";
+  const gap = " m 14 0 l 14 0";
   const segments = screen.lines[1].segments;
   // One segment per mark, so the sweep fills them one at a time over the 3s count-in.
-  expect(segments.slice(0, 3).map((s) => s.text)).toEqual([mark, mark, mark]);
+  expect(segments.slice(0, 3).map((s) => s.text)).toEqual([
+    `{\\alpha&H80&\\p1\\pbo13}${rect}${gap}{\\p0}`,
+    `{\\alpha&H40&\\p1\\pbo13}${rect}${gap}{\\p0}`,
+    `{\\alpha&H00&\\p1\\pbo13}${rect}{\\p0} `,
+  ]);
   expect(segments.slice(0, 3).map((s) => s.timestamp)).toEqual([17.0, 18.0, 19.0]);
   expect(segments[2].endTimestamp).toBe(20.0);
   expect(segments[3].text).toBe("second line");
