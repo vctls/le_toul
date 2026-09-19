@@ -18,6 +18,39 @@ import { concat } from "lodash-es";
 const FIRST_SCREEN_QUICK_START_THRESHOLD: Timestamp = 1.0;
 const SCREEN_QUICK_START_THRESHOLD: Timestamp = 2.0;
 
+const COUNT_IN_MARKS = 3;
+const COUNT_IN_MARK_WIDTH_RATIO = 0.55;
+const COUNT_IN_MARK_HEIGHT_RATIO = 0.6;
+
+function countInMark(fontSize: number): string {
+  // A drawing rather than a glyph.
+  // Inline with the lyrics there is a text baseline, so \pbo sits the mark on it.
+  // Each mark starts its own path at 0: libass takes a run's advance from its bounding box,
+  // so an offset path would overlap the text after it.
+  const width = Math.round(fontSize * COUNT_IN_MARK_WIDTH_RATIO);
+  const height = Math.round(fontSize * COUNT_IN_MARK_HEIGHT_RATIO);
+  return `{\\p1\\pbo${height}}m 0 0 l ${width} 0 ${width} -${height} 0 -${height}{\\p0} `;
+}
+
+// What a count-in shows: the configured text, or marks when no text is set.
+// The text is one segment, so it sweeps as a whole;
+// the marks get one segment each, so they fill one at a time.
+function countInSegments(
+  options: KaraokeOptions,
+  timestamp: Timestamp,
+  endTimestamp: Timestamp,
+): LyricSegment[] {
+  if (options.countInText.trim()) {
+    return [new LyricSegment(options.countInText, timestamp, endTimestamp)];
+  }
+  const mark = countInMark(options.font.size);
+  const step = (endTimestamp - timestamp) / COUNT_IN_MARKS;
+  return Array.from(
+    { length: COUNT_IN_MARKS },
+    (_, i) => new LyricSegment(mark, timestamp + i * step, timestamp + (i + 1) * step),
+  );
+}
+
 export function addQuickStartCountIn(
   screens: LyricsScreen[],
   options: KaraokeOptions,
@@ -39,10 +72,11 @@ export function addQuickStartCountIn(
   adjustedScreens[0].startTimestamp = screens[0].startTimestamp;
   // Delay the audio on the first screen by the amount we moved forward.
   adjustedScreens[0].audioDelay += addedTime;
-  // Add the count-in segment to the beginning
+  // Add the count-in segments to the beginning
   const newFirstSegment = adjustedScreens[0].lines[0].segments[0];
-  const countInSegment = new LyricSegment(options.countInText, 0.0, newFirstSegment.timestamp);
-  adjustedScreens[0].lines[0].addSegmentToFront(countInSegment);
+  adjustedScreens[0].lines[0].addSegmentsToFront(
+    countInSegments(options, 0.0, newFirstSegment.timestamp),
+  );
 
   return adjustedScreens;
 }
@@ -59,12 +93,8 @@ export function addGapCountIns(screens: LyricsScreen[], options: KaraokeOptions)
         continue;
       }
       if ((everyLine || index === 0) && line.timestamp - prevEnd > options.countInThreshold) {
-        line.addSegmentToFront(
-          new LyricSegment(
-            options.countInText,
-            line.timestamp - options.countInDuration,
-            line.timestamp,
-          ),
+        line.addSegmentsToFront(
+          countInSegments(options, line.timestamp - options.countInDuration, line.timestamp),
         );
       }
       prevEnd = line.endTimestamp;

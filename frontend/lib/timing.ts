@@ -439,6 +439,10 @@ export class LyricsLine {
     this.segments.unshift(newSegment);
   }
 
+  addSegmentsToFront(newSegments: LyricSegment[]) {
+    this.segments.unshift(...newSegments);
+  }
+
   decorateAssLine(segments: LyricSegment[], displayStartTime: Timestamp): string {
     // Decorate the line with karaoke tags
     // An ASS line starts with {k<digits>} which is centiseconds within the current
