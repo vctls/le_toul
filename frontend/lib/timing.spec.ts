@@ -79,28 +79,18 @@ Style: Default,Arial Narrow,20,&H00FF00FF,&H00FFFF00,&H0000FFFF,&H00000000,-1,0,
 
 [Events]
 Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
-Dialogue: 0,0:00:00.00,0:00:04.00,Default,Singer,0,0,114,,{\\k0}{\\kf200}It's Cøøl to Tüül
-Dialogue: 0,0:00:00.00,0:00:04.00,Default,Singer,0,0,144,,{\\k200}{\\kf200}TÜ/ÜL
+Dialogue: 0,0:00:00.00,0:00:04.00,Default,Singer,0,0,118,,{\\k0}{\\kf200}It's Cøøl to Tüül
+Dialogue: 0,0:00:00.00,0:00:04.00,Default,Singer,0,0,148,,{\\k200}{\\kf200}TÜ/ÜL
 `;
 
 const testAss =
   testAssPreamble +
-  `Dialogue: 0,0:00:04.00,0:00:11.00,Default,Singer,0,0,114,,{\\k0}{\\kf200}${DEFAULT_COUNT_IN_TEXT}{\\kf100}Be bop {\\kf100}{\\kf100}a lu bop
+  `Dialogue: 0,0:00:04.00,0:00:11.00,Default,Singer,0,0,118,,{\\k0}{\\kf200}${DEFAULT_COUNT_IN_TEXT}{\\kf100}Be bop {\\kf100}{\\kf100}a lu bop
 
-Dialogue: 0,0:00:04.00,0:00:11.00,Default,Singer,0,0,144,,{\\k500}{\\kf100}She's my ba{\\kf100}by
-
-
-Dialogue: 0,0:00:11.00,0:01:05.00,Default,Singer,0,0,129,,{\\k0}{\\kf100}And {\\kf100}here's {\\kf100}screen {\\kf5100}two
-`;
-
-const longIntroTestAss =
-  testAssPreamble +
-  `Dialogue: 0,Default,0:00:04.00,0:00:15.00,130,{\\k300}{\\kf300}■■■■{\\kf100}Be bop {\\kf100}{\\kf100}a lu bop
-
-Dialogue: 0,Default,0:00:04.00,0:00:15.00,130,{\\k900}{\\kf100}She's my ba{\\kf100}by
+Dialogue: 0,0:00:04.00,0:00:11.00,Default,Singer,0,0,148,,{\\k500}{\\kf100}She's my ba{\\kf100}by
 
 
-Dialogue: 0,0:00:11.00,0:01:05.00,Default,Singer,0,0,129,,{\\k0}{\\kf100}And {\\kf100}here's {\\kf100}screen {\\kf5100}two
+Dialogue: 0,0:00:11.00,0:01:05.00,Default,Singer,0,0,133,,{\\k0}{\\kf100}And {\\kf100}here's {\\kf100}screen {\\kf5100}two
 `;
 
 describe("LyricSegmentIterator", () => {
@@ -180,13 +170,13 @@ test("LyricScreen handles custom Y offset", () => {
     new LyricsLine([new LyricSegment("two", 2.0)]),
   ]);
 
-  // 2 lines, lineHeight 33, canvas height 288 => 144 - 33
-  expect(screen.getLineY(0, DEFAULT_FONT_SIZE)).toBe(111);
+  // 2 lines: one 33 slot plus the last line's glyph block (22 * 1.12), centred on 144
+  expect(screen.getLineY(0, DEFAULT_FONT_SIZE)).toBe(115);
 
   // Laid out as a 4-line block instead of its own 2, so it starts a line higher
   screen.positionAsLineCount = 4;
-  expect(screen.getLineY(0, DEFAULT_FONT_SIZE)).toBe(78);
-  expect(screen.getLineY(1, DEFAULT_FONT_SIZE)).toBe(111);
+  expect(screen.getLineY(0, DEFAULT_FONT_SIZE)).toBe(82);
+  expect(screen.getLineY(1, DEFAULT_FONT_SIZE)).toBe(115);
 });
 
 test("LyricScreen respects vertical alignment", () => {
@@ -195,11 +185,11 @@ test("LyricScreen respects vertical alignment", () => {
     new LyricsLine([new LyricSegment("two", 2.0)]),
   ]);
 
-  expect(screen.getLineY(0, DEFAULT_FONT_SIZE)).toBe(111);
+  expect(screen.getLineY(0, DEFAULT_FONT_SIZE)).toBe(115);
   expect(screen.getLineY(0, DEFAULT_FONT_SIZE, VerticalAlignment.Top)).toBe(33);
   expect(screen.getLineY(0, DEFAULT_FONT_SIZE, VerticalAlignment.Bottom)).toBe(288 - 33 * 3);
 
-  expect(screen.getLineY(1, DEFAULT_FONT_SIZE)).toBe(111 + 33);
+  expect(screen.getLineY(1, DEFAULT_FONT_SIZE)).toBe(115 + 33);
   expect(screen.getLineY(1, DEFAULT_FONT_SIZE, VerticalAlignment.Top)).toBe(33 * 2);
   expect(screen.getLineY(1, DEFAULT_FONT_SIZE, VerticalAlignment.Bottom)).toBe(288 - 33 * 2);
 });
@@ -272,9 +262,9 @@ test("addCountIn", () => {
 
   const expected =
     testAssPreamble +
-    `Dialogue: 0,0:00:04.00,0:01:00.00,Default,Singer,0,0,114,,{\\k9400}{\\kf200}${DEFAULT_COUNT_IN_TEXT}{\\kf500}That was a long intro
+    `Dialogue: 0,0:00:04.00,0:01:00.00,Default,Singer,0,0,118,,{\\k9400}{\\kf200}${DEFAULT_COUNT_IN_TEXT}{\\kf500}That was a long intro
 
-Dialogue: 0,0:00:04.00,0:01:00.00,Default,Singer,0,0,144,,{\\k10100}{\\kf-4500}Too bad nothing rhymes with intro
+Dialogue: 0,0:00:04.00,0:01:00.00,Default,Singer,0,0,148,,{\\k10100}{\\kf-4500}Too bad nothing rhymes with intro
 `;
   expect(assFile).toBe(expected);
 });
@@ -299,12 +289,12 @@ test("addCountInToSevenSecondIntro", () => {
   ];
   const sevenSecondAss =
     testAssPreamble +
-    `Dialogue: 0,0:00:04.00,0:00:12.00,Default,Singer,0,0,114,,{\\k150}{\\kf200}${DEFAULT_COUNT_IN_TEXT}{\\kf100}Be bop {\\kf50}{\\kf100}a lu bop
+    `Dialogue: 0,0:00:04.00,0:00:12.00,Default,Singer,0,0,118,,{\\k150}{\\kf200}${DEFAULT_COUNT_IN_TEXT}{\\kf100}Be bop {\\kf50}{\\kf100}a lu bop
 
-Dialogue: 0,0:00:04.00,0:00:12.00,Default,Singer,0,0,144,,{\\k600}{\\kf100}She's my ba{\\kf100}by
+Dialogue: 0,0:00:04.00,0:00:12.00,Default,Singer,0,0,148,,{\\k600}{\\kf100}She's my ba{\\kf100}by
 
 
-Dialogue: 0,0:00:12.00,0:01:00.00,Default,Singer,0,0,129,,{\\k0}{\\kf100}And {\\kf100}here's {\\kf100}screen {\\kf4500}two
+Dialogue: 0,0:00:12.00,0:01:00.00,Default,Singer,0,0,133,,{\\k0}{\\kf100}And {\\kf100}here's {\\kf100}screen {\\kf4500}two
 `;
   const options: KaraokeOptions = {
     ...DEFAULT_OPTIONS,
@@ -454,18 +444,18 @@ describe("multi-voice vertical lanes", () => {
   it("centers lines within the lane when verticalZone is set", () => {
     const screen = new LyricsScreen([new LyricsLine([new LyricSegment("a", 1, 2)])]);
     screen.verticalZone = { top: 160, height: 160 };
-    // 1 line, fontSize 20 => lineHeight 30, lane middle 240, top = 240 - 15
-    expect(screen.getLineY(0, 20)).toBe(225);
+    // 1 line, fontSize 20, lane middle 240: half a glyph block (20 * 1.12) above it
+    expect(screen.getLineY(0, 20)).toBe(229);
   });
 
   it("keeps the staggered line-count correction inside a lane", () => {
     const screen = new LyricsScreen([new LyricsLine([new LyricSegment("a", 1, 2)])]);
     screen.verticalZone = { top: 0, height: 144 };
-    // Lane middle 72. As its own 1-line block, fontSize 20 => 72 - 15
-    expect(screen.getLineY(0, 20)).toBe(57);
-    // Laid out as the 2-line block it displaces => 72 - 30, the lane's top slot
+    // Lane middle 72. As its own 1-line block, fontSize 20 => half a glyph block above it
+    expect(screen.getLineY(0, 20)).toBe(61);
+    // Laid out as the 2-line block it displaces => the lane's top slot
     screen.positionAsLineCount = 2;
-    expect(screen.getLineY(0, 20)).toBe(42);
+    expect(screen.getLineY(0, 20)).toBe(46);
   });
 
   it("puts a staggered line in the lane's top slot, not between the lines it replaces", () => {
@@ -499,11 +489,11 @@ describe("multi-voice vertical lanes", () => {
       },
     ];
     const v0 = marginVsForStyle(createMultiVoiceAssFile(tracks, 10, "T", "A"), "V0");
-    // lineHeight 30, lane 0 spans 0..144 so its middle is 72: a 2-line block sits at 42 and 72,
-    // and the early single line joins it at 42.
-    expect(v0).toContain(42);
-    // 57 would be a lone line centred in the lane, overlapping the outgoing line at 72.
-    expect(v0).not.toContain(57);
+    // lineHeight 30, lane 0 spans 0..144 so its middle is 72: a 2-line block sits at 46 and 76,
+    // and the early single line joins it at 46.
+    expect(v0).toContain(46);
+    // 61 would be a lone line centred in the lane, overlapping the outgoing line at 76.
+    expect(v0).not.toContain(61);
   });
 
   it("puts simultaneous voices in separate vertical lanes (voice 0 above voice 1)", () => {

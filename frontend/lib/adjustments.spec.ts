@@ -54,8 +54,8 @@ const DEFAULT_ASS_OPTIONS = {
 };
 
 test("addTitleScreenToShortIntroSong", () => {
-  const titleScreenAss = `Dialogue: 0,0:00:00.00,0:00:04.00,Default,Singer,0,0,114,,{\\k0}{\\kf200}Tüülin' Around
-Dialogue: 0,0:00:00.00,0:00:04.00,Default,Singer,0,0,144,,{\\k200}{\\kf200}The Tüüls
+  const titleScreenAss = `Dialogue: 0,0:00:00.00,0:00:04.00,Default,Singer,0,0,118,,{\\k0}{\\kf200}Tüülin' Around
+Dialogue: 0,0:00:00.00,0:00:04.00,Default,Singer,0,0,148,,{\\k200}{\\kf200}The Tüüls
 `;
   const screens = denormalizeTimestamps(
     compileLyricTimings(testLyrics, shortIntroTestEvents),
@@ -200,14 +200,14 @@ test("addInstrumentalScreen", () => {
   ];
   let screens = compileLyricTimings(lyrics, timings);
 
-  screens = denormalizeTimestamps(addInstrumentalScreens(screens), 60.0);
+  screens = denormalizeTimestamps(addInstrumentalScreens(screens, DEFAULT_OPTIONS), 60.0);
   expect(screens.length).toBe(3);
 
-  const ass = `Dialogue: 0,0:00:00.00,0:00:02.00,Default,Singer,0,0,129,,{\\k100}{\\kf100}screen one
+  const ass = `Dialogue: 0,0:00:00.00,0:00:02.00,Default,Singer,0,0,133,,{\\k100}{\\kf100}screen one
 
 
-Dialogue: 0,0:00:02.00,0:00:20.00,Default,Singer,0,0,129,,{\\k0}{\\kf1800}||||||||||||||||||||||||||||||||||
-Dialogue: 0,0:00:20.00,0:00:21.00,Default,Singer,0,0,129,,{\\k0}{\\kf100}screen two
+Dialogue: 0,0:00:02.00,0:00:20.00,Default,Singer,0,0,133,,{\\k0}{\\kf1800}{\\p1}m 0 5 l 307 5 307 20 0 20{\\p0}
+Dialogue: 0,0:00:20.00,0:00:21.00,Default,Singer,0,0,133,,{\\k0}{\\kf100}screen two
 `;
   expect(screens.map((s) => s.toAssEvents(DEFAULT_ASS_OPTIONS, DEFAULT_OPTIONS)).join("")).toBe(
     ass,
@@ -227,18 +227,18 @@ test("addInstrumentalScreenFor3ScreenSong", () => {
     [31.0, LYRIC_MARKERS.SEGMENT_END],
   ];
   let screens = compileLyricTimings(lyrics, timings);
-  screens = denormalizeTimestamps(addInstrumentalScreens(screens), 60.0);
+  screens = denormalizeTimestamps(addInstrumentalScreens(screens, DEFAULT_OPTIONS), 60.0);
   expect(screens.length).toBe(5);
 
-  const ass = `Dialogue: 0,0:00:00.00,0:00:02.00,Default,Singer,0,0,129,,{\\k100}{\\kf100}screen one
+  const ass = `Dialogue: 0,0:00:00.00,0:00:02.00,Default,Singer,0,0,133,,{\\k100}{\\kf100}screen one
 
 
-Dialogue: 0,0:00:02.00,0:00:20.00,Default,Singer,0,0,129,,{\\k0}{\\kf1800}||||||||||||||||||||||||||||||||||
-Dialogue: 0,0:00:20.00,0:00:21.00,Default,Singer,0,0,129,,{\\k0}{\\kf100}screen two
+Dialogue: 0,0:00:02.00,0:00:20.00,Default,Singer,0,0,133,,{\\k0}{\\kf1800}{\\p1}m 0 5 l 307 5 307 20 0 20{\\p0}
+Dialogue: 0,0:00:20.00,0:00:21.00,Default,Singer,0,0,133,,{\\k0}{\\kf100}screen two
 
 
-Dialogue: 0,0:00:21.00,0:00:30.00,Default,Singer,0,0,129,,{\\k0}{\\kf900}||||||||||||||||||||||||||||||||||
-Dialogue: 0,0:00:30.00,0:00:31.00,Default,Singer,0,0,129,,{\\k0}{\\kf100}screen three
+Dialogue: 0,0:00:21.00,0:00:30.00,Default,Singer,0,0,133,,{\\k0}{\\kf900}{\\p1}m 0 5 l 307 5 307 20 0 20{\\p0}
+Dialogue: 0,0:00:30.00,0:00:31.00,Default,Singer,0,0,133,,{\\k0}{\\kf100}screen three
 `;
   expect(screens.map((s) => s.toAssEvents(DEFAULT_ASS_OPTIONS, DEFAULT_OPTIONS)).join("")).toBe(
     ass,
