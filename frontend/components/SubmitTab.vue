@@ -55,6 +55,20 @@
         <template v-if="videoOptions.countInMode !== 'none'">
           <b-field horizontal>
             <template #label>
+              Dynamic Count-Ins
+              <b-tooltip
+                append-to-body
+                content-class="wide-tooltip"
+                multilined
+                label="Draw marks sized to the gap: a long gap gets three, shorter gaps get fewer, and a gap too short for one gets none. Turn this off to show your own text for a fixed length instead"
+              >
+                <b-icon size="is-small" icon="circle-question"></b-icon>
+              </b-tooltip>
+            </template>
+            <b-switch v-model="videoOptions.dynamicCountIns"></b-switch>
+          </b-field>
+          <b-field v-if="!videoOptions.dynamicCountIns" horizontal>
+            <template #label>
               Count-In Text
               <b-tooltip
                 append-to-body
@@ -78,7 +92,11 @@
                 append-to-body
                 content-class="wide-tooltip"
                 multilined
-                label="Add a count-in when a line starts more than this many seconds after the previous line ends"
+                :label="
+                  videoOptions.dynamicCountIns
+                    ? 'A line that starts this long after the previous one gets all three marks, shorter gaps get fewer, and a gap under a third of it gets none. A full count-in lasts this long, so the marks tick a third of it apart'
+                    : 'Add a count-in when a line starts more than this many seconds after the previous line ends'
+                "
               >
                 <b-icon size="is-small" icon="circle-question"></b-icon>
               </b-tooltip>
@@ -95,7 +113,7 @@
               controls-position="compact"
             ></b-numberinput>
           </b-field>
-          <b-field horizontal>
+          <b-field v-if="!videoOptions.dynamicCountIns" horizontal>
             <template #label>
               Count-In Length
               <b-tooltip

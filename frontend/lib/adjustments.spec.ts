@@ -28,6 +28,7 @@ const DEFAULT_OPTIONS: KaraokeOptions = {
   addTitleScreen: true,
   countInMode: "screen",
   countInText: TEST_COUNT_IN_TEXT,
+  dynamicCountIns: false,
   countInThreshold: DEFAULT_COUNT_IN_THRESHOLD,
   countInDuration: DEFAULT_COUNT_IN_DURATION,
   addInstrumentalScreens: true,
@@ -91,16 +92,17 @@ test("count-ins use the configured text, threshold and duration", () => {
   expect(countIn.endTimestamp).toBe(30.0);
 });
 
-test("no count-in when the gap is within the threshold", () => {
+test("no count-in when the gap is too short for a single mark", () => {
   const lyrics = "That was a long intro";
   const timings: LyricEvent[] = [
-    [30.0, LYRIC_MARKERS.SEGMENT_START],
+    [2.0, LYRIC_MARKERS.SEGMENT_START],
     [35.0, LYRIC_MARKERS.SEGMENT_END],
   ];
+  // A full count-in of 9s puts the three marks 3s apart; the gap here is 2s.
   const options: KaraokeOptions = {
     ...DEFAULT_OPTIONS,
-    countInThreshold: 40.0,
-    countInDuration: 3.0,
+    dynamicCountIns: true,
+    countInThreshold: 9.0,
   };
 
   const screens = addGapCountIns(
@@ -142,13 +144,12 @@ test("line mode gives a mid-screen line its own count-in", () => {
   expect(countIn.endTimestamp).toBe(20.0);
 });
 
-test("marks stand in for a count-in with no text", () => {
+test("dynamic count-ins draw marks instead of the text", () => {
   const options: KaraokeOptions = {
     ...DEFAULT_OPTIONS,
     countInMode: "line",
-    countInText: "",
-    countInThreshold: 5.0,
-    countInDuration: 3.0,
+    dynamicCountIns: true,
+    countInThreshold: 3.0,
   };
   const screen = addGapCountIns(
     denormalizeTimestamps(compileLyricTimings(MID_SCREEN_GAP_LYRICS, MID_SCREEN_GAP_TIMINGS), 60.0),
@@ -170,6 +171,45 @@ test("marks stand in for a count-in with no text", () => {
   expect(segments.slice(0, 3).map((s) => s.timestamp)).toEqual([17.0, 18.0, 19.0]);
   expect(segments[2].endTimestamp).toBe(20.0);
   expect(segments[3].text).toBe("second line");
+});
+
+test("the number of marks follows the size of the gap", () => {
+  // A full count-in of 3s puts the three marks 1s apart, so each whole second of gap earns one.
+  const options: KaraokeOptions = {
+    ...DEFAULT_OPTIONS,
+    countInMode: "line",
+    dynamicCountIns: true,
+    countInThreshold: 3.0,
+  };
+  const countInFor = (gap: number) => {
+    const timings: LyricEvent[] = [
+      [10.0, LYRIC_MARKERS.SEGMENT_START],
+      [11.0, LYRIC_MARKERS.SEGMENT_END],
+      [11.0 + gap, LYRIC_MARKERS.SEGMENT_START],
+      [12.0 + gap, LYRIC_MARKERS.SEGMENT_END],
+    ];
+    const screen = addGapCountIns(
+      denormalizeTimestamps(compileLyricTimings(MID_SCREEN_GAP_LYRICS, timings), 60.0),
+      options,
+    )[0];
+    // Everything before the line's own text is a mark.
+    return screen.lines[1].segments.slice(0, -1);
+  };
+
+  expect(countInFor(3.5).length).toBe(3);
+  expect(countInFor(2.5).length).toBe(2);
+  expect(countInFor(1.5).length).toBe(1);
+  expect(countInFor(0.5).length).toBe(0);
+
+  // Fewer marks drop the faintest, so the fade still ends opaque on the beat.
+  const alphas = (gap: number) =>
+    countInFor(gap).map((segment) => segment.text.match(/alpha&H(..)&/)?.[1]);
+  expect(alphas(3.5)).toEqual(["80", "40", "00"]);
+  expect(alphas(2.5)).toEqual(["40", "00"]);
+  expect(alphas(1.5)).toEqual(["00"]);
+
+  // Whatever the mark count, the count-in never reaches back past the previous line's end.
+  expect(countInFor(2.5)[0].timestamp).toBe(11.5);
 });
 
 test("screen mode leaves a mid-screen line alone", () => {
@@ -203,7 +243,11 @@ test("no count-in on a line that follows on from the previous one", () => {
 });
 
 test("quick start count-in uses the configured text and duration", () => {
-  const options: KaraokeOptions = { ...DEFAULT_OPTIONS, countInText: "go! ", countInDuration: 3.0 };
+  const options: KaraokeOptions = {
+    ...DEFAULT_OPTIONS,
+    countInText: "go! ",
+    countInDuration: 3.0,
+  };
   const screens = denormalizeTimestamps(
     compileLyricTimings(testLyrics, shortIntroTestEvents),
     60.0,

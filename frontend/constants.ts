@@ -31,5 +31,6 @@ export const INSTRUMENTAL_SCREEN_THRESHOLD = 8.0;
 
 export const DEFAULT_COUNT_IN_MODE = "screen";
 export const DEFAULT_COUNT_IN_TEXT = "";
-export const DEFAULT_COUNT_IN_THRESHOLD = 5.0;
+export const DEFAULT_DYNAMIC_COUNT_INS = true;
+export const DEFAULT_COUNT_IN_THRESHOLD = 3.0;
 export const DEFAULT_COUNT_IN_DURATION = 2.0;

@@ -14,6 +14,7 @@ import {
   DEFAULT_COUNT_IN_TEXT,
   DEFAULT_COUNT_IN_THRESHOLD,
   DEFAULT_COUNT_IN_DURATION,
+  DEFAULT_DYNAMIC_COUNT_INS,
 } from "@/constants";
 
 const VOICE_STYLES_STORAGE_KEY = "voiceStyles";
@@ -55,6 +56,7 @@ export type VideoSettings = {
   addTitleScreen: boolean;
   countInMode: CountInMode;
   countInText: string;
+  dynamicCountIns: boolean;
   countInThreshold: number;
   countInDuration: number;
   addInstrumentalScreens: boolean;
@@ -89,6 +91,7 @@ const DEFAULT_SETTINGS: VideoSettings = {
   addTitleScreen: true,
   countInMode: DEFAULT_COUNT_IN_MODE,
   countInText: DEFAULT_COUNT_IN_TEXT,
+  dynamicCountIns: DEFAULT_DYNAMIC_COUNT_INS,
   countInThreshold: DEFAULT_COUNT_IN_THRESHOLD,
   countInDuration: DEFAULT_COUNT_IN_DURATION,
   addInstrumentalScreens: true,
@@ -142,9 +145,10 @@ export const useSettingsStore = defineStore("settings", () => {
   // Load saved settings when the store is initialized
   loadSettings();
 
-  // A count-in longer than the gap that triggers it would start before the previous line ends,
-  // so the threshold caps the duration. Enforced here because a loaded settings file and stored
-  // settings bypass the Submit tab's own bounds.
+  // A fixed count-in longer than the gap that triggers it would start
+  // before the previous line ends, so the threshold caps the duration.
+  // Enforced here because loaded and stored settings bypass the Submit tab's own bounds,
+  // and kept in dynamic mode so switching back lands on a usable value.
   watch(
     () => [videoOptions.countInThreshold, videoOptions.countInDuration],
     ([threshold, duration]) => {

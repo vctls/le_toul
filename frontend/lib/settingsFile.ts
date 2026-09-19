@@ -53,6 +53,7 @@ const SEPARATION_MODELS: readonly string[] = [
 
 const BOOLEAN_OPTIONS = [
   "addTitleScreen",
+  "dynamicCountIns",
   "addInstrumentalScreens",
   "addStaggeredLines",
   "useBackgroundVideo",
