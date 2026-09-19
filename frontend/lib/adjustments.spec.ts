@@ -18,18 +18,16 @@ import {
   VerticalAlignment,
 } from "./timing";
 import { testLyrics, shortIntroTestEvents } from "./timing.spec";
-import {
-  LYRIC_MARKERS,
-  DEFAULT_COUNT_IN_TEXT,
-  DEFAULT_COUNT_IN_THRESHOLD,
-  DEFAULT_COUNT_IN_DURATION,
-} from "@/constants";
+import { LYRIC_MARKERS, DEFAULT_COUNT_IN_THRESHOLD, DEFAULT_COUNT_IN_DURATION } from "@/constants";
 import { default as BuefyColor } from "buefy/src/utils/color";
+
+// Pinned rather than taken from the default, which is now empty and draws marks instead.
+const TEST_COUNT_IN_TEXT = "••• ";
 
 const DEFAULT_OPTIONS: KaraokeOptions = {
   addTitleScreen: true,
   countInMode: "screen",
-  countInText: DEFAULT_COUNT_IN_TEXT,
+  countInText: TEST_COUNT_IN_TEXT,
   countInThreshold: DEFAULT_COUNT_IN_THRESHOLD,
   countInDuration: DEFAULT_COUNT_IN_DURATION,
   addInstrumentalScreens: true,
@@ -139,9 +137,32 @@ test("line mode gives a mid-screen line its own count-in", () => {
 
   expect(screen.lines[0].segments[0].text).toBe("first line\n");
   const countIn = screen.lines[1].segments[0];
-  expect(countIn.text).toBe(DEFAULT_COUNT_IN_TEXT);
+  expect(countIn.text).toBe(TEST_COUNT_IN_TEXT);
   expect(countIn.timestamp).toBe(17.0);
   expect(countIn.endTimestamp).toBe(20.0);
+});
+
+test("marks stand in for a count-in with no text", () => {
+  const options: KaraokeOptions = {
+    ...DEFAULT_OPTIONS,
+    countInMode: "line",
+    countInText: "",
+    countInThreshold: 5.0,
+    countInDuration: 3.0,
+  };
+  const screen = addGapCountIns(
+    denormalizeTimestamps(compileLyricTimings(MID_SCREEN_GAP_LYRICS, MID_SCREEN_GAP_TIMINGS), 60.0),
+    options,
+  )[0];
+
+  // fontSize 22 => a 12x13 mark, sitting on the baseline via \pbo, with a trailing space.
+  const mark = `{\\p1\\pbo13}m 0 0 l 12 0 12 -13 0 -13{\\p0} `;
+  const segments = screen.lines[1].segments;
+  // One segment per mark, so the sweep fills them one at a time over the 3s count-in.
+  expect(segments.slice(0, 3).map((s) => s.text)).toEqual([mark, mark, mark]);
+  expect(segments.slice(0, 3).map((s) => s.timestamp)).toEqual([17.0, 18.0, 19.0]);
+  expect(segments[2].endTimestamp).toBe(20.0);
+  expect(segments[3].text).toBe("second line");
 });
 
 test("screen mode leaves a mid-screen line alone", () => {
@@ -170,7 +191,7 @@ test("no count-in on a line that follows on from the previous one", () => {
     options,
   );
 
-  expect(screens[0].lines[0].segments[0].text).toBe(DEFAULT_COUNT_IN_TEXT);
+  expect(screens[0].lines[0].segments[0].text).toBe(TEST_COUNT_IN_TEXT);
   expect(screens[0].lines[1].segments[0].text).toBe("second line");
 });
 

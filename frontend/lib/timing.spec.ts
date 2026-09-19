@@ -14,19 +14,17 @@ import {
   VerticalAlignment,
   adjustSegmentTiming,
 } from "./timing";
-import {
-  LYRIC_MARKERS,
-  DEFAULT_COUNT_IN_TEXT,
-  DEFAULT_COUNT_IN_THRESHOLD,
-  DEFAULT_COUNT_IN_DURATION,
-} from "@/constants";
+import { LYRIC_MARKERS, DEFAULT_COUNT_IN_THRESHOLD, DEFAULT_COUNT_IN_DURATION } from "@/constants";
 import { LyricSegment } from "./timing";
 import { default as BuefyColor } from "buefy/src/utils/color";
+
+// Pinned rather than taken from the default, which is now empty and draws marks instead.
+const TEST_COUNT_IN_TEXT = "••• ";
 
 const DEFAULT_OPTIONS: KaraokeOptions = {
   addTitleScreen: true,
   countInMode: "screen",
-  countInText: DEFAULT_COUNT_IN_TEXT,
+  countInText: TEST_COUNT_IN_TEXT,
   countInThreshold: DEFAULT_COUNT_IN_THRESHOLD,
   countInDuration: DEFAULT_COUNT_IN_DURATION,
   addInstrumentalScreens: true,
@@ -85,7 +83,7 @@ Dialogue: 0,0:00:00.00,0:00:04.00,Default,Singer,0,0,148,,{\\k200}{\\kf200}TÜ/�
 
 const testAss =
   testAssPreamble +
-  `Dialogue: 0,0:00:04.00,0:00:11.00,Default,Singer,0,0,118,,{\\k0}{\\kf200}${DEFAULT_COUNT_IN_TEXT}{\\kf100}Be bop {\\kf100}{\\kf100}a lu bop
+  `Dialogue: 0,0:00:04.00,0:00:11.00,Default,Singer,0,0,118,,{\\k0}{\\kf200}${TEST_COUNT_IN_TEXT}{\\kf100}Be bop {\\kf100}{\\kf100}a lu bop
 
 Dialogue: 0,0:00:04.00,0:00:11.00,Default,Singer,0,0,148,,{\\k500}{\\kf100}She's my ba{\\kf100}by
 
@@ -262,7 +260,7 @@ test("addCountIn", () => {
 
   const expected =
     testAssPreamble +
-    `Dialogue: 0,0:00:04.00,0:01:00.00,Default,Singer,0,0,118,,{\\k9400}{\\kf200}${DEFAULT_COUNT_IN_TEXT}{\\kf500}That was a long intro
+    `Dialogue: 0,0:00:04.00,0:01:00.00,Default,Singer,0,0,118,,{\\k9400}{\\kf200}${TEST_COUNT_IN_TEXT}{\\kf500}That was a long intro
 
 Dialogue: 0,0:00:04.00,0:01:00.00,Default,Singer,0,0,148,,{\\k10100}{\\kf-4500}Too bad nothing rhymes with intro
 `;
@@ -289,7 +287,7 @@ test("addCountInToSevenSecondIntro", () => {
   ];
   const sevenSecondAss =
     testAssPreamble +
-    `Dialogue: 0,0:00:04.00,0:00:12.00,Default,Singer,0,0,118,,{\\k150}{\\kf200}${DEFAULT_COUNT_IN_TEXT}{\\kf100}Be bop {\\kf50}{\\kf100}a lu bop
+    `Dialogue: 0,0:00:04.00,0:00:12.00,Default,Singer,0,0,118,,{\\k150}{\\kf200}${TEST_COUNT_IN_TEXT}{\\kf100}Be bop {\\kf50}{\\kf100}a lu bop
 
 Dialogue: 0,0:00:04.00,0:00:12.00,Default,Singer,0,0,148,,{\\k600}{\\kf100}She's my ba{\\kf100}by
 
