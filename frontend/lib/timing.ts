@@ -6,6 +6,7 @@ import {
   DEFAULT_COUNT_IN_TEXT,
   DEFAULT_COUNT_IN_THRESHOLD,
   DEFAULT_COUNT_IN_DURATION,
+  DEFAULT_DYNAMIC_COUNT_INS,
 } from "@/constants";
 import {
   addQuickStartCountIn,
@@ -31,8 +32,10 @@ export interface KaraokeOptions {
   addTitleScreen: boolean;
   countInMode: CountInMode;
   countInText: string;
-  // A line gets a count-in when it starts more than this many seconds after the previous line ends.
-  // Must stay at or above countInDuration.
+  // Draw marks sized to the gap instead of showing countInText for countInDuration.
+  // Also changes countInThreshold from the gap a line needs to earn a count-in
+  // into the gap that earns a full one.
+  dynamicCountIns: boolean;
   countInThreshold: number;
   countInDuration: number;
   addInstrumentalScreens: boolean;
@@ -63,6 +66,7 @@ export const DEFAULT_KARAOKE_OPTIONS: KaraokeOptions = {
   addTitleScreen: true,
   countInMode: DEFAULT_COUNT_IN_MODE,
   countInText: DEFAULT_COUNT_IN_TEXT,
+  dynamicCountIns: DEFAULT_DYNAMIC_COUNT_INS,
   countInThreshold: DEFAULT_COUNT_IN_THRESHOLD,
   countInDuration: DEFAULT_COUNT_IN_DURATION,
   addInstrumentalScreens: true,

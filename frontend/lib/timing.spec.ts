@@ -25,6 +25,7 @@ const DEFAULT_OPTIONS: KaraokeOptions = {
   addTitleScreen: true,
   countInMode: "screen",
   countInText: TEST_COUNT_IN_TEXT,
+  dynamicCountIns: false,
   countInThreshold: DEFAULT_COUNT_IN_THRESHOLD,
   countInDuration: DEFAULT_COUNT_IN_DURATION,
   addInstrumentalScreens: true,
