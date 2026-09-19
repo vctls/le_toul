@@ -1,6 +1,7 @@
 import {
   LYRIC_MARKERS,
   SUBTITLE_CANVAS,
+  GLYPH_BLOCK_RATIO,
   DEFAULT_COUNT_IN_MODE,
   DEFAULT_COUNT_IN_TEXT,
   DEFAULT_COUNT_IN_THRESHOLD,
@@ -322,12 +323,18 @@ export class LyricsScreen {
     // The block is normally as tall as this screen's own lines, but a staggered screen is
     // positioned as if it had the previous screen's line count (see positionAsLineCount).
     const lineCount = this.positionAsLineCount ?? this.lines.length;
+    // libass draws each line from the top of its slot,
+    // so the slack between the glyphs and the 1.5x slot all ends up below the last line.
+    // Centre on the glyphs rather than the slots, or the block sits half that slack too high.
+    // Lanes use the same block as the screen,
+    // so a voice doesn't jump when its screens start or stop overlapping another voice.
+    const blockHeight = (lineCount - 1) * lineHeight + fontSize * GLYPH_BLOCK_RATIO;
     let firstLineTopMargin: number;
     // When confined to a lane (overlapping another voice), center the lines within the
     // lane regardless of the global alignment, so each voice stays a contiguous block.
     if (this.verticalZone) {
       const laneMiddle = this.verticalZone.top + this.verticalZone.height / 2;
-      firstLineTopMargin = laneMiddle - (lineCount * lineHeight) / 2;
+      firstLineTopMargin = laneMiddle - blockHeight / 2;
     } else {
       switch (alignment) {
         case VerticalAlignment.Top:
@@ -335,7 +342,7 @@ export class LyricsScreen {
           break;
         case VerticalAlignment.Middle:
           const screenMiddle = SUBTITLE_CANVAS.height / 2;
-          firstLineTopMargin = screenMiddle - (lineCount * lineHeight) / 2;
+          firstLineTopMargin = screenMiddle - blockHeight / 2;
           break;
         case VerticalAlignment.Bottom:
           firstLineTopMargin = SUBTITLE_CANVAS.height - (lineCount + 1) * lineHeight;
@@ -756,7 +763,7 @@ export function createScreens(
     screens = displayQuickLinesEarly(screens, options);
   }
   if (options.addInstrumentalScreens) {
-    screens = addInstrumentalScreens(screens);
+    screens = addInstrumentalScreens(screens, options);
   }
   return screens;
 }

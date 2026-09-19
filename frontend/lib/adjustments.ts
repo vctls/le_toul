@@ -10,6 +10,8 @@ import {
 import {
   TITLE_SCREEN_DURATION as TITLE_SCREEN_DURATION,
   INSTRUMENTAL_SCREEN_THRESHOLD,
+  SUBTITLE_CANVAS,
+  GLYPH_BLOCK_RATIO,
 } from "../constants";
 import { concat } from "lodash-es";
 
@@ -110,17 +112,40 @@ export function trimStart(screens: LyricsScreen[], adjustment: number): LyricsSc
   return concat([trimmedScreen], otherScreens);
 }
 
-function createInstrumentalScreen(startTime: Timestamp, duration: number): LyricsScreen {
+const INSTRUMENTAL_BAR_WIDTH_FRACTION = 0.6;
+const INSTRUMENTAL_BAR_HEIGHT_RATIO = 0.7;
+
+function instrumentalBar(fontSize: number): string {
+  // A drawing, not text: the sweep fills it smoothly and its width doesn't depend on the font.
+  // Drawing coordinates are script units and ignore Fontsize, so we size it ourselves.
+  // Alone on its line, libass places the bar from its top edge,
+  // so the offset drops it into the block a line of text would cover.
+  // Leaving \p1 unclosed swallows the rest of the line.
+  const width = Math.round(SUBTITLE_CANVAS.width * INSTRUMENTAL_BAR_WIDTH_FRACTION);
+  const height = Math.round(fontSize * INSTRUMENTAL_BAR_HEIGHT_RATIO);
+  const top = Math.round((fontSize * GLYPH_BLOCK_RATIO - height) / 2);
+  const bottom = top + height;
+  return `{\\p1}m 0 ${top} l ${width} ${top} ${width} ${bottom} 0 ${bottom}{\\p0}`;
+}
+
+function createInstrumentalScreen(
+  startTime: Timestamp,
+  duration: number,
+  fontSize: number,
+): LyricsScreen {
   // Create an INSTRUMENTAL screen lasting [duration] seconds
   const line = new LyricsLine([
-    new LyricSegment("||||||||||||||||||||||||||||||||||", startTime, startTime + duration),
+    new LyricSegment(instrumentalBar(fontSize), startTime, startTime + duration),
   ]);
   const screen = new LyricsScreen([line]);
   screen.startTimestamp = startTime;
   return screen;
 }
 
-export function addInstrumentalScreens(screens: LyricsScreen[]): LyricsScreen[] {
+export function addInstrumentalScreens(
+  screens: LyricsScreen[],
+  options: KaraokeOptions,
+): LyricsScreen[] {
   // Add instrumental countdown screens between screens with a long gap
   if (screens.length < 2) {
     return screens;
@@ -131,11 +156,17 @@ export function addInstrumentalScreens(screens: LyricsScreen[]): LyricsScreen[] 
   const screenStart = currentScreen.segments[0].timestamp;
   const screenGap = screenStart - prevScreenEnd;
   if (screenGap < INSTRUMENTAL_SCREEN_THRESHOLD) {
-    return [screens[0]].concat(addInstrumentalScreens(screens.slice(1)));
+    return [screens[0]].concat(addInstrumentalScreens(screens.slice(1), options));
   } else {
-    const instrumentalScreen = createInstrumentalScreen(screens[0].endTimestamp, screenGap);
+    const instrumentalScreen = createInstrumentalScreen(
+      screens[0].endTimestamp,
+      screenGap,
+      options.font.size,
+    );
     const adjustedScreens = trimStart(screens.slice(1), screenGap);
-    return [screens[0], instrumentalScreen].concat(addInstrumentalScreens(adjustedScreens));
+    return [screens[0], instrumentalScreen].concat(
+      addInstrumentalScreens(adjustedScreens, options),
+    );
   }
 }
 
