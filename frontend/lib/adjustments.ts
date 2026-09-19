@@ -18,18 +18,29 @@ import { concat } from "lodash-es";
 const FIRST_SCREEN_QUICK_START_THRESHOLD: Timestamp = 1.0;
 const SCREEN_QUICK_START_THRESHOLD: Timestamp = 2.0;
 
-const COUNT_IN_MARKS = 3;
-const COUNT_IN_MARK_WIDTH_RATIO = 0.55;
+// One entry per mark, fading in towards the beat the singing starts on.
+const COUNT_IN_MARK_ALPHAS = [0x80, 0x40, 0x00];
+const COUNT_IN_MARK_WIDTH_RATIO = 0.4;
 const COUNT_IN_MARK_HEIGHT_RATIO = 0.6;
+// Script units, so the marks stay the same distance apart in any font at any size.
+const COUNT_IN_MARK_GAP = 5;
 
-function countInMark(fontSize: number): string {
+function countInMark(fontSize: number, index: number): string {
   // A drawing rather than a glyph.
   // Inline with the lyrics there is a text baseline, so \pbo sits the mark on it.
   // Each mark starts its own path at 0: libass takes a run's advance from its bounding box,
   // so an offset path would overlap the text after it.
+  // The gap is a second, empty contour widening that box, so it stays in script units
+  // rather than taking the width of a space in the current font.
   const width = Math.round(fontSize * COUNT_IN_MARK_WIDTH_RATIO);
   const height = Math.round(fontSize * COUNT_IN_MARK_HEIGHT_RATIO);
-  return `{\\p1\\pbo${height}}m 0 0 l ${width} 0 ${width} -${height} 0 -${height}{\\p0} `;
+  const alpha = COUNT_IN_MARK_ALPHAS[index].toString(16).padStart(2, "0").toUpperCase();
+  const rect = `m 0 0 l ${width} 0 ${width} -${height} 0 -${height}`;
+  // The last mark is followed by the lyrics, so an ordinary word space separates them.
+  const last = index === COUNT_IN_MARK_ALPHAS.length - 1;
+  const pad = width + COUNT_IN_MARK_GAP;
+  const gap = last ? "" : ` m ${pad} 0 l ${pad} 0`;
+  return `{\\alpha&H${alpha}&\\p1\\pbo${height}}${rect}${gap}{\\p0}${last ? " " : ""}`;
 }
 
 // What a count-in shows: the configured text, or marks when no text is set.
@@ -43,11 +54,14 @@ function countInSegments(
   if (options.countInText.trim()) {
     return [new LyricSegment(options.countInText, timestamp, endTimestamp)];
   }
-  const mark = countInMark(options.font.size);
-  const step = (endTimestamp - timestamp) / COUNT_IN_MARKS;
-  return Array.from(
-    { length: COUNT_IN_MARKS },
-    (_, i) => new LyricSegment(mark, timestamp + i * step, timestamp + (i + 1) * step),
+  const step = (endTimestamp - timestamp) / COUNT_IN_MARK_ALPHAS.length;
+  return COUNT_IN_MARK_ALPHAS.map(
+    (_, i) =>
+      new LyricSegment(
+        countInMark(options.font.size, i),
+        timestamp + i * step,
+        timestamp + (i + 1) * step,
+      ),
   );
 }
 
