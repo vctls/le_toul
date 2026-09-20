@@ -613,7 +613,7 @@ class SingleRegion extends EventEmitter<RegionEvents> implements Region {
   }
 
   /** Update the region's options */
-  public setOptions(options: Omit<RegionParams, "minLength" | "maxLength">) {
+  public setOptions(options: Partial<Omit<RegionParams, "minLength" | "maxLength">>) {
     if (options.color) {
       this.color = options.color;
       this.element.style.backgroundColor = this.color;
@@ -823,6 +823,11 @@ class RegionsPlugin extends BasePlugin<RegionsPluginEvents, RegionsPluginOptions
       }
       region = region.nextRegion;
     }
+  }
+
+  /** The live regions, for callers patching appearance in place instead of rebuilding. */
+  public getRegions(): Region[] {
+    return [...this.regions];
   }
 
   private orderedRegions(): Region[] {

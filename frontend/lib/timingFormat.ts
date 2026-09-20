@@ -1,25 +1,23 @@
-// Human-readable, editable projection of lyric timings.
-//
-// The internal timing representation (`Array<[seconds, marker]>`) is positionally coupled to a
-// separate lyric blob and is unreadable/uneditable by hand. This module fuses lyrics + timings
-// into one text where each syllable is preceded by an absolute timestamp tag `<MM:SS.cc>`,
-// and parses that text back into the internal array.
+// Human-readable, editable text form of a voice's timed segments:
+// each syllable preceded by an absolute timestamp tag `<MM:SS.cc>`.
+// This is the hand-editing and interchange format.
+// Segments are the stored one (see docs/timed-segments-spec.md).
 //
 // Design notes (see docs/multi-voice-spec.md):
-// - Time tags use angle brackets `<...>` ONLY. Square brackets `[...]` are reserved for future
-// per-voice annotations (`[1]`, `[1+2]`), so the two parsers never compete for the same delimiter.
-// - These functions are voice-agnostic and pure: they take/return a SINGLE voice's lyrics + timing
-// array and never touch a store. Multi-voice support will simply call them per voice.
-// - Lyrics stay owned by the lyrics store; `parseTimings` extracts timestamps only and never
-// restructures the lyric text.
-// - A `SEGMENT_START` is a tag immediately followed by syllable text. A `SEGMENT_END` (a rest
-// before silence) is a bare tag with no following syllable, mirroring the blank-gap segment that
-// `decorateAssLine` inserts.
-// - Times are quantized to centiseconds, which is lossless with respect to the rendered output (ASS
-// karaoke timing is itself centisecond-based).
+// - Time tags use angle brackets `<...>` ONLY.
+//   Square brackets `[...]` are reserved for future per-voice annotations (`[1]`, `[1+2]`),
+//   so the two parsers never compete for the same delimiter.
+// - These functions are voice-agnostic and pure:
+//   they take/return a SINGLE voice's segments and never touch a store.
+//   Multi-voice calls them per voice.
+// - A tag immediately followed by syllable text starts that segment.
+//   A bare tag with no following syllable is a rest before silence,
+//   and releases the segment before it, mirroring the blank-gap segment that `decorateAssLine` inserts.
+// - Times are quantized to centiseconds,
+//   which is lossless with respect to the rendered output (ASS karaoke timing is itself centisecond-based).
 
-import { LYRIC_MARKERS } from "@/constants";
-import { parseLyrics, LyricEvent } from "./timing";
+import { parseLyrics } from "./timing";
+import { TimedSegment } from "./timedSegments";
 
 // Matches a single timestamp tag: <MM:SS.cc> (minutes may be 1-3 digits).
 const TAG_PATTERN = /<(\d{1,3}):([0-5]?\d)\.(\d{2})>/g;
@@ -37,8 +35,10 @@ export function formatTimecode(seconds: number): string {
   return `${pad(mm)}:${pad(ss)}.${pad(cc)}`;
 }
 
-// Split a markup-preserving segment into [word, trailingSeparator]. The separator is the `_`, `/`, `\n`,
-// or `\n\n` that terminated the segment (empty for the final segment).
+/**
+ * Split a markup-preserving segment into [word, trailingSeparator].
+ * The separator is the `_`, `/`, `\n`, or `\n\n` that terminated the segment (empty for the final segment).
+ */
 function splitTrailingSeparator(text: string): [string, string] {
   const match = text.match(/(\n\n|[\n/_])$/);
   if (match) {
@@ -47,67 +47,64 @@ function splitTrailingSeparator(text: string): [string, string] {
   return [text, ""];
 }
 
-// Render (lyrics, timings) as editable timestamped text. Untimed segments are emitted without a tag,
-// so partially-timed lyrics round-trip cleanly.
-export function serializeTimings(lyricText: string, timings: LyricEvent[]): string {
-  const segments = parseLyrics(lyricText, true);
-  const starts: (number | null)[] = segments.map(() => null);
-  const ends: (number | null)[] = segments.map(() => null);
-
-  let segmentIndex = -1;
-  for (const [time, marker] of timings) {
-    if (marker === LYRIC_MARKERS.SEGMENT_START) {
-      segmentIndex++;
-      if (segmentIndex < segments.length) {
-        starts[segmentIndex] = time;
-      }
-    } else if (marker === LYRIC_MARKERS.SEGMENT_END) {
-      if (segmentIndex >= 0 && segmentIndex < segments.length) {
-        ends[segmentIndex] = time;
-      }
-    }
-  }
-
+/**
+ * Render segments as editable timestamped text. Untimed segments are emitted without a tag,
+ * so a partially-timed project round-trips cleanly.
+ */
+export function serializeTimings(segments: TimedSegment[]): string {
   let out = "";
-  segments.forEach((segment, i) => {
+  for (const segment of segments) {
     const [word, separator] = splitTrailingSeparator(segment.text);
-    if (starts[i] !== null) {
-      out += `<${formatTimecode(starts[i] as number)}>`;
+    if (segment.start !== undefined) {
+      out += `<${formatTimecode(segment.start)}>`;
     }
     out += word;
-    if (ends[i] !== null) {
-      out += `<${formatTimecode(ends[i] as number)}>`;
+    if (segment.end !== undefined) {
+      out += `<${formatTimecode(segment.end)}>`;
     }
     out += separator;
-  });
+  }
   return out;
 }
 
-// Parse editable timestamped text back into the internal timing array. A tag followed by
-// syllable text is a SEGMENT_START; a bare tag (only markup/whitespace until the next tag
-// or end of text) is a SEGMENT_END.
-export function parseTimings(text: string): LyricEvent[] {
-  const tags: { time: number; start: number; end: number }[] = [];
-  for (const match of text.matchAll(TAG_PATTERN)) {
-    const minutes = parseInt(match[1], 10);
-    const seconds = parseInt(match[2], 10);
-    const centiseconds = parseInt(match[3], 10);
-    tags.push({
-      time: minutes * 60 + seconds + centiseconds / 100,
-      start: match.index as number,
-      end: (match.index as number) + match[0].length,
-    });
+/**
+ * Parse editable timestamped text back into segments.
+ * A tag followed by syllable text starts a segment.
+ * A bare tag (only markup/whitespace until the next tag or end of text) ends one.
+ */
+export function parseTimings(text: string): TimedSegment[] {
+  // Tags hold no separator character, so the ordinary segment split works on the tagged text and
+  // each tag stays inside the segment it was written against. That is why adding or removing a
+  // `/` keeps the timings, where an ordinal join would not.
+  const segments: TimedSegment[] = [];
+
+  for (const { text: chunk } of parseLyrics(text, true)) {
+    const tags = [...chunk.matchAll(TAG_PATTERN)];
+    const body = chunk.replace(TAG_PATTERN, "");
+    const leading = tags.find((tag) => tag.index === 0);
+
+    if (body.replace(NON_SYLLABLE, "").length === 0) {
+      // A tag with no syllable of its own is a rest: it releases the previous segment.
+      if (leading && segments.length > 0) {
+        segments[segments.length - 1].end = tagSeconds(leading);
+      }
+      continue;
+    }
+
+    const segment: TimedSegment = { text: body };
+    if (leading) {
+      segment.start = tagSeconds(leading);
+    }
+    const trailing = tags.find((tag) => (tag.index as number) > 0);
+    if (trailing) {
+      segment.end = tagSeconds(trailing);
+    }
+    segments.push(segment);
   }
 
-  const events: LyricEvent[] = [];
-  for (let i = 0; i < tags.length; i++) {
-    const sliceEnd = i + 1 < tags.length ? tags[i + 1].start : text.length;
-    const between = text.slice(tags[i].end, sliceEnd);
-    const hasSyllable = between.replace(NON_SYLLABLE, "").length > 0;
-    events.push([
-      tags[i].time,
-      hasSyllable ? LYRIC_MARKERS.SEGMENT_START : LYRIC_MARKERS.SEGMENT_END,
-    ]);
-  }
-  return events;
+  return segments;
+}
+
+function tagSeconds(match: RegExpMatchArray): number {
+  return parseInt(match[1], 10) * 60 + parseInt(match[2], 10) + parseInt(match[3], 10) / 100;
 }

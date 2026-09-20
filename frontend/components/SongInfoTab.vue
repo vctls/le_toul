@@ -239,6 +239,7 @@ import { useLyricsStore } from "@/stores/lyrics";
 import { useSettingsStore } from "@/stores/settings";
 import { parseSettingsYaml } from "@/lib/settingsFile";
 import { classifyProjectFolder } from "@/lib/projectFolder";
+import { isTimingsFile } from "@/lib/timedSegments";
 import FileUpload from "@/components/FileUpload.vue";
 import FolderUpload from "@/components/FolderUpload.vue";
 import CircularProgress from "@/components/CircularProgress.vue";
@@ -415,8 +416,11 @@ export default defineComponent({
     async applyTimingsFile(file: File) {
       const parsed = JSON.parse(await file.text());
       if (Array.isArray(parsed)) {
-        // Legacy / single-voice format: an array of [time, marker] tuples.
+        // Legacy / single-voice format: one voice, an array of [time, marker] tuples.
         this.timingsStore.resetTimings(parsed);
+      } else if (isTimingsFile(parsed)) {
+        // Current format: per-voice segments, which can carry untimed ones.
+        this.timingsStore.setAllSegments(parsed.voices);
       } else {
         // Multi-voice format: a per-voice map of timing arrays.
         this.timingsStore.setAllTimings(parsed);

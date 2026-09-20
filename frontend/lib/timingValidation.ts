@@ -3,7 +3,8 @@
 // segments of one voice at once).
 
 import { LYRIC_MARKERS } from "@/constants";
-import { LyricEvent } from "@/lib/timing";
+import { LyricEvent, resolveStarts } from "@/lib/timing";
+import { TimedSegment } from "@/lib/timedSegments";
 import { formatTimecode } from "@/lib/timingFormat";
 
 // Tolerance for floating-point comparisons (a hair under a centisecond).
@@ -39,4 +40,22 @@ export function validateTimings(timings: LyricEvent[]): TimingValidationResult {
     }
   }
   return { valid: true };
+}
+
+/**
+ * This is the segment form of the clamp above. An explicit end may not run past the next
+ * segment's start. That start may itself be interpolated, which is still when it appears.
+ */
+export function clampSegmentOverlaps(segments: TimedSegment[]): TimedSegment[] {
+  const resolved = resolveStarts(segments);
+  return segments.map((segment, index) => {
+    if (segment.end === undefined) {
+      return { ...segment };
+    }
+    const nextStart = resolved.slice(index + 1).find((s) => s.start !== undefined)?.start;
+    if (nextStart === undefined || segment.end <= nextStart) {
+      return { ...segment };
+    }
+    return { ...segment, end: nextStart };
+  });
 }

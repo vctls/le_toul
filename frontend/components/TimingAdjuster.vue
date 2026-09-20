@@ -17,23 +17,24 @@
       :regions="regions"
       :mediaControls="false"
       :minPxPerSec="zoom"
+      :initialScroll="initialScroll"
       @region-updated="onRegionUpdated"
       @regions-updated="onRegionsUpdated"
       @seeking="onWavesurferSeeking"
       @zoom-change="$emit('zoom-change', $event)"
+      @scroll-change="$emit('scroll-change', $event)"
     />
   </div>
 </template>
 
 <script lang="ts">
 import { defineComponent, markRaw } from "vue";
-import { LyricSegmentIterator } from "@/lib/timing";
 import { RegionParams, Region } from "@/lib/wavesurferPlugins/OpenEndedRegionPlugin";
 import Wavesurfer from "@/components/Wavesurfer.vue";
 import SmoothAudioPlayer from "./SmoothAudioPlayer.vue";
 
-import { LyricEvent, adjustSegmentTiming } from "@/lib/timing";
-import { LYRIC_MARKERS } from "@/constants";
+import { displayText, resolveStarts } from "@/lib/timing";
+import { TimedSegment } from "@/lib/timedSegments";
 
 function createLyricRegion(
   id: number,
@@ -49,14 +50,13 @@ function createLyricRegion(
 }
 
 export default defineComponent({
-  emits: ["timingschange", "timeupdate", "seeking", "zoom-change"],
+  emits: ["segmentschange", "timeupdate", "seeking", "zoom-change", "scroll-change"],
   components: {
     Wavesurfer,
     SmoothAudioPlayer,
   },
   props: {
-    lyrics: String,
-    timings: Array<LyricEvent>,
+    segments: Array<TimedSegment>,
     audioData: Blob,
     // URL to the vocal track audio file
     vocalTrack: { type: Blob, required: false },
@@ -64,6 +64,10 @@ export default defineComponent({
     // Lets the user switch what they hear without changing the waveform.
     playbackTrack: { type: Blob, required: false },
     prerollSeconds: { type: Number, default: 5 },
+    // This is where playback resumes on load. It is read once, when the media is ready for it.
+    initialPlayhead: { type: Number, default: 0 },
+    // This is where the waveform was scrolled to, in seconds.
+    initialScroll: { type: Number, default: 0 },
     zoom: { type: Number, default: 50 },
     playbackRate: { type: Number, default: 1 },
     preservePitch: { type: Boolean, default: false },
@@ -76,35 +80,24 @@ export default defineComponent({
       // one mid-playback aborts the media fetch and wedges the <audio> element, notably in Firefox).
       // Nothing here is rendered, hence markRaw.
       trackUrls: markRaw(new Map<Blob, string>()),
+      _playheadRestored: false,
     };
   },
-  computed: {
-    splitLyrics(): Array<string> {
-      if (this.lyrics == null) {
-        return [];
-      }
-      const lyricIterator = new LyricSegmentIterator(this.lyrics)[Symbol.iterator]();
-
-      return [...lyricIterator].map((segment) => segment.text);
-    },
-  },
   mounted() {
-    this.regions = this.createRegions(this.timings ?? [], this.splitLyrics);
+    this.regions = this.createRegions(this.segments ?? []);
     const playbackBlob = this.playbackTrack || this.audioData;
     if (playbackBlob) {
       this.audioSource = this.trackUrl(playbackBlob);
     }
     this.applyPlaybackSettings();
+    this.restorePlayhead();
   },
   watch: {
-    timings: {
-      handler: function (newTimings: Array<LyricEvent>) {
-        this.regions = this.createRegions(newTimings, this.splitLyrics);
+    segments: {
+      handler: function (newSegments: Array<TimedSegment>) {
+        this.regions = this.createRegions(newSegments);
       },
       deep: true,
-    },
-    lyrics() {
-      this.regions = this.createRegions(this.timings ?? [], this.splitLyrics);
     },
     playbackRate() {
       this.applyPlaybackSettings();
@@ -126,6 +119,29 @@ export default defineComponent({
           })
         | undefined;
     },
+    /**
+     * Assigning currentTime before the media has metadata is silently dropped, so this waits for it.
+     * This runs only once. Later track swaps have their own resume logic.
+     */
+    restorePlayhead() {
+      if (this._playheadRestored || !this.initialPlayhead) return;
+      this._playheadRestored = true;
+      const time = this.initialPlayhead;
+      this.$nextTick(() => {
+        const audio = this.audioPlayerRef()?.audioPlayer as HTMLAudioElement | undefined;
+        if (!audio) return;
+        // Seeking emits `seeking`, which updates the waveform and the caller.
+        const seek = () => {
+          audio.currentTime = time;
+        };
+        // readyState 1 is HAVE_METADATA, the point at which a seek sticks.
+        if (audio.readyState >= 1) {
+          seek();
+        } else {
+          audio.addEventListener("loadedmetadata", seek, { once: true });
+        }
+      });
+    },
     applyPlaybackSettings() {
       const player = this.audioPlayerRef();
       if (!player) return;
@@ -135,34 +151,32 @@ export default defineComponent({
     wavesurferRef() {
       return this.$refs.wavesurfer as InstanceType<typeof Wavesurfer> | undefined;
     },
-    createRegions(timings: Array<LyricEvent>, lyrics: Array<string>): Array<RegionParams> {
-      if (!timings || !lyrics) {
+    /**
+     * There is one region per segment, indexed the same way, so a region id names its segment directly.
+     * An untimed segment gets a shaded region at its interpolated position. Dragging it sets a real start.
+     */
+    createRegions(segments: Array<TimedSegment>): Array<RegionParams> {
+      if (!segments) {
         return [];
       }
-      let regions = [];
-      let currentRegion = null;
-      let currentLyricIndex = 0;
-      for (let i = 0; i < timings.length; i++) {
-        const [time, marker] = timings[i];
-        if (marker === LYRIC_MARKERS.SEGMENT_START) {
-          if (currentRegion) {
-            regions.push(currentRegion);
-            currentLyricIndex += 1;
-          }
-          const lyricSegment = lyrics[currentLyricIndex];
-          currentRegion = createLyricRegion(regions.length, {
-            start: time,
-            end: undefined,
-            content: lyricSegment,
-            color: "var(--region-fill)",
-          });
-        } else if (marker === LYRIC_MARKERS.SEGMENT_END && currentRegion) {
-          currentRegion.end = time;
+      const resolved = resolveStarts(segments);
+      const regions: RegionParams[] = [];
+      resolved.forEach((segment, index) => {
+        if (segment.start === undefined) {
+          return;
         }
-      }
-      if (currentRegion) {
-        regions.push(currentRegion);
-      }
+        regions.push(
+          createLyricRegion(index, {
+            start: segment.start,
+            end: segment.end,
+            content: displayText(segment.text),
+            color:
+              segments[index].start === undefined
+                ? "var(--region-fill-hole)"
+                : "var(--region-fill)",
+          }),
+        );
+      });
       return regions;
     },
     trackUrl(blob: Blob): string {
@@ -200,20 +214,17 @@ export default defineComponent({
     },
     onRegionsUpdated(regions: Array<Region>) {
       if (regions.length === 0) return;
-      const newTimings = regions.reduce(
-        (timings, region) => this.applyRegionUpdateToTimings(region, timings),
-        this.timings ?? [],
-      );
-      this.$emit("timingschange", newTimings);
+      const updated = (this.segments ?? []).map((segment) => ({ ...segment }));
+      for (const region of regions) {
+        const index = parseInt(region.id.split("_")[1]);
+        const segment = updated[index];
+        if (!segment) continue;
+        segment.start = region.start;
+        segment.end = region.isOpenEnded ? undefined : region.end;
+      }
+      this.$emit("segmentschange", updated);
       this.$nextTick(() => {
         this.previewNewTiming(regions[0]);
-      });
-    },
-    applyRegionUpdateToTimings(region: Region, timings: Array<LyricEvent>): Array<LyricEvent> {
-      const segmentNum = parseInt(region.id.split("_")[1]);
-      return adjustSegmentTiming(segmentNum, timings, {
-        start: region.start,
-        end: region.isOpenEnded ? undefined : region.end,
       });
     },
     previewNewTiming(region: Region) {

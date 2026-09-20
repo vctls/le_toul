@@ -45,6 +45,12 @@ export default defineComponent({
       type: Array as PropType<RegionParams[]>,
       default: () => [],
     },
+    // This is where the view was scrolled to, in seconds. It is applied once, when the waveform
+    // is laid out.
+    initialScroll: {
+      type: Number,
+      default: 0,
+    },
     waveColor: {
       type: String,
       required: false,
@@ -66,6 +72,7 @@ export default defineComponent({
       _zoomAnchor: null as { time: number; cursorX: number } | null,
       _unsubscribeScheme: null as (() => void) | null,
       _savedScrollLeft: 0,
+      _initialScrollApplied: false,
       // Set when a drag/resize updates a region.
       // The drag has already moved the region's DOM to its final position, so when the resulting timings round-trip
       // back through the `regions` prop we skip the expensive teardown-and-rebuild of every region for that one update.
@@ -80,10 +87,13 @@ export default defineComponent({
         this.isVisible = entry.isIntersecting;
 
         // If becoming visible and we have regions, redraw them
-        if (!wasVisible && this.isVisible && this.regions.length > 0) {
-          console.log("Wavesurfer became visible, updating regions");
+        if (!wasVisible && this.isVisible) {
+          // A hidden container has no scroll box, so a restore can only land once it is laid out.
           this.$nextTick(() => {
-            this.updateRegions(this.regions);
+            this.applyInitialScroll();
+            if (this.regions.length > 0) {
+              this.updateRegions(this.regions);
+            }
           });
         }
       },
@@ -132,6 +142,7 @@ export default defineComponent({
     // Landing straight on this tab (a #adjust deep link or reload) is the case that hits it.
     this.wavesurfer.on("ready", () => {
       this.updateRegions(this.regions);
+      this.applyInitialScroll();
     });
 
     this.regionsPlugin.on("region-updated", (region: Region) => {
@@ -176,6 +187,10 @@ export default defineComponent({
         // The DOM is already correct, so skip the teardown-and-rebuild of every region for this one update.
         if (this._skipNextRegionsUpdate) {
           this._skipNextRegionsUpdate = false;
+          // The drag already moved the region, so there is no new position left to apply.
+          // It can also give an untimed segment a start, which changes the region color,
+          // and nothing has repainted that yet.
+          this.syncRegionColors(newRegions);
           return;
         }
         // Add regions after audio is decoded or they won't render right
@@ -186,7 +201,7 @@ export default defineComponent({
       deep: true,
     },
   },
-  emits: ["seeking", "region-updated", "regions-updated", "zoom-change"],
+  emits: ["seeking", "region-updated", "regions-updated", "zoom-change", "scroll-change"],
   methods: {
     schemeColors() {
       return {
@@ -206,7 +221,8 @@ export default defineComponent({
         const time = (scrollEl.scrollLeft + cursorX) / this.minPxPerSec;
         this._zoomAnchor = { time, cursorX };
       }
-      this.$emit("zoom-change", Math.sign(event.deltaY) * 10);
+      // Scrolling up zooms in, matching maps and image viewers.
+      this.$emit("zoom-change", -Math.sign(event.deltaY) * 10);
     },
     play() {
       if (this.wavesurfer) {
@@ -251,15 +267,46 @@ export default defineComponent({
     },
     rememberScroll() {
       const scrollEl = this.scrollElement();
-      // While the container is hidden it has no scroll box, and the offset the browser reports is a
-      // meaningless zero.
+      // While the container is hidden it has no scroll box, and the offset the browser reports is a meaningless zero.
       if (!scrollEl || scrollEl.clientWidth === 0) return;
       this._savedScrollLeft = scrollEl.scrollLeft;
+      const start = this.scrollSeconds(scrollEl);
+      if (start !== null) this.$emit("scroll-change", start);
+    },
+    /**
+     * The left edge of the view in seconds, which survives a zoom change as a pixel offset would not.
+     */
+    scrollSeconds(scrollEl: HTMLElement): number | null {
+      const duration = this.wavesurfer?.getDuration() ?? 0;
+      if (!scrollEl.scrollWidth || !duration) return null;
+      return (scrollEl.scrollLeft / scrollEl.scrollWidth) * duration;
+    },
+    applyInitialScroll() {
+      if (this._initialScrollApplied || !this.initialScroll) return;
+      const scrollEl = this.scrollElement();
+      const duration = this.wavesurfer?.getDuration() ?? 0;
+      if (!scrollEl || !scrollEl.scrollWidth || !scrollEl.clientWidth || !duration) return;
+      this._initialScrollApplied = true;
+      this._savedScrollLeft = (this.initialScroll / duration) * scrollEl.scrollWidth;
+      scrollEl.scrollLeft = this._savedScrollLeft;
     },
     restoreScroll() {
       const scrollEl = this.scrollElement();
       if (!scrollEl || scrollEl.clientWidth === 0) return;
       scrollEl.scrollLeft = this._savedScrollLeft;
+    },
+    /**
+     * Color is the only thing a drag can change besides position.
+     * A drag can't alter the text, and no other region's fill depends on where this one landed.
+     */
+    syncRegionColors(regions: RegionParams[]) {
+      const live = new Map(this.regionsPlugin.getRegions().map((region) => [region.id, region]));
+      for (const params of regions) {
+        const region = params.id ? live.get(params.id) : undefined;
+        if (region && params.color && params.color !== region.color) {
+          region.setOptions({ color: params.color });
+        }
+      }
     },
     updateRegions(regions: RegionParams[]) {
       if (!this.wavesurfer || !this.isVisible || !this.isReady()) return;

@@ -1,3 +1,4 @@
+import { fromEvents } from "./timedSegments";
 import {
   addTitleScreen,
   addInstrumentalScreens,
@@ -57,7 +58,7 @@ test("addTitleScreenToShortIntroSong", () => {
 Dialogue: 0,0:00:00.00,0:00:04.00,Default,Singer,0,0,148,,{\\k200}{\\kf200}The Tüüls
 `;
   const screens = denormalizeTimestamps(
-    compileLyricTimings(testLyrics, shortIntroTestEvents),
+    compileLyricTimings(fromEvents(testLyrics, shortIntroTestEvents)),
     60.0,
   );
   const screensWithTitle = addTitleScreen(screens, "Tüülin' Around", "The Tüüls");
@@ -82,7 +83,7 @@ test("count-ins use the configured text, threshold and duration", () => {
   };
 
   const screens = addGapCountIns(
-    denormalizeTimestamps(compileLyricTimings(lyrics, timings), 60.0),
+    denormalizeTimestamps(compileLyricTimings(fromEvents(lyrics, timings)), 60.0),
     options,
   );
 
@@ -106,7 +107,7 @@ test("no count-in when the gap is too short for a single mark", () => {
   };
 
   const screens = addGapCountIns(
-    denormalizeTimestamps(compileLyricTimings(lyrics, timings), 60.0),
+    denormalizeTimestamps(compileLyricTimings(fromEvents(lyrics, timings)), 60.0),
     options,
   );
 
@@ -129,7 +130,10 @@ function screenWithMidScreenGap(countInMode: CountInMode): LyricsScreen {
     countInDuration: 3.0,
   };
   return addGapCountIns(
-    denormalizeTimestamps(compileLyricTimings(MID_SCREEN_GAP_LYRICS, MID_SCREEN_GAP_TIMINGS), 60.0),
+    denormalizeTimestamps(
+      compileLyricTimings(fromEvents(MID_SCREEN_GAP_LYRICS, MID_SCREEN_GAP_TIMINGS)),
+      60.0,
+    ),
     options,
   )[0];
 }
@@ -152,7 +156,10 @@ test("dynamic count-ins draw marks instead of the text", () => {
     countInThreshold: 3.0,
   };
   const screen = addGapCountIns(
-    denormalizeTimestamps(compileLyricTimings(MID_SCREEN_GAP_LYRICS, MID_SCREEN_GAP_TIMINGS), 60.0),
+    denormalizeTimestamps(
+      compileLyricTimings(fromEvents(MID_SCREEN_GAP_LYRICS, MID_SCREEN_GAP_TIMINGS)),
+      60.0,
+    ),
     options,
   )[0];
 
@@ -189,7 +196,7 @@ test("the number of marks follows the size of the gap", () => {
       [12.0 + gap, LYRIC_MARKERS.SEGMENT_END],
     ];
     const screen = addGapCountIns(
-      denormalizeTimestamps(compileLyricTimings(MID_SCREEN_GAP_LYRICS, timings), 60.0),
+      denormalizeTimestamps(compileLyricTimings(fromEvents(MID_SCREEN_GAP_LYRICS, timings)), 60.0),
       options,
     )[0];
     // Everything before the line's own text is a mark.
@@ -234,7 +241,7 @@ test("no count-in on a line that follows on from the previous one", () => {
   };
 
   const screens = addGapCountIns(
-    denormalizeTimestamps(compileLyricTimings(lyrics, timings), 60.0),
+    denormalizeTimestamps(compileLyricTimings(fromEvents(lyrics, timings)), 60.0),
     options,
   );
 
@@ -249,7 +256,7 @@ test("quick start count-in uses the configured text and duration", () => {
     countInDuration: 3.0,
   };
   const screens = denormalizeTimestamps(
-    compileLyricTimings(testLyrics, shortIntroTestEvents),
+    compileLyricTimings(fromEvents(testLyrics, shortIntroTestEvents)),
     60.0,
   );
 
@@ -270,7 +277,7 @@ test("addInstrumentalScreen", () => {
     [20.0, LYRIC_MARKERS.SEGMENT_START],
     [21.0, LYRIC_MARKERS.SEGMENT_END],
   ];
-  let screens = compileLyricTimings(lyrics, timings);
+  let screens = compileLyricTimings(fromEvents(lyrics, timings));
 
   screens = denormalizeTimestamps(addInstrumentalScreens(screens, DEFAULT_OPTIONS), 60.0);
   expect(screens.length).toBe(3);
@@ -298,7 +305,7 @@ test("addInstrumentalScreenFor3ScreenSong", () => {
     [30.0, LYRIC_MARKERS.SEGMENT_START],
     [31.0, LYRIC_MARKERS.SEGMENT_END],
   ];
-  let screens = compileLyricTimings(lyrics, timings);
+  let screens = compileLyricTimings(fromEvents(lyrics, timings));
   screens = denormalizeTimestamps(addInstrumentalScreens(screens, DEFAULT_OPTIONS), 60.0);
   expect(screens.length).toBe(5);
 
