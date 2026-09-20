@@ -54,8 +54,15 @@ import VoiceSelector from "@/components/VoiceSelector.vue";
 import { useTimingsStore } from "@/stores/timings";
 import { useLyricsStore } from "@/stores/lyrics";
 import { serializeTimings, parseTimings } from "@/lib/timingFormat";
+import { toEvents } from "@/lib/timedSegments";
 import { validateTimings } from "@/lib/timingValidation";
 import { VoiceId } from "@/lib/voices";
+
+/**
+ * This is the lyric text a list of segments spells out.
+ * It is used to compare an edit against the current lyrics.
+ */
+const join = (segments: { text: string }[]) => segments.map((segment) => segment.text).join("");
 
 export default defineComponent({
   components: { BButton, BField, BInput, HelpSection, VoiceSelector },
@@ -81,10 +88,7 @@ export default defineComponent({
     // or active voice change. The watcher below reloads the draft, so switching voices shows that
     // voice's timings.
     current(): string {
-      return serializeTimings(
-        this.lyricsStore.lyricTextForVoice(this.activeVoice),
-        this.timingsStore.rawTimings,
-      );
+      return serializeTimings(this.timingsStore.activeSegments);
     },
     hasChanges(): boolean {
       return this.draft !== this.current;
@@ -103,14 +107,28 @@ export default defineComponent({
     apply() {
       try {
         const parsed = parseTimings(this.draft);
-        const validation = validateTimings(parsed);
+        const validation = validateTimings(toEvents(parsed));
         if (!validation.valid) {
           this.error = validation.message ?? "These timings are not valid.";
           return;
         }
-        this.timingsStore.resetTimings(parsed);
+
+        const edited = join(parsed);
+        const wordsChanged = edited !== join(this.lyricsStore.segmentsForVoice(this.activeVoice));
+        // Only a voice that owns the whole lyric blob can have words written back to it.
+        // Putting an edit back through the `[tag]` lines of a multi-voice blob is not implemented.
+        if (wordsChanged && this.lyricsStore.voices.length > 1) {
+          this.error =
+            "This tab can only change timings while the song has more than one voice. Edit the words in the Lyrics tab.";
+          return;
+        }
+
+        this.timingsStore.resetSegments(parsed);
+        if (wordsChanged) {
+          this.lyricsStore.setLyrics(edited);
+        }
         this.error = "";
-        // resetTimings updates `current`, whose watcher re-normalizes `draft`.
+        // resetSegments updates `current`, whose watcher re-normalizes `draft`.
       } catch (e) {
         this.error = "Could not apply timings: " + (e as Error).message;
       }
@@ -154,7 +172,7 @@ export default defineComponent({
 }
 
 .timing-edit-tab :deep(.timing-editor-textarea) {
-  font-family: var(--bulma-family-primary);
+  font-family: var(--bulma-family-primary), sans-serif;
   white-space: pre;
   line-height: 1.6;
   flex: 1;

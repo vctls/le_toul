@@ -18,6 +18,9 @@ import {
 } from "./adjustments";
 import { map, method, isNumber } from "lodash-es";
 import { default as BuefyColor } from "buefy/src/utils/color";
+// This import must stay type-only,
+// because timedSegments imports parseLyrics from here at runtime.
+import type { TimedSegment } from "./timedSegments";
 
 // "mkv" also carries the vocals and the original mix as extra audio tracks.
 export const OUTPUT_FORMATS = ["mp4", "mkv"] as const;
@@ -180,6 +183,80 @@ export function parseLyrics(lyricsText: string, includeMarkup: boolean = false):
   return segments;
 }
 
+/**
+ * The drawn form of a segment's stored text.
+ * A trailing `_` is the space between two words.
+ * A trailing `/` is an invisible split inside one.
+ * Newlines stay: the renderer groups lines on them.
+ */
+export function displayText(text: string): string {
+  if (text.endsWith("_")) {
+    return text.slice(0, -1) + " ";
+  }
+  if (text.endsWith("/")) {
+    return text.slice(0, -1);
+  }
+  return text;
+}
+
+function width(segment: TimedSegment): number {
+  return Math.max(displayText(segment.text).trim().length, 1);
+}
+
+/**
+ * Give every hole a start, so a freshly split word doesn't vanish while its syllables are untimed.
+ *
+ * Only a hole timed on BOTH sides is filled. An untimed head or tail is work not done yet,
+ * and filling it would spread an untimed second half of a song across the rest of the track.
+ *
+ * This runs on the render path only.
+ * Nothing is written back, so a hole stays a hole in Adjust and Edit.
+ */
+export function resolveStarts(segments: TimedSegment[]): TimedSegment[] {
+  const resolved = segments.map((segment) => ({ ...segment }));
+
+  let i = 0;
+  while (i < resolved.length) {
+    if (resolved[i].start !== undefined) {
+      i++;
+      continue;
+    }
+
+    let end = i;
+    while (end < resolved.length && resolved[end].start === undefined) {
+      end++;
+    }
+
+    const before = i > 0 ? resolved[i - 1] : undefined;
+    const after = end < resolved.length ? resolved[end] : undefined;
+    if (before?.start !== undefined && after?.start !== undefined) {
+      // A hole starts after the preceding segment has ended. Anchoring on that segment's start
+      // instead would put the hole inside it, which the region layer rejects as an overlap.
+      // The anchor is capped at the next start, or an end already dragged past it would move holes backwards.
+      const release = before.end === undefined ? undefined : Math.min(before.end, after.start);
+      const lower = release ?? before.start;
+      // With an explicit end the span belongs to the holes alone. Without one the preceding
+      // segment runs into them, so it takes a share too.
+      const share = [
+        release === undefined ? width(before) : 0,
+        ...resolved.slice(i, end).map(width),
+      ];
+      const total = share.reduce((sum, w) => sum + w, 0);
+      const span = after.start - lower;
+
+      let consumed = 0;
+      for (let k = i; k < end; k++) {
+        consumed += share[k - i];
+        resolved[k].start = lower + (span * consumed) / total;
+      }
+    }
+
+    i = end;
+  }
+
+  return resolved;
+}
+
 export class LyricSegmentIterator {
   segments: Segment[];
   includeMarkup: boolean;
@@ -193,59 +270,6 @@ export class LyricSegmentIterator {
       yield s;
     }
   }
-}
-
-export function adjustSegmentTiming(
-  segment: number,
-  timings: Array<LyricEvent>,
-  newValues: { start: number; end?: number },
-): Array<LyricEvent> {
-  // Adjust the timing of a segment. When newValues.end is a number, the
-  // segment is given an explicit SEGMENT_END marker (creating one if needed);
-  // when it's undefined, any existing SEGMENT_END marker is dropped so the
-  // segment runs up against the next one.
-  let currentSegment = -1;
-  const result: Array<LyricEvent> = [];
-  let sawTargetEnd = false;
-
-  const flushPendingEnd = () => {
-    if (currentSegment === segment && !sawTargetEnd && isNumber(newValues.end)) {
-      result.push([newValues.end, LYRIC_MARKERS.SEGMENT_END]);
-      sawTargetEnd = true;
-    }
-  };
-
-  for (const [t, m] of timings) {
-    if (m == LYRIC_MARKERS.SEGMENT_START) {
-      // Insert a SEGMENT_END for the target segment if it didn't have one
-      // and the caller is introducing one.
-      flushPendingEnd();
-      currentSegment++;
-    }
-
-    if (currentSegment != segment) {
-      result.push([t, m]);
-      continue;
-    }
-
-    if (m == LYRIC_MARKERS.SEGMENT_START) {
-      result.push([newValues.start, m]);
-    } else if (m == LYRIC_MARKERS.SEGMENT_END) {
-      sawTargetEnd = true;
-      if (isNumber(newValues.end)) {
-        result.push([newValues.end, m]);
-      }
-      // else: drop the marker. Segment becomes open-ended
-    }
-  }
-
-  // Target segment is the last one in the array. Flush a pending end.
-  flushPendingEnd();
-
-  if (currentSegment < segment) {
-    throw new Error(`Segment ${segment} not found in timings`);
-  }
-  return result;
 }
 
 export class LyricSegment {
@@ -539,72 +563,37 @@ export class LyricsLine {
 export type LyricEvent = [number, number];
 export type Timestamp = number;
 
-export function compileLyricTimings(lyrics: string, events: LyricEvent[]): LyricsScreen[] {
-  // Read keyboard events in the order they were pressed and construct
-  // objects for screens and lines that include the given timing information.
-  const segments = new LyricSegmentIterator(lyrics)[Symbol.iterator]();
-  const screens = [];
-  let previousSegment = null;
-  let line = null;
-  let screen = null;
+/**
+ * Group timed segments into the lines and screens the renderer draws.
+ * Each segment carries its own text, so there are no two sequences to keep in step.
+ */
+export function compileLyricTimings(segments: TimedSegment[]): LyricsScreen[] {
+  const screens: LyricsScreen[] = [];
+  let screen = new LyricsScreen();
+  let line = new LyricsLine();
 
-  if (lyrics.length == 0 || events.length == 0) {
-    return [];
+  for (const { text, start, end } of segments) {
+    // An untimed segment draws nothing, but its separator still breaks the line or screen,
+    // so the break below runs either way.
+    // Empty text means a timing with no lyric (see fromEvents).
+    if (start !== undefined && text !== "") {
+      line.segments.push(new LyricSegment(displayText(text), start, end));
+    }
+    if (text.endsWith("\n") && line.segments.length > 0) {
+      screen.lines.push(line);
+      line = new LyricsLine();
+    }
+    if (text.endsWith("\n\n") && screen.lines.length > 0) {
+      screens.push(screen);
+      screen = new LyricsScreen();
+    }
   }
 
-  try {
-    for (const e of events) {
-      const timestamp = e[0];
-      const marker = e[1];
-      if (marker == LYRIC_MARKERS.SEGMENT_START) {
-        const nextSegment = segments.next();
-        if (nextSegment.done) {
-          console.error(
-            "compileLyricTimings: More SEGMENT_START events than lyric segments available",
-            {
-              lyrics,
-              totalEvents: events.length,
-              currentScreens: screens.length,
-            },
-          );
-          break;
-        }
-        const segmentText = nextSegment.value.text;
-        const segment = new LyricSegment(segmentText, timestamp);
-        if (!screen) {
-          screen = new LyricsScreen();
-        }
-        if (!line) {
-          line = new LyricsLine();
-        }
-        line.segments.push(segment);
-        if (segmentText.endsWith("\n")) {
-          screen.lines.push(line);
-          line = null;
-        }
-        if (segmentText.endsWith("\n\n")) {
-          screens.push(screen);
-          screen = null;
-        }
-        previousSegment = segment;
-      } else if (marker == LYRIC_MARKERS.SEGMENT_END) {
-        if (previousSegment !== null) {
-          previousSegment.endTimestamp = timestamp;
-        }
-      }
-    }
-
-    if (line !== null) {
-      if (!screen) {
-        screen = new LyricsScreen();
-      }
-      screen.lines.push(line);
-    }
-    if (screen !== null && screen.lines.length > 0) {
-      screens.push(screen);
-    }
-  } catch (e) {
-    console.error("compileLyricTimings error", e, lyrics, events);
+  if (line.segments.length > 0) {
+    screen.lines.push(line);
+  }
+  if (screen.lines.length > 0) {
+    screens.push(screen);
   }
   return screens;
 }
@@ -746,14 +735,13 @@ function createSubtitles(
 }
 
 export function createScreens(
-  lyrics: string,
-  lyricEvents: LyricEvent[],
+  segments: TimedSegment[],
   songDuration: number,
   title: string,
   artist: string,
   options: KaraokeOptions,
 ): LyricsScreen[] {
-  let screens = compileLyricTimings(lyrics, lyricEvents);
+  let screens = compileLyricTimings(resolveStarts(segments));
   if (screens.length === 0) {
     // No lyrics yet (e.g. a timings file was loaded before lyrics were entered). The decorators below
     // index into screens[0], so bail early.
@@ -804,22 +792,20 @@ function optionsToFormatParams(options: KaraokeOptions): Record<string, unknown>
 }
 
 export function createAssFile(
-  lyrics: string,
-  lyricEvents: LyricEvent[],
+  segments: TimedSegment[],
   songDuration: number,
   title: string,
   artist: string,
   options: KaraokeOptions,
 ) {
   // Entry point to subtitles. Creates an .ass file from the given info.
-  const screensWithTitle = createScreens(lyrics, lyricEvents, songDuration, title, artist, options);
+  const screensWithTitle = createScreens(segments, songDuration, title, artist, options);
   return createSubtitles(screensWithTitle, options, optionsToFormatParams(options));
 }
 
 export interface VoiceTrack {
   voice: string;
-  lyrics: string;
-  timings: LyricEvent[];
+  segments: TimedSegment[];
   options: KaraokeOptions;
 }
 
@@ -887,7 +873,7 @@ export function createMultiVoiceAssFile(
     const options: KaraokeOptions = isPrimary
       ? track.options
       : { ...track.options, addTitleScreen: false, addInstrumentalScreens: false };
-    let screens = createScreens(track.lyrics, track.timings, songDuration, title, artist, options);
+    let screens = createScreens(track.segments, songDuration, title, artist, options);
     if (!isPrimary) {
       screens = deferScreenStarts(screens);
     }

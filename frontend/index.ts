@@ -31,8 +31,9 @@ window.addEventListener("load", function () {
   // Options stores can't auto-wire persistence via watch() inside setup, so
   // register the timings store's $subscribe hook once Pinia is active.
   useTimingsStore().setupPersistence();
-  // Same for the watcher that carries timings across voice renames.
+  // Same for the watchers that carry timings across voice renames and lyric edits.
   useTimingsStore().setupVoiceReconciliation();
+  useTimingsStore().setupSegmentReconciliation();
 
   app.mount("#app");
 });

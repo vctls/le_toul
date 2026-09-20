@@ -72,6 +72,15 @@ When changing playback speed, pitch preservation can now be toggled on or off.
 
   ![Dragging a segment's end to separate it from the next, then re-joining it](docs/media/segment-split-join.gif)
 
+- **Edit the lyrics after timing them.** Timings are tied to lyric segments, not to their position.
+  An edit only affects adjacent segments. Removing a `/` merges the corresponding timing regions and keeps
+  the outer edges. Adding a `/` back splits them again, and the syllable with no timing of its own is
+  drawn faded until you drag it into place. Everything around the edit stays where it was.  
+  A faded rectangle still renders, spaced between its neighbors, so you can preview the video
+  without fixing it first. Fixing a typo costs nothing at all.
+
+  ![Removing a slash merges two rectangles, adding it back leaves a faded one that a drag pins down](docs/media/lyric-edit-reconcile.gif)
+
 - **Select and drag multiple regions at once.** Click one, click another, and everything between
   the two moves together, clamped by the rectangles on either side. <kbd>Esc</kbd> clears it.  
   That way you can quickly fix entire timing sections.

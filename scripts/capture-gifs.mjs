@@ -299,10 +299,13 @@ async function findOpenEndedRegion(page) {
   return best;
 }
 
-/** Wheel-zooms the waveform under the cursor. One wheel event is worth ±10 zoom. */
+/**
+ * Wheel-zooms the waveform under the cursor, where dir 1 is in and -1 is out. One wheel event is
+ * worth 10 zoom. Scrolling up zooms in, so the deltaY is the opposite sign to dir.
+ */
 async function wheelZoom(page, ticks, dir = 1, rec = null, delay = 40) {
   for (let i = 0; i < ticks; i++) {
-    await page.mouse.wheel(0, dir * 150);
+    await page.mouse.wheel(0, -dir * 150);
     await sleep(delay);
     if (rec) await rec.frame();
   }
@@ -313,7 +316,7 @@ async function zoomUntilWide(page, id, minWidth, maxTicks = 26) {
   for (let i = 0; i < maxTicks; i++) {
     const box = await getRegionBox(page, id);
     if (box && box.width >= minWidth) break;
-    await page.mouse.wheel(0, 150);
+    await page.mouse.wheel(0, -150);
     await sleep(55);
   }
   await sleep(400);
@@ -1008,9 +1011,147 @@ async function captureTheme(page) {
 
 const DEFAULT_VIEWPORT = { width: 1280, height: 900 };
 
+/**
+ * Editing the lyrics after timing them. Removing a `/` merges the two rectangles for that word
+ * and keeps the outer bounds. Re-adding it splits them again, and the syllable that has no
+ * timing of its own is drawn faded until a drag pins it down. Everything around the edit stays
+ * where it was, which is the part worth seeing.
+ */
+async function captureReconcile(page) {
+  await setupAdjustView(page);
+  const pointer = new Pointer(page);
+  await pointer.install();
+
+  // Segment 22 is `sur/` and 23 is `prise`, the split word in the third line of the fixture.
+  const SPLIT = 22;
+  // The frame has to hold both tabs, so the per-tab instructions are collapsed to make room.
+  await page.click('button[title="Show or hide the instructions on each tab"]');
+  await sleep(300);
+  await page.locator(".wavesurfer-container").scrollIntoViewIfNeeded();
+  await sleep(150);
+  const target = await segmentBox(page, SPLIT);
+  if (!target) throw new Error("Expected a rectangle for the split word.");
+
+  await pointer.moveTo((target.left + target.right) / 2, (target.top + target.bottom) / 2);
+  await zoomUntilWide(page, target.id, 190);
+
+  // Both tabs have to put their action in the same band, since one clip covers both. The lyrics
+  // land a third of the way across the textarea, so the waveform is scrolled to match.
+  const view = page.viewportSize();
+  // Clipped below the app header, which also drops the half-scrolled control above the preview.
+  const clip = { x: 0, y: 136, width: 860, height: view.height - 136 };
+  const scroller = page.locator(".wavesurfer-container div.scroll").first();
+  const centreOnSplit = async () => {
+    const box = await segmentBox(page, SPLIT);
+    if (!box) return;
+    await scroller.evaluate(
+      (el, dx) => {
+        el.scrollLeft += dx;
+      },
+      box.left + box.width / 2 - 470,
+    );
+    await sleep(350);
+  };
+  await centreOnSplit();
+
+  const editor = page.locator(".lyric-input-tab .lyric-editor-textarea");
+  const lyricsTab = page.locator("nav.tabs .lyric-input-tab-header");
+  const adjustTab = page.locator("nav.tabs .timing-adjustment-tab-header");
+
+  const rec = new Recorder(page, "reconcile", clip);
+  await rec.init();
+
+  /** Glides to a tab, clicks it, and lets the new tab settle on screen. */
+  const switchTo = async (tab, settle) => {
+    const box = await tab.boundingBox();
+    await pointer.glideTo(box.x + box.width / 2, box.y + box.height / 2, rec, 10, 30);
+    await rec.hold(3);
+    await pointer.press();
+    await rec.hold(2);
+    await pointer.release();
+    await sleep(settle);
+    await rec.hold(3);
+  };
+
+  /** Selects `length` characters of the lyrics from `offset`, so the target is visible first. */
+  const selectLyrics = async (offset, length) =>
+    page.evaluate(
+      ({ i, n }) => {
+        const t = document.querySelector(".lyric-input-tab .lyric-editor-textarea");
+        t.focus();
+        t.setSelectionRange(i, i + n);
+      },
+      { i: offset, n: length },
+    );
+
+  const lyrics = await fs.readFile(LYRICS, "utf-8");
+  const word = lyrics.indexOf("sur/prise");
+
+  // Two rectangles for one word, before anything is touched.
+  await rec.hold(14);
+
+  // Select the `/` itself, so it is clear which character is about to go.
+  await switchTo(lyricsTab, 500);
+  const box = await editor.boundingBox();
+  await pointer.glideTo(box.x + 220, box.y + 92, rec, 8, 30);
+  await rec.hold(4);
+  await selectLyrics(word + 3, 1);
+  await rec.hold(12);
+  await page.keyboard.press("Backspace");
+  await rec.hold(14);
+
+  // The two rectangles are now one, and the timings on either side have not moved.
+  await switchTo(adjustTab, 900);
+  await centreOnSplit();
+  await rec.hold(22);
+
+  // Highlight the syllable the split belongs after, then collapse to its end and type the one
+  // character. Retyping the whole word would not do: reconcile runs on every keystroke, and the
+  // half-typed states match nothing, so the word would lose the timing this is meant to keep.
+  await switchTo(lyricsTab, 500);
+  await pointer.glideTo(box.x + 240, box.y + 92, rec, 8, 30);
+  await rec.hold(4);
+  await selectLyrics(word, 3);
+  await rec.hold(14);
+  await page.keyboard.press("ArrowRight");
+  await rec.hold(4);
+  await page.keyboard.press("Slash");
+  await rec.hold(16);
+
+  // `sur` kept its timing. `prise` has none of its own, so it is drawn faded.
+  await switchTo(adjustTab, 900);
+  await centreOnSplit();
+  await rec.hold(26);
+
+  // Dragging its leading edge gives it a start, and it stops being faded.
+  const hole = await segmentBox(page, SPLIT + 1);
+  if (!hole) throw new Error("Expected a rectangle for the re-split syllable.");
+  const y = (hole.top + hole.bottom) / 2;
+  await pointer.glideTo(hole.left + 3, y, rec, 10, 30);
+  await rec.hold(6);
+  await pointer.press();
+  await rec.hold(4);
+  const travel = Math.round(Math.min(60, hole.width * 0.35));
+  for (let i = 1; i <= 12; i++) {
+    await pointer.moveTo(hole.left + 3 - (travel * i) / 12, y);
+    await sleep(30);
+    await rec.frame();
+  }
+  await rec.hold(4);
+  await pointer.release();
+  await rec.hold(24);
+
+  return { rec };
+}
+
 const CAPTURES = {
   zoom: { fn: captureZoom, out: "waveform-zoom.gif" },
   split: { fn: captureSplit, out: "segment-split-join.gif" },
+  reconcile: {
+    fn: captureReconcile,
+    out: "lyric-edit-reconcile.gif",
+    viewport: { width: 1180, height: 660 },
+  },
   "group-drag": { fn: captureGroupDrag, out: "region-group-drag.gif" },
   "round-trip": {
     fn: captureSessionRoundTrip,
@@ -1077,7 +1218,7 @@ async function main() {
     const out = path.join(OUT_DIR, capture.out);
     // A still capture writes the file itself and returns nothing.
     const { rec } = (await withPage(capture.fn, capture.viewport, out)) ?? {};
-    if (rec) await assembleGif(rec.dir, out);
+    if (rec) await assembleGif(rec.dir, out, capture.fps ? { fps: capture.fps } : {});
     const { size } = await fs.stat(out);
     const frames = rec ? `${rec.n} frames, ` : "";
     console.log(`Wrote ${out} (${frames}${Math.round(size / 1024)} KB)`);

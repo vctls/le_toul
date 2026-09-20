@@ -115,8 +115,7 @@
     <timing-adjuster
       v-if="songFile && adjustmentSubtitles"
       ref="timing-adjuster"
-      :lyrics="voiceLyrics"
-      :timings="timingsStore.rawTimings"
+      :segments="timingsStore.activeSegments"
       :audioData="songFile ?? undefined"
       :vocalTrack="vocalTrack ?? undefined"
       :playbackTrack="playbackTrack ?? undefined"
@@ -124,8 +123,11 @@
       :zoom="zoom"
       :playbackRate="playbackRate"
       :preservePitch="preservePitch"
-      @timingschange="onTimingsChange"
+      :initialPlayhead="restoredPlayhead"
+      :initialScroll="restoredScroll"
+      @segmentschange="onSegmentsChange"
       @zoom-change="onZoomChange"
+      @scroll-change="onScrollChange"
       @timeupdate="onPlayheadUpdate"
       @seeking="onSeek"
     />
@@ -134,7 +136,6 @@
 
 <script lang="ts">
 import { defineComponent } from "vue";
-import { LyricEvent } from "@/lib/timing";
 import HelpSection from "@/components/HelpSection.vue";
 import TimingAdjuster from "@/components/TimingAdjuster.vue";
 import SubtitleDisplay from "./SubtitleDisplay.vue";
@@ -146,9 +147,12 @@ import { useSettingsStore } from "@/stores/settings";
 import { storeToRefs } from "pinia";
 import { BButton, BField, BNumberinput, BSelect, BSwitch } from "buefy";
 import { VoiceId } from "@/lib/voices";
-import { clampTimingOverlaps } from "@/lib/timingValidation";
+import { clampSegmentOverlaps } from "@/lib/timingValidation";
+import { TimedSegment } from "@/lib/timedSegments";
 import { resolveThemeColor } from "@/lib/themeColor";
 import { onSchemeChange } from "@/lib/colorScheme";
+import { loadJsonFromStorage } from "@/lib/persistence";
+import { throttle } from "lodash-es";
 import { default as BuefyColor } from "buefy/src/utils/color";
 
 // The arrow keys step by the playhead preroll,
@@ -185,8 +189,18 @@ interface AdjustVoiceState {
   prerollSeconds: number;
   shiftMs: number;
   zoom: number;
+  waveformScroll: number;
   playbackRate: number;
   playbackTrackChoice: "full" | "vocals";
+}
+
+const ADJUST_STORAGE_KEY = "adjust.state";
+
+// Everything the Adjust view restores on reload. It is per voice, except for the pitch toggle,
+// which is a property of playback.
+interface PersistedAdjust {
+  voiceState: Record<VoiceId, AdjustVoiceState>;
+  preservePitch: boolean;
 }
 
 function defaultAdjustState(): AdjustVoiceState {
@@ -196,6 +210,7 @@ function defaultAdjustState(): AdjustVoiceState {
     prerollSeconds: 1,
     shiftMs: 0,
     zoom: 50,
+    waveformScroll: 0,
     playbackRate: 1,
     playbackTrackChoice: "full",
   };
@@ -228,6 +243,7 @@ export default defineComponent({
     };
   },
   data() {
+    const restored = loadJsonFromStorage<PersistedAdjust | null>(ADJUST_STORAGE_KEY, null);
     return {
       // Controls playhead in video and adjuster (in seconds)
       playhead: 0.0,
@@ -239,16 +255,21 @@ export default defineComponent({
       prerollSeconds: 1,
       shiftMs: 0,
       zoom: 50,
+      waveformScroll: 0,
       playbackRate: 1,
       // Default off: the browser's stretcher warbles at slow rates,
       // and a dropped key costs nothing while tapping timings.
-      preservePitch: false,
+      preservePitch: restored?.preservePitch ?? false,
       // Which track to play back. The waveform always stays on the vocals.
       playbackTrackChoice: "full" as "full" | "vocals",
       // Per-voice control state.
       // The flat fields above are the *active* voice's values.
       // On a voice switch they are saved here and the incoming voice's values are loaded.
-      voiceState: {} as Record<VoiceId, AdjustVoiceState>,
+      voiceState: (restored?.voiceState ?? {}) as Record<VoiceId, AdjustVoiceState>,
+      // The restored playhead, kept fixed so the adjuster can seek to it once the audio has
+      // metadata. The live `playhead` moves with playback, so it can't be used for this.
+      restoredPlayhead: 0,
+      restoredScroll: 0,
       // Debounced copy of `adjustmentSubtitles` fed to the SubtitleDisplay.
       // Regenerating the ASS file and re-rendering it is expensive
       // (SubtitlesOctopus.setTrack is a WASM re-parse),
@@ -260,11 +281,18 @@ export default defineComponent({
     };
   },
   computed: {
+    /**
+     * The active voice's live values live in the flat fields,
+     * so they are folded back in here rather than waiting for the voice switch that would otherwise save them.
+     */
+    persistedState(): PersistedAdjust {
+      return {
+        voiceState: { ...this.voiceState, [this.activeVoice]: this.snapshotState() },
+        preservePitch: this.preservePitch,
+      };
+    },
     activeVoice(): VoiceId {
       return this.timingsStore.activeVoice;
-    },
-    voiceLyrics(): string {
-      return this.lyricsStore.lyricTextForVoice(this.activeVoice);
     },
     songFile(): Blob | null {
       return this.mediaStore.songFile;
@@ -293,6 +321,12 @@ export default defineComponent({
       });
     },
   },
+  created() {
+    // This runs before the adjuster mounts, so it can pick the playhead up as a prop.
+    this.loadState(this.activeVoice);
+    this.restoredPlayhead = this.playhead;
+    this.restoredScroll = this.waveformScroll;
+  },
   mounted() {
     // Capture phase: the audio element's built-in controls handle these same keys when they have focus,
     // so we have to get in ahead of them and cancel the native behavior.
@@ -317,6 +351,12 @@ export default defineComponent({
     },
     playhead(newPlayhead: number) {
       this.subtitleDisplayRef()?.setPlayhead(newPlayhead);
+    },
+    persistedState: {
+      handler(value: PersistedAdjust) {
+        this.saveState(value);
+      },
+      deep: true,
     },
     adjustmentSubtitles: {
       handler(newSubs: string) {
@@ -359,6 +399,7 @@ export default defineComponent({
         prerollSeconds: this.prerollSeconds,
         shiftMs: this.shiftMs,
         zoom: this.zoom,
+        waveformScroll: this.waveformScroll,
         playbackRate: this.playbackRate,
         playbackTrackChoice: this.playbackTrackChoice,
       };
@@ -370,8 +411,21 @@ export default defineComponent({
       this.prerollSeconds = state.prerollSeconds;
       this.shiftMs = state.shiftMs;
       this.zoom = state.zoom;
+      this.waveformScroll = state.waveformScroll ?? 0;
       this.playbackRate = state.playbackRate;
       this.playbackTrackChoice = state.playbackTrackChoice;
+    },
+    // The save is throttled, because the playhead ticks several times a second while the track
+    // plays.
+    saveState: throttle(function (this: void, value: PersistedAdjust) {
+      try {
+        localStorage.setItem(ADJUST_STORAGE_KEY, JSON.stringify(value));
+      } catch (e) {
+        console.error(`Failed to save ${ADJUST_STORAGE_KEY} to localStorage`, e);
+      }
+    }, 1000),
+    onScrollChange(startSeconds: number) {
+      this.waveformScroll = startSeconds;
     },
     onZoomChange(delta: number) {
       this.zoom = Math.min(500, Math.max(10, this.zoom + delta));
@@ -414,15 +468,18 @@ export default defineComponent({
     },
     applyShift() {
       const deltaSeconds = this.shiftMs / 1000;
-      const shifted = this.timingsStore.rawTimings.map(([time, marker]): LyricEvent => [
-        Math.max(0, time + deltaSeconds),
-        marker,
-      ]);
-      this.timingsStore.resetTimings(clampTimingOverlaps(shifted));
+      const shift = (time: number | undefined) =>
+        time === undefined ? undefined : Math.max(0, time + deltaSeconds);
+      const shifted = this.timingsStore.activeSegments.map((segment) => ({
+        ...segment,
+        start: shift(segment.start),
+        end: shift(segment.end),
+      }));
+      this.timingsStore.resetSegments(clampSegmentOverlaps(shifted));
     },
-    onTimingsChange(newTimings: Array<LyricEvent>) {
+    onSegmentsChange(newSegments: Array<TimedSegment>) {
       // Guard against a committed overlap (an end past the next segment's start).
-      this.timingsStore.resetTimings(clampTimingOverlaps(newTimings));
+      this.timingsStore.resetSegments(clampSegmentOverlaps(newSegments));
     },
     onPlayheadUpdate(newPlayhead: number) {
       if (newPlayhead !== this.playhead) {

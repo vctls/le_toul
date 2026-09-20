@@ -149,6 +149,321 @@ describe("Timings Store", () => {
     expect(timingsStore.length).toBe(2);
   });
 
+  test("migration attaches the stored lyrics to the segments it rebuilds", () => {
+    localStorage.setItem("lyrics.lyricText", JSON.stringify("hi_there"));
+    localStorage.setItem(
+      "timings._timings",
+      JSON.stringify([
+        [1.0, LYRIC_MARKERS.SEGMENT_START],
+        [2.0, LYRIC_MARKERS.SEGMENT_END],
+        [3.0, LYRIC_MARKERS.SEGMENT_START],
+      ]),
+    );
+
+    const timingsStore = useTimingsStore();
+
+    expect(timingsStore.activeSegments).toEqual([
+      { text: "hi_", start: 1.0, end: 2.0 },
+      { text: "there", start: 3.0 },
+    ]);
+  });
+
+  test("migration leaves the legacy key in place", () => {
+    const legacy = JSON.stringify([[1.0, LYRIC_MARKERS.SEGMENT_START]]);
+    localStorage.setItem("timings._timings", legacy);
+
+    useTimingsStore();
+
+    expect(localStorage.getItem("timings._timings")).toBe(legacy);
+  });
+
+  test("a segment can be left untimed between two timed ones", () => {
+    const timingsStore = useTimingsStore();
+    const lyricsStore = useLyricsStore();
+
+    lyricsStore.setLyrics("one_two_three");
+    timingsStore.add(0, LYRIC_MARKERS.SEGMENT_START, 1.0);
+    timingsStore.add(2, LYRIC_MARKERS.SEGMENT_START, 3.0);
+
+    expect(timingsStore.activeSegments).toEqual([
+      { text: "one_", start: 1.0 },
+      { text: "two_" },
+      { text: "three", start: 3.0 },
+    ]);
+    // The hole survives in the store even though the event projection can't express it.
+    expect(timingsStore.rawTimings).toEqual([
+      [1.0, LYRIC_MARKERS.SEGMENT_START],
+      [3.0, LYRIC_MARKERS.SEGMENT_START],
+    ]);
+  });
+
+  // The point of the whole exercise: editing the words no longer costs the timing work around them.
+  describe("lyric edits", () => {
+    const timeThreeWords = () => {
+      const timings = useTimingsStore();
+      const lyrics = useLyricsStore();
+
+      lyrics.setLyrics("one_alchemy_three");
+      timings.add(0, LYRIC_MARKERS.SEGMENT_START, 1.0);
+      timings.add(1, LYRIC_MARKERS.SEGMENT_START, 2.0);
+      timings.add(2, LYRIC_MARKERS.SEGMENT_START, 3.0);
+      timings.setupSegmentReconciliation();
+
+      return { timings, lyrics };
+    };
+
+    test("splitting a word into syllables keeps every other timing", async () => {
+      const { timings, lyrics } = timeThreeWords();
+
+      lyrics.setLyrics("one_al/chem/y_three");
+      await nextTick();
+
+      expect(timings.activeSegments).toEqual([
+        { text: "one_", start: 1.0 },
+        { text: "al/", start: 2.0 },
+        { text: "chem/" },
+        { text: "y_" },
+        { text: "three", start: 3.0 },
+      ]);
+    });
+
+    test("joining syllables back up restores the word's own start", async () => {
+      const { timings, lyrics } = timeThreeWords();
+
+      lyrics.setLyrics("one_al/chem/y_three");
+      await nextTick();
+      lyrics.setLyrics("one_alchemy_three");
+      await nextTick();
+
+      expect(timings.activeSegments).toEqual([
+        { text: "one_", start: 1.0 },
+        { text: "alchemy_", start: 2.0 },
+        { text: "three", start: 3.0 },
+      ]);
+    });
+
+    test("fixing a typo keeps all the timings", async () => {
+      const { timings, lyrics } = timeThreeWords();
+
+      lyrics.setLyrics("one_alchemys_three");
+      await nextTick();
+
+      expect(timings.activeSegments).toEqual([
+        { text: "one_", start: 1.0 },
+        { text: "alchemys_", start: 2.0 },
+        { text: "three", start: 3.0 },
+      ]);
+    });
+
+    test("an unrelated rewrite untimes only what changed", async () => {
+      const { timings, lyrics } = timeThreeWords();
+
+      lyrics.setLyrics("one_bravo_charlie_three");
+      await nextTick();
+
+      expect(timings.activeSegments).toEqual([
+        { text: "one_", start: 1.0 },
+        { text: "bravo_" },
+        { text: "charlie_" },
+        { text: "three", start: 3.0 },
+      ]);
+    });
+
+    test("splitting a timed word leaves the song still finishable", async () => {
+      const { timings, lyrics } = timeThreeWords();
+      timings.add(2, LYRIC_MARKERS.SEGMENT_END, 3.5);
+      expect(timings.areTimingsFinished).toBe(true);
+
+      lyrics.setLyrics("one_al/chem/y_three");
+      await nextTick();
+
+      // The new syllables have no timing of their own, but they interpolate, so Submit stays open
+      // instead of demanding the whole song be re-timed.
+      expect(timings.activeSegments.filter((s) => s.start === undefined)).toHaveLength(2);
+      expect(timings.areTimingsFinished).toBe(true);
+    });
+
+    // Reconciliation is lossy, so running it on its own output once per keystroke used to destroy
+    // timings that the finished edit keeps perfectly well.
+    test("typing a word one letter at a time keeps the timings around it", async () => {
+      const timings = useTimingsStore();
+      const lyrics = useLyricsStore();
+
+      lyrics.setLyrics("one_three");
+      timings.add(0, LYRIC_MARKERS.SEGMENT_START, 1.0);
+      timings.add(1, LYRIC_MARKERS.SEGMENT_START, 3.0);
+      timings.setupSegmentReconciliation();
+
+      // The cursor sits after "one_" and the user types "two_".
+      for (const text of ["one_tthree", "one_twthree", "one_twothree", "one_two_three"]) {
+        lyrics.setLyrics(text);
+        await nextTick();
+      }
+
+      expect(timings.activeSegments).toEqual([
+        { text: "one_", start: 1.0 },
+        { text: "two_" },
+        { text: "three", start: 3.0 },
+      ]);
+    });
+
+    test("a timing written between two lyric edits survives the second one", async () => {
+      const timings = useTimingsStore();
+      const lyrics = useLyricsStore();
+
+      lyrics.setLyrics("one_three");
+      timings.add(0, LYRIC_MARKERS.SEGMENT_START, 1.0);
+      timings.setupSegmentReconciliation();
+
+      lyrics.setLyrics("one_two_three");
+      await nextTick();
+      // The Adjust tab writes the whole array back after a drag.
+      timings.resetSegments([
+        { text: "one_", start: 1.0 },
+        { text: "two_", start: 2.0 },
+        { text: "three" },
+      ]);
+
+      // The drag has to move the baseline forward, or this edit reconciles against "one_three"
+      // again and throws the 2.0 away.
+      lyrics.setLyrics("one_two_threes");
+      await nextTick();
+
+      expect(timings.activeSegments).toEqual([
+        { text: "one_", start: 1.0 },
+        { text: "two_", start: 2.0 },
+        { text: "threes" },
+      ]);
+    });
+
+    test("an untimed tail still counts as unfinished", () => {
+      const timings = useTimingsStore();
+      const lyrics = useLyricsStore();
+
+      lyrics.setLyrics("one_two_three");
+      timings.add(0, LYRIC_MARKERS.SEGMENT_START, 1.0);
+      timings.add(0, LYRIC_MARKERS.SEGMENT_END, 1.5);
+
+      expect(timings.areTimingsUsable).toBe(false);
+    });
+
+    test("a voice the lyrics no longer mention keeps its timings parked", async () => {
+      const timings = useTimingsStore();
+      const lyrics = useLyricsStore();
+
+      lyrics.setLyrics("[Anna] hello\n[Ben] world");
+      timings.setActiveVoice("Ben");
+      timings.add(0, LYRIC_MARKERS.SEGMENT_START, 5.0);
+      timings.setupSegmentReconciliation();
+
+      lyrics.setLyrics("[Anna] hello");
+      await nextTick();
+
+      expect(timings.allTimings.Ben).toEqual([[5.0, LYRIC_MARKERS.SEGMENT_START]]);
+    });
+  });
+
+  // A timings.json exported by any earlier version has to keep loading,
+  // and what we export has to keep loading into those versions.
+  // Both directions are the [time, marker] event form.
+  describe("existing projects", () => {
+    test("a legacy single-voice timings.json still loads", () => {
+      const timings = useTimingsStore();
+      const lyrics = useLyricsStore();
+
+      lyrics.setLyrics("Be bop_a lu bop\nShe's my ba/by");
+      const fileContents: [number, number][] = [
+        [1.0, LYRIC_MARKERS.SEGMENT_START],
+        [2.0, LYRIC_MARKERS.SEGMENT_END],
+        [3.0, LYRIC_MARKERS.SEGMENT_START],
+        [4.0, LYRIC_MARKERS.SEGMENT_START],
+        [5.0, LYRIC_MARKERS.SEGMENT_START],
+      ];
+
+      timings.resetTimings(fileContents);
+
+      expect(timings.rawTimings).toEqual(fileContents);
+      expect(timings.activeSegments).toEqual([
+        { text: "Be bop_", start: 1.0, end: 2.0 },
+        { text: "a lu bop\n", start: 3.0 },
+        { text: "She's my ba/", start: 4.0 },
+        { text: "by", start: 5.0 },
+      ]);
+    });
+
+    test("a multi-voice timings.json still loads and re-exports identically", () => {
+      const timings = useTimingsStore();
+      const lyrics = useLyricsStore();
+
+      lyrics.setLyrics("[Anna] hello\n[Ben] world");
+      const fileContents = {
+        Anna: [[1.0, LYRIC_MARKERS.SEGMENT_START]] as [number, number][],
+        Ben: [[2.0, LYRIC_MARKERS.SEGMENT_START]] as [number, number][],
+      };
+
+      timings.setAllTimings(fileContents);
+
+      expect(timings.allTimings).toEqual(fileContents);
+    });
+
+    test("a partly-timed project survives the versioned timings.json round trip", () => {
+      const timings = useTimingsStore();
+      const lyrics = useLyricsStore();
+
+      lyrics.setLyrics("one_two_three");
+      timings.add(0, LYRIC_MARKERS.SEGMENT_START, 1.0);
+      timings.add(2, LYRIC_MARKERS.SEGMENT_START, 3.0);
+
+      const file = JSON.parse(JSON.stringify(timings.timingsFile));
+      expect(file.version).toBe(2);
+
+      timings.clear();
+      timings.setAllSegments(file.voices);
+
+      expect(timings.activeSegments).toEqual([
+        { text: "one_", start: 1.0 },
+        { text: "two_" },
+        { text: "three", start: 3.0 },
+      ]);
+    });
+
+    test("the exported timings.json keeps the old shape", () => {
+      const timings = useTimingsStore();
+      const lyrics = useLyricsStore();
+
+      lyrics.setLyrics("one_two");
+      timings.add(0, LYRIC_MARKERS.SEGMENT_START, 1.0);
+      timings.add(0, LYRIC_MARKERS.SEGMENT_END, 1.5);
+      timings.add(1, LYRIC_MARKERS.SEGMENT_START, 2.0);
+
+      expect(JSON.parse(JSON.stringify(timings.allTimings))).toEqual({
+        "Voice 1": [
+          [1.0, LYRIC_MARKERS.SEGMENT_START],
+          [1.5, LYRIC_MARKERS.SEGMENT_END],
+          [2.0, LYRIC_MARKERS.SEGMENT_START],
+        ],
+      });
+    });
+  });
+
+  test("re-timing one segment leaves its neighbours alone", () => {
+    const timingsStore = useTimingsStore();
+    const lyricsStore = useLyricsStore();
+
+    lyricsStore.setLyrics("one_two_three");
+    timingsStore.add(0, LYRIC_MARKERS.SEGMENT_START, 1.0);
+    timingsStore.add(1, LYRIC_MARKERS.SEGMENT_START, 2.0);
+    timingsStore.add(2, LYRIC_MARKERS.SEGMENT_START, 3.0);
+
+    timingsStore.add(1, LYRIC_MARKERS.SEGMENT_START, 2.5);
+
+    expect(timingsStore.activeSegments).toEqual([
+      { text: "one_", start: 1.0 },
+      { text: "two_", start: 2.5 },
+      { text: "three", start: 3.0 },
+    ]);
+  });
+
   test("active voice follows the lyrics voices and can be switched", () => {
     const timingsStore = useTimingsStore();
     const lyricsStore = useLyricsStore();
@@ -365,8 +680,7 @@ describe("Timings Store", () => {
 
     // Verify that createAssFile was called with the correct parameters
     expect(createAssFile).toHaveBeenCalledWith(
-      "Test lyrics",
-      timingsStore.rawTimings,
+      timingsStore.activeSegments,
       10,
       "Test Song",
       "Test Artist",
@@ -391,7 +705,7 @@ describe("Timings Store", () => {
     timingsStore.subtitles();
 
     // The family name the uploaded file declares, not the picked font.
-    const options = vi.mocked(createAssFile).mock.lastCall?.[5];
+    const options = vi.mocked(createAssFile).mock.lastCall?.[4];
     expect(options?.font.name).toBe("Metal Mania");
   });
 });

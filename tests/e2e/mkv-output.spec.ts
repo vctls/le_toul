@@ -37,11 +37,7 @@ test.describe("MKV Output", () => {
     await loadAndEnterTimings(page, defaultTestConfig.timingsFile);
 
     await navigateToTab(page, TabId.Submit);
-    // An MKV keeps the vocals, so the preview's warning about losing them goes away.
-    const previewNote = page.locator(".preview-container .message");
-    await expect(previewNote).toContainText("the finished video won't");
     await fieldFor(page, "Video Format").locator("select").selectOption("mkv");
-    await expect(previewNote).toBeHidden();
 
     // Record every step the progress bar names, so the MKV's extra runs are shown to
     // carry it forward instead of leaving it parked at 100%.

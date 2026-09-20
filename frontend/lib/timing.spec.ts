@@ -1,3 +1,4 @@
+import { fromEvents, reconcile } from "./timedSegments";
 import {
   LyricSegmentIterator,
   LyricsScreen,
@@ -12,7 +13,8 @@ import {
   KaraokeOptions,
   LyricEvent,
   VerticalAlignment,
-  adjustSegmentTiming,
+  resolveStarts,
+  parseLyrics,
 } from "./timing";
 import { LYRIC_MARKERS, DEFAULT_COUNT_IN_THRESHOLD, DEFAULT_COUNT_IN_DURATION } from "@/constants";
 import { LyricSegment } from "./timing";
@@ -132,7 +134,7 @@ describe("LyricSegmentIterator", () => {
 });
 
 test("compileLyricTimings", () => {
-  const screens = compileLyricTimings(testLyrics, testEvents);
+  const screens = compileLyricTimings(fromEvents(testLyrics, testEvents));
   expect(screens.length).toBe(2);
   expect(screens[0].lines.length).toBe(2);
   expect(screens[0].lines[0].segments.length).toBe(2);
@@ -140,7 +142,7 @@ test("compileLyricTimings", () => {
 });
 
 test("setSegmentEndTimes", () => {
-  const initialScreens = compileLyricTimings(testLyrics, testEvents);
+  const initialScreens = compileLyricTimings(fromEvents(testLyrics, testEvents));
   const songDuration = 60;
   const screens = setSegmentEndTimes(initialScreens, songDuration);
   expect(screens[0].lines[0].segments[0].endTimestamp).toBe(2.0);
@@ -194,13 +196,13 @@ test("LyricScreen respects vertical alignment", () => {
 });
 
 test("setScreenStartTimes", () => {
-  const screens = compileLyricTimings(testLyrics, testEvents);
+  const screens = compileLyricTimings(fromEvents(testLyrics, testEvents));
   const adjusted = setScreenStartTimes(screens);
   expect(adjusted[0].startTimestamp).toBe(0.0);
 });
 
 test("adjustTimestamps", () => {
-  const screens = setScreenStartTimes(compileLyricTimings(testLyrics, testEvents));
+  const screens = setScreenStartTimes(compileLyricTimings(fromEvents(testLyrics, testEvents)));
 
   const adjusted = adjustScreenTimestamps(screens, 1.0);
   expect(adjusted[0].lines[0].timestamp).toBe(2.0);
@@ -215,8 +217,7 @@ test("createAssFileForShortIntroSong", () => {
     addStaggeredLines: false,
   };
   const assFile = createAssFile(
-    testLyrics,
-    shortIntroTestEvents,
+    fromEvents(testLyrics, shortIntroTestEvents),
     songDuration,
     "It's Cøøl to Tüül",
     "TÜ/ÜL",
@@ -234,8 +235,7 @@ test("createAssFile handles timings without lyrics", () => {
     [2.0, LYRIC_MARKERS.SEGMENT_END],
   ];
   const assFile = createAssFile(
-    "",
-    timings,
+    fromEvents("", timings),
     songDuration,
     "It's Cøøl to Tüül",
     "TÜ/ÜL",
@@ -257,7 +257,13 @@ test("addCountIn", () => {
     addInstrumentalScreens: false,
     addStaggeredLines: false,
   };
-  let assFile = createAssFile(lyrics, timings, songDuration, "It's Cøøl to Tüül", "TÜ/ÜL", options);
+  let assFile = createAssFile(
+    fromEvents(lyrics, timings),
+    songDuration,
+    "It's Cøøl to Tüül",
+    "TÜ/ÜL",
+    options,
+  );
 
   const expected =
     testAssPreamble +
@@ -302,8 +308,7 @@ Dialogue: 0,0:00:12.00,0:01:00.00,Default,Singer,0,0,133,,{\\k0}{\\kf100}And {\\
   };
 
   const assFile = createAssFile(
-    testLyrics,
-    sevenSecondEvents,
+    fromEvents(testLyrics, sevenSecondEvents),
     songDuration,
     "It's Cøøl to Tüül",
     "TÜ/ÜL",
@@ -326,66 +331,45 @@ test("floatToTimecode carries a rounded-up fraction", () => {
   expect(floatToTimecode(25.994)).toBe("0:00:25.99");
 });
 
-test("adjustSegmentTiming", () => {
-  expect(adjustSegmentTiming(0, testEvents, { start: 0.5, end: 1.5 })[0][0]).toBe(0.5);
-  expect(
-    () =>
-      adjustSegmentTiming(8, testEvents, {
-        start: 0.5,
-        end: 1.5,
-      })[0][0],
-  ).toThrow("Segment 8 not found in timings");
-});
-
-test("adjustSegmentTiming adds a SEGMENT_END to an open-ended segment", () => {
-  // Segment 1 in testEvents has no SEGMENT_END (it runs straight into segment 2).
-  const adjusted = adjustSegmentTiming(1, testEvents, { start: 3.0, end: 3.5 });
-  // The new SEGMENT_END should appear between segment 1's SEGMENT_START (3.0)
-  // and segment 2's SEGMENT_START (4.0).
-  expect(adjusted[2]).toEqual([3.0, LYRIC_MARKERS.SEGMENT_START]);
-  expect(adjusted[3]).toEqual([3.5, LYRIC_MARKERS.SEGMENT_END]);
-  expect(adjusted[4]).toEqual([4.0, LYRIC_MARKERS.SEGMENT_START]);
-});
-
-test("adjustSegmentTiming removes an existing SEGMENT_END when end is undefined", () => {
-  // Segment 0 in testEvents has an explicit SEGMENT_END at 2.0.
-  const adjusted = adjustSegmentTiming(0, testEvents, { start: 1.0, end: undefined });
-  // The SEGMENT_END marker should be gone. Segment 1's SEGMENT_START at 3.0 follows directly.
-  expect(adjusted[0]).toEqual([1.0, LYRIC_MARKERS.SEGMENT_START]);
-  expect(adjusted[1]).toEqual([3.0, LYRIC_MARKERS.SEGMENT_START]);
-  expect(adjusted.length).toBe(testEvents.length - 1);
-});
-
-test("adjustSegmentTiming adds a SEGMENT_END for the last segment in the array", () => {
-  // Segment 7 (the last) has no SEGMENT_END and no following SEGMENT_START.
-  const adjusted = adjustSegmentTiming(7, testEvents, { start: 9.0, end: 10.0 });
-  expect(adjusted[adjusted.length - 2]).toEqual([9.0, LYRIC_MARKERS.SEGMENT_START]);
-  expect(adjusted[adjusted.length - 1]).toEqual([10.0, LYRIC_MARKERS.SEGMENT_END]);
-});
-
-test("adjustSegmentTiming leaves an open-ended segment open when end stays undefined", () => {
-  const adjusted = adjustSegmentTiming(2, testEvents, { start: 4.5, end: undefined });
-  // Should be identical to testEvents except segment 2's start moved from 4.0 to 4.5.
-  expect(adjusted.length).toBe(testEvents.length);
-  expect(adjusted[3]).toEqual([4.5, LYRIC_MARKERS.SEGMENT_START]);
-});
-
 test("compileLyricTimings handles more events than segments", () => {
-  // Test with only 1 segment but many events
-  const shortLyrics = "Hello world"; // This creates 1 segment: "Hello world"
+  const shortLyrics = "Hello world"; // 1 segment
   const tooManyEvents: LyricEvent[] = [
     [1.0, LYRIC_MARKERS.SEGMENT_START],
-    [2.0, LYRIC_MARKERS.SEGMENT_START], // This should trigger the error
+    [2.0, LYRIC_MARKERS.SEGMENT_START],
     [3.0, LYRIC_MARKERS.SEGMENT_START],
     [4.0, LYRIC_MARKERS.SEGMENT_START],
     [5.0, LYRIC_MARKERS.SEGMENT_START],
   ];
 
-  // Should return whatever screens were built before running out of segments
-  const screens = compileLyricTimings(shortLyrics, tooManyEvents);
+  // Surplus events are kept as textless segments rather than discarded, and draw nothing.
+  const segments = fromEvents(shortLyrics, tooManyEvents);
+  expect(segments.length).toBe(5);
+
+  const screens = compileLyricTimings(segments);
   expect(screens.length).toBe(1);
   expect(screens[0].lines.length).toBe(1);
-  expect(screens[0].lines[0].segments.length).toBe(1); // Only got the first segment
+  expect(screens[0].lines[0].segments.length).toBe(1);
+});
+
+test("compileLyricTimings skips an untimed segment but keeps its line break", () => {
+  const screens = compileLyricTimings([
+    { text: "one_", start: 1.0 },
+    { text: "two\n" }, // untimed, and ends the line
+    { text: "three", start: 3.0 },
+  ]);
+
+  expect(screens.length).toBe(1);
+  expect(screens[0].lines.length).toBe(2);
+  expect(screens[0].lines[0].segments.map((s) => s.text)).toEqual(["one "]);
+  expect(screens[0].lines[1].segments.map((s) => s.text)).toEqual(["three"]);
+});
+
+test("compileLyricTimings renders a partially timed project", () => {
+  const screens = compileLyricTimings(fromEvents(testLyrics, testEvents.slice(0, 3)));
+
+  // The timed head renders. The untimed tail contributes its breaks but no drawn text.
+  expect(screens.length).toBe(1);
+  expect(screens[0].lines[0].segments.map((s) => s.text)).toEqual(["Be bop ", "a lu bop\n"]);
 });
 
 describe("createMultiVoiceAssFile", () => {
@@ -405,14 +389,12 @@ describe("createMultiVoiceAssFile", () => {
     const tracks = [
       {
         voice: "Anna",
-        lyrics: "Hello\n",
-        timings: [[1.0, LYRIC_MARKERS.SEGMENT_START]] as LyricEvent[],
+        segments: fromEvents("Hello\n", [[1.0, LYRIC_MARKERS.SEGMENT_START]]),
         options: noAuxOptions,
       },
       {
         voice: "Ben",
-        lyrics: "World\n",
-        timings: [[2.0, LYRIC_MARKERS.SEGMENT_START]] as LyricEvent[],
+        segments: fromEvents("World\n", [[2.0, LYRIC_MARKERS.SEGMENT_START]]),
         options: noAuxOptions,
       },
     ];
@@ -476,14 +458,12 @@ describe("multi-voice vertical lanes", () => {
     const tracks = [
       {
         voice: "A",
-        lyrics: "a one\na two\n\nb one\nb two\n\nc one",
-        timings: aTimings,
+        segments: fromEvents("a one\na two\n\nb one\nb two\n\nc one", aTimings),
         options: staggered,
       },
       {
         voice: "B",
-        lyrics: "b line",
-        timings: [[5.5, LYRIC_MARKERS.SEGMENT_START]] as LyricEvent[],
+        segments: fromEvents("b line", [[5.5, LYRIC_MARKERS.SEGMENT_START]]),
         options: staggered,
       },
     ];
@@ -506,14 +486,12 @@ describe("multi-voice vertical lanes", () => {
     const tracks = [
       {
         voice: "A",
-        lyrics: "a one\n",
-        timings: [[1.0, LYRIC_MARKERS.SEGMENT_START]] as LyricEvent[],
+        segments: fromEvents("a one\n", [[1.0, LYRIC_MARKERS.SEGMENT_START]]),
         options: noAux,
       },
       {
         voice: "B",
-        lyrics: "b one\n",
-        timings: [[1.0, LYRIC_MARKERS.SEGMENT_START]] as LyricEvent[],
+        segments: fromEvents("b one\n", [[1.0, LYRIC_MARKERS.SEGMENT_START]]),
         options: noAux,
       },
     ];
@@ -542,4 +520,77 @@ describe("setSegmentEndTimes overlap clamp", () => {
     setSegmentEndTimes([screen], 10);
     expect(s1.endTimestamp).toBe(2.0);
   });
+});
+
+describe("resolveStarts", () => {
+  it("spreads a run of holes between the timings on either side", () => {
+    const resolved = resolveStarts([
+      { text: "one_", start: 1.0 },
+      { text: "al/", start: 2.0 },
+      { text: "chem/" },
+      { text: "y_" },
+      { text: "three", start: 3.0 },
+    ]);
+
+    // "al"(2) "chem"(4) "y"(1) share the 1s span by the text each one draws.
+    expect(resolved.map((s) => s.start)).toEqual([1.0, 2.0, 2 + 2 / 7, 2 + 6 / 7, 3.0]);
+  });
+
+  it("starts a hole at the previous segment's release, not inside it", () => {
+    // Pasting a line back between two timed ones. Anchoring on "two"'s start instead put the hole
+    // at 2.75, inside "two"'s own span, and the region layer dropped the rectangle as an overlap.
+    const resolved = resolveStarts([
+      { text: "one_", start: 1.0 },
+      { text: "two\n", start: 2.0, end: 2.9 },
+      { text: "three_" },
+      { text: "four\n" },
+      { text: "five_", start: 5.0 },
+      { text: "six", start: 6.0 },
+    ]);
+
+    expect(resolved[2].start).toBeCloseTo(2.9, 5);
+    expect(resolved[3].start).toBeGreaterThan(2.9);
+    expect(resolved[3].start).toBeLessThan(5.0);
+  });
+
+  it("leaves an untimed tail alone, because that is work not yet done", () => {
+    const resolved = resolveStarts([
+      { text: "one_", start: 1.0 },
+      { text: "two_" },
+      { text: "three" },
+    ]);
+
+    expect(resolved.map((s) => s.start)).toEqual([1.0, undefined, undefined]);
+  });
+
+  it("leaves an untimed head alone", () => {
+    const resolved = resolveStarts([
+      { text: "one_" },
+      { text: "two_" },
+      { text: "three", start: 3.0 },
+    ]);
+
+    expect(resolved.map((s) => s.start)).toEqual([undefined, undefined, 3.0]);
+  });
+
+  it("does not mutate its input", () => {
+    const segments = [{ text: "a_", start: 1.0 }, { text: "b_" }, { text: "c", start: 3.0 }];
+    resolveStarts(segments);
+    expect(segments[1].start).toBeUndefined();
+  });
+});
+
+test("a word split after timing still renders, with its syllables spread", () => {
+  const timed = fromEvents("one_alchemy_three", [
+    [1.0, LYRIC_MARKERS.SEGMENT_START],
+    [2.0, LYRIC_MARKERS.SEGMENT_START],
+    [3.0, LYRIC_MARKERS.SEGMENT_START],
+  ]);
+  const split = reconcile(timed, parseLyrics("one_al/chem/y_three", true));
+
+  const screens = compileLyricTimings(resolveStarts(split));
+  const drawn = screens.flatMap((s) => s.lines.flatMap((l) => l.segments.map((x) => x.text)));
+
+  // Before interpolation the untimed syllables were dropped and the line read "one althree".
+  expect(drawn.join("")).toBe("one alchemy three");
 });

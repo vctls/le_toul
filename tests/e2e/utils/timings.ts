@@ -239,7 +239,26 @@ export async function getCurrentTimings(page: Page): Promise<any> {
   const clipboardContent = await page.evaluate(() => navigator.clipboard.readText());
 
   const exported = JSON.parse(clipboardContent);
-  // The export is a per-voice map. These helpers assert against one voice's stream.
-  // Older exports were a bare array.
-  return Array.isArray(exported) ? exported : (exported[DEFAULT_VOICE_ID] ?? []);
+  // These helpers assert against one voice's event stream, which every export shape can produce:
+  // a bare array (oldest), a per-voice map of arrays, or the versioned per-voice segments.
+  if (Array.isArray(exported)) {
+    return exported;
+  }
+  // This is projected here rather than imported, because pulling frontend/lib/timedSegments into
+  // Playwright's Node runtime drags in timing.ts and its buefy dependency, which won't resolve
+  // there.
+  if (typeof exported.version === "number") {
+    const segments = exported.voices?.[DEFAULT_VOICE_ID] ?? [];
+    return segments.flatMap((segment: { start?: number; end?: number }) =>
+      segment.start === undefined
+        ? []
+        : segment.end === undefined
+          ? [[segment.start, 1]]
+          : [
+              [segment.start, 1],
+              [segment.end, 2],
+            ],
+    );
+  }
+  return exported[DEFAULT_VOICE_ID] ?? [];
 }

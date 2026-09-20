@@ -539,15 +539,13 @@ export default defineComponent({
       // the first voice with timings.
       // Falls back to the active voice's timings.
       const primaryVoice = this.timingsStore.voicesWithTimings[0];
-      const lyrics = primaryVoice
-        ? this.lyricsStore.lyricTextForVoice(primaryVoice)
-        : this.lyricText;
-      const timings = primaryVoice ? this.timingsStore.timingsForVoice(primaryVoice) : this.timings;
+      const segments = primaryVoice
+        ? this.timingsStore.timedSegmentsForVoice(primaryVoice)
+        : this.timingsStore.activeSegments;
       // createScreens tolerates partial or missing timings,
       // so this works even before the timing step is finished.
       const screens = createScreens(
-        lyrics,
-        timings,
+        segments,
         this.mediaStore.songDuration ?? 0,
         this.mediaStore.songTitle ?? "",
         this.mediaStore.songArtist ?? "",
@@ -570,7 +568,7 @@ export default defineComponent({
     },
     // All voices' timings, for the downloadable timings.json.
     timingsExport() {
-      return this.timingsStore.allTimings;
+      return this.timingsStore.timingsFile;
     },
     settingsYaml(): string {
       // Exports the picked font, not the uploaded one:
