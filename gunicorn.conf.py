@@ -65,3 +65,14 @@ pidfile = None
 user = None
 group = None
 tmp_upload_dir = None
+
+
+def on_starting(server):
+    """Fail the jobs a previous server left marked as processing.
+
+    This runs once in the master, before any worker exists. A sweep at app
+    startup would run in every worker and could fail a sibling's live job.
+    """
+    from api.helpers import job_store
+
+    job_store.fail_interrupted_jobs()
