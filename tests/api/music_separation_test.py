@@ -23,7 +23,7 @@ def test_split_song_api_method(audio_file, temp_output_dir):
     """Test split_song with SeparationMethod.API."""
     with mock.patch("audio_separator.separator.Separator") as mock_separator:
         mock_instance = mock_separator.return_value
-        mock_instance.separate.return_value = None
+        mock_instance._separate_file.return_value = None
 
         # Create expected output files
         (temp_output_dir / "vocals.wav").write_text("mock vocals")
@@ -46,7 +46,7 @@ def test_split_song_api_method(audio_file, temp_output_dir):
             output_format="wav",
         )
         mock_instance.load_model.assert_called_once_with(DEFAULT_MODEL)
-        mock_instance.separate.assert_called_once_with(
+        mock_instance._separate_file.assert_called_once_with(
             str(audio_file), {"Vocals": "vocals", "Instrumental": "accompaniment"}
         )
 
@@ -94,11 +94,26 @@ def test_split_song_invalid_model(audio_file, temp_output_dir):
         split_song(audio_file, temp_output_dir, "invalid_model")
 
 
+def test_split_song_api_method_raises_what_the_separation_raised(
+    audio_file, temp_output_dir
+):
+    """A cancellation raises from the progress callback, and must reach the caller too."""
+    with mock.patch("audio_separator.separator.Separator") as mock_separator:
+        mock_separator.return_value._separate_file.side_effect = RuntimeError(
+            "CUDA out of memory"
+        )
+
+        with pytest.raises(RuntimeError, match="CUDA out of memory"):
+            split_song(
+                audio_file, temp_output_dir, DEFAULT_MODEL, method=SeparationMethod.API
+            )
+
+
 def test_split_song_both_methods_same_output(audio_file, temp_output_dir):
     """Test that both methods produce the same output structure."""
     with mock.patch("audio_separator.separator.Separator") as mock_separator:
         mock_instance = mock_separator.return_value
-        mock_instance.separate.return_value = None
+        mock_instance._separate_file.return_value = None
 
         with mock.patch("subprocess.run") as mock_run:
             mock_run.return_value.stdout = "separation complete"
