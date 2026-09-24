@@ -2,6 +2,7 @@ import { defineStore } from "pinia";
 import { computed, ref, shallowRef, watch } from "vue";
 
 import { resumeSeparation, separateTrack, SeparationProgressCallback } from "@/lib/audio";
+import { maxUploadBytes } from "@/constants";
 import { SeparationModel } from "@/types";
 import jsmediatags from "@/jsmediatags.min.js";
 import { clearPersistence, persistBlobRef, persistJsonRef } from "@/lib/persistence";
@@ -54,6 +55,21 @@ export const BACKING_VOCALS_HQ_ALT_SEPARATOR_MODEL = "mel_band_roformer_karaoke_
 // Remove backing vocals, highest reported SDR. Heaviest model.
 export const NO_VOCALS_HQ_SEPARATOR_MODEL = "model_bs_roformer_ep_317_sdr_12.9755.ckpt";
 
+/**
+ * Explains why a song is over the server's upload limit, or returns null if it is not.
+ */
+function tooLargeMessage(song: Blob | null): string | null {
+  const limit = maxUploadBytes();
+  if (!song || song.size <= limit) {
+    return null;
+  }
+  const megabytes = (bytes: number) => Math.ceil(bytes / 1_000_000);
+  return (
+    `This song is ${megabytes(song.size)} MB, over the ${megabytes(limit)} MB the server ` +
+    "accepts for separation. You can load a backing track of your own instead."
+  );
+}
+
 export const useMediaStore = defineStore("media", () => {
   // The mixed song file (uploaded by user)
   const songFile = shallowRef<File | null>(null);
@@ -104,6 +120,9 @@ export const useMediaStore = defineStore("media", () => {
     };
   }
 
+  // Why the song cannot be sent for separation, or null if it can.
+  const songTooLargeMessage = computed(() => tooLargeMessage(songFile.value));
+
   // Resolves with the separated track, or undefined if the separation failed
   // (the reason is in `error`) or was cancelled.
   // A separation already in flight is joined rather than started again.
@@ -113,6 +132,11 @@ export const useMediaStore = defineStore("media", () => {
   ): Promise<SeparatedTrack | undefined> {
     if (pendingSeparation) {
       return pendingSeparation;
+    }
+    const tooLarge = tooLargeMessage(inputData);
+    if (tooLarge) {
+      error.value = tooLarge;
+      return undefined;
     }
     const requestedAt = Date.now();
     return follow(requestedAt, (onProgress, signal) =>
@@ -411,6 +435,7 @@ export const useMediaStore = defineStore("media", () => {
     separationStage,
     separationSongsAhead,
     lastSeparation,
+    songTooLargeMessage,
     hasSeparatedTrack,
 
     // Methods

@@ -313,3 +313,60 @@ describe("Media Store running separation", () => {
     expect(store.isProcessing).toBe(false);
   });
 });
+
+describe("Media Store upload limit", () => {
+  let meta: HTMLMetaElement;
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    setActivePinia(createPinia());
+    meta = document.createElement("meta");
+    meta.name = "tuul-max-upload-bytes";
+    meta.content = "5";
+    document.head.appendChild(meta);
+  });
+
+  afterEach(() => {
+    meta.remove();
+  });
+
+  it("refuses to send a song over the limit, and says why", async () => {
+    const store = useMediaStore();
+    const song = new File(["123456"], "big.wav");
+
+    const result = await store.startSeparation(song, BACKING_VOCALS_SEPARATOR_MODEL);
+
+    expect(result).toBeUndefined();
+    expect(separateTrack).not.toHaveBeenCalled();
+    expect(store.error).toContain("over the 1 MB the server accepts");
+    expect(store.isProcessing).toBe(false);
+  });
+
+  it("flags a loaded song over the limit before anything is sent", () => {
+    const store = useMediaStore();
+
+    store.songFile = new File(["123456"], "big.wav");
+
+    expect(store.songTooLargeMessage).toContain("This song is 1 MB");
+  });
+
+  it("sends a song at the limit", async () => {
+    const store = useMediaStore();
+    (separateTrack as any).mockResolvedValue(TRACK);
+
+    await store.startSeparation(new File(["12345"], "ok.wav"), BACKING_VOCALS_SEPARATOR_MODEL);
+
+    expect(separateTrack).toHaveBeenCalledOnce();
+    expect(store.songTooLargeMessage).toBeNull();
+  });
+
+  it("checks nothing when the page does not state a limit", async () => {
+    meta.remove();
+    const store = useMediaStore();
+    (separateTrack as any).mockResolvedValue(TRACK);
+
+    await store.startSeparation(new File(["123456"], "big.wav"), BACKING_VOCALS_SEPARATOR_MODEL);
+
+    expect(separateTrack).toHaveBeenCalledOnce();
+  });
+});
