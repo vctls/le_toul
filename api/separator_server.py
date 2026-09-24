@@ -1,9 +1,12 @@
 #!/usr/bin/env python3
 """
-FastAPI app for GPU-accelerated music separation on host machine.
+FastAPI app for GPU-accelerated music separation, on whatever host holds the GPU.
 
-This server runs on the host (outside Docker) to provide GPU access for music separation.
-The containerized Tuul app communicates with this server via TCP on localhost.
+It serves two protocols. /tasks is the asynchronous job protocol of
+separation_tasks. POST /separate is the older synchronous one that the tcp
+backend calls, with base64 in and out.
+
+The /tasks records live in this process, so it must run a single worker.
 """
 
 import base64
@@ -16,7 +19,7 @@ import structlog
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
 
-from . import app_logging, settings
+from . import app_logging, separation_tasks, settings
 
 # Import model constants and split_song function from the main separation module for DRY
 from .karaoke.music_separation import (
@@ -32,6 +35,12 @@ app_logging.setup()
 logger = structlog.get_logger(__name__)
 
 app = FastAPI(title="Separator Socket API", version="1.0.0")
+app.include_router(separation_tasks.create_router(separation_tasks.LocalTaskRunner()))
+
+
+@app.get("/health")
+def health():
+    return {"status": "ok"}
 
 
 class SeparationRequest(BaseModel):
