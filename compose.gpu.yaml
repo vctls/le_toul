@@ -4,8 +4,9 @@
 # Open http://localhost:8080. Needs the NVIDIA Container Toolkit on the host.
 #
 # This is the shape of a deployment that separates on Modal: a web service
-# built without torch, and a separator holding the GPU and the weights.
-# The api service reaches the separator over the tcp backend for now.
+# built without torch, and a separator holding the GPU and the weights. The
+# api service reaches the separator over the /tasks job protocol, with
+# credentials, as it would reach Modal.
 
 services:
   api:
@@ -16,13 +17,10 @@ services:
     # overwrite the other.
     image: the-tuul:web
     environment:
-      SEPARATION_BACKEND: tcp
-      SEPARATOR_HOST: separator
-      SEPARATOR_PORT: 8001
-      # The tcp backend names the stems after this setting, and the separator
-      # writes them after its own, so both services set it here rather than
-      # leaving it to .env.
-      SEPARATION_OUTPUT_FORMAT: flac
+      SEPARATION_BACKEND: remote
+      SEPARATION_REMOTE_URL: http://separator:8001
+      SEPARATION_REMOTE_KEY: ${SEPARATOR_KEY:-wk-local}
+      SEPARATION_REMOTE_SECRET: ${SEPARATOR_SECRET:-ws-local}
     volumes: !override
       - job-results:/var/lib/tuul/jobs
     depends_on:
@@ -45,6 +43,8 @@ services:
       DEBUG: "False"
       MAX_REQUESTS: "0"
       SEPARATION_OUTPUT_FORMAT: flac
+      SEPARATOR_SERVER_KEY: ${SEPARATOR_KEY:-wk-local}
+      SEPARATOR_SERVER_SECRET: ${SEPARATOR_SECRET:-ws-local}
     command: ["gunicorn", "--config", "gunicorn.conf.py", "api.separator_server:app"]
     volumes:
       - pretrained-models:/app/api/pretrained_models
