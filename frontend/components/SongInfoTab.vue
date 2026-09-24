@@ -123,6 +123,9 @@
                 @click="separateTrack"
               />
             </b-tooltip>
+            <span v-if="lastSeparation" :class="lastSeparation.class">
+              {{ lastSeparation.message }}
+            </span>
           </div>
           <div class="separation-progress" v-if="isSeparatingTrack">
             <b-progress
@@ -263,6 +266,26 @@ function formatList(items: string[]): string {
   return `${items.slice(0, -1).join(", ")} and ${items[items.length - 1]}`;
 }
 
+/**
+ * Formats a duration as minutes and seconds, such as 2:05.
+ */
+function formatDuration(seconds: number): string {
+  const total = Math.round(seconds);
+  return `${Math.floor(total / 60)}:${(total % 60).toString().padStart(2, "0")}`;
+}
+
+const OUTCOME_LABELS = {
+  succeeded: "Succeeded in",
+  failed: "Failed after",
+  cancelled: "Cancelled after",
+};
+
+const OUTCOME_CLASSES = {
+  succeeded: "has-text-success",
+  failed: "has-text-danger",
+  cancelled: "has-text-grey",
+};
+
 export default defineComponent({
   components: {
     FileUpload,
@@ -315,6 +338,16 @@ export default defineComponent({
         return `${stage}...`;
       }
       return `${stage}: ${Math.round(this.separationProgress * 100)}%`;
+    },
+    lastSeparation(): { message: string; class: string } | null {
+      const outcome = this.mediaStore.lastSeparation;
+      if (!outcome || this.isSeparatingTrack) {
+        return null;
+      }
+      return {
+        message: `${OUTCOME_LABELS[outcome.status]} ${formatDuration(outcome.durationSeconds)}`,
+        class: OUTCOME_CLASSES[outcome.status],
+      };
     },
     separationHeaderLabel(): string {
       return this.isSeparatingTrack ? this.separationProgressMessage : "Separating track";
