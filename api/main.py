@@ -65,6 +65,28 @@ app.add_middleware(
 )
 
 
+# A multipart body is a little larger than the file in it.
+_MULTIPART_ALLOWANCE_BYTES = 1_000_000
+
+UPLOAD_TOO_LARGE_MESSAGE = (
+    f"The song is larger than the {settings.MAX_UPLOAD_MB} MB this server accepts."
+)
+
+
+@app.middleware("http")
+async def limit_upload_size(request: Request, call_next):
+    """Refuse an oversized song before its body is read.
+
+    A body without a Content-Length is checked once parsed, in separate_track.
+    """
+    if request.url.path == "/separate_track":
+        length = request.headers.get("content-length", "")
+        limit = settings.MAX_UPLOAD_BYTES + _MULTIPART_ALLOWANCE_BYTES
+        if length.isdigit() and int(length) > limit:
+            return JSONResponse({"detail": UPLOAD_TOO_LARGE_MESSAGE}, status_code=413)
+    return await call_next(request)
+
+
 # Custom middleware for SharedArrayBuffer headers
 @app.middleware("http")
 async def add_sharedarraybuffer_headers(request: Request, call_next):
@@ -375,6 +397,7 @@ async def index(request: Request):
         "request": request,
         "vite_hmr_client": Markup(vite_assets.render_hmr_client()),
         "vite_assets": Markup(vite_assets.render_tags("index.ts")),
+        "max_upload_bytes": settings.MAX_UPLOAD_BYTES,
     }
     return templates.TemplateResponse("index.html", context)
 
@@ -395,6 +418,9 @@ async def separate_track(
         raise HTTPException(
             status_code=400, detail=f"Unknown separation model {modelName}"
         )
+
+    if songFile.size is not None and songFile.size > settings.MAX_UPLOAD_BYTES:
+        raise HTTPException(status_code=413, detail=UPLOAD_TOO_LARGE_MESSAGE)
 
     # Read file content
     song_content = await songFile.read()
