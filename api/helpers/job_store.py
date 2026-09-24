@@ -31,6 +31,10 @@ STATUS_CANCELLED = "cancelled"
 
 CANCELLED_MESSAGE = "Track separation was cancelled."
 INTERRUPTED_MESSAGE = "Track separation was interrupted by a server restart."
+WORKER_EXITED_MESSAGE = (
+    "Track separation stopped because the server process running it exited. "
+    "This usually means the server ran out of memory."
+)
 
 
 class JobCancelled(Exception):
@@ -100,7 +104,13 @@ def mark_processing(cache_hash: str) -> str:
     run_id = uuid.uuid4().hex
     _write_status(
         cache_hash,
-        {"status": STATUS_PROCESSING, "startTime": int(time.time()), "runId": run_id},
+        {
+            "status": STATUS_PROCESSING,
+            "startTime": int(time.time()),
+            "runId": run_id,
+            # The run dies with this process, and is failed when the process exits.
+            "pid": os.getpid(),
+        },
     )
     return run_id
 
@@ -205,9 +215,9 @@ def read_status(cache_hash: str) -> dict | None:
 def is_stale(status: dict) -> bool:
     """Return whether a processing job has outlived any plausible run.
 
-    A worker killed mid-job (a crash, or gunicorn's dev reloader restarting on a file edit)
-    leaves its marker behind forever.
-    Treating an over-age marker as dead is what stops the client polling for something nothing is working on.
+    Under gunicorn, the master fails a dead worker's jobs as soon as it exits.
+    This is the fallback for a process nothing is watching,
+    whose marker would otherwise be left behind forever.
     """
     if status.get("status") != STATUS_PROCESSING:
         return False
@@ -224,15 +234,30 @@ def fail_interrupted_jobs() -> None:
     Only safe before any worker has started, since nothing can be running then.
     Without it, a job killed by a restart blocks its song until its marker goes stale.
     """
+    _fail_processing_jobs(INTERRUPTED_MESSAGE)
+
+
+def fail_jobs_of_worker(pid: int) -> None:
+    """Mark every job still processing in the worker process `pid` as failed.
+
+    Called once that process has exited, which leaves nothing to finish its jobs.
+    """
+    _fail_processing_jobs(WORKER_EXITED_MESSAGE, pid=pid)
+
+
+def _fail_processing_jobs(error: str, pid: int | None = None) -> None:
     directory = Path(settings.LOCAL_JOB_DIR)
     if not directory.is_dir():
         return
     for path in directory.glob("*.json"):
         cache_hash = path.stem
         status = read_status(cache_hash)
-        if status and status.get("status") == STATUS_PROCESSING:
-            mark_failed(cache_hash, INTERRUPTED_MESSAGE)
-            logger.info("local_job_interrupted", cache_hash=cache_hash)
+        if not status or status.get("status") != STATUS_PROCESSING:
+            continue
+        if pid is not None and status.get("pid") != pid:
+            continue
+        mark_failed(cache_hash, error, status.get("runId"))
+        logger.info("local_job_interrupted", cache_hash=cache_hash, pid=pid)
 
 
 def store_result(cache_hash: str, zip_path: Path) -> Path:

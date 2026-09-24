@@ -76,3 +76,20 @@ def on_starting(server):
     from api.helpers import job_store
 
     job_store.fail_interrupted_jobs()
+
+
+def child_exit(server, worker):
+    """Fail the jobs of a worker that has exited, however it went.
+
+    An out-of-memory kill gives the worker no chance to record anything,
+    and the client would otherwise poll that job until its marker goes stale.
+    """
+    from api.helpers import job_store
+
+    # This runs in the master's loop, which must survive a failure here.
+    try:
+        job_store.fail_jobs_of_worker(worker.pid)
+    except Exception:
+        server.log.exception(
+            "Could not mark the jobs of worker %s as failed", worker.pid
+        )
