@@ -2,6 +2,7 @@ import base64
 import json
 import logging
 import subprocess
+from dataclasses import dataclass
 from enum import Enum
 from pathlib import Path
 
@@ -63,11 +64,21 @@ def _validate_model(model_name: str) -> None:
         )
 
 
-def _get_output_paths(song_dir: Path) -> tuple[Path, Path]:
-    """Get the expected output file paths for vocals and accompaniment."""
-    vocals_path = song_dir / "vocals.wav"
-    accompaniment_path = song_dir / "accompaniment.wav"
-    return accompaniment_path, vocals_path
+@dataclass(frozen=True)
+class SeparationResult:
+    accompaniment: Path
+    vocals: Path
+
+
+def get_output_paths(song_dir: Path) -> SeparationResult:
+    """Return the paths a separation into song_dir is expected to produce.
+
+    The one place the output names are spelled.
+    """
+    return SeparationResult(
+        accompaniment=song_dir / "accompaniment.wav",
+        vocals=song_dir / "vocals.wav",
+    )
 
 
 def _split_song_api(
@@ -75,7 +86,7 @@ def _split_song_api(
     song_dir: Path,
     model_name: str,
     on_progress: ProgressCallback | None = None,
-) -> tuple[Path, Path]:
+) -> SeparationResult:
     """Split song using the audio_separator Python API."""
     output_names = {
         "Vocals": "vocals",
@@ -87,16 +98,7 @@ def _split_song_api(
     with separation_progress.reporting(on_progress) as progress:
         progress.stage(separation_progress.LOADING_STAGE)
 
-        try:
-            from audio_separator.separator import Separator
-        except ModuleNotFoundError as e:
-            logging.error(e)
-            logging.warning(
-                "audio_separator not found. I assume we're testing. Gonna use the original song."
-            )
-            return songfile.rename(
-                song_dir.joinpath("accompaniment.wav")
-            ), song_dir.joinpath("vocals.wav")
+        from audio_separator.separator import Separator
 
         separator = Separator(
             output_dir=str(song_dir),
@@ -107,12 +109,12 @@ def _split_song_api(
         progress.stage(separation_progress.READING_STAGE)
         separator.separate(str(songfile), output_names)
 
-    return _get_output_paths(song_dir)
+    return get_output_paths(song_dir)
 
 
 def _split_song_cli(
     songfile: Path, song_dir: Path, model_name: str
-) -> tuple[Path, Path]:
+) -> SeparationResult:
     """Split song using the audio-separator command-line tool."""
     output_names = {
         "Vocals": "vocals",
@@ -144,12 +146,12 @@ def _split_song_cli(
         )
         raise
 
-    return _get_output_paths(song_dir)
+    return get_output_paths(song_dir)
 
 
 def _split_song_tcp(
     songfile: Path, song_dir: Path, model_name: str, host: str, port: int
-) -> tuple[Path, Path]:
+) -> SeparationResult:
     """Split song using external separation server via TCP."""
     # Read and encode the input file
     audio_data = songfile.read_bytes()
@@ -180,77 +182,48 @@ def _split_song_tcp(
         vocals_data = base64.b64decode(result["vocals_base64"])
         accompaniment_data = base64.b64decode(result["accompaniment_base64"])
 
-        vocals_path = song_dir / "vocals.wav"
-        accompaniment_path = song_dir / "accompaniment.wav"
+        paths = get_output_paths(song_dir)
+        paths.vocals.write_bytes(vocals_data)
+        paths.accompaniment.write_bytes(accompaniment_data)
 
-        vocals_path.write_bytes(vocals_data)
-        accompaniment_path.write_bytes(accompaniment_data)
-
-        return accompaniment_path, vocals_path
+        return paths
 
     except httpx.RequestError as e:
-        logging.warning(
-            f"Separation server communication failed: {e}, falling back to API method"
-        )
-        return split_song(songfile, song_dir, model_name, method=SeparationMethod.API)
-    except Exception as e:
-        logging.warning(f"Separation server error: {e}, falling back to API method")
-        return split_song(songfile, song_dir, model_name, method=SeparationMethod.API)
+        raise RuntimeError(
+            f"Separation server unreachable at {host}:{port}: {e}"
+        ) from e
 
 
 def _split_song_modal_api(
     songfile: Path, song_dir: Path, model_name: str, api_url: str
-) -> tuple[Path, Path]:
+) -> SeparationResult:
     """Split song using the remote Modal API separation service with AudioSeparatorAPIClient."""
-    try:
-        from audio_separator.remote import AudioSeparatorAPIClient
-    except ModuleNotFoundError as e:
-        logging.error(f"AudioSeparatorAPIClient not available: {e}")
-        logging.warning("Falling back to API method")
-        return split_song(songfile, song_dir, model_name, method=SeparationMethod.API)
+    from audio_separator.remote import AudioSeparatorAPIClient
 
-    try:
-        # Initialize the API client
-        logger = logging.getLogger(__name__)
-        api_client = AudioSeparatorAPIClient(api_url, logger)
+    api_client = AudioSeparatorAPIClient(api_url, logging.getLogger(__name__))
 
-        # Set up custom output names to match our expected format
-        custom_output_names = {
-            "Vocals": "vocals",
-            "Instrumental": "accompaniment",
-        }
+    result = api_client.separate_audio_and_wait(
+        str(songfile),
+        model=model_name,
+        timeout=600,
+        poll_interval=5,
+        download=True,
+        output_dir=str(song_dir),
+        output_format="wav",
+        custom_output_names={"Vocals": "vocals", "Instrumental": "accompaniment"},
+    )
 
-        # Separate audio and wait for completion
-        result = api_client.separate_audio_and_wait(
-            str(songfile),
-            model=model_name,
-            timeout=600,  # Wait up to 10 minutes
-            poll_interval=5,  # Check status every 5 seconds
-            download=True,  # Automatically download files
-            output_dir=str(song_dir),  # Save files to song directory
-            output_format="wav",
-            custom_output_names=custom_output_names,
+    if result["status"] != "completed":
+        raise RuntimeError(
+            f"Modal API separation failed: {result.get('error', 'Unknown error')}"
         )
 
-        if result["status"] == "completed":
-            logging.info("Modal API separation completed")
+    # The client downloads into song_dir under the custom output names.
+    paths = get_output_paths(song_dir)
+    if not paths.vocals.exists() or not paths.accompaniment.exists():
+        raise RuntimeError("Expected output files not found after separation")
 
-            # The files should be downloaded to the song_dir with our custom names
-            vocals_path = song_dir / "vocals.wav"
-            accompaniment_path = song_dir / "accompaniment.wav"
-
-            # Verify the files exist
-            if not vocals_path.exists() or not accompaniment_path.exists():
-                raise RuntimeError("Expected output files not found after separation")
-
-            return accompaniment_path, vocals_path
-        else:
-            error_msg = result.get("error", "Unknown error")
-            raise RuntimeError(f"Modal API separation failed: {error_msg}")
-
-    except Exception as e:
-        logging.warning(f"Modal API error: {e}, falling back to API method")
-        return split_song(songfile, song_dir, model_name, method=SeparationMethod.API)
+    return paths
 
 
 def split_song(
@@ -262,10 +235,10 @@ def split_song(
     port: int | None = None,
     modal_api_url: str | None = None,
     on_progress: ProgressCallback | None = None,
-) -> tuple[Path, Path]:
+) -> SeparationResult:
     """
     Split song into instrumental and vocal tracks.
-    Returns paths to accompaniment and vocal tracks.
+    Returns the paths to the accompaniment and vocal tracks.
 
     Args:
         songfile: Path to the input audio file
@@ -283,31 +256,23 @@ def split_song(
 
     # TCP host+port takes precedence over method
     if host and port:
-        accompaniment_path, vocals_path = _split_song_tcp(
-            songfile, song_dir, model_name, host, port
-        )
+        result = _split_song_tcp(songfile, song_dir, model_name, host, port)
     elif method == SeparationMethod.API:
-        accompaniment_path, vocals_path = _split_song_api(
-            songfile, song_dir, model_name, on_progress
-        )
+        result = _split_song_api(songfile, song_dir, model_name, on_progress)
     elif method == SeparationMethod.CLI:
-        accompaniment_path, vocals_path = _split_song_cli(
-            songfile, song_dir, model_name
-        )
+        result = _split_song_cli(songfile, song_dir, model_name)
     elif method == SeparationMethod.MODAL_API:
         if not modal_api_url:
             raise ValueError(
                 "API_URL must be configured in settings or provided as parameter for MODAL_API method"
             )
-        accompaniment_path, vocals_path = _split_song_modal_api(
-            songfile, song_dir, model_name, modal_api_url
-        )
+        result = _split_song_modal_api(songfile, song_dir, model_name, modal_api_url)
     else:
         raise ValueError(
             f"Invalid method '{method}'. Must be SeparationMethod.API, SeparationMethod.CLI, or SeparationMethod.MODAL_API"
         )
 
     logging.info(
-        f"Got vocals: {vocals_path.name}, Accompaniment: {accompaniment_path.name}"
+        f"Got vocals: {result.vocals.name}, Accompaniment: {result.accompaniment.name}"
     )
-    return accompaniment_path, vocals_path
+    return result

@@ -29,15 +29,15 @@ def test_split_song_api_method(audio_file, temp_output_dir):
         (temp_output_dir / "vocals.wav").write_text("mock vocals")
         (temp_output_dir / "accompaniment.wav").write_text("mock accompaniment")
 
-        accompaniment_path, vocals_path = split_song(
+        separated = split_song(
             audio_file, temp_output_dir, DEFAULT_MODEL, method=SeparationMethod.API
         )
 
         # Verify paths are correct
-        assert accompaniment_path == temp_output_dir / "accompaniment.wav"
-        assert vocals_path == temp_output_dir / "vocals.wav"
-        assert accompaniment_path.exists()
-        assert vocals_path.exists()
+        assert separated.accompaniment == temp_output_dir / "accompaniment.wav"
+        assert separated.vocals == temp_output_dir / "vocals.wav"
+        assert separated.accompaniment.exists()
+        assert separated.vocals.exists()
 
         # Verify separator was called correctly
         mock_separator.assert_called_once_with(
@@ -59,15 +59,15 @@ def test_split_song_subprocess_method(audio_file, temp_output_dir):
         (temp_output_dir / "vocals.wav").write_text("mock vocals")
         (temp_output_dir / "accompaniment.wav").write_text("mock accompaniment")
 
-        accompaniment_path, vocals_path = split_song(
+        separated = split_song(
             audio_file, temp_output_dir, DEFAULT_MODEL, method=SeparationMethod.CLI
         )
 
         # Verify paths are correct
-        assert accompaniment_path == temp_output_dir / "accompaniment.wav"
-        assert vocals_path == temp_output_dir / "vocals.wav"
-        assert accompaniment_path.exists()
-        assert vocals_path.exists()
+        assert separated.accompaniment == temp_output_dir / "accompaniment.wav"
+        assert separated.vocals == temp_output_dir / "vocals.wav"
+        assert separated.accompaniment.exists()
+        assert separated.vocals.exists()
 
         # Verify subprocess was called correctly
         mock_run.assert_called_once()
@@ -107,7 +107,7 @@ def test_split_song_both_methods_same_output(audio_file, temp_output_dir):
             (temp_output_dir / "accompaniment.wav").write_text("mock accompaniment")
 
             # Test library method
-            lib_accompaniment, lib_vocals = split_song(
+            lib = split_song(
                 audio_file, temp_output_dir, DEFAULT_MODEL, method=SeparationMethod.API
             )
 
@@ -118,15 +118,14 @@ def test_split_song_both_methods_same_output(audio_file, temp_output_dir):
             (temp_output_dir / "accompaniment.wav").write_text("mock accompaniment")
 
             # Test subprocess method
-            sub_accompaniment, sub_vocals = split_song(
+            cli = split_song(
                 audio_file, temp_output_dir, DEFAULT_MODEL, method=SeparationMethod.CLI
             )
 
             # Verify both methods return the same paths
-            assert lib_accompaniment == sub_accompaniment
-            assert lib_vocals == sub_vocals
-            assert lib_accompaniment.name == "accompaniment.wav"
-            assert lib_vocals.name == "vocals.wav"
+            assert lib == cli
+            assert lib.accompaniment.name == "accompaniment.wav"
+            assert lib.vocals.name == "vocals.wav"
 
 
 def test_split_song_subprocess_command_not_found(audio_file, temp_output_dir):

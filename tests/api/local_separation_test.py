@@ -17,6 +17,7 @@ from fastapi.testclient import TestClient
 
 from api import settings
 from api.helpers import cloud_storage, job_store
+from api.karaoke.music_separation import SeparationResult
 from api.main import app
 
 SONG_CONTENT = b"test audio content"
@@ -54,7 +55,9 @@ def song_files():
         with (
             mock.patch(
                 "api.karaoke.music_separation.split_song",
-                return_value=(accomp_path, vocal_path),
+                return_value=SeparationResult(
+                    accompaniment=accomp_path, vocals=vocal_path
+                ),
             ) as mock_split_song,
             mock.patch("api.helpers.zip_helper.create_zip_file", return_value=zip_path),
         ):

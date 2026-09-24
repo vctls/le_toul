@@ -5,6 +5,7 @@ from unittest import mock
 import pytest
 from fastapi.testclient import TestClient
 
+from api.karaoke.music_separation import SeparationResult
 from api.main import app
 
 
@@ -108,7 +109,9 @@ def test_separate_track_with_cache_miss(
         vocal_path.write_bytes(b"vocals content")
         zip_path.write_bytes(b"zip content")
 
-        mock_split_song.return_value = (accomp_path, vocal_path)
+        mock_split_song.return_value = SeparationResult(
+            accompaniment=accomp_path, vocals=vocal_path
+        )
         mock_create_zip.return_value = zip_path
 
         # Create the request
@@ -218,7 +221,9 @@ def test_separate_track_without_cache(
         vocal_path.write_bytes(b"vocals content")
         zip_path.write_bytes(b"zip content")
 
-        mock_split_song.return_value = (accomp_path, vocal_path)
+        mock_split_song.return_value = SeparationResult(
+            accompaniment=accomp_path, vocals=vocal_path
+        )
         mock_create_zip.return_value = zip_path
 
         # Create the request
