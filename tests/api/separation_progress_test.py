@@ -51,6 +51,15 @@ def run_chunks(module, count):
         pass
 
 
+WEIGHTS_BYTES = 10_000_000
+
+
+def download(module, total, fraction=1.0):
+    bar = module.tqdm(total=total, mininterval=0)
+    bar.update(int(total * fraction))
+    bar.close()
+
+
 def test_chunk_loop_reports_rising_progress(
     architecture, monkeypatch, on_progress, reports
 ):
@@ -88,13 +97,43 @@ def test_download_is_reported_as_its_own_stage(
     patch_architecture(monkeypatch, separation_progress._DownloadBar)
 
     with separation_progress.reporting(on_progress):
-        bar = architecture.tqdm(total=1000, mininterval=0)
-        bar.update(1000)
-        bar.close()
+        download(architecture, WEIGHTS_BYTES)
 
     assert reports[-1] == (
         pytest.approx(separation_progress._DOWNLOAD_SHARE),
         separation_progress.DOWNLOAD_STAGE,
+    )
+
+
+def test_small_files_leave_the_download_share_to_the_weights(
+    architecture, monkeypatch, on_progress, reports
+):
+    """The model index finishes first, and must not fill the bar before the weights start."""
+    patch_architecture(monkeypatch, separation_progress._DownloadBar)
+
+    with separation_progress.reporting(on_progress):
+        download(architecture, 3539)
+        download(architecture, WEIGHTS_BYTES, fraction=0.5)
+
+    assert reports == [
+        (
+            pytest.approx(separation_progress._DOWNLOAD_SHARE * 0.5),
+            separation_progress.DOWNLOAD_STAGE,
+        )
+    ]
+
+
+def test_gzipped_download_does_not_overshoot_its_share(
+    architecture, monkeypatch, on_progress, reports
+):
+    """A gzipped response yields more bytes than its content-length announces."""
+    patch_architecture(monkeypatch, separation_progress._DownloadBar)
+
+    with separation_progress.reporting(on_progress):
+        download(architecture, WEIGHTS_BYTES, fraction=8)
+
+    assert max(progress for progress, _ in reports) == pytest.approx(
+        separation_progress._DOWNLOAD_SHARE
     )
 
 
