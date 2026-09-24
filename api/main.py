@@ -1,4 +1,7 @@
+import asyncio
+import contextlib
 import tempfile
+from collections.abc import Callable
 from pathlib import Path, PurePosixPath
 from typing import Literal
 
@@ -35,15 +38,22 @@ from .helpers import (
 )
 from .helpers.youtube_helper import YouTubeException
 from .karaoke import separation_backends, separation_progress
-from .karaoke.music_separation import AVAILABLE_MODELS
+from .karaoke.music_separation import AVAILABLE_MODELS, SeparationResult
 from .vite_assets import vite_assets
 
 # Configure logging
 app_logging.setup()
 logger = structlog.get_logger(__name__)
 
+
+@contextlib.asynccontextmanager
+async def lifespan(app: FastAPI):
+    resume_remote_separations()
+    yield
+
+
 # Create FastAPI app
-app = FastAPI(title="The Tuul API", debug=settings.DEBUG)
+app = FastAPI(title="The Tuul API", debug=settings.DEBUG, lifespan=lifespan)
 
 # CORS middleware
 app.add_middleware(
@@ -127,6 +137,7 @@ def perform_music_separation(
     song_files_dir: Path,
     cache_hash: str | None = None,
     on_progress: separation_progress.ProgressCallback | None = None,
+    on_submitted: separation_backends.SubmittedCallback | None = None,
 ) -> Path:
     """Perform music separation and return the path to the created zip file.
 
@@ -137,6 +148,7 @@ def perform_music_separation(
         song_files_dir: The temporary directory to work in
         cache_hash: Optional cache hash for logging context
         on_progress: Called with (fraction, stage) as the work advances
+        on_submitted: Called with the ID of the task a remote backend runs it as
 
     Returns:
         Path to the created zip file containing separated tracks
@@ -158,8 +170,18 @@ def perform_music_separation(
         song_files_dir,
         model_name,
         on_progress=on_progress,
+        on_submitted=on_submitted,
     )
+    return package_stems(separated, song_files_dir, cache_hash, on_progress)
 
+
+def package_stems(
+    separated: SeparationResult,
+    song_files_dir: Path,
+    cache_hash: str | None = None,
+    on_progress: separation_progress.ProgressCallback | None = None,
+) -> Path:
+    """Zip the stems of a finished separation, returning the zip's path."""
     if on_progress:
         on_progress(1.0, separation_progress.PACKAGING_STAGE)
 
@@ -212,6 +234,44 @@ def process_track_separation_local(
     """Background task to process track separation into the local job store."""
     logger.info("local_separation_started", cache_hash=cache_hash)
 
+    def separate(song_files_dir: Path, report) -> Path:
+        return perform_music_separation(
+            song_content,
+            song_filename,
+            model_name,
+            song_files_dir,
+            cache_hash,
+            on_progress=report,
+            on_submitted=lambda task_id: job_store.mark_submitted(
+                cache_hash, run_id, task_id
+            ),
+        )
+
+    _run_local_job(cache_hash, run_id, separate)
+
+
+def resume_track_separation_local(cache_hash: str, run_id: str, task_id: str):
+    """Background task that follows a remote task a previous server submitted."""
+    logger.info("local_separation_resumed", cache_hash=cache_hash, task_id=task_id)
+
+    def follow(song_files_dir: Path, report) -> Path:
+        backend = separation_backends.get_backend()
+        separated = backend.resume(task_id, song_files_dir, on_progress=report)
+        return package_stems(separated, song_files_dir, cache_hash, report)
+
+    _run_local_job(cache_hash, run_id, follow)
+
+
+def _run_local_job(
+    cache_hash: str,
+    run_id: str,
+    work: Callable[[Path, separation_progress.ProgressCallback], Path],
+) -> None:
+    """Run a job's work in a scratch directory, and record how it ended.
+
+    `work` gets the directory and a progress callback, and returns the zip.
+    """
+
     def report(progress: float | None, stage: str) -> None:
         # The separation hands control back only to report,
         # so this is the one place a cancelled run can notice and unwind.
@@ -221,14 +281,7 @@ def process_track_separation_local(
 
     try:
         with tempfile.TemporaryDirectory() as song_files_dir:
-            zip_path = perform_music_separation(
-                song_content,
-                song_filename,
-                model_name,
-                Path(song_files_dir),
-                cache_hash,
-                on_progress=report,
-            )
+            zip_path = work(Path(song_files_dir), report)
             job_store.store_result(cache_hash, zip_path)
     except job_store.JobCancelled:
         logger.info("local_separation_cancelled", cache_hash=cache_hash)
@@ -267,6 +320,52 @@ async def queue_track_separation_local(
     except separation_queue.Withdrawn:
         logger.info("local_separation_withdrawn", cache_hash=cache_hash)
         job_store.mark_cancelled(cache_hash, run_id)
+
+
+async def queue_resumed_separation_local(cache_hash: str, run_id: str, task_id: str):
+    """Background task that waits its turn in line, then follows a remote task.
+
+    It takes a slot like a new song, so the jobs a restart left running still
+    count towards the limit.
+    """
+    try:
+        async with local_separations.slot(
+            run_id,
+            on_wait=lambda ahead: job_store.mark_queued(cache_hash, run_id, ahead),
+        ):
+            # A run cancelled or superseded meanwhile still goes ahead: its first
+            # report unwinds it, and calls off the remote task on the way out.
+            job_store.mark_started(cache_hash, run_id)
+            await run_in_threadpool(
+                resume_track_separation_local, cache_hash, run_id, task_id
+            )
+    except separation_queue.Withdrawn:
+        logger.info("local_separation_withdrawn", cache_hash=cache_hash)
+        job_store.mark_cancelled(cache_hash, run_id)
+
+
+def resume_remote_separations() -> None:
+    """Pick up the remote tasks that a previous server left running.
+
+    Assumes one worker process. A second would pick up every task too.
+    """
+    if settings.SEPARATED_TRACKS_BUCKET or not separation_backends.is_resumable(
+        settings.SEPARATION_BACKEND
+    ):
+        return
+    for cache_hash, status in job_store.remote_jobs():
+        job_store.adopt(cache_hash, status["runId"])
+        task = asyncio.get_running_loop().create_task(
+            queue_resumed_separation_local(
+                cache_hash, status["runId"], status["taskId"]
+            )
+        )
+        # The loop holds only a weak reference, and a task nothing else holds can be collected mid-run.
+        _resumed_separations.add(task)
+        task.add_done_callback(_resumed_separations.discard)
+
+
+_resumed_separations: set[asyncio.Task] = set()
 
 
 @app.get("/")

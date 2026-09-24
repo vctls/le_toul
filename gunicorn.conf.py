@@ -72,10 +72,16 @@ def on_starting(server):
 
     This runs once in the master, before any worker exists. A sweep at app
     startup would run in every worker and could fail a sibling's live job.
+    A job waiting on a remote task is spared when the backend can follow it
+    again, and the worker picks it up at startup.
     """
+    from api import settings
     from api.helpers import job_store
+    from api.karaoke import separation_backends
 
-    job_store.fail_interrupted_jobs()
+    job_store.fail_interrupted_jobs(
+        spare_remote_jobs=separation_backends.is_resumable(settings.SEPARATION_BACKEND)
+    )
 
 
 def child_exit(server, worker):
@@ -83,12 +89,21 @@ def child_exit(server, worker):
 
     An out-of-memory kill gives the worker no chance to record anything,
     and the client would otherwise poll that job until its marker goes stale.
+    A job waiting on a remote task is spared as in on_starting, for the
+    replacement worker to pick up.
     """
+    from api import settings
     from api.helpers import job_store
+    from api.karaoke import separation_backends
 
     # This runs in the master's loop, which must survive a failure here.
     try:
-        job_store.fail_jobs_of_worker(worker.pid)
+        job_store.fail_jobs_of_worker(
+            worker.pid,
+            spare_remote_jobs=separation_backends.is_resumable(
+                settings.SEPARATION_BACKEND
+            ),
+        )
     except Exception:
         server.log.exception(
             "Could not mark the jobs of worker %s as failed", worker.pid
