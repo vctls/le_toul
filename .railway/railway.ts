@@ -25,6 +25,8 @@ export default defineRailway(() => {
       WORKER_COUNT: "1",
       LOCAL_JOB_DIR: "/data/jobs",
       LOGGING_FORMAT: "console",
+      // Railway's edge sets it to the client's address.
+      CLIENT_IP_HEADER: "X-Real-IP",
       SEPARATION_BACKEND: "remote",
       SEPARATION_REMOTE_URL: "https://vctls--tuul-separation-web.modal.run",
       // A Modal proxy token, sealed in the dashboard.
