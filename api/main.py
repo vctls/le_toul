@@ -1,5 +1,6 @@
 import asyncio
 import contextlib
+import math
 import tempfile
 from collections.abc import Callable
 from pathlib import Path, PurePosixPath
@@ -36,6 +37,7 @@ from .helpers import (
     youtube_helper,
     zip_helper,
 )
+from .helpers.rate_limit import RateLimiter
 from .helpers.youtube_helper import YouTubeException
 from .karaoke import separation_backends, separation_progress
 from .karaoke.music_separation import AVAILABLE_MODELS, SeparationResult
@@ -99,6 +101,46 @@ async def add_sharedarraybuffer_headers(request: Request, call_next):
 # Only the local job store queues. A GCS-backed deployment runs on Cloud Run,
 # which caps concurrency per instance itself.
 local_separations = separation_queue.SeparationQueue(settings.SEPARATION_CONCURRENCY)
+
+separation_starts = RateLimiter(
+    [
+        (settings.SEPARATIONS_PER_HOUR, 60 * 60),
+        (settings.SEPARATIONS_PER_DAY, 24 * 60 * 60),
+    ]
+)
+
+
+def client_address(request: Request) -> str:
+    if settings.CLIENT_IP_HEADER:
+        forwarded = request.headers.get(settings.CLIENT_IP_HEADER, "").strip()
+        if forwarded:
+            return forwarded
+    return request.client.host if request.client else "unknown"
+
+
+def start_separation_or_refuse(request: Request) -> None:
+    """Count a new separation against the client's allowance, or refuse it with a 429."""
+    client = client_address(request)
+    wait = separation_starts.acquire(client)
+    if wait is None:
+        return
+    logger.warning("separation_rate_limited", client=client, retry_after=wait)
+    raise HTTPException(
+        status_code=429,
+        detail=(
+            "You have started as many separations as this server allows for now. "
+            f"Try again in {_describe_wait(wait)}."
+        ),
+        headers={"Retry-After": str(math.ceil(wait))},
+    )
+
+
+def _describe_wait(seconds: float) -> str:
+    minutes = max(1, math.ceil(seconds / 60))
+    if minutes < 120:
+        return f"{minutes} minute{'s' if minutes > 1 else ''}"
+    return f"{math.ceil(minutes / 60)} hours"
+
 
 # Static files and templates
 app.mount("/static", StaticFiles(directory=settings.STATIC_DIR), name="static")
@@ -404,6 +446,7 @@ async def index(request: Request):
 
 @app.post("/separate_track")
 async def separate_track(
+    request: Request,
     background_tasks: BackgroundTasks,
     songFile: UploadFile = File(...),
     modelName: str = Form(...),
@@ -429,6 +472,7 @@ async def separate_track(
         "separate_tracks",
         song_size=len(song_content),
         model_name=modelName,
+        client=client_address(request),
     )
 
     # Check if we can fetch from cache
@@ -453,6 +497,7 @@ async def separate_track(
     if settings.SEPARATED_TRACKS_BUCKET:
         # Create placeholder and get public URL for polling
         cache_hash = cloud_storage.get_cache_hash(modelName, song_content)
+        start_separation_or_refuse(request)
         poll_url = cloud_storage.create_cache_placeholder(cache_hash)
 
         if poll_url:
@@ -497,6 +542,7 @@ async def separate_track(
         # Anything else (a failed or cancelled job, or one whose worker died)
         # falls through to a fresh attempt,
         # so a single failure does not block the song forever.
+        start_separation_or_refuse(request)
         job_store.prune_expired_results()
 
         run_id = job_store.mark_processing(cache_hash)
