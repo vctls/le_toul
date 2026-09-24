@@ -1,6 +1,7 @@
 import {
   RenderProgress,
   getAlternateTrackParams,
+  getFfmpegParams,
   getMkvMuxParams,
   parseYouTubeTitle,
   fetchYouTubeVideo,
@@ -21,6 +22,14 @@ function valueOf(args: string[], flag: string): string | undefined {
   return index === -1 ? undefined : args[index + 1];
 }
 
+// The -threads input option ffmpeg would apply to one input: the last one between the previous -i and this one.
+function inputThreads(args: string[], input: string): string | undefined {
+  const inputIndex = args.findIndex((arg, index) => arg === input && args[index - 1] === "-i");
+  const previousInput = args.lastIndexOf("-i", inputIndex - 2);
+  const options = args.slice(previousInput + 1, inputIndex - 1);
+  return valueOf(options.slice(options.lastIndexOf("-threads")), "-threads");
+}
+
 describe("getAlternateTrackParams", () => {
   it("encodes one delayed track on a single thread", () => {
     const args = getAlternateTrackParams("vocals.wav", 2000, "vocals.m4a");
@@ -33,6 +42,23 @@ describe("getAlternateTrackParams", () => {
     // A second audio encoder in one run deadlocks the WASM core above one thread.
     expect(valueOf(args, "-threads")).toBe("1");
     expect(args.at(-1)).toBe("vocals.m4a");
+  });
+
+  it("decodes the track on a single thread", () => {
+    const args = getAlternateTrackParams("vocals.flac", 0, "vocals.m4a");
+
+    expect(inputThreads(args, "vocals.flac")).toBe("1");
+  });
+});
+
+describe("getFfmpegParams", () => {
+  it.each([
+    ["a background video", true],
+    ["a plain background", false],
+  ])("decodes the backing track on a single thread over %s", (_, hasVideo) => {
+    const args = getFfmpegParams(hasVideo, "0x000000", 0, METADATA);
+
+    expect(inputThreads(args, "audio.mp4")).toBe("1");
   });
 });
 
