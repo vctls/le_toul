@@ -74,6 +74,11 @@ ENV APP_HOME=/app \
     SEPARATED_TRACKS_BUCKET="" \
     SEPARATOR_SOCKET_PATH=""
 
+# With a child process per separation, running out of memory kills that child, not the web worker.
+# A recycled worker would take its background separations with it.
+ENV SEPARATION_BACKEND=subprocess \
+    MAX_REQUESTS=0
+
 WORKDIR $APP_HOME
 
 # Copy installed dependencies from builder

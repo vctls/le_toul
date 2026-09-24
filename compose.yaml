@@ -30,6 +30,8 @@ services:
       # Separations run as background tasks in the worker, and a worker recycled
       # by max_requests mid-job takes the job with it while the client polls on.
       MAX_REQUESTS: "0"
+      # The image sets this too, but a .env copied from .env.example would override it.
+      SEPARATION_BACKEND: subprocess
       LOCAL_JOB_DIR: /var/lib/tuul/jobs
     ports:
       - "${HOST_PORT:-8080}:8080"
