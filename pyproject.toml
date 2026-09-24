@@ -29,6 +29,12 @@ minversion = "7.0"
 testpaths = [
     "tests/api",
 ]
+markers = [
+    "network: reaches a live third-party service. Deselected by default, run with `pytest -m network`.",
+]
+# These tests fail on YouTube's schedule rather than ours, so a red suite would
+# stop meaning anything.
+addopts = "-m 'not network'"
 pythonpath = [
   ".",
   "api"
