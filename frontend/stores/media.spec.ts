@@ -1,5 +1,5 @@
 import { createPinia, setActivePinia } from "pinia";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { separateTrack } from "@/lib/audio";
 import { BACKING_VOCALS_SEPARATOR_MODEL, useMediaStore } from "./media";
@@ -120,5 +120,82 @@ describe("Media Store separation", () => {
     expect(result).toBeUndefined();
     expect(store.error).toBe("Separator ran out of memory");
     expect(store.isProcessing).toBe(false);
+  });
+});
+
+describe("Media Store separation outcome", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    vi.useFakeTimers();
+    setActivePinia(createPinia());
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  it("records a success and how long it took", async () => {
+    const store = useMediaStore();
+    (separateTrack as any).mockImplementation(async () => {
+      vi.advanceTimersByTime(90_000);
+      return TRACK;
+    });
+
+    await store.startSeparation(SONG, BACKING_VOCALS_SEPARATOR_MODEL);
+
+    expect(store.lastSeparation).toEqual({ status: "succeeded", durationSeconds: 90 });
+  });
+
+  it("records a failure", async () => {
+    const store = useMediaStore();
+    (separateTrack as any).mockImplementation(async () => {
+      vi.advanceTimersByTime(12_000);
+      throw new Error("The separation job no longer exists.");
+    });
+
+    await store.startSeparation(SONG, BACKING_VOCALS_SEPARATOR_MODEL);
+
+    expect(store.lastSeparation).toEqual({ status: "failed", durationSeconds: 12 });
+  });
+
+  it("records a cancel", async () => {
+    const store = useMediaStore();
+    const started = pendingSeparation();
+    const running = store.startSeparation(SONG, BACKING_VOCALS_SEPARATOR_MODEL);
+    await started;
+    vi.advanceTimersByTime(30_000);
+
+    store.cancelSeparation();
+    await running;
+
+    expect(store.lastSeparation).toEqual({ status: "cancelled", durationSeconds: 30 });
+  });
+
+  it("counts the wait in line towards the duration", async () => {
+    const store = useMediaStore();
+    (separateTrack as any).mockImplementation(
+      async (_file: File, _model: string, onProgress: (update: object) => void) => {
+        onProgress({ progress: null, stage: "waiting in line", songsAhead: 1 });
+        vi.advanceTimersByTime(60_000);
+        onProgress({ progress: 0.5, stage: "separating", songsAhead: null });
+        vi.advanceTimersByTime(30_000);
+        return TRACK;
+      },
+    );
+
+    await store.startSeparation(SONG, BACKING_VOCALS_SEPARATOR_MODEL);
+
+    expect(store.lastSeparation?.durationSeconds).toBe(90);
+  });
+
+  it("keeps the last outcome while the next separation runs", async () => {
+    const store = useMediaStore();
+    (separateTrack as any).mockResolvedValueOnce(TRACK);
+    await store.startSeparation(SONG, BACKING_VOCALS_SEPARATOR_MODEL);
+    pendingSeparation();
+
+    store.startSeparation(SONG, BACKING_VOCALS_SEPARATOR_MODEL);
+
+    expect(store.lastSeparation?.status).toBe("succeeded");
   });
 });

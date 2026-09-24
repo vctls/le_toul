@@ -31,6 +31,12 @@ export interface SeparatedTrack {
   vocals: Blob;
 }
 
+// How the last separation ended. The duration runs from the request, so it includes the wait in line.
+export interface SeparationOutcome {
+  status: "succeeded" | "failed" | "cancelled";
+  durationSeconds: number;
+}
+
 export const BACKING_VOCALS_SEPARATOR_MODEL = "UVR_MDXNET_KARA_2.onnx";
 export const NO_VOCALS_SEPARATOR_MODEL = "UVR-MDX-NET-Inst_HQ_3.onnx";
 // Keep backing vocals, higher quality. Minutes per song on CPU, fast on GPU.
@@ -74,10 +80,20 @@ export const useMediaStore = defineStore("media", () => {
   const separationProgress = ref<number | null>(null);
   const separationStage = ref<string | null>(null);
   const separationSongsAhead = ref<number | null>(null);
+  const lastSeparation = ref<SeparationOutcome | null>(null);
 
   // Held outside the store state: Vue would proxy the controller, whose methods need the instance itself.
   let activeSeparation: AbortController | null = null;
   let pendingSeparation: Promise<SeparatedTrack | undefined> | null = null;
+  // separationStartTime restarts when the song leaves the line, and the outcome's duration must not.
+  let separationRequestedAt = 0;
+
+  function recordOutcome(status: SeparationOutcome["status"]) {
+    lastSeparation.value = {
+      status,
+      durationSeconds: (Date.now() - separationRequestedAt) / 1000,
+    };
+  }
 
   // Resolves with the separated track, or undefined if the separation failed
   // (the reason is in `error`) or was cancelled.
@@ -93,6 +109,7 @@ export const useMediaStore = defineStore("media", () => {
     activeSeparation = abort;
     isProcessing.value = true;
     error.value = null;
+    separationRequestedAt = Date.now();
     separationStartTime.value = new Date();
     separationProgress.value = null;
     separationStage.value = null;
@@ -113,6 +130,7 @@ export const useMediaStore = defineStore("media", () => {
           },
           abort.signal,
         );
+        recordOutcome("succeeded");
         return separatedTrack.value;
       } catch (err) {
         if (abort.signal.aborted) {
@@ -120,6 +138,7 @@ export const useMediaStore = defineStore("media", () => {
         }
         console.error(err);
         error.value = (err as Error).message;
+        recordOutcome("failed");
         return undefined;
       } finally {
         // A cancel clears this synchronously and a later separation may already own it,
@@ -147,6 +166,7 @@ export const useMediaStore = defineStore("media", () => {
     if (!activeSeparation) {
       return;
     }
+    recordOutcome("cancelled");
     activeSeparation.abort();
     // The rejection lands a tick later, and until then a new separation would join the dying one.
     clearSeparationState();
@@ -331,6 +351,7 @@ export const useMediaStore = defineStore("media", () => {
     separationProgress.value = null;
     separationStage.value = null;
     separationSongsAhead.value = null;
+    lastSeparation.value = null;
     await clearPersistence(MEDIA_LOCALSTORAGE_KEYS, MEDIA_IDB_KEYS);
   }
 
@@ -358,6 +379,7 @@ export const useMediaStore = defineStore("media", () => {
     separationProgress,
     separationStage,
     separationSongsAhead,
+    lastSeparation,
     hasSeparatedTrack,
 
     // Methods
