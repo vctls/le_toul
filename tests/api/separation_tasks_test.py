@@ -271,11 +271,11 @@ def test_a_key_without_a_secret_is_a_configuration_error():
         create_router(LocalTaskRunner(PassthroughBackend()))
 
 
-def test_the_separator_server_keeps_its_old_endpoint_beside_the_new_ones():
+def test_the_separator_server_serves_the_job_protocol():
     from api.separator_server import app
 
     client = TestClient(app)
     paths = {route.path for route in app.routes}
 
     assert client.get("/health").status_code == 200
-    assert {"/separate", "/tasks", "/tasks/{task_id}"} <= paths
+    assert {"/tasks", "/tasks/{task_id}"} <= paths

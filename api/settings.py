@@ -35,17 +35,13 @@ CORS_ALLOW_ALL_ORIGINS = True
 HOST = "0.0.0.0"
 PORT = int(os.getenv("PORT", "8000"))
 
-# Separator settings (for GPU access on host)
-SEPARATOR_HOST = os.getenv("SEPARATOR_HOST", "")
+# The port separator_server.py listens on when run directly.
 SEPARATOR_PORT = int(os.getenv("SEPARATOR_PORT", "8001"))
 
 # Credentials the separator server's /tasks routes require, sent as the
 # Modal-Key and Modal-Secret headers. Both empty lets every request through.
 SEPARATOR_SERVER_KEY = os.getenv("SEPARATOR_SERVER_KEY", "")
 SEPARATOR_SERVER_SECRET = os.getenv("SEPARATOR_SERVER_SECRET", "")
-
-# Remote Modal API separation
-SEPARATOR_MODAL_API_URL = os.getenv("SEPARATOR_MODAL_API_URL", "")
 
 # The host the remote backend sends songs to, which speaks the /tasks protocol,
 # and the credentials it sends as the Modal-Key and Modal-Secret headers.

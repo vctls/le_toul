@@ -9,17 +9,14 @@ runs, so the worker protocol is exercised end to end without a separation.
 
 import io
 from pathlib import Path
-from unittest import mock
 
 import pytest
 
 from api.karaoke import separation_progress
 from api.karaoke.separation_backends import (
     InProcessBackend,
-    ModalBackend,
     PassthroughBackend,
     SubprocessBackend,
-    TcpBackend,
     _forward_reports,
     _worker_error,
     get_backend,
@@ -49,27 +46,6 @@ def test_default_backend_is_in_process():
 def test_unknown_backend_raises():
     with pytest.raises(ValueError, match="Unknown SEPARATION_BACKEND 'nope'"):
         get_backend("nope")
-
-
-def test_modal_backend_requires_its_url():
-    with (
-        mock.patch("api.settings.SEPARATOR_MODAL_API_URL", ""),
-        pytest.raises(ValueError, match="requires SEPARATOR_MODAL_API_URL"),
-    ):
-        get_backend(ModalBackend.name)
-
-
-def test_modal_backend_resolves_when_configured():
-    with mock.patch("api.settings.SEPARATOR_MODAL_API_URL", "https://example.test"):
-        assert isinstance(get_backend(ModalBackend.name), ModalBackend)
-
-
-def test_tcp_backend_requires_a_host():
-    with (
-        mock.patch("api.settings.SEPARATOR_HOST", ""),
-        pytest.raises(ValueError, match="requires SEPARATOR_HOST"),
-    ):
-        get_backend(TcpBackend.name)
 
 
 def test_passthrough_produces_both_stems(tmp_path: Path):

@@ -43,10 +43,6 @@ optional = true
 [tool.poetry.group.modal.dependencies]
 modal = "^1.5.5"
 
-[tool.poetry.scripts]
-separator-daemon = "api.run_separator_daemon:main"
-
-
 [tool.poetry.group.dev.dependencies]
 pytest = "^9.0.3"
 mypy = "^2.1.0"

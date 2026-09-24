@@ -85,8 +85,7 @@ ENV APP_HOME=/app \
     WORKER_COUNT=1 \
     DEBUG=False \
     YOUTUBE_SOCKS5_PROXY="" \
-    SEPARATED_TRACKS_BUCKET="" \
-    SEPARATOR_SOCKET_PATH=""
+    SEPARATED_TRACKS_BUCKET=""
 
 # With a child process per separation, running out of memory kills that child, not the web worker.
 # A recycled worker would take its background separations with it.
