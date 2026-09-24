@@ -78,6 +78,15 @@ async function pollForResult(
         cache: "no-cache",
         signal,
       });
+      // Job statuses always arrive as 200. Error bodies are JSON too,
+      // so without this check a 404 would read as a job still in flight and be polled forever.
+      if (response.status === 404) {
+        throw new Error("The separation job no longer exists. Please separate the track again.");
+      }
+      if (!response.ok) {
+        throw new Error(`Track separation failed with status ${response.status}`);
+      }
+
       const contentType = response.headers.get("content-type");
 
       if (contentType?.includes("application/json")) {
@@ -97,12 +106,6 @@ async function pollForResult(
         const intervalSeconds = status.pollIntervalSeconds ?? DEFAULT_POLL_INTERVAL_SECONDS;
         await sleep(intervalSeconds, signal);
         continue;
-      }
-
-      // Anything that is neither JSON nor a successful response is not a zip.
-      // Reporting the status beats handing an error page to jszip.
-      if (!response.ok) {
-        throw new Error(`Track separation failed with status ${response.status}`);
       }
 
       return await response.blob();

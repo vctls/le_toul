@@ -201,6 +201,36 @@ describe("Audio Library", () => {
     expect(fetch).toHaveBeenCalledTimes(2);
   });
 
+  it("stops polling when the job no longer exists", async () => {
+    const mockFile = new File(["audio data"], "test.mp3", { type: "audio/mp3" });
+
+    (fetch as any).mockResolvedValueOnce({
+      ok: true,
+      headers: {
+        get: vi.fn().mockReturnValue("application/json"),
+      },
+      json: vi.fn().mockResolvedValue({
+        finishedTrackURL: "http://example.com/poll-url",
+      }),
+    });
+
+    // FastAPI's error bodies are JSON, the same content type as a job status
+    (fetch as any).mockResolvedValueOnce({
+      ok: false,
+      status: 404,
+      headers: {
+        get: vi.fn().mockReturnValue("application/json"),
+      },
+      json: vi.fn().mockResolvedValue({ detail: "Unknown separation job" }),
+    });
+
+    await expect(separateTrack(mockFile, "UVR_MDXNET_KARA_2" as SeparationModel)).rejects.toThrow(
+      "no longer exists",
+    );
+
+    expect(fetch).toHaveBeenCalledTimes(2);
+  });
+
   it("honours the poll interval suggested by the server", async () => {
     const mockFile = new File(["audio data"], "test.mp3", { type: "audio/mp3" });
     const mockZipBlob = new Blob([new ArrayBuffer(8)], { type: "application/zip" });
