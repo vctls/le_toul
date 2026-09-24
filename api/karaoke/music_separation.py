@@ -1,8 +1,11 @@
 import base64
+import gc
 import json
 import logging
 import subprocess
+import sys
 import tempfile
+import traceback
 from dataclasses import dataclass
 from enum import Enum
 from pathlib import Path
@@ -106,22 +109,56 @@ def _split_song_api(
             songfile = audio_input.to_flac(songfile, Path(conversion_dir))
 
         progress.stage(separation_progress.LOADING_STAGE)
-
-        from audio_separator.separator import Separator
-
-        separator = Separator(
-            output_dir=str(song_dir),
-            model_file_dir=str(settings.MODELS_DIR),
-            output_format=settings.SEPARATION_OUTPUT_FORMAT,
-        )
-        separator.load_model(model_name)
-
-        progress.stage(separation_progress.READING_STAGE)
-        # separate() logs and swallows any exception, a cancellation included,
-        # and returns as if it had written the stems.
-        separator._separate_file(str(songfile), output_names)
+        try:
+            _run_separator(songfile, song_dir, model_name, output_names, progress)
+        except BaseException as e:
+            # The traceback's frames keep the separator, and its model on the GPU, alive.
+            traceback.clear_frames(e.__traceback__)
+            raise
+        finally:
+            _release_gpu_memory()
 
     return get_output_paths(song_dir)
+
+
+def _run_separator(
+    songfile: Path,
+    song_dir: Path,
+    model_name: str,
+    output_names: dict[str, str],
+    progress: separation_progress._Tracker,
+) -> None:
+    """Load the model and separate the song with it.
+
+    A function of its own so that the separator is unreferenced once it returns.
+    """
+    from audio_separator.separator import Separator
+
+    separator = Separator(
+        output_dir=str(song_dir),
+        model_file_dir=str(settings.MODELS_DIR),
+        output_format=settings.SEPARATION_OUTPUT_FORMAT,
+    )
+    separator.load_model(model_name)
+
+    progress.stage(separation_progress.READING_STAGE)
+    # separate() logs and swallows any exception, a cancellation included,
+    # and returns as if it had written the stems.
+    separator._separate_file(str(songfile), output_names)
+
+
+def _release_gpu_memory() -> None:
+    """Hand back the GPU memory torch keeps reserved after a separation.
+
+    torch caches freed memory for its own reuse. In a process that outlives the
+    separation, ONNX Runtime then cannot allocate from it, and the next ONNX
+    model fails for lack of GPU memory.
+    """
+    torch = sys.modules.get("torch")
+    if torch is None or not torch.cuda.is_available():
+        return
+    gc.collect()
+    torch.cuda.empty_cache()
 
 
 def _split_song_cli(
