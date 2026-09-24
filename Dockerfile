@@ -54,6 +54,20 @@ RUN if [ "$INSTALL_SEPARATION" = "true" ]; then \
         poetry install --without dev --no-root --no-interaction --no-ansi; \
     fi
 
+# The lock pins the CPU builds. `cuda` swaps them for the CUDA builds of the same
+# versions, for an image that separates on an NVIDIA GPU. onnxruntime-gpu loads
+# the CUDA and cuDNN libraries that the torch wheels bring.
+ARG SEPARATION_DEVICE=cpu
+
+RUN if [ "$INSTALL_SEPARATION" = "true" ] && [ "$SEPARATION_DEVICE" = "cuda" ]; then \
+        .venv/bin/python -m pip install --no-cache-dir \
+            --index-url https://download.pytorch.org/whl/cu128 \
+            --extra-index-url https://pypi.org/simple \
+            "torch==2.7.1+cu128" "torchvision==0.22.1+cu128" \
+        && .venv/bin/python -m pip uninstall -y onnxruntime \
+        && .venv/bin/python -m pip install --no-cache-dir "onnxruntime-gpu==1.22.0"; \
+    fi
+
 #
 # RUNTIME IMAGE
 #
