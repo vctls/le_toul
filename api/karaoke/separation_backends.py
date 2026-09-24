@@ -19,7 +19,7 @@ import tempfile
 import time
 from collections.abc import Callable
 from pathlib import Path
-from typing import IO, Protocol
+from typing import IO, Protocol, runtime_checkable
 from urllib.parse import quote
 
 import httpx
@@ -45,6 +45,10 @@ _WORKER_MODULE = "api.karaoke.separation_worker"
 _REPO_ROOT = Path(__file__).resolve().parents[2]
 
 
+# Called with the ID of a task that another host now runs, so a restart can find it again.
+SubmittedCallback = Callable[[str], None]
+
+
 class SeparationBackend(Protocol):
     name: str
 
@@ -53,6 +57,19 @@ class SeparationBackend(Protocol):
         songfile: Path,
         song_dir: Path,
         model_name: str,
+        on_progress: ProgressCallback | None = None,
+        on_submitted: SubmittedCallback | None = None,
+    ) -> SeparationResult: ...
+
+
+@runtime_checkable
+class ResumableBackend(Protocol):
+    """A backend whose separations run elsewhere and outlive this process."""
+
+    def resume(
+        self,
+        task_id: str,
+        song_dir: Path,
         on_progress: ProgressCallback | None = None,
     ) -> SeparationResult: ...
 
@@ -71,6 +88,7 @@ class InProcessBackend:
         song_dir: Path,
         model_name: str,
         on_progress: ProgressCallback | None = None,
+        on_submitted: SubmittedCallback | None = None,
     ) -> SeparationResult:
         return music_separation.split_song(
             songfile,
@@ -101,6 +119,7 @@ class SubprocessBackend:
         song_dir: Path,
         model_name: str,
         on_progress: ProgressCallback | None = None,
+        on_submitted: SubmittedCallback | None = None,
     ) -> SeparationResult:
         return _run_worker(self._inner, songfile, song_dir, model_name, on_progress)
 
@@ -225,6 +244,7 @@ class ModalBackend:
         song_dir: Path,
         model_name: str,
         on_progress: ProgressCallback | None = None,
+        on_submitted: SubmittedCallback | None = None,
     ) -> SeparationResult:
         return music_separation.split_song(
             songfile,
@@ -247,6 +267,7 @@ class TcpBackend:
         song_dir: Path,
         model_name: str,
         on_progress: ProgressCallback | None = None,
+        on_submitted: SubmittedCallback | None = None,
     ) -> SeparationResult:
         return music_separation.split_song(
             songfile,
@@ -282,6 +303,7 @@ class RemoteBackend:
         song_dir: Path,
         model_name: str,
         on_progress: ProgressCallback | None = None,
+        on_submitted: SubmittedCallback | None = None,
     ) -> SeparationResult:
         report = on_progress or (lambda progress, stage: None)
         # An injected client belongs to the caller, so only one made here is closed.
@@ -304,21 +326,47 @@ class RemoteBackend:
             _raise_for_status(response)
             task_id = response.json()["task_id"]
             logger.info("remote_task_submitted", task_id=task_id)
+            return self._follow(client, task_id, song_dir, report, on_submitted)
 
-            try:
-                status = self._wait_for(client, task_id, report)
-            except BaseException:
-                _cancel_quietly(client, task_id)
-                raise
+    def resume(
+        self,
+        task_id: str,
+        song_dir: Path,
+        on_progress: ProgressCallback | None = None,
+    ) -> SeparationResult:
+        """Follow a task submitted before this process started, through to its stems."""
+        report = on_progress or (lambda progress, stage: None)
+        owned = (
+            contextlib.nullcontext(self._client) if self._client else _remote_client()
+        )
+        with owned as client:
+            logger.info("remote_task_resumed", task_id=task_id)
+            return self._follow(client, task_id, song_dir, report)
 
-            report(None, separation_progress.DOWNLOADING_STEMS_STAGE)
-            stems = {
-                role: _download(client, task_id, name, song_dir)
-                for role, name in status["files"].items()
-            }
-            return SeparationResult(
-                accompaniment=stems["accompaniment"], vocals=stems["vocals"]
-            )
+    def _follow(
+        self,
+        client: httpx.Client,
+        task_id: str,
+        song_dir: Path,
+        report: ProgressCallback,
+        on_submitted: SubmittedCallback | None = None,
+    ) -> SeparationResult:
+        try:
+            if on_submitted:
+                on_submitted(task_id)
+            status = self._wait_for(client, task_id, report)
+        except BaseException:
+            _cancel_quietly(client, task_id)
+            raise
+
+        report(None, separation_progress.DOWNLOADING_STEMS_STAGE)
+        stems = {
+            role: _download(client, task_id, name, song_dir)
+            for role, name in status["files"].items()
+        }
+        return SeparationResult(
+            accompaniment=stems["accompaniment"], vocals=stems["vocals"]
+        )
 
     def _wait_for(
         self, client: httpx.Client, task_id: str, report: ProgressCallback
@@ -438,6 +486,7 @@ class PassthroughBackend:
         song_dir: Path,
         model_name: str,
         on_progress: ProgressCallback | None = None,
+        on_submitted: SubmittedCallback | None = None,
     ) -> SeparationResult:
         paths = get_output_paths(song_dir)
         shutil.copyfile(songfile, paths.accompaniment)
@@ -477,6 +526,12 @@ _CHECKS: dict[str, Callable[[], str | None]] = {
     TcpBackend.name: _requires("SEPARATOR_HOST"),
     RemoteBackend.name: _check_remote,
 }
+
+
+def is_resumable(name: str) -> bool:
+    """Return whether the named backend can pick up a task after a restart."""
+    backend_class = _BACKENDS.get(name)
+    return backend_class is not None and issubclass(backend_class, ResumableBackend)
 
 
 def get_backend(name: str | None = None) -> SeparationBackend:

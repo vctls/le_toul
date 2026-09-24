@@ -177,6 +177,37 @@ def mark_started(cache_hash: str, run_id: str) -> bool:
     return True
 
 
+def mark_submitted(cache_hash: str, run_id: str, task_id: str) -> None:
+    """Record the remote task a run is waiting on, so a restart can follow it."""
+    if not is_current_run(cache_hash, run_id):
+        return
+    _write_status(cache_hash, {**read_status(cache_hash), "taskId": task_id})
+
+
+def remote_jobs() -> list[tuple[str, dict]]:
+    """Return every job still processing that waits on a remote task, with its status."""
+    directory = Path(settings.LOCAL_JOB_DIR)
+    if not directory.is_dir():
+        return []
+    jobs = []
+    for path in sorted(directory.glob("*.json")):
+        status = read_status(path.stem)
+        if status and status.get("status") == STATUS_PROCESSING and "taskId" in status:
+            jobs.append((path.stem, status))
+    return jobs
+
+
+def adopt(cache_hash: str, run_id: str) -> None:
+    """Make this process the owner of a run a previous one left behind.
+
+    A worker that exits fails the jobs recorded under its pid, so the run has to
+    be recorded under the pid that now follows it.
+    """
+    status = read_status(cache_hash)
+    if status and status.get("runId") == run_id:
+        _write_status(cache_hash, {**status, "pid": os.getpid()})
+
+
 def mark_progress(cache_hash: str, progress: float | None, stage: str) -> None:
     """Record how far along a running job is.
 
@@ -228,24 +259,32 @@ def is_stale(status: dict) -> bool:
     return age > settings.LOCAL_JOB_STALE_AFTER_SECONDS
 
 
-def fail_interrupted_jobs() -> None:
+def fail_interrupted_jobs(spare_remote_jobs: bool = False) -> None:
     """Mark every job still processing as failed.
 
     Only safe before any worker has started, since nothing can be running then.
     Without it, a job killed by a restart blocks its song until its marker goes stale.
+    With spare_remote_jobs, a job waiting on a remote task is left for a worker
+    to pick up, since the task went on running while this server was down.
     """
-    _fail_processing_jobs(INTERRUPTED_MESSAGE)
+    _fail_processing_jobs(INTERRUPTED_MESSAGE, spare_remote_jobs=spare_remote_jobs)
 
 
-def fail_jobs_of_worker(pid: int) -> None:
+def fail_jobs_of_worker(pid: int, spare_remote_jobs: bool = False) -> None:
     """Mark every job still processing in the worker process `pid` as failed.
 
     Called once that process has exited, which leaves nothing to finish its jobs.
+    With spare_remote_jobs, a job waiting on a remote task is left for the
+    worker that replaces this one, which picks it up at startup.
     """
-    _fail_processing_jobs(WORKER_EXITED_MESSAGE, pid=pid)
+    _fail_processing_jobs(
+        WORKER_EXITED_MESSAGE, pid=pid, spare_remote_jobs=spare_remote_jobs
+    )
 
 
-def _fail_processing_jobs(error: str, pid: int | None = None) -> None:
+def _fail_processing_jobs(
+    error: str, pid: int | None = None, spare_remote_jobs: bool = False
+) -> None:
     directory = Path(settings.LOCAL_JOB_DIR)
     if not directory.is_dir():
         return
@@ -255,6 +294,8 @@ def _fail_processing_jobs(error: str, pid: int | None = None) -> None:
         if not status or status.get("status") != STATUS_PROCESSING:
             continue
         if pid is not None and status.get("pid") != pid:
+            continue
+        if spare_remote_jobs and "taskId" in status:
             continue
         mark_failed(cache_hash, error, status.get("runId"))
         logger.info("local_job_interrupted", cache_hash=cache_hash, pid=pid)
