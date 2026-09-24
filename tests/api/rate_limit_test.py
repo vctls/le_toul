@@ -7,7 +7,7 @@ from fastapi.testclient import TestClient
 
 from api import main
 from api.helpers.rate_limit import RateLimiter
-from api.main import _describe_wait
+from api.main import _describe_wait, rate_limit_key
 
 MODEL_NAME = "UVR_MDXNET_KARA_2.onnx"
 HOUR = 60 * 60
@@ -96,6 +96,20 @@ def test_the_wait_is_described_in_minutes_then_hours(seconds, text):
     assert _describe_wait(seconds) == text
 
 
+@pytest.mark.parametrize(
+    "address, key",
+    [
+        ("203.0.113.7", "203.0.113.7"),
+        ("2001:db8:1:2:aaaa:bbbb:cccc:dddd", "2001:db8:1:2::/64"),
+        ("2001:db8:1:2::1", "2001:db8:1:2::/64"),
+        ("::ffff:203.0.113.7", "203.0.113.7"),
+        ("testclient", "testclient"),
+    ],
+)
+def test_an_ipv6_client_is_counted_by_its_64(address, key):
+    assert rate_limit_key(address) == key
+
+
 @pytest.fixture
 def client():
     with (
@@ -147,3 +161,16 @@ def test_the_configured_header_tells_clients_apart(client):
 
         assert post(client, b"third", {"X-Real-IP": "203.0.113.8"}).status_code == 200
         assert post(client, b"fourth", {"X-Real-IP": "203.0.113.7"}).status_code == 429
+
+
+def test_addresses_in_one_ipv6_64_share_an_allowance(client):
+    with mock.patch("api.settings.CLIENT_IP_HEADER", "X-Real-IP"):
+        post(client, b"first", {"X-Real-IP": "2001:db8:1:2::1"})
+        post(client, b"second", {"X-Real-IP": "2001:db8:1:2::2"})
+
+        assert (
+            post(client, b"third", {"X-Real-IP": "2001:db8:1:2::3"}).status_code == 429
+        )
+        assert (
+            post(client, b"fourth", {"X-Real-IP": "2001:db8:1:3::1"}).status_code == 200
+        )
