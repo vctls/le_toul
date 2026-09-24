@@ -1,0 +1,29 @@
+# What Railway runs, locally. Run with:
+#   docker compose -f compose.yaml -f compose.railway.yaml up --build
+#
+# Open http://localhost:8080. The stack is held to Hobby's per-replica ceilings
+# of 8 GB and 8 vCPU. Railway publishes 48 of each, but across six replicas,
+# and .railway/railway.ts pins replicas to 1.
+#
+# Reproduced: separation in a child process, FLAC stems, the local job store,
+# one worker that never recycles, weights and results on volumes that survive a
+# rebuild, and both resource ceilings.
+#
+# Not reproduced. Railway's 5 GB volume cap, because a Docker named volume takes
+# no size limit without a loopback filesystem under it. Its 100 GB of ephemeral
+# storage, which is far past anything here writes. And the speed of a vCPU: a
+# quota of 8 still runs at this machine's clock, so a wall clock measured here
+# is a floor for Railway's rather than an estimate of it.
+
+services:
+  api:
+    environment:
+      SEPARATION_BACKEND: subprocess
+      SEPARATION_OUTPUT_FORMAT: flac
+      LOGGING_FORMAT: console
+      # Empty selects the local job store, over anything .env says.
+      SEPARATED_TRACKS_BUCKET: ""
+    # Roformer models need at least the 8 GiB this caps at,
+    # so a model that dies here dies there.
+    mem_limit: 8g
+    cpus: 8
