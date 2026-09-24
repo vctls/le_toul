@@ -5,6 +5,7 @@ background task, so these cover what the client sees at each stage of a job.
 """
 
 import asyncio
+import importlib.util
 import os
 import tempfile
 import time
@@ -271,6 +272,39 @@ def test_restart_fails_jobs_left_processing(client, no_bucket, song_files):
 
     post_song(client)
     song_files.assert_called_once()
+
+
+def test_exited_worker_fails_only_its_own_jobs(client, no_bucket, song_files):
+    """A killed worker's jobs fail at once, while its siblings' jobs run on."""
+    job_store.mark_processing(cache_hash())
+    sibling = job_store.mark_processing("e" * 64)
+    job_store._write_status(
+        "e" * 64, {**job_store.read_status("e" * 64), "pid": os.getpid() + 1}
+    )
+
+    job_store.fail_jobs_of_worker(os.getpid())
+
+    body = client.get(job_store.poll_url(cache_hash())).json()
+    assert body["status"] == "error"
+    assert body["error"] == job_store.WORKER_EXITED_MESSAGE
+    assert job_store.is_current_run("e" * 64, sibling)
+
+    post_song(client)
+    song_files.assert_called_once()
+
+
+def test_gunicorn_fails_the_jobs_of_an_exited_worker():
+    """The master's child_exit hook hands the dead worker's pid to the job store."""
+    spec = importlib.util.spec_from_file_location(
+        "gunicorn_conf", Path(__file__).parents[2] / "gunicorn.conf.py"
+    )
+    gunicorn_conf = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(gunicorn_conf)
+    job_store.mark_processing(cache_hash())
+
+    gunicorn_conf.child_exit(mock.Mock(), mock.Mock(pid=os.getpid()))
+
+    assert job_store.read_status(cache_hash())["status"] == "error"
 
 
 def test_restart_leaves_finished_results_alone(client, no_bucket, song_files):
