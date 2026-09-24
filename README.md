@@ -179,7 +179,8 @@ And open it on http://localhost:8000
 
 `poetry run python -m api.separator_server`
 
-It listens on port 8001. The app only sends work to it when `SEPARATOR_HOST` and `SEPARATOR_PORT` point at it.
+It listens on port 8001. The app sends work to it with `SEPARATION_BACKEND=remote` and `SEPARATION_REMOTE_URL`
+pointing at it.
 
 To run it in a container with GPU access instead:
 

@@ -1,9 +1,9 @@
 """Where a separation runs.
 
-One interface over the several places the work can happen: in this process, in
-a child of it, on a remote GPU service, or behind a long-running daemon. The
-deployment picks one with SEPARATION_BACKEND, so moving separation off the web
-server is a setting rather than a rewrite.
+One interface over the places the work can happen: in this process, in a child
+of it, or on another host that holds the GPU. The deployment picks one with
+SEPARATION_BACKEND, so moving separation off the web server is a setting rather
+than a rewrite.
 
 Progress is part of the interface. A backend that cannot report a fraction
 still reports its stage, and the client falls back to an elapsed-time estimate.
@@ -228,57 +228,6 @@ def _raised_exception(stderr: str) -> str:
     return lines[-1].strip()
 
 
-class ModalBackend:
-    """Calls a remote audio-separator deployment over HTTP.
-
-    Reports no fraction: the upstream client polls a status document this code
-    does not read. Replaced by a backend that does, along with a separator
-    speaking the same protocol.
-    """
-
-    name = "modal"
-
-    def separate(
-        self,
-        songfile: Path,
-        song_dir: Path,
-        model_name: str,
-        on_progress: ProgressCallback | None = None,
-        on_submitted: SubmittedCallback | None = None,
-    ) -> SeparationResult:
-        return music_separation.split_song(
-            songfile,
-            song_dir,
-            model_name,
-            method=SeparationMethod.MODAL_API,
-            modal_api_url=settings.SEPARATOR_MODAL_API_URL,
-            on_progress=on_progress,
-        )
-
-
-class TcpBackend:
-    """Calls the separator daemon, which is how compose.gpu.yaml reaches a GPU."""
-
-    name = "tcp"
-
-    def separate(
-        self,
-        songfile: Path,
-        song_dir: Path,
-        model_name: str,
-        on_progress: ProgressCallback | None = None,
-        on_submitted: SubmittedCallback | None = None,
-    ) -> SeparationResult:
-        return music_separation.split_song(
-            songfile,
-            song_dir,
-            model_name,
-            host=settings.SEPARATOR_HOST,
-            port=settings.SEPARATOR_PORT,
-            on_progress=on_progress,
-        )
-
-
 class RemoteBackend:
     """Separates on a host that speaks the job protocol of api/separation_tasks.py.
 
@@ -499,17 +448,9 @@ class PassthroughBackend:
 _BACKENDS: dict[str, type[SeparationBackend]] = {
     InProcessBackend.name: InProcessBackend,
     SubprocessBackend.name: SubprocessBackend,
-    ModalBackend.name: ModalBackend,
-    TcpBackend.name: TcpBackend,
     RemoteBackend.name: RemoteBackend,
     PassthroughBackend.name: PassthroughBackend,
 }
-
-
-def _requires(setting: str) -> Callable[[], str | None]:
-    return lambda: (
-        None if getattr(settings, setting) else f"requires {setting} to be set"
-    )
 
 
 def _check_remote() -> str | None:
@@ -522,8 +463,6 @@ def _check_remote() -> str | None:
 
 # Each returns what is wrong with the backend's configuration, or None.
 _CHECKS: dict[str, Callable[[], str | None]] = {
-    ModalBackend.name: _requires("SEPARATOR_MODAL_API_URL"),
-    TcpBackend.name: _requires("SEPARATOR_HOST"),
     RemoteBackend.name: _check_remote,
 }
 
