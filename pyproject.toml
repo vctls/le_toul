@@ -37,6 +37,12 @@ name = "pytorch-cpu"
 url = "https://download.pytorch.org/whl/cpu"
 priority = "explicit"
 
+[tool.poetry.group.modal]
+optional = true
+
+[tool.poetry.group.modal.dependencies]
+modal = "^1.5.5"
+
 [tool.poetry.scripts]
 separator-daemon = "api.run_separator_daemon:main"
 
