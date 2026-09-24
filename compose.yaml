@@ -16,6 +16,7 @@ services:
         # A non-empty value is baked into the bundle as a prefix on /separate_track.
         TUUL_API_HOSTNAME: ""
         TUUL_DONATE_URL: ${TUUL_DONATE_URL:-}
+        INSTALL_SEPARATION: "true"
     image: the-tuul:latest
     env_file:
       - path: .env
