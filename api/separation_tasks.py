@@ -41,13 +41,23 @@ logger = structlog.get_logger(__name__)
 
 TaskState = Literal["queued", "running", "done", "error", "cancelled"]
 
-_FINISHED: tuple[TaskState, ...] = ("done", "error", "cancelled")
+FINISHED_STATES: tuple[TaskState, ...] = ("done", "error", "cancelled")
 
 # A client downloads the stems as soon as it sees `done`, so an hour is only a
 # margin for a client that restarted in between.
 TASK_TTL_SECONDS = 60 * 60
 
 _SAFE_SUFFIX = re.compile(r"^\.[A-Za-z0-9]{1,10}$")
+
+
+def song_file_name(filename: str) -> str:
+    """Name a task's song after the uploaded file's extension, if it has a plausible one.
+
+    ffmpeg and libsndfile sniff the content, so the name matters only to a
+    reader of the logs.
+    """
+    suffix = Path(filename).suffix
+    return f"song{suffix if _SAFE_SUFFIX.match(suffix) else ''}"
 
 
 class TaskStatus(BaseModel):
@@ -113,9 +123,7 @@ class LocalTaskRunner:
         directory = self._root / task_id
         directory.mkdir()
 
-        # ffmpeg and libsndfile sniff the content, so the name matters only to a reader of the logs.
-        suffix = Path(filename).suffix
-        songfile = directory / f"song{suffix if _SAFE_SUFFIX.match(suffix) else ''}"
+        songfile = directory / song_file_name(filename)
         with songfile.open("wb") as destination:
             shutil.copyfileobj(song, destination)
 
@@ -146,7 +154,7 @@ class LocalTaskRunner:
         """
         with self._lock:
             task = self._tasks.get(task_id)
-            if not task or task.status.status in _FINISHED:
+            if not task or task.status.status in FINISHED_STATES:
                 return False
             self._finish(task, TaskStatus(status="cancelled"))
             if task.future:
@@ -193,7 +201,7 @@ class LocalTaskRunner:
 
     def _finish(self, task: _Task, status: TaskStatus) -> None:
         """Record how a task ended, unless it has already ended. The caller holds the lock."""
-        if task.status.status in _FINISHED:
+        if task.status.status in FINISHED_STATES:
             return
         task.status = status
         task.finished_at = time.time()
