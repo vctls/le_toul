@@ -189,6 +189,12 @@ export async function separateTrack(
       signal,
     });
 
+    // A refusal is JSON too, and would otherwise be read as a poll URL that is not there.
+    if (!response.ok) {
+      const body = await response.json().catch(() => null);
+      throw new Error(body?.detail ?? `Track separation failed with status ${response.status}`);
+    }
+
     const contentType = response.headers.get("content-type");
 
     // The endpoint can return either a JSON response with a URL to poll for results or a direct ZIP file response

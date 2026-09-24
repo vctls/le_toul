@@ -227,6 +227,42 @@ describe("Audio Library", () => {
     expect(fetch).toHaveBeenCalledTimes(2);
   });
 
+  it("reports why the server refused the separation", async () => {
+    const mockFile = new File(["audio data"], "test.mp3", { type: "audio/mp3" });
+
+    (fetch as any).mockResolvedValueOnce({
+      ok: false,
+      status: 400,
+      headers: {
+        get: vi.fn().mockReturnValue("application/json"),
+      },
+      json: vi.fn().mockResolvedValue({ detail: "Unknown separation model nope.onnx" }),
+    });
+
+    await expect(separateTrack(mockFile, "nope.onnx" as SeparationModel)).rejects.toThrow(
+      "Unknown separation model nope.onnx",
+    );
+
+    expect(fetch).toHaveBeenCalledTimes(1);
+  });
+
+  it("reports the status of a refusal that carries no detail", async () => {
+    const mockFile = new File(["audio data"], "test.mp3", { type: "audio/mp3" });
+
+    (fetch as any).mockResolvedValueOnce({
+      ok: false,
+      status: 413,
+      headers: {
+        get: vi.fn().mockReturnValue("text/html"),
+      },
+      json: vi.fn().mockRejectedValue(new SyntaxError("Unexpected token <")),
+    });
+
+    await expect(separateTrack(mockFile, "UVR_MDXNET_KARA_2" as SeparationModel)).rejects.toThrow(
+      "status 413",
+    );
+  });
+
   it("honours the poll interval suggested by the server", async () => {
     const mockFile = new File(["audio data"], "test.mp3", { type: "audio/mp3" });
     const mockZipBlob = new Blob([new ArrayBuffer(8)], { type: "application/zip" });
