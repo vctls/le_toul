@@ -228,7 +228,14 @@ export async function separateTrack(
     // A refusal is JSON too, and would otherwise be read as a poll URL that is not there.
     if (!response.ok) {
       const body = await response.json().catch(() => null);
-      throw new Error(body?.detail ?? `Track separation failed with status ${response.status}`);
+      if (body?.detail) {
+        throw new Error(body.detail);
+      }
+      // A proxy in front of the server can refuse the size too, with a page of its own.
+      if (response.status === 413) {
+        throw new Error("The song is larger than the server accepts.");
+      }
+      throw new Error(`Track separation failed with status ${response.status}`);
     }
 
     const contentType = response.headers.get("content-type");

@@ -2,6 +2,15 @@
 export const API_HOSTNAME = import.meta.env.TUUL_API_HOSTNAME || "";
 export const DONATE_URL = import.meta.env.TUUL_DONATE_URL || "";
 
+/**
+ * The largest song the server accepts for separation, in bytes, or Infinity if the page does not say.
+ * The server renders it into the page, so it is read from there rather than baked into the bundle.
+ */
+export function maxUploadBytes(): number {
+  const meta = document.querySelector<HTMLMetaElement>('meta[name="tuul-max-upload-bytes"]');
+  return Number(meta?.content) || Infinity;
+}
+
 export const LYRIC_MARKERS = {
   SEGMENT_START: 1,
   SEGMENT_END: 2,

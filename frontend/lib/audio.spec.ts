@@ -251,7 +251,7 @@ describe("Audio Library", () => {
 
     (fetch as any).mockResolvedValueOnce({
       ok: false,
-      status: 413,
+      status: 500,
       headers: {
         get: vi.fn().mockReturnValue("text/html"),
       },
@@ -259,7 +259,22 @@ describe("Audio Library", () => {
     });
 
     await expect(separateTrack(mockFile, "UVR_MDXNET_KARA_2" as SeparationModel)).rejects.toThrow(
-      "status 413",
+      "status 500",
+    );
+  });
+
+  it("explains a size refusal from a proxy that carries no detail", async () => {
+    const mockFile = new File(["audio data"], "test.mp3", { type: "audio/mp3" });
+
+    (fetch as any).mockResolvedValueOnce({
+      ok: false,
+      status: 413,
+      headers: { get: vi.fn().mockReturnValue("text/html") },
+      json: vi.fn().mockRejectedValue(new SyntaxError("Unexpected token <")),
+    });
+
+    await expect(separateTrack(mockFile, "UVR_MDXNET_KARA_2" as SeparationModel)).rejects.toThrow(
+      "larger than the server accepts",
     );
   });
 

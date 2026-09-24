@@ -118,7 +118,9 @@
               <b-button
                 label="Separate Track"
                 type="is-primary"
-                :disabled="!mediaStore.songFile || isSeparatingTrack"
+                :disabled="
+                  !mediaStore.songFile || isSeparatingTrack || !!mediaStore.songTooLargeMessage
+                "
                 :loading="isSeparatingTrack"
                 @click="separateTrack"
               />
@@ -141,7 +143,17 @@
             <b-button label="Cancel" type="is-danger is-light" @click="cancelSeparation" />
           </div>
           <b-message
-            v-if="mediaStore.error && !isSeparatingTrack"
+            v-if="mediaStore.songTooLargeMessage && !isSeparatingTrack"
+            type="is-warning"
+            has-icon
+            icon="warning"
+            icon-size="is-small"
+            :closable="false"
+          >
+            {{ mediaStore.songTooLargeMessage }}
+          </b-message>
+          <b-message
+            v-else-if="mediaStore.error && !isSeparatingTrack"
             type="is-danger"
             has-icon
             icon="warning"
