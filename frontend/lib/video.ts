@@ -49,7 +49,12 @@ class ApiError extends Error {
   }
 }
 
-function getFfmpegParams(
+// An input option, so it goes right before the -i it applies to.
+// The FLAC decoder otherwise starts a thread per core,
+// and the WASM core deadlocks once its fixed thread pool runs out.
+const SINGLE_THREAD_DECODE = ["-threads", "1"];
+
+export function getFfmpegParams(
   hasVideo: boolean,
   backgroundColor: string,
   audioDelayMs: number,
@@ -89,6 +94,7 @@ function getFfmpegParams(
 
   return [
     ...videoInputArgs,
+    ...SINGLE_THREAD_DECODE,
     "-i",
     "audio.mp4",
     ...filterArgs,
@@ -109,6 +115,7 @@ export function getAlternateTrackParams(
   outputFile: string,
 ) {
   return [
+    ...SINGLE_THREAD_DECODE,
     "-i",
     inputFile,
     // Cover art would otherwise come in as a video stream the m4a muxer rejects.
