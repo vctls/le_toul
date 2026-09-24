@@ -32,6 +32,11 @@ _DOWNLOAD_SHARE = 0.05
 
 _DOWNLOAD_MODULE = "audio_separator.separator.separator"
 
+# Every file gets its own bar, and the model index and configs are a few KB
+# that finish first. Reporting them would fill the download share before the
+# weights begin, since reported progress never moves backwards.
+_MIN_REPORTED_DOWNLOAD_BYTES = 1_000_000
+
 # Every reported figure is a file write the client polls for, so a chunk-level
 # report on a long song would be thousands of writes no one can see.
 _MIN_REPORTED_DELTA = 0.005
@@ -142,8 +147,14 @@ class _DownloadBar(tqdm):
         result = super().update(n)
         tracker = _tracker()
         fraction = _fraction(self)
-        if tracker and fraction is not None:
-            tracker.downloaded(fraction)
+        if (
+            tracker
+            and fraction is not None
+            and self.total >= _MIN_REPORTED_DOWNLOAD_BYTES
+        ):
+            # A gzipped response counts decompressed bytes against its
+            # compressed content-length, so the count can pass the total.
+            tracker.downloaded(min(fraction, 1.0))
         return result
 
 
