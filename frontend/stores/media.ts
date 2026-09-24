@@ -73,6 +73,7 @@ export const useMediaStore = defineStore("media", () => {
   // Consumers fall back to an elapsed-time estimate.
   const separationProgress = ref<number | null>(null);
   const separationStage = ref<string | null>(null);
+  const separationSongsAhead = ref<number | null>(null);
 
   // Held outside the store state: Vue would proxy the controller, whose methods need the instance itself.
   let activeSeparation: AbortController | null = null;
@@ -95,14 +96,20 @@ export const useMediaStore = defineStore("media", () => {
     separationStartTime.value = new Date();
     separationProgress.value = null;
     separationStage.value = null;
+    separationSongsAhead.value = null;
     pendingSeparation = (async () => {
       try {
         separatedTrack.value = await separateTrack(
           inputData,
           modelName,
-          ({ progress, stage }) => {
+          ({ progress, stage, songsAhead }) => {
+            // The elapsed-time estimate counts from when the song left the line, not from submission.
+            if (separationSongsAhead.value !== null && songsAhead === null) {
+              separationStartTime.value = new Date();
+            }
             separationProgress.value = progress;
             separationStage.value = stage;
+            separationSongsAhead.value = songsAhead;
           },
           abort.signal,
         );
@@ -131,6 +138,7 @@ export const useMediaStore = defineStore("media", () => {
     isProcessing.value = false;
     separationProgress.value = null;
     separationStage.value = null;
+    separationSongsAhead.value = null;
   }
 
   // Cancels the running separation, calling off the work on the backend where that is possible.
@@ -322,6 +330,7 @@ export const useMediaStore = defineStore("media", () => {
     separationStartTime.value = null;
     separationProgress.value = null;
     separationStage.value = null;
+    separationSongsAhead.value = null;
     await clearPersistence(MEDIA_LOCALSTORAGE_KEYS, MEDIA_IDB_KEYS);
   }
 
@@ -348,6 +357,7 @@ export const useMediaStore = defineStore("media", () => {
     separationStartTime,
     separationProgress,
     separationStage,
+    separationSongsAhead,
     hasSeparatedTrack,
 
     // Methods

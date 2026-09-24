@@ -17,6 +17,7 @@ from fastapi import (
 from fastapi import (
     Path as PathParam,
 )
+from fastapi.concurrency import run_in_threadpool
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, JSONResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
@@ -25,7 +26,13 @@ from markupsafe import Markup
 from pydantic import BaseModel, ConfigDict
 
 from . import app_logging, settings
-from .helpers import cloud_storage, job_store, youtube_helper, zip_helper
+from .helpers import (
+    cloud_storage,
+    job_store,
+    separation_queue,
+    youtube_helper,
+    zip_helper,
+)
 from .helpers.youtube_helper import YouTubeException
 from .karaoke import separation_backends, separation_progress
 from .vite_assets import vite_assets
@@ -55,6 +62,10 @@ async def add_sharedarraybuffer_headers(request: Request, call_next):
     response.headers["Cross-Origin-Embedder-Policy"] = "require-corp"
     return response
 
+
+# Only the local job store queues. A GCS-backed deployment runs on Cloud Run,
+# which caps concurrency per instance itself.
+local_separations = separation_queue.SeparationQueue(settings.SEPARATION_CONCURRENCY)
 
 # Static files and templates
 app.mount("/static", StaticFiles(directory=settings.STATIC_DIR), name="static")
@@ -228,6 +239,35 @@ def process_track_separation_local(
         job_store.mark_failed(cache_hash, str(e), run_id)
 
 
+async def queue_track_separation_local(
+    cache_hash: str,
+    run_id: str,
+    model_name: str,
+    song_content: bytes,
+    song_filename: str,
+):
+    """Background task that waits its turn in line, then separates in a worker thread."""
+    try:
+        async with local_separations.slot(
+            run_id,
+            on_wait=lambda ahead: job_store.mark_queued(cache_hash, run_id, ahead),
+        ):
+            if not job_store.mark_started(cache_hash, run_id):
+                logger.info("local_separation_superseded", cache_hash=cache_hash)
+                return
+            await run_in_threadpool(
+                process_track_separation_local,
+                cache_hash,
+                run_id,
+                model_name,
+                song_content,
+                song_filename,
+            )
+    except separation_queue.Withdrawn:
+        logger.info("local_separation_withdrawn", cache_hash=cache_hash)
+        job_store.mark_cancelled(cache_hash, run_id)
+
+
 @app.get("/")
 async def index(request: Request):
     """Serve the main application page."""
@@ -328,7 +368,7 @@ async def separate_track(
 
         run_id = job_store.mark_processing(cache_hash)
         background_tasks.add_task(
-            process_track_separation_local,
+            queue_track_separation_local,
             cache_hash,
             run_id,
             modelName,
@@ -382,11 +422,15 @@ async def cancel_separated_track(
 ):
     """Call off a separation running in the local job store.
 
-    Best-effort: the worker stops at its next progress report,
+    A job still in line leaves it at once.
+    A running one is best-effort: the worker stops at its next progress report,
     so a job still loading its model runs on until the separation itself starts.
-    Reports whether there was a running job to call off.
+    Reports whether there was a job to call off.
     """
+    status = job_store.read_status(cache_hash)
     cancelled = job_store.request_cancel(cache_hash)
+    if cancelled:
+        local_separations.withdraw(status["runId"])
     logger.info(
         "local_separation_cancel_requested", cache_hash=cache_hash, running=cancelled
     )

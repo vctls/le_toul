@@ -137,6 +137,35 @@ def mark_cancelled(cache_hash: str, run_id: str) -> None:
     )
 
 
+def mark_queued(cache_hash: str, run_id: str, ahead: int) -> None:
+    """Record that a run is waiting in line behind `ahead` other songs."""
+    if not is_current_run(cache_hash, run_id):
+        return
+    songs = "song" if ahead == 1 else "songs"
+    _write_status(
+        cache_hash,
+        {
+            **read_status(cache_hash),
+            "stage": f"waiting in line, {ahead} {songs} ahead",
+            "songsAhead": ahead,
+        },
+    )
+
+
+def mark_started(cache_hash: str, run_id: str) -> bool:
+    """Record that a run has left the line, returning whether it should go ahead.
+
+    The start time is reset, so the wait in line does not count towards staleness.
+    """
+    if not is_current_run(cache_hash, run_id):
+        return False
+    status = read_status(cache_hash)
+    status.pop("songsAhead", None)
+    status.pop("stage", None)
+    _write_status(cache_hash, {**status, "startTime": int(time.time())})
+    return True
+
+
 def mark_progress(cache_hash: str, progress: float | None, stage: str) -> None:
     """Record how far along a running job is.
 
@@ -180,6 +209,9 @@ def is_stale(status: dict) -> bool:
     Treating an over-age marker as dead is what stops the client polling for something nothing is working on.
     """
     if status.get("status") != STATUS_PROCESSING:
+        return False
+    # A song in line has no worker to die, and a restart fails it along with the rest.
+    if "songsAhead" in status:
         return False
     age = time.time() - status.get("startTime", 0)
     return age > settings.LOCAL_JOB_STALE_AFTER_SECONDS

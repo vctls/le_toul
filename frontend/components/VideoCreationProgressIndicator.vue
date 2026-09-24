@@ -40,6 +40,8 @@ export default defineComponent({
     separationProgress: { type: Number as PropType<number | null>, default: null },
     // What the SeparatingVocals phase is doing right now, e.g. "separating the vocals"
     separationStage: { type: String as PropType<string | null>, default: null },
+    // Songs the backend separates before this one, or null once it has started
+    separationSongsAhead: { type: Number as PropType<number | null>, default: null },
     // Whether the separation was already running when the video was requested
     waitingForSeparation: Boolean,
   },
@@ -82,7 +84,7 @@ export default defineComponent({
     // Stand-in for a job that reports no progress of its own:
     // separation takes roughly as long as the song on the hardware this was written for.
     estimatedSeparationProgress(): number | null {
-      if (!this.songDuration) {
+      if (!this.songDuration || this.separationSongsAhead !== null) {
         return null;
       }
       return Math.min((this.elapsedTime ?? 0) / 1000 / this.songDuration, 1);

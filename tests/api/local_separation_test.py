@@ -4,6 +4,7 @@ The client is handed a poll URL immediately and the separation runs in a
 background task, so these cover what the client sees at each stage of a job.
 """
 
+import asyncio
 import os
 import tempfile
 import time
@@ -16,7 +17,7 @@ import pytest
 from fastapi.testclient import TestClient
 
 from api import settings
-from api.helpers import cloud_storage, job_store
+from api.helpers import cloud_storage, job_store, separation_queue
 from api.karaoke.music_separation import SeparationResult
 from api.main import app
 
@@ -324,3 +325,76 @@ def test_request_after_a_cancel_starts_a_fresh_job(client, no_bucket, song_files
 
     song_files.assert_called_once()
     assert client.get(poll_url).headers["content-type"] == "application/zip"
+
+
+def test_queued_job_reports_the_songs_ahead(client):
+    """A job waiting for a free slot tells the client where it stands."""
+    run_id = job_store.mark_processing("3" * 64)
+    job_store.mark_queued("3" * 64, run_id, 2)
+
+    body = client.get(f"/separated_track/{'3' * 64}").json()
+
+    assert body["status"] == "processing"
+    assert body["songsAhead"] == 2
+    assert body["stage"] == "waiting in line, 2 songs ahead"
+
+
+def test_long_wait_in_line_is_not_mistaken_for_a_dead_worker(client, monkeypatch):
+    monkeypatch.setattr(settings, "LOCAL_JOB_STALE_AFTER_SECONDS", 60)
+    run_id = job_store.mark_processing("4" * 64)
+    job_store.mark_queued("4" * 64, run_id, 1)
+    status = job_store.read_status("4" * 64)
+    job_store._write_status("4" * 64, {**status, "startTime": int(time.time()) - 3600})
+
+    assert client.get(f"/separated_track/{'4' * 64}").json()["status"] == "processing"
+
+
+def test_leaving_the_line_restarts_the_clock(client):
+    """Staleness counts from the start of the separation, not the wait before it."""
+    run_id = job_store.mark_processing("5" * 64)
+    job_store.mark_queued("5" * 64, run_id, 1)
+    status = job_store.read_status("5" * 64)
+    job_store._write_status("5" * 64, {**status, "startTime": 0})
+
+    assert job_store.mark_started("5" * 64, run_id)
+
+    status = job_store.read_status("5" * 64)
+    assert "songsAhead" not in status
+    assert "stage" not in status
+    assert status["startTime"] > 0
+
+
+def test_superseded_run_does_not_start(client):
+    superseded = job_store.mark_processing("6" * 64)
+    job_store.mark_processing("6" * 64)
+
+    assert not job_store.mark_started("6" * 64, superseded)
+
+
+def test_cancelling_a_queued_job_takes_it_out_of_line(client, monkeypatch):
+    """A song cancelled before its turn is recorded as cancelled at once."""
+
+    async def scenario():
+        from api import main
+
+        queue = separation_queue.SeparationQueue(1)
+        monkeypatch.setattr(main, "local_separations", queue)
+        run_id = job_store.mark_processing(cache_hash())
+
+        async with queue.slot("someone else"):
+            waiting = asyncio.create_task(
+                main.queue_track_separation_local(
+                    cache_hash(), run_id, MODEL_NAME, SONG_CONTENT, "song.mp3"
+                )
+            )
+            await asyncio.sleep(0)
+            queued = job_store.read_status(cache_hash())
+            await main.cancel_separated_track(cache_hash())
+            await waiting
+
+        return queued, job_store.read_status(cache_hash())
+
+    queued, final = asyncio.run(scenario())
+
+    assert queued["songsAhead"] == 1
+    assert final["status"] == "cancelled"

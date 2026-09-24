@@ -23,6 +23,7 @@ interface JobStatus {
   pollIntervalSeconds?: number;
   progress?: number;
   stage?: string;
+  songsAhead?: number;
 }
 
 export interface SeparationProgress {
@@ -30,6 +31,8 @@ export interface SeparationProgress {
   progress: number | null;
   // What the job is doing now, e.g. "separating the vocals"
   stage: string | null;
+  // Songs separated before this one starts, or null once it has started
+  songsAhead: number | null;
 }
 
 export type SeparationProgressCallback = (progress: SeparationProgress) => void;
@@ -101,6 +104,7 @@ async function pollForResult(
         onProgress?.({
           progress: status.progress ?? null,
           stage: status.stage ?? null,
+          songsAhead: status.songsAhead ?? null,
         });
 
         const intervalSeconds = status.pollIntervalSeconds ?? DEFAULT_POLL_INTERVAL_SECONDS;

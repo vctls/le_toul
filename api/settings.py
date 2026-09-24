@@ -45,6 +45,11 @@ SEPARATOR_MODAL_API_URL = os.getenv("SEPARATOR_MODAL_API_URL", "")
 # Where separation runs. One of the names in karaoke/separation_backends.py.
 SEPARATION_BACKEND = os.getenv("SEPARATION_BACKEND", "in_process")
 
+# How many separations run at once in each worker process. The rest wait in
+# line. Each one sizes its thread pools to the whole machine, so running more
+# than one mostly slows them all down.
+SEPARATION_CONCURRENCY = int(os.getenv("SEPARATION_CONCURRENCY", "1"))
+
 # Where separation models are downloaded to and loaded from.
 MODELS_DIR = Path(os.getenv("MODELS_DIR") or BASE_DIR / "pretrained_models")
 
