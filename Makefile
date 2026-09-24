@@ -11,7 +11,7 @@ dev:
 install:
 	@set -e; \
 	npm install; \
-	poetry lock && poetry install
+	poetry lock && poetry install --with separation
 
 bump-version-minor:
 	@set -e; \

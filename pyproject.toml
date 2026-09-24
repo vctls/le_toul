@@ -8,12 +8,34 @@ package-mode = false
 
 [tool.poetry.dependencies]
 python = ">=3.13,<3.14"
-audio-separator = {extras = ["cpu"], version = "^0.44.2"}
 pytubefix = "^10.7.2"
 google-cloud-storage = "^3.10.1"
 fastapi = {extras = ["standard"], version = "^0.136.1"}
 gunicorn = "^26.0.0"
 structlog = "^25.5.0"
+# Not only audio-separator's: karaoke/separation_progress.py substitutes tqdm to
+# read the inference loop, so it is needed wherever the web tier runs.
+tqdm = "^4.67.1"
+
+# Everything torch. Optional because a deployment that separates on another host
+# has no use for 3.5 GB of it, and because the web tier under the subprocess
+# backend never imports it either.
+[tool.poetry.group.separation]
+optional = true
+
+[tool.poetry.group.separation.dependencies]
+audio-separator = {extras = ["cpu"], version = "^0.44.2"}
+# Held at the minor this tree has separated with. audio-separator 0.44 asks only
+# for >=2.3, which resolves seven releases past anything it was tested against.
+torch = {version = "~2.7.1", source = "pytorch-cpu"}
+torchvision = {version = "~0.22.1", source = "pytorch-cpu"}
+
+# Only packages naming this source use it, so nothing else moves. Both torch
+# packages have to name it or the CUDA build returns through torchvision.
+[[tool.poetry.source]]
+name = "pytorch-cpu"
+url = "https://download.pytorch.org/whl/cpu"
+priority = "explicit"
 
 [tool.poetry.scripts]
 separator-daemon = "api.run_separator_daemon:main"

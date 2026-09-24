@@ -44,7 +44,15 @@ RUN apt-get update \
 
 COPY ./poetry.lock ./pyproject.toml ./
 
-RUN poetry install --without dev --no-root --no-interaction --no-ansi
+# Torch is roughly 2 GB of the image and is needed only where separation runs in
+# this container. A deployment that separates elsewhere leaves this false.
+ARG INSTALL_SEPARATION=false
+
+RUN if [ "$INSTALL_SEPARATION" = "true" ]; then \
+        poetry install --without dev --with separation --no-root --no-interaction --no-ansi; \
+    else \
+        poetry install --without dev --no-root --no-interaction --no-ansi; \
+    fi
 
 #
 # RUNTIME IMAGE
@@ -91,4 +99,4 @@ EXPOSE $PORT
 
 # Run the web service on container startup using gunicorn with uvicorn workers
 # Configuration handles workers, port, and other production settings
-CMD exec gunicorn --config gunicorn.conf.py api.main:app
+CMD ["gunicorn", "--config", "gunicorn.conf.py", "api.main:app"]

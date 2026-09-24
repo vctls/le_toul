@@ -21,6 +21,10 @@ services:
       context: .
       dockerfile: Dockerfile
       target: runner
+      args:
+        # Both services share the image tag, so this has to match compose.yaml
+        # or the build that runs second retags the other one's image.
+        INSTALL_SEPARATION: "true"
     env_file:
       - path: .env
         required: false
