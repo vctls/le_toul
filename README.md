@@ -187,7 +187,25 @@ To run it in a container with GPU access instead:
 docker compose -f compose.yaml -f compose.gpu.yaml up
 ```
 
-That one needs the NVIDIA container toolkit, and is untested.
+That one needs the NVIDIA container toolkit.
+
+### Separating on Modal
+
+`api/modal_app.py` serves the same job protocol from a Modal GPU. Install its SDK with
+`poetry install --with modal`, then serve it from the repository root:
+
+```
+poetry run modal serve -m api.modal_app
+```
+
+To run the app against it, set `MODAL_SEPARATION_URL`, `MODAL_PROXY_KEY` and `MODAL_PROXY_SECRET` in
+.env to the printed URL and a workspace proxy token, then:
+
+```
+docker compose -f compose.yaml -f compose.modal.yaml up
+```
+
+Coming from the GPU stack, add `--remove-orphans` to stop its separator.
 
 ## Build
 

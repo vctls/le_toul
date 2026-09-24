@@ -1,0 +1,28 @@
+# Separation on Modal, from a local web service built without torch. Run with:
+#   docker compose -f compose.yaml -f compose.modal.yaml up --build
+#
+# Open http://localhost:8080. This is the stack Railway runs, with the same
+# settings. It needs the Modal app served or deployed, and three variables,
+# which .env can hold:
+#   MODAL_SEPARATION_URL  the web function's URL, printed by `modal serve` or `modal deploy`
+#   MODAL_PROXY_KEY       a workspace proxy token's ID, wk-...
+#   MODAL_PROXY_SECRET    its secret, ws-...
+#
+# Switching from compose.gpu.yaml leaves its separator running. Pass
+# --remove-orphans to stop it.
+
+services:
+  api:
+    build:
+      args:
+        INSTALL_SEPARATION: "false"
+    image: the-tuul:web
+    environment:
+      SEPARATION_BACKEND: remote
+      SEPARATION_REMOTE_URL: ${MODAL_SEPARATION_URL:?set MODAL_SEPARATION_URL to the Modal web function's URL}
+      SEPARATION_REMOTE_KEY: ${MODAL_PROXY_KEY:?set MODAL_PROXY_KEY to a Modal proxy token ID}
+      SEPARATION_REMOTE_SECRET: ${MODAL_PROXY_SECRET:?set MODAL_PROXY_SECRET to the proxy token's secret}
+      # Keep equal to MAX_GPU_CONTAINERS in api/modal_app.py.
+      SEPARATION_CONCURRENCY: "3"
+    volumes: !override
+      - job-results:/var/lib/tuul/jobs
