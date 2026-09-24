@@ -1,11 +1,14 @@
 import { createPinia, setActivePinia } from "pinia";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { separateTrack } from "@/lib/audio";
+import type { Ref } from "vue";
+import { resumeSeparation, separateTrack } from "@/lib/audio";
+import { persistJsonRef } from "@/lib/persistence";
 import { BACKING_VOCALS_SEPARATOR_MODEL, useMediaStore } from "./media";
 
 vi.mock("@/lib/audio", () => ({
   separateTrack: vi.fn(),
+  resumeSeparation: vi.fn(),
 }));
 
 vi.mock("@/lib/persistence", () => ({
@@ -197,5 +200,116 @@ describe("Media Store separation outcome", () => {
     store.startSeparation(SONG, BACKING_VOCALS_SEPARATOR_MODEL);
 
     expect(store.lastSeparation?.status).toBe("succeeded");
+  });
+});
+
+describe("Media Store running separation", () => {
+  const POLL_URL = "/separated_track/abc";
+  let running: Ref<{ pollUrl: string; requestedAt: number } | null> | undefined;
+
+  // Captures the persisted ref, optionally seeding it as a reload would from localStorage.
+  function persistRunning(stored: { pollUrl: string; requestedAt: number } | null = null) {
+    vi.mocked(persistJsonRef).mockImplementation((key: string, ref: Ref<any>) => {
+      if (key === "media.runningSeparation") {
+        ref.value = stored;
+        running = ref;
+      }
+    });
+  }
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    running = undefined;
+    setActivePinia(createPinia());
+  });
+
+  afterEach(() => {
+    vi.mocked(persistJsonRef).mockReset();
+  });
+
+  it("remembers the job once the backend has accepted it", async () => {
+    persistRunning();
+    const store = useMediaStore();
+    (separateTrack as any).mockImplementation(
+      (
+        _file: File,
+        _model: string,
+        _onProgress: unknown,
+        _signal: AbortSignal,
+        onSubmitted: any,
+      ) => {
+        onSubmitted(POLL_URL);
+        return new Promise(() => {});
+      },
+    );
+
+    store.startSeparation(SONG, BACKING_VOCALS_SEPARATOR_MODEL);
+
+    expect(running?.value?.pollUrl).toBe(POLL_URL);
+    expect(running?.value?.requestedAt).toBeLessThanOrEqual(Date.now());
+  });
+
+  it.each([
+    ["succeeds", () => (separateTrack as any).mockResolvedValue(TRACK)],
+    ["fails", () => (separateTrack as any).mockRejectedValue(new Error("Out of memory"))],
+  ])("forgets the job once it %s", async (_outcome, arrange) => {
+    persistRunning();
+    const store = useMediaStore();
+    arrange();
+
+    await store.startSeparation(SONG, BACKING_VOCALS_SEPARATOR_MODEL);
+
+    expect(running?.value).toBeNull();
+  });
+
+  it("forgets the job once it is cancelled", async () => {
+    persistRunning({ pollUrl: POLL_URL, requestedAt: Date.now() });
+    const store = useMediaStore();
+    (resumeSeparation as any).mockReturnValue(new Promise(() => {}));
+    await vi.waitFor(() => expect(store.isProcessing).toBe(true));
+
+    store.cancelSeparation();
+
+    expect(running?.value).toBeNull();
+    expect(store.lastSeparation?.status).toBe("cancelled");
+  });
+
+  it("follows a remembered job when the page loads again", async () => {
+    persistRunning({ pollUrl: POLL_URL, requestedAt: Date.now() - 60_000 });
+    (resumeSeparation as any).mockResolvedValue(TRACK);
+
+    const store = useMediaStore();
+
+    await vi.waitFor(() => expect(store.lastSeparation?.status).toBe("succeeded"));
+    expect(resumeSeparation).toHaveBeenCalledWith(
+      POLL_URL,
+      expect.any(Function),
+      expect.any(AbortSignal),
+    );
+    expect(store.separatedTrack).toBe(TRACK);
+    // The duration counts from the original request, not from the reload.
+    expect(store.lastSeparation?.durationSeconds).toBeGreaterThanOrEqual(60);
+    expect(running?.value).toBeNull();
+  });
+
+  it("joins the resumed job instead of starting another", async () => {
+    persistRunning({ pollUrl: POLL_URL, requestedAt: Date.now() });
+    (resumeSeparation as any).mockReturnValue(new Promise(() => {}));
+    const store = useMediaStore();
+    await vi.waitFor(() => expect(store.isProcessing).toBe(true));
+
+    store.startSeparation(SONG, BACKING_VOCALS_SEPARATOR_MODEL);
+
+    expect(separateTrack).not.toHaveBeenCalled();
+  });
+
+  it("starts nothing when no job was left running", async () => {
+    persistRunning();
+    const store = useMediaStore();
+    await Promise.resolve();
+    await Promise.resolve();
+
+    expect(resumeSeparation).not.toHaveBeenCalled();
+    expect(store.isProcessing).toBe(false);
   });
 });
