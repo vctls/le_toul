@@ -62,7 +62,7 @@ substitutions:
   _CLOUD_RUN_HEAVY_DUTY_APP_NAME: "the-tuul-heavy-duty"
   _CLOUD_RUN_REGION: "us-central1"
   _API_HOSTNAME: "https://separate.the-tuul.com"
-  _DONATE_URL: "https://ko-fi.com/incidentist"
+  _DONATE_URL: ""
   _DOCKER_IMAGE: "${_CLOUD_RUN_REGION}-docker.pkg.dev/${PROJECT_ID}/${_CLOUD_RUN_APP_NAME}/the_tuul"
 images:
   - ${_DOCKER_IMAGE}
