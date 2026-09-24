@@ -40,6 +40,18 @@ describe("VideoCreationProgressIndicator", () => {
     expect(wrapper.text()).toContain("Separating the vocals...");
   });
 
+  it("does not estimate while the song is waiting in line", () => {
+    const wrapper = mountIndicator({
+      songDuration: 100,
+      elapsedTime: 25000,
+      separationStage: "waiting in line, 2 songs ahead",
+      separationSongsAhead: 2,
+    });
+
+    expect(wrapper.find("b-progress").attributes("value")).toBeUndefined();
+    expect(wrapper.text()).toContain("Waiting in line, 2 songs ahead...");
+  });
+
   it("reports the render step once the video starts", () => {
     const wrapper = mountIndicator({
       phase: CreationPhase.CreatingVideo,

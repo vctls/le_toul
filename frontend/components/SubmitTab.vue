@@ -323,6 +323,7 @@
         :elapsed-time="elapsedSubmissionTime ?? undefined"
         :separation-progress="mediaStore.separationProgress"
         :separation-stage="mediaStore.separationStage"
+        :separation-songs-ahead="mediaStore.separationSongsAhead"
         :waiting-for-separation="waitingForSeparation"
       />
       <b-message v-if="!canCreateVideo" type="is-info" :closable="false">

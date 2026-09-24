@@ -329,8 +329,13 @@ describe("Audio Library", () => {
     expect(onProgress).toHaveBeenNthCalledWith(1, {
       progress: 0.42,
       stage: "separating the vocals",
+      songsAhead: null,
     });
-    expect(onProgress).toHaveBeenNthCalledWith(2, { progress: null, stage: null });
+    expect(onProgress).toHaveBeenNthCalledWith(2, {
+      progress: null,
+      stage: null,
+      songsAhead: null,
+    });
   });
 
   it("reports the status instead of handing an error page to jszip", async () => {
