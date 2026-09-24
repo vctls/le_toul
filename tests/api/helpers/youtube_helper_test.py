@@ -1,3 +1,12 @@
+"""Tests for the YouTube download helper.
+
+The two that reach YouTube are marked `network` and deselected by default.
+YouTube's bot detection fails them on its own schedule, and the feature is
+supported rather than developed: separating from a lossy YouTube rip is a poor
+starting point for a karaoke track anyway. Run them deliberately with
+`pytest -m network` when touching this helper.
+"""
+
 from pathlib import Path
 
 import pytest
@@ -6,6 +15,7 @@ import pytubefix
 from api.helpers import youtube_helper
 
 
+@pytest.mark.network
 def test_get_youtube_streams():
     url = "https://www.youtube.com/watch?v=jVFIbpZA04I"
     song_files_dir = Path("tests/song_files")
@@ -14,6 +24,7 @@ def test_get_youtube_streams():
     )
 
 
+@pytest.mark.network
 def test_assemble_metadata():
     url = "https://www.youtube.com/watch?v=jVFIbpZA04I"
     youtube = pytubefix.YouTube(url)
