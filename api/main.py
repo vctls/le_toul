@@ -1,5 +1,5 @@
 import tempfile
-from pathlib import Path
+from pathlib import Path, PurePosixPath
 from typing import Literal
 
 import structlog
@@ -97,6 +97,17 @@ def streamed_response(file_path: Path) -> StreamingResponse:
     return StreamingResponse(streaming_content(), media_type="application/zip")
 
 
+def safe_filename(filename: str, fallback: str = "uploaded_song") -> str:
+    """Reduce a client-supplied filename to a single path component.
+
+    A directory picker hands back a relative path rather than a bare name, and
+    the value is written to disk, so joining it unchecked writes wherever it
+    points. PurePosixPath so a Windows-style separator is stripped too.
+    """
+    name = PurePosixPath(filename.replace("\\", "/")).name
+    return fallback if name in ("", ".", "..") else name
+
+
 def perform_music_separation(
     song_content: bytes,
     song_filename: str,
@@ -118,8 +129,7 @@ def perform_music_separation(
     Returns:
         Path to the created zip file containing separated tracks
     """
-    # Save uploaded file
-    song_file_path = song_files_dir / song_filename
+    song_file_path = song_files_dir / safe_filename(song_filename)
     with song_file_path.open("wb") as f:
         f.write(song_content)
 
