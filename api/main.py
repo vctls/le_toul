@@ -1,5 +1,6 @@
 import asyncio
 import contextlib
+import ipaddress
 import math
 import tempfile
 from collections.abc import Callable
@@ -118,10 +119,23 @@ def client_address(request: Request) -> str:
     return request.client.host if request.client else "unknown"
 
 
+def rate_limit_key(address: str) -> str:
+    """Key an IPv6 client by its /64, the block a single customer is usually given."""
+    try:
+        ip = ipaddress.ip_address(address)
+    except ValueError:
+        return address
+    if ip.version == 4:
+        return str(ip)
+    if ip.ipv4_mapped:
+        return str(ip.ipv4_mapped)
+    return str(ipaddress.ip_network(f"{ip}/64", strict=False))
+
+
 def start_separation_or_refuse(request: Request) -> None:
     """Count a new separation against the client's allowance, or refuse it with a 429."""
     client = client_address(request)
-    wait = separation_starts.acquire(client)
+    wait = separation_starts.acquire(rate_limit_key(client))
     if wait is None:
         return
     logger.warning("separation_rate_limited", client=client, retry_after=wait)
