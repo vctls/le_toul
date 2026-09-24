@@ -48,6 +48,12 @@ SEPARATION_BACKEND = os.getenv("SEPARATION_BACKEND", "in_process")
 # Where separation models are downloaded to and loaded from.
 MODELS_DIR = Path(os.getenv("MODELS_DIR") or BASE_DIR / "pretrained_models")
 
+# Container the separated stems are written in, as an audio-separator output
+# format. FLAC is lossless and roughly half the size of WAV, which is worth the
+# encode wherever a result crosses a network. The frontend reads whatever it is
+# handed, so this is the only place it is decided.
+SEPARATION_OUTPUT_FORMAT = os.getenv("SEPARATION_OUTPUT_FORMAT", "wav").lower()
+
 # Local separation job store, used when SEPARATED_TRACKS_BUCKET is unset. Jobs
 # run in the background and the client polls for the result, so no request is
 # held open for the length of a separation.
