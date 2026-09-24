@@ -29,6 +29,14 @@ _REPO = Path(__file__).resolve().parents[1]
 _PYPROJECT = str(_REPO / "pyproject.toml")
 _LOCKFILE = str(_REPO / "poetry.lock")
 
+# librosa compiles its numba functions on import, which takes half a minute. It
+# caches them, but only once a container has paid for it, so the build pays instead.
+_WARM_NUMBA_CACHE = (
+    "import numpy as np, soundfile as sf, librosa; "
+    "sf.write('/tmp/silence.wav', np.zeros((44100, 2), dtype='float32'), 44100); "
+    "librosa.load('/tmp/silence.wav', mono=False, sr=44100)"
+)
+
 web_image = (
     modal.Image.debian_slim(python_version="3.13")
     .poetry_install_from_file(_PYPROJECT, _LOCKFILE, without=["dev"])
@@ -55,8 +63,11 @@ gpu_image = (
         {
             "MODELS_DIR": MODELS_MOUNT,
             "SEPARATION_OUTPUT_FORMAT": "flac",
+            # Numba keys its cache to the CPU, and the builder's is not the GPU host's.
+            "NUMBA_CPU_NAME": "generic",
         }
     )
+    .run_commands(f'python -c "{_WARM_NUMBA_CACHE}"')
     .add_local_python_source("api")
 )
 
