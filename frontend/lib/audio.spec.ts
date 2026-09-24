@@ -1,5 +1,16 @@
-import { separateTrack } from "./audio";
+import { extensionForBlob, mimeForExtension, separateTrack } from "./audio";
 import { SeparationModel } from "@/types";
+
+function zipEntry(name: string) {
+  return { name, async: vi.fn().mockResolvedValue(new Blob(["mock audio"])) };
+}
+
+// jszip's regex form returns every entry matching it, which here is one per stem.
+// The container is a backend setting, so the archive is built around an extension.
+function separatedZip(extension = "wav") {
+  const entries = [zipEntry(`accompaniment.${extension}`), zipEntry(`vocals.${extension}`)];
+  return { file: vi.fn((pattern: RegExp) => entries.filter((entry) => pattern.test(entry.name))) };
+}
 
 // Mock fetch globally
 global.fetch = vi.fn();
@@ -28,12 +39,7 @@ describe("Audio Library", () => {
       blob: vi.fn().mockResolvedValue(mockBlob),
     });
 
-    // Mock JSZip behavior
-    const mockZip = {
-      file: vi.fn().mockReturnValue({
-        async: vi.fn().mockResolvedValue(new Blob(["mock audio"], { type: "audio/wav" })),
-      }),
-    };
+    const mockZip = separatedZip();
 
     // We need to mock jszip.loadAsync
     const jszip = await import("jszip");
@@ -79,12 +85,7 @@ describe("Audio Library", () => {
       blob: vi.fn().mockResolvedValue(mockZipBlob),
     });
 
-    // Mock JSZip behavior
-    const mockZip = {
-      file: vi.fn().mockReturnValue({
-        async: vi.fn().mockResolvedValue(new Blob(["mock audio"], { type: "audio/wav" })),
-      }),
-    };
+    const mockZip = separatedZip();
 
     const jszip = await import("jszip");
     vi.spyOn(jszip.default, "loadAsync").mockResolvedValue(mockZip as any);
@@ -146,12 +147,7 @@ describe("Audio Library", () => {
       blob: vi.fn().mockResolvedValue(mockZipBlob),
     });
 
-    // Mock JSZip behavior
-    const mockZip = {
-      file: vi.fn().mockReturnValue({
-        async: vi.fn().mockResolvedValue(new Blob(["mock audio"], { type: "audio/wav" })),
-      }),
-    };
+    const mockZip = separatedZip();
 
     const jszip = await import("jszip");
     vi.spyOn(jszip.default, "loadAsync").mockResolvedValue(mockZip as any);
@@ -262,11 +258,7 @@ describe("Audio Library", () => {
     });
 
     const jszip = await import("jszip");
-    vi.spyOn(jszip.default, "loadAsync").mockResolvedValue({
-      file: vi.fn().mockReturnValue({
-        async: vi.fn().mockResolvedValue(new Blob(["mock audio"], { type: "audio/wav" })),
-      }),
-    } as any);
+    vi.spyOn(jszip.default, "loadAsync").mockResolvedValue(separatedZip() as any);
 
     const resultPromise = separateTrack(mockFile, "UVR_MDXNET_KARA_2" as SeparationModel);
 
@@ -322,11 +314,7 @@ describe("Audio Library", () => {
     });
 
     const jszip = await import("jszip");
-    vi.spyOn(jszip.default, "loadAsync").mockResolvedValue({
-      file: vi.fn().mockReturnValue({
-        async: vi.fn().mockResolvedValue(new Blob(["mock audio"], { type: "audio/wav" })),
-      }),
-    } as any);
+    vi.spyOn(jszip.default, "loadAsync").mockResolvedValue(separatedZip() as any);
 
     const onProgress = vi.fn();
     const resultPromise = separateTrack(
@@ -475,5 +463,39 @@ describe("Audio Library", () => {
 
     await expect(resultPromise).rejects.toThrow();
     expect(fetch).not.toHaveBeenCalledWith(expect.stringContaining("/cancel"), expect.anything());
+  });
+});
+
+describe("separated stem containers", () => {
+  it("types each stem from the name it came back under", async () => {
+    const mockFile = new File(["audio data"], "test.mp3", { type: "audio/mp3" });
+
+    (fetch as any).mockResolvedValueOnce({
+      ok: true,
+      headers: { get: vi.fn().mockReturnValue("application/zip") },
+      blob: vi.fn().mockResolvedValue(new Blob([new ArrayBuffer(8)], { type: "application/zip" })),
+    });
+
+    const jszip = await import("jszip");
+    vi.spyOn(jszip.default, "loadAsync").mockResolvedValue(separatedZip("flac") as any);
+
+    const result = await separateTrack(mockFile, "UVR_MDXNET_KARA_2" as SeparationModel);
+
+    expect(result.backing.type).toBe("audio/flac");
+    expect(result.vocals.type).toBe("audio/flac");
+  });
+
+  it("names a stem after the container it is in", () => {
+    expect(extensionForBlob(new Blob([], { type: "audio/flac" }))).toBe("flac");
+    expect(extensionForBlob(new Blob([], { type: "audio/wav" }))).toBe("wav");
+  });
+
+  it("falls back to wav for a stem carrying no type at all", () => {
+    expect(extensionForBlob(new Blob([]))).toBe("wav");
+  });
+
+  it("has a type for every container the separator can be set to", () => {
+    expect(mimeForExtension("flac")).toBe("audio/flac");
+    expect(mimeForExtension("WAV")).toBe("audio/wav");
   });
 });

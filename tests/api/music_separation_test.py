@@ -43,6 +43,7 @@ def test_split_song_api_method(audio_file, temp_output_dir):
         mock_separator.assert_called_once_with(
             output_dir=str(temp_output_dir),
             model_file_dir=mock.ANY,
+            output_format="wav",
         )
         mock_instance.load_model.assert_called_once_with(DEFAULT_MODEL)
         mock_instance.separate.assert_called_once_with(
@@ -152,3 +153,23 @@ def test_split_song_subprocess_command_fails(audio_file, temp_output_dir):
             split_song(
                 audio_file, temp_output_dir, DEFAULT_MODEL, method=SeparationMethod.CLI
             )
+
+
+def test_output_format_setting_reaches_both_the_separator_and_the_names(
+    audio_file, temp_output_dir
+):
+    """The deployed configuration writes FLAC, which about halves the transfer."""
+    with (
+        mock.patch("api.settings.SEPARATION_OUTPUT_FORMAT", "flac"),
+        mock.patch("audio_separator.separator.Separator") as mock_separator,
+    ):
+        (temp_output_dir / "vocals.flac").write_text("mock vocals")
+        (temp_output_dir / "accompaniment.flac").write_text("mock accompaniment")
+
+        separated = split_song(
+            audio_file, temp_output_dir, DEFAULT_MODEL, method=SeparationMethod.API
+        )
+
+        assert separated.vocals == temp_output_dir / "vocals.flac"
+        assert separated.accompaniment == temp_output_dir / "accompaniment.flac"
+        assert mock_separator.call_args.kwargs["output_format"] == "flac"

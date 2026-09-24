@@ -38,14 +38,14 @@
       <a @click="download(font, font.name)" title="download font"><b-icon icon="download" /></a>
     </span>
     <span v-if="vocals && vocals.size > 0" class="file-item">
-      vocals.wav
-      <a @click="download(vocals, 'vocals.wav')" title="download vocals"
+      {{ vocalsName }}
+      <a @click="download(vocals, vocalsName)" title="download vocals"
         ><b-icon icon="download"
       /></a>
     </span>
     <span v-if="accompaniment && accompaniment.size > 0" class="file-item">
-      accompaniment.wav
-      <a @click="download(accompaniment, 'accompaniment.wav')" title="download accompaniment"
+      {{ accompanimentName }}
+      <a @click="download(accompaniment, accompanimentName)" title="download accompaniment"
         ><b-icon icon="download"
       /></a>
     </span>
@@ -55,6 +55,7 @@
 <script lang="ts">
 import { isString } from "lodash-es";
 import { defineComponent } from "vue";
+import { extensionForBlob } from "@/lib/audio";
 
 export default defineComponent({
   props: {
@@ -70,6 +71,12 @@ export default defineComponent({
     accompaniment: Blob,
   },
   computed: {
+    vocalsName(): string {
+      return `vocals.${extensionForBlob(this.vocals ?? new Blob())}`;
+    },
+    accompanimentName(): string {
+      return `accompaniment.${extensionForBlob(this.accompaniment ?? new Blob())}`;
+    },
     hasTimings(): boolean {
       if (!this.timings) return false;
       return Array.isArray(this.timings)

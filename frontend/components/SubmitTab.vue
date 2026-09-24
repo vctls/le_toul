@@ -383,6 +383,7 @@ import { useTimingsStore } from "@/stores/timings";
 import { useLyricsStore } from "@/stores/lyrics";
 import { abortable } from "@/lib/util";
 import { projectSongEntryName } from "@/lib/projectFolder";
+import { extensionForBlob } from "@/lib/audio";
 
 // The rest of the bar is the zip, which carries the source song and both separated tracks.
 const RENDER_SHARE = 0.95;
@@ -740,10 +741,10 @@ export default defineComponent({
 
       const separated = this.mediaStore.separatedTrack;
       if (separated?.vocals && separated.vocals.size > 0) {
-        zip.file("vocals.wav", separated.vocals);
+        zip.file(`vocals.${extensionForBlob(separated.vocals)}`, separated.vocals);
       }
       if (separated?.backing && separated.backing.size > 0) {
-        zip.file("accompaniment.wav", separated.backing);
+        zip.file(`accompaniment.${extensionForBlob(separated.backing)}`, separated.backing);
       }
 
       this.creationStep = "packaging the files";

@@ -78,6 +78,14 @@ describe("classifyProjectFolder", () => {
     expect(project.ignored).toEqual([]);
   });
 
+  test("places the stems whatever container they were separated into", () => {
+    const project = classifyProjectFolder([file("accompaniment.flac"), file("vocals.flac")]);
+
+    expect(project.backing?.name).toBe("accompaniment.flac");
+    expect(project.vocals?.name).toBe("vocals.flac");
+    expect(project.song).toBeUndefined();
+  });
+
   test("reports what it could not place", () => {
     const project = classifyProjectFolder([file("project/notes.docx")]);
 

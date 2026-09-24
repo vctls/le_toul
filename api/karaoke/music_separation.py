@@ -75,9 +75,10 @@ def get_output_paths(song_dir: Path) -> SeparationResult:
 
     The one place the output names are spelled.
     """
+    extension = settings.SEPARATION_OUTPUT_FORMAT
     return SeparationResult(
-        accompaniment=song_dir / "accompaniment.wav",
-        vocals=song_dir / "vocals.wav",
+        accompaniment=song_dir / f"accompaniment.{extension}",
+        vocals=song_dir / f"vocals.{extension}",
     )
 
 
@@ -103,6 +104,7 @@ def _split_song_api(
         separator = Separator(
             output_dir=str(song_dir),
             model_file_dir=str(settings.MODELS_DIR),
+            output_format=settings.SEPARATION_OUTPUT_FORMAT,
         )
         separator.load_model(model_name)
 
@@ -130,6 +132,8 @@ def _split_song_cli(
         str(settings.MODELS_DIR),
         "--model_filename",
         model_name,
+        "--output_format",
+        settings.SEPARATION_OUTPUT_FORMAT,
         "--custom_output_names",
         json.dumps(output_names),
     ]
@@ -209,7 +213,7 @@ def _split_song_modal_api(
         poll_interval=5,
         download=True,
         output_dir=str(song_dir),
-        output_format="wav",
+        output_format=settings.SEPARATION_OUTPUT_FORMAT,
         custom_output_names={"Vocals": "vocals", "Instrumental": "accompaniment"},
     )
 

@@ -28,6 +28,8 @@ services:
       PORT: 8001
       DEBUG: "False"
       MAX_REQUESTS: "0"
+      # The separator writes the stems and the api service names them, so
+      # SEPARATION_OUTPUT_FORMAT has to reach both. Both read the same .env.
     command: ["gunicorn", "--config", "gunicorn.conf.py", "api.separator_server:app"]
     volumes:
       - pretrained-models:/app/api/pretrained_models

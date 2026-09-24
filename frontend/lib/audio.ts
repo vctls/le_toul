@@ -120,19 +120,51 @@ async function pollForResult(
   }
 }
 
+// The container the separated stems arrive in is a backend setting, so nothing
+// here names one. Stems are matched by role and typed from the name they came
+// back under, and every other site that has to write one of them out asks
+// extensionForBlob what to call it.
+const MIME_TYPES: Record<string, string> = {
+  wav: "audio/wav",
+  flac: "audio/flac",
+  mp3: "audio/mpeg",
+  m4a: "audio/mp4",
+  ogg: "audio/ogg",
+  opus: "audio/ogg",
+};
+
+const FALLBACK_EXTENSION = "wav";
+
+export function mimeForExtension(extension: string): string {
+  return MIME_TYPES[extension.toLowerCase()] ?? "application/octet-stream";
+}
+
+export function extensionForBlob(blob: Blob): string {
+  const type = blob.type.split(";")[0].trim().toLowerCase();
+  const match = Object.entries(MIME_TYPES).find(([, mime]) => mime === type);
+  return match ? match[0] : FALLBACK_EXTENSION;
+}
+
+function extensionOf(name: string): string {
+  return name.match(/\.([A-Za-z0-9]{1,5})$/)?.[1] ?? "";
+}
+
+async function stemBlob(entry: jszip.JSZipObject): Promise<Blob> {
+  return new Blob([await entry.async("blob")], {
+    type: mimeForExtension(extensionOf(entry.name)),
+  });
+}
+
 async function processZipResponse(zipBlob: Blob): Promise<TrackSeparationResult> {
   console.log("Received separated audio. Unzipping...");
   const zip = await jszip.loadAsync(zipBlob);
-  const accompanimentEntry = zip.file("accompaniment.wav");
-  const vocalsEntry = zip.file("vocals.wav");
+  const [accompanimentEntry] = zip.file(/^accompaniment\./);
+  const [vocalsEntry] = zip.file(/^vocals\./);
   if (!accompanimentEntry || !vocalsEntry) {
-    throw new Error("Separated track archive is missing accompaniment.wav or vocals.wav");
+    throw new Error("Separated track archive is missing an accompaniment or a vocals track");
   }
 
-  const accompaniment = new Blob([await accompanimentEntry.async("blob")], { type: "audio/wav" });
-  const vocals = new Blob([await vocalsEntry.async("blob")], { type: "audio/wav" });
-
-  return { backing: accompaniment, vocals: vocals };
+  return { backing: await stemBlob(accompanimentEntry), vocals: await stemBlob(vocalsEntry) };
 }
 
 export async function separateTrack(

@@ -20,9 +20,15 @@ type Slot = Exclude<keyof ProjectFolder, "ignored">;
 
 const SONG_STEM = "song";
 
+// The stems the exporter writes, whose container is a backend setting rather
+// than a fixed extension.
+const NAMED_STEMS: Record<string, Slot> = {
+  [SONG_STEM]: "song",
+  accompaniment: "backing",
+  vocals: "vocals",
+};
+
 const NAMED_SLOTS: Record<string, Slot> = {
-  "accompaniment.wav": "backing",
-  "vocals.wav": "vocals",
   "lyrics.txt": "lyrics",
   "timings.json": "timings",
   "settings.yaml": "settings",
@@ -85,9 +91,7 @@ export function classifyProjectFolder(files: File[]): ProjectFolder {
       continue;
     }
     const slot =
-      NAMED_SLOTS[name] ??
-      (stemOf(name) === SONG_STEM ? "song" : undefined) ??
-      EXTENSION_SLOTS[extensionOf(name)];
+      NAMED_SLOTS[name] ?? NAMED_STEMS[stemOf(name)] ?? EXTENSION_SLOTS[extensionOf(name)];
     if (!slot || project[slot]) {
       project.ignored.push(pathOf(file));
       continue;
