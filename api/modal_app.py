@@ -128,11 +128,10 @@ class _SeparateCalls:
         """
         try:
             modal.FunctionCall.from_id(call_id).get(timeout=0)
-        except modal.exception.TimeoutError as e:
-            # Its subclasses mean the call has ended, FunctionTimeoutError included.
-            if type(e) is modal.exception.TimeoutError:
-                return None
-            return _describe(e)
+        # A call still running raises the builtin TimeoutError. The unrelated
+        # modal.exception.TimeoutError, base of FunctionTimeoutError, means it has ended.
+        except TimeoutError:
+            return None
         except (Exception, modal.exception.InputCancellation) as e:
             return _describe(e)
         return None
