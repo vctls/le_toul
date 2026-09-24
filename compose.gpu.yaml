@@ -1,30 +1,42 @@
-# Routes separation through a GPU-backed separator daemon. Run with:
+# Separation in its own service, on an NVIDIA GPU. Run with:
 #   docker compose -f compose.yaml -f compose.gpu.yaml up --build
 #
-# Needs the NVIDIA container toolkit on the host. Untested.
-# Note that the image installs audio-separator's `cpu` extra (pyproject.toml),
-# so the ONNX models run on CPU regardless.
-# Only the torch roformer models would use the GPU.
+# Open http://localhost:8080. Needs the NVIDIA Container Toolkit on the host.
+#
+# This is the shape of a deployment that separates on Modal: a web service
+# built without torch, and a separator holding the GPU and the weights.
+# The api service reaches the separator over the tcp backend for now.
 
 services:
   api:
+    build:
+      args:
+        INSTALL_SEPARATION: "false"
+    # compose.yaml's image has torch, and a shared tag would let either build
+    # overwrite the other.
+    image: the-tuul:web
     environment:
       SEPARATION_BACKEND: tcp
       SEPARATOR_HOST: separator
       SEPARATOR_PORT: 8001
+      # The tcp backend names the stems after this setting, and the separator
+      # writes them after its own, so both services set it here rather than
+      # leaving it to .env.
+      SEPARATION_OUTPUT_FORMAT: flac
+    volumes: !override
+      - job-results:/var/lib/tuul/jobs
     depends_on:
       - separator
 
   separator:
-    image: the-tuul:latest
+    image: the-tuul-separator:cuda
     build:
       context: .
       dockerfile: Dockerfile
       target: runner
       args:
-        # Both services share the image tag, so this has to match compose.yaml
-        # or the build that runs second retags the other one's image.
         INSTALL_SEPARATION: "true"
+        SEPARATION_DEVICE: cuda
     env_file:
       - path: .env
         required: false
@@ -32,8 +44,7 @@ services:
       PORT: 8001
       DEBUG: "False"
       MAX_REQUESTS: "0"
-      # The separator writes the stems and the api service names them, so
-      # SEPARATION_OUTPUT_FORMAT has to reach both. Both read the same .env.
+      SEPARATION_OUTPUT_FORMAT: flac
     command: ["gunicorn", "--config", "gunicorn.conf.py", "api.separator_server:app"]
     volumes:
       - pretrained-models:/app/api/pretrained_models
