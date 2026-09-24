@@ -20,6 +20,7 @@ from tqdm import tqdm
 # cannot be read.
 ProgressCallback = Callable[[float | None, str], None]
 
+CONVERTING_STAGE = "converting the song"
 LOADING_STAGE = "loading the separation model"
 DOWNLOAD_STAGE = "downloading the separation model"
 READING_STAGE = "reading the song"

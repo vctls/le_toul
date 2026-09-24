@@ -2,6 +2,7 @@ import base64
 import json
 import logging
 import subprocess
+import tempfile
 from dataclasses import dataclass
 from enum import Enum
 from pathlib import Path
@@ -9,7 +10,7 @@ from pathlib import Path
 import httpx
 
 from api import settings
-from api.karaoke import separation_progress
+from api.karaoke import audio_input, separation_progress
 from api.karaoke.separation_progress import ProgressCallback
 
 """
@@ -96,7 +97,14 @@ def _split_song_api(
 
     # Opened before the import: pulling in torch and building the separator take seconds of their own,
     # and the stage is what the client shows meanwhile.
-    with separation_progress.reporting(on_progress) as progress:
+    with (
+        separation_progress.reporting(on_progress) as progress,
+        tempfile.TemporaryDirectory(dir=song_dir) as conversion_dir,
+    ):
+        if audio_input.needs_conversion(songfile):
+            progress.stage(separation_progress.CONVERTING_STAGE)
+            songfile = audio_input.to_flac(songfile, Path(conversion_dir))
+
         progress.stage(separation_progress.LOADING_STAGE)
 
         from audio_separator.separator import Separator
