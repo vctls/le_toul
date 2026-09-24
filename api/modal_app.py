@@ -25,34 +25,32 @@ FILE_TTL_SECONDS = 24 * 60 * 60
 FILES_MOUNT = "/files"
 MODELS_MOUNT = "/models"
 
-# Keep the versions in step with poetry.lock.
-_WEB_PACKAGES = [
-    "fastapi[standard]==0.136.1",
-    "httpx==0.28.1",
-    "structlog==25.5.0",
-    "tqdm==4.67.1",
-]
+_REPO = Path(__file__).resolve().parents[1]
+_PYPROJECT = str(_REPO / "pyproject.toml")
+_LOCKFILE = str(_REPO / "poetry.lock")
 
 web_image = (
     modal.Image.debian_slim(python_version="3.13")
-    .pip_install(*_WEB_PACKAGES)
+    .poetry_install_from_file(_PYPROJECT, _LOCKFILE, without=["dev"])
     .add_local_python_source("api")
 )
 
+# The lock pins the CPU builds, which this swaps for the CUDA builds of the same
+# versions, as the Dockerfile does for SEPARATION_DEVICE=cuda.
 gpu_image = (
     modal.Image.debian_slim(python_version="3.13")
     .apt_install("ffmpeg")
+    .poetry_install_from_file(
+        _PYPROJECT, _LOCKFILE, with_=["separation"], without=["dev"]
+    )
     .pip_install(
         "torch==2.7.1+cu128",
         "torchvision==0.22.1+cu128",
         index_url="https://download.pytorch.org/whl/cu128",
         extra_index_url="https://pypi.org/simple",
     )
-    .pip_install(
-        "audio-separator[gpu]==0.44.2",
-        "onnxruntime-gpu==1.22.0",
-        *_WEB_PACKAGES,
-    )
+    .run_commands("python -m pip uninstall -y onnxruntime")
+    .pip_install("onnxruntime-gpu==1.22.0")
     .env(
         {
             "MODELS_DIR": MODELS_MOUNT,
