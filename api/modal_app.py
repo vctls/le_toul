@@ -17,7 +17,8 @@ GPU = "L4"
 # SEPARATION_CONCURRENCY on Railway should equal this, so that the songs
 # beyond it wait in Railway's queue, which reports their place in line.
 MAX_GPU_CONTAINERS = 3
-SEPARATION_TIMEOUT_SECONDS = 30 * 60
+# A song that takes longer to separate fails, so this bounds how long a song can be.
+SEPARATION_TIMEOUT_SECONDS = 10 * 60
 # Railway downloads the stems as soon as a task is done, so a day is margin.
 FILE_TTL_SECONDS = 24 * 60 * 60
 
@@ -183,7 +184,7 @@ def prune_files() -> None:
 @app.function(
     image=gpu_image,
     volumes={MODELS_MOUNT: models_volume},
-    timeout=SEPARATION_TIMEOUT_SECONDS,
+    timeout=30 * 60,
 )
 def seed_models() -> None:
     """Download every model's weights into the models Volume ahead of first use."""
