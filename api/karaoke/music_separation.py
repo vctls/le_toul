@@ -8,6 +8,7 @@ from pathlib import Path
 
 import httpx
 
+from api import settings
 from api.karaoke import separation_progress
 from api.karaoke.separation_progress import ProgressCallback
 
@@ -34,7 +35,6 @@ This module provides multiple methods for separating audio tracks into vocals an
 The main split_song() function automatically selects the appropriate method based on parameters.
 """
 
-MODELS_DIR = Path(__file__).parent.parent / "pretrained_models"
 DEFAULT_MODEL = "UVR_MDXNET_KARA_2.onnx"
 
 AVAILABLE_MODELS = [
@@ -102,7 +102,7 @@ def _split_song_api(
 
         separator = Separator(
             output_dir=str(song_dir),
-            model_file_dir=str(MODELS_DIR),
+            model_file_dir=str(settings.MODELS_DIR),
         )
         separator.load_model(model_name)
 
@@ -127,7 +127,7 @@ def _split_song_cli(
         "--output_dir",
         str(song_dir),
         "--model_file_dir",
-        str(MODELS_DIR),
+        str(settings.MODELS_DIR),
         "--model_filename",
         model_name,
         "--custom_output_names",
