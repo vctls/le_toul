@@ -352,6 +352,19 @@ def test_request_after_a_cancel_starts_a_fresh_job(client, no_bucket, song_files
     assert client.get(poll_url).headers["content-type"] == "application/zip"
 
 
+def test_request_while_a_cancel_is_pending_starts_a_fresh_job(
+    client, no_bucket, song_files
+):
+    """A resubmitted song must not attach to the run that is about to unwind."""
+    job_store.mark_processing(cache_hash())
+    client.post(f"/separated_track/{cache_hash()}/cancel")
+
+    poll_url = post_song(client).json()["finishedTrackURL"]
+
+    song_files.assert_called_once()
+    assert client.get(poll_url).headers["content-type"] == "application/zip"
+
+
 def test_queued_job_reports_the_songs_ahead(client):
     """A job waiting for a free slot tells the client where it stands."""
     run_id = job_store.mark_processing("3" * 64)
