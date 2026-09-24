@@ -257,6 +257,31 @@ def test_request_after_a_dead_worker_starts_a_fresh_job(
     assert client.get(poll_url).headers["content-type"] == "application/zip"
 
 
+def test_restart_fails_jobs_left_processing(client, no_bucket, song_files):
+    """A job killed by a restart reports an error and stops blocking its song."""
+    job_store.mark_processing(cache_hash())
+    job_store.mark_failed("d" * 64, "boom")
+
+    job_store.fail_interrupted_jobs()
+
+    body = client.get(job_store.poll_url(cache_hash())).json()
+    assert body["status"] == "error"
+    assert body["error"] == job_store.INTERRUPTED_MESSAGE
+    assert job_store.read_status("d" * 64)["error"] == "boom"
+
+    post_song(client)
+    song_files.assert_called_once()
+
+
+def test_restart_leaves_finished_results_alone(client, no_bucket, song_files):
+    """Only processing markers are touched, not the results already stored."""
+    poll_url = post_song(client).json()["finishedTrackURL"]
+
+    job_store.fail_interrupted_jobs()
+
+    assert client.get(poll_url).headers["content-type"] == "application/zip"
+
+
 def test_expired_results_are_pruned(client, monkeypatch, local_job_dir):
     """Old results are deleted so the job directory does not grow without bound."""
     monkeypatch.setattr(settings, "LOCAL_JOB_RESULT_TTL_SECONDS", 60)

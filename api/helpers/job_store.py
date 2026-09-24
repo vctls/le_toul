@@ -30,6 +30,7 @@ STATUS_ERROR = "error"
 STATUS_CANCELLED = "cancelled"
 
 CANCELLED_MESSAGE = "Track separation was cancelled."
+INTERRUPTED_MESSAGE = "Track separation was interrupted by a server restart."
 
 
 class JobCancelled(Exception):
@@ -215,6 +216,23 @@ def is_stale(status: dict) -> bool:
         return False
     age = time.time() - status.get("startTime", 0)
     return age > settings.LOCAL_JOB_STALE_AFTER_SECONDS
+
+
+def fail_interrupted_jobs() -> None:
+    """Mark every job still processing as failed.
+
+    Only safe before any worker has started, since nothing can be running then.
+    Without it, a job killed by a restart blocks its song until its marker goes stale.
+    """
+    directory = Path(settings.LOCAL_JOB_DIR)
+    if not directory.is_dir():
+        return
+    for path in directory.glob("*.json"):
+        cache_hash = path.stem
+        status = read_status(cache_hash)
+        if status and status.get("status") == STATUS_PROCESSING:
+            mark_failed(cache_hash, INTERRUPTED_MESSAGE)
+            logger.info("local_job_interrupted", cache_hash=cache_hash)
 
 
 def store_result(cache_hash: str, zip_path: Path) -> Path:
