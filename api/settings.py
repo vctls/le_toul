@@ -45,6 +45,9 @@ SEPARATOR_MODAL_API_URL = os.getenv("SEPARATOR_MODAL_API_URL", "")
 # Where separation runs. One of the names in karaoke/separation_backends.py.
 SEPARATION_BACKEND = os.getenv("SEPARATION_BACKEND", "in_process")
 
+# Where separation models are downloaded to and loaded from.
+MODELS_DIR = Path(os.getenv("MODELS_DIR") or BASE_DIR / "pretrained_models")
+
 # Local separation job store, used when SEPARATED_TRACKS_BUCKET is unset. Jobs
 # run in the background and the client polls for the result, so no request is
 # held open for the length of a separation.
