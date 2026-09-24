@@ -26,6 +26,9 @@ DOWNLOAD_STAGE = "downloading the separation model"
 READING_STAGE = "reading the song"
 SEPARATING_STAGE = "separating the vocals"
 PACKAGING_STAGE = "packaging the tracks"
+UPLOADING_STAGE = "uploading the song"
+WAITING_FOR_GPU_STAGE = "waiting for a GPU"
+DOWNLOADING_STEMS_STAGE = "downloading the stems"
 
 # Share of the bar given to the model download. It happens only the first time a model is used,
 # and the separation dwarfs it.
