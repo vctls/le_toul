@@ -137,6 +137,16 @@
             <!-- Beside the Separate Track button, its always-on tooltip would swallow the clicks. -->
             <b-button label="Cancel" type="is-danger is-light" @click="cancelSeparation" />
           </div>
+          <b-message
+            v-if="mediaStore.error && !isSeparatingTrack"
+            type="is-danger"
+            has-icon
+            icon="warning"
+            icon-size="is-small"
+            :closable="false"
+          >
+            {{ mediaStore.error }}
+          </b-message>
         </div>
       </div>
 
