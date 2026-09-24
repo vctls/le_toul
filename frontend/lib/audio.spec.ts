@@ -390,7 +390,7 @@ describe("Audio Library", () => {
     // Neither JSON nor a successful response, so it cannot be a zip
     (fetch as any).mockResolvedValueOnce({
       ok: false,
-      status: 502,
+      status: 500,
       headers: {
         get: vi.fn().mockReturnValue("text/plain"),
       },
@@ -398,8 +398,57 @@ describe("Audio Library", () => {
     });
 
     await expect(separateTrack(mockFile, "UVR_MDXNET_KARA_2" as SeparationModel)).rejects.toThrow(
-      "502",
+      "500",
     );
+  });
+
+  it("waits out a server that is restarting", async () => {
+    const mockFile = new File(["audio data"], "test.mp3", { type: "audio/mp3" });
+    const unavailable = (status: number) => ({
+      ok: false,
+      status,
+      headers: { get: vi.fn().mockReturnValue("text/html") },
+    });
+
+    (fetch as any).mockResolvedValueOnce({
+      ok: true,
+      headers: { get: vi.fn().mockReturnValue("application/json") },
+      json: vi.fn().mockResolvedValue({ finishedTrackURL: "/separated_track/abc" }),
+    });
+    (fetch as any).mockRejectedValueOnce(new TypeError("NetworkError when attempting to fetch"));
+    (fetch as any).mockResolvedValueOnce(unavailable(502));
+    (fetch as any).mockResolvedValueOnce(unavailable(503));
+    (fetch as any).mockResolvedValueOnce({
+      ok: true,
+      headers: { get: vi.fn().mockReturnValue("application/zip") },
+      blob: vi.fn().mockResolvedValue(new Blob(["zip"])),
+    });
+    const jszip = await import("jszip");
+    vi.spyOn(jszip.default, "loadAsync").mockResolvedValue(separatedZip() as any);
+
+    const resultPromise = separateTrack(mockFile, "UVR_MDXNET_KARA_2" as SeparationModel);
+    await vi.advanceTimersByTimeAsync(9000);
+    const result = await resultPromise;
+
+    expect(result.backing).toBeInstanceOf(Blob);
+    expect(fetch).toHaveBeenCalledTimes(5);
+  });
+
+  it("gives up on a server that stays away", async () => {
+    const mockFile = new File(["audio data"], "test.mp3", { type: "audio/mp3" });
+
+    (fetch as any).mockResolvedValueOnce({
+      ok: true,
+      headers: { get: vi.fn().mockReturnValue("application/json") },
+      json: vi.fn().mockResolvedValue({ finishedTrackURL: "/separated_track/abc" }),
+    });
+    (fetch as any).mockRejectedValue(new TypeError("NetworkError when attempting to fetch"));
+
+    const rejection = expect(
+      separateTrack(mockFile, "UVR_MDXNET_KARA_2" as SeparationModel),
+    ).rejects.toThrow("Lost contact with the server");
+    await vi.advanceTimersByTimeAsync(125_000);
+    await rejection;
   });
   it("stops polling a job that was called off", async () => {
     const mockFile = new File(["audio data"], "test.mp3", { type: "audio/mp3" });

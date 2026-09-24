@@ -39,6 +39,12 @@ export type SeparationProgressCallback = (progress: SeparationProgress) => void;
 
 const DEFAULT_POLL_INTERVAL_SECONDS = 30;
 
+// A redeploy takes the server away for a moment, and it picks the job up again when it is back.
+// Polling waits that out, up to this long without an answer.
+const RESTART_GRACE_SECONDS = 120;
+const UNAVAILABLE_RETRY_SECONDS = 3;
+const UNAVAILABLE_STATUSES = [502, 503, 504];
+
 // Statuses a job never moves out of, so polling one is over.
 const FINISHED_STATUSES = ["error", "cancelled"];
 
@@ -70,17 +76,42 @@ function sleep(seconds: number, signal?: AbortSignal): Promise<void> {
   });
 }
 
+/**
+ * Fetches a poll URL, or returns null when the server did not answer for itself.
+ * That is a network error, or a gateway answering while the server restarts.
+ */
+async function fetchPoll(url: string, signal?: AbortSignal): Promise<Response | null> {
+  try {
+    const response = await fetch(url, { cache: "no-cache", signal });
+    return UNAVAILABLE_STATUSES.includes(response.status) ? null : response;
+  } catch (error) {
+    if (signal?.aborted) {
+      throw error;
+    }
+    console.warn(`The server did not answer a poll of ${url}`, error);
+    return null;
+  }
+}
+
 async function pollForResult(
   url: string,
   onProgress?: SeparationProgressCallback,
   signal?: AbortSignal,
 ): Promise<Blob> {
+  let unavailableSince: number | null = null;
   while (true) {
     try {
-      const response = await fetch(url, {
-        cache: "no-cache",
-        signal,
-      });
+      const response = await fetchPoll(url, signal);
+      if (response === null) {
+        unavailableSince ??= Date.now();
+        if (Date.now() - unavailableSince > RESTART_GRACE_SECONDS * 1000) {
+          throw new Error("Lost contact with the server while separating the track.");
+        }
+        await sleep(UNAVAILABLE_RETRY_SECONDS, signal);
+        continue;
+      }
+      unavailableSince = null;
+
       // Job statuses always arrive as 200. Error bodies are JSON too,
       // so without this check a 404 would read as a job still in flight and be polled forever.
       if (response.status === 404) {
