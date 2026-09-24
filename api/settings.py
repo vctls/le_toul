@@ -39,6 +39,11 @@ PORT = int(os.getenv("PORT", "8000"))
 SEPARATOR_HOST = os.getenv("SEPARATOR_HOST", "")
 SEPARATOR_PORT = int(os.getenv("SEPARATOR_PORT", "8001"))
 
+# Credentials the separator server's /tasks routes require, sent as the
+# Modal-Key and Modal-Secret headers. Both empty lets every request through.
+SEPARATOR_SERVER_KEY = os.getenv("SEPARATOR_SERVER_KEY", "")
+SEPARATOR_SERVER_SECRET = os.getenv("SEPARATOR_SERVER_SECRET", "")
+
 # Remote Modal API separation
 SEPARATOR_MODAL_API_URL = os.getenv("SEPARATOR_MODAL_API_URL", "")
 
