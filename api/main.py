@@ -136,7 +136,7 @@ def perform_music_separation(
         cache_hash=cache_hash,
     )
 
-    accompaniment_path, vocal_path = music_separation.split_song(
+    separated = music_separation.split_song(
         song_file_path,
         song_files_dir,
         model_name=model_name,
@@ -152,7 +152,10 @@ def perform_music_separation(
 
     zip_path = zip_helper.create_zip_file(
         song_files_dir / "split_song.zip",
-        [(accompaniment_path, "accompaniment.wav"), (vocal_path, "vocals.wav")],
+        [
+            (separated.accompaniment, separated.accompaniment.name),
+            (separated.vocals, separated.vocals.name),
+        ],
     )
 
     logger.info("zip_complete", path=zip_path, cache_hash=cache_hash)

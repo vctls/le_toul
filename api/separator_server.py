@@ -93,29 +93,26 @@ async def separate_track(request: SeparationRequest):
         )
 
         try:
-            # Use split_song function with CLI method for GPU acceleration
-            accompaniment_file, vocals_file = split_song(
+            separated = split_song(
                 input_file, temp_path, request.model_name, method=SeparationMethod.API
             )
 
             logger.info(
                 "separation_completed",
-                vocals=vocals_file.name,
-                accompaniment=accompaniment_file.name,
+                vocals=separated.vocals.name,
+                accompaniment=separated.accompaniment.name,
             )
-
-            # Read and encode output files
-            vocals_data = vocals_file.read_bytes()
-            accompaniment_data = accompaniment_file.read_bytes()
 
             return SeparationResponse(
                 success=True,
-                vocals_base64=base64.b64encode(vocals_data).decode("utf-8"),
-                accompaniment_base64=base64.b64encode(accompaniment_data).decode(
+                vocals_base64=base64.b64encode(separated.vocals.read_bytes()).decode(
                     "utf-8"
                 ),
-                vocals_filename="vocals.wav",
-                accompaniment_filename="accompaniment.wav",
+                accompaniment_base64=base64.b64encode(
+                    separated.accompaniment.read_bytes()
+                ).decode("utf-8"),
+                vocals_filename=separated.vocals.name,
+                accompaniment_filename=separated.accompaniment.name,
             )
 
         except subprocess.CalledProcessError as e:
