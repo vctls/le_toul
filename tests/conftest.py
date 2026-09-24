@@ -20,3 +20,19 @@ def local_job_dir(tmp_path, monkeypatch):
     job_dir = tmp_path / "tuul_jobs"
     monkeypatch.setattr(settings, "LOCAL_JOB_DIR", job_dir)
     return job_dir
+
+
+@pytest.fixture(autouse=True)
+def fresh_separation_limit(monkeypatch):
+    """Give each test its own separation allowance, since every test posts from the same client."""
+    from api import main
+    from api.helpers.rate_limit import RateLimiter
+
+    limiter = RateLimiter(
+        [
+            (settings.SEPARATIONS_PER_HOUR, 60 * 60),
+            (settings.SEPARATIONS_PER_DAY, 24 * 60 * 60),
+        ]
+    )
+    monkeypatch.setattr(main, "separation_starts", limiter)
+    return limiter

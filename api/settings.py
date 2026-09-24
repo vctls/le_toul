@@ -58,6 +58,16 @@ SEPARATION_REMOTE_SECRET = os.getenv("SEPARATION_REMOTE_SECRET", "")
 MAX_UPLOAD_MB = int(os.getenv("MAX_UPLOAD_MB", "200"))
 MAX_UPLOAD_BYTES = MAX_UPLOAD_MB * 1_000_000
 
+# How many separations one client can start per hour and per day, 0 for no limit.
+# A song already separated or already running does not count.
+SEPARATIONS_PER_HOUR = int(os.getenv("SEPARATIONS_PER_HOUR", "10"))
+SEPARATIONS_PER_DAY = int(os.getenv("SEPARATIONS_PER_DAY", "30"))
+
+# The request header that holds the client's address, set by a proxy in front of
+# the app, such as X-Real-IP on Railway. Empty uses the connection's address.
+# Only a proxy that overwrites the header makes it trustworthy.
+CLIENT_IP_HEADER = os.getenv("CLIENT_IP_HEADER", "")
+
 # Where separation runs. One of the names in karaoke/separation_backends.py.
 SEPARATION_BACKEND = os.getenv("SEPARATION_BACKEND", "in_process")
 
