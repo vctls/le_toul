@@ -2,7 +2,7 @@
 FROM node:22-slim AS frontend-builder
 
 ARG TUUL_API_HOSTNAME=""
-ARG TUUL_DONATE_URL="https://ko-fi.com/incidentist"
+ARG TUUL_DONATE_URL=""
 
 ENV TUUL_API_HOSTNAME=$TUUL_API_HOSTNAME \
     TUUL_DONATE_URL=$TUUL_DONATE_URL

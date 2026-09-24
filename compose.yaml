@@ -15,7 +15,7 @@ services:
         # This container serves the frontend, so API calls are same-origin.
         # A non-empty value is baked into the bundle as a prefix on /separate_track.
         TUUL_API_HOSTNAME: ""
-        TUUL_DONATE_URL: ${TUUL_DONATE_URL:-https://ko-fi.com/incidentist}
+        TUUL_DONATE_URL: ${TUUL_DONATE_URL:-}
     image: the-tuul:latest
     env_file:
       - path: .env

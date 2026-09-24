@@ -13,7 +13,7 @@ services:
     command: ["npm", "run", "dev", "--", "--host", "0.0.0.0"]
     environment:
       TUUL_API_HOSTNAME: ""
-      TUUL_DONATE_URL: ${TUUL_DONATE_URL-https://ko-fi.com/incidentist}
+      TUUL_DONATE_URL: ${TUUL_DONATE_URL-}
       TUUL_API_PROXY: http://api:8000
       VITE_HOST: 0.0.0.0
       # Force IPv4 lookups. The Docker embedded DNS resolver intermittently
