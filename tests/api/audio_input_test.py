@@ -84,7 +84,7 @@ def test_separation_reads_the_converted_song(tmp_path):
         assert soundfile.info(path).format == "FLAC"
 
     with mock.patch("audio_separator.separator.Separator") as separator:
-        separator.return_value.separate.side_effect = separate
+        separator.return_value._separate_file.side_effect = separate
         split_song(
             song,
             tmp_path,

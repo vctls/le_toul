@@ -117,7 +117,9 @@ def _split_song_api(
         separator.load_model(model_name)
 
         progress.stage(separation_progress.READING_STAGE)
-        separator.separate(str(songfile), output_names)
+        # separate() logs and swallows any exception, a cancellation included,
+        # and returns as if it had written the stems.
+        separator._separate_file(str(songfile), output_names)
 
     return get_output_paths(song_dir)
 
