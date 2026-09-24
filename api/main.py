@@ -354,6 +354,7 @@ async def separate_track(
         if (
             status
             and status.get("status") == job_store.STATUS_PROCESSING
+            and not status.get("cancelRequested")
             and not job_store.is_stale(status)
         ):
             # Already being separated. Point the client at the running job rather than doing the same work twice.
@@ -362,7 +363,8 @@ async def separate_track(
                 finishedTrackURL=job_store.poll_url(cache_hash)
             )
 
-        # Anything else (a failed job, or one whose worker died) falls through to a fresh attempt,
+        # Anything else (a failed or cancelled job, or one whose worker died)
+        # falls through to a fresh attempt,
         # so a single failure does not block the song forever.
         job_store.prune_expired_results()
 
