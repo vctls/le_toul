@@ -1,4 +1,4 @@
-import { extensionForBlob, mimeForExtension, separateTrack } from "./audio";
+import { extensionForBlob, mimeForExtension, resumeSeparation, separateTrack } from "./audio";
 import { SeparationModel } from "@/types";
 
 function zipEntry(name: string) {
@@ -400,6 +400,43 @@ describe("Audio Library", () => {
     await expect(separateTrack(mockFile, "UVR_MDXNET_KARA_2" as SeparationModel)).rejects.toThrow(
       "500",
     );
+  });
+
+  it("hands over the poll URL before polling it", async () => {
+    const mockFile = new File(["audio data"], "test.mp3", { type: "audio/mp3" });
+    (fetch as any).mockResolvedValueOnce({
+      ok: true,
+      headers: { get: vi.fn().mockReturnValue("application/json") },
+      json: vi.fn().mockResolvedValue({ finishedTrackURL: "/separated_track/abc" }),
+    });
+    (fetch as any).mockReturnValueOnce(new Promise(() => {}));
+    const onSubmitted = vi.fn();
+
+    separateTrack(
+      mockFile,
+      "UVR_MDXNET_KARA_2" as SeparationModel,
+      undefined,
+      undefined,
+      onSubmitted,
+    );
+    await vi.waitFor(() => expect(fetch).toHaveBeenCalledTimes(2));
+
+    expect(onSubmitted).toHaveBeenCalledWith("/separated_track/abc");
+  });
+
+  it("resumes polling a job it did not submit", async () => {
+    (fetch as any).mockResolvedValueOnce({
+      ok: true,
+      headers: { get: vi.fn().mockReturnValue("application/zip") },
+      blob: vi.fn().mockResolvedValue(new Blob(["zip"])),
+    });
+    const jszip = await import("jszip");
+    vi.spyOn(jszip.default, "loadAsync").mockResolvedValue(separatedZip() as any);
+
+    const result = await resumeSeparation("/separated_track/abc");
+
+    expect(fetch).toHaveBeenCalledWith("/separated_track/abc", expect.anything());
+    expect(result.vocals).toBeInstanceOf(Blob);
   });
 
   it("waits out a server that is restarting", async () => {

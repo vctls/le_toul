@@ -1,7 +1,7 @@
 import { defineStore } from "pinia";
 import { computed, ref, shallowRef, watch } from "vue";
 
-import { separateTrack } from "@/lib/audio";
+import { resumeSeparation, separateTrack, SeparationProgressCallback } from "@/lib/audio";
 import { SeparationModel } from "@/types";
 import jsmediatags from "@/jsmediatags.min.js";
 import { clearPersistence, persistBlobRef, persistJsonRef } from "@/lib/persistence";
@@ -12,6 +12,7 @@ const MEDIA_LOCALSTORAGE_KEYS = [
   "media.songTitle",
   "media.songArtist",
   "media.songDuration",
+  "media.runningSeparation",
 ];
 const MEDIA_IDB_KEYS = [
   "media.songFile",
@@ -35,6 +36,13 @@ export interface SeparatedTrack {
 export interface SeparationOutcome {
   status: "succeeded" | "failed" | "cancelled";
   durationSeconds: number;
+}
+
+// A separation job the backend is running for this session, which a reload follows again.
+interface RunningSeparation {
+  pollUrl: string;
+  // When the separation was asked for, in milliseconds since the epoch.
+  requestedAt: number;
 }
 
 export const BACKING_VOCALS_SEPARATOR_MODEL = "UVR_MDXNET_KARA_2.onnx";
@@ -81,6 +89,7 @@ export const useMediaStore = defineStore("media", () => {
   const separationStage = ref<string | null>(null);
   const separationSongsAhead = ref<number | null>(null);
   const lastSeparation = ref<SeparationOutcome | null>(null);
+  const runningSeparation = ref<RunningSeparation | null>(null);
 
   // Held outside the store state: Vue would proxy the controller, whose methods need the instance itself.
   let activeSeparation: AbortController | null = null;
@@ -105,31 +114,50 @@ export const useMediaStore = defineStore("media", () => {
     if (pendingSeparation) {
       return pendingSeparation;
     }
+    const requestedAt = Date.now();
+    return follow(requestedAt, (onProgress, signal) =>
+      separateTrack(inputData, modelName, onProgress, signal, (pollUrl) => {
+        runningSeparation.value = { pollUrl, requestedAt };
+      }),
+    );
+  }
+
+  // Follows the job a previous page left running, if there is one.
+  function resumeRunningSeparation() {
+    const running = runningSeparation.value;
+    if (!running || pendingSeparation) {
+      return;
+    }
+    follow(running.requestedAt, (onProgress, signal) =>
+      resumeSeparation(running.pollUrl, onProgress, signal),
+    );
+  }
+
+  // Tracks a separation through to its outcome, whichever way it was started.
+  function follow(
+    requestedAt: number,
+    run: (onProgress: SeparationProgressCallback, signal: AbortSignal) => Promise<SeparatedTrack>,
+  ): Promise<SeparatedTrack | undefined> {
     const abort = new AbortController();
     activeSeparation = abort;
     isProcessing.value = true;
     error.value = null;
-    separationRequestedAt = Date.now();
+    separationRequestedAt = requestedAt;
     separationStartTime.value = new Date();
     separationProgress.value = null;
     separationStage.value = null;
     separationSongsAhead.value = null;
     pendingSeparation = (async () => {
       try {
-        separatedTrack.value = await separateTrack(
-          inputData,
-          modelName,
-          ({ progress, stage, songsAhead }) => {
-            // The elapsed-time estimate counts from when the song left the line, not from submission.
-            if (separationSongsAhead.value !== null && songsAhead === null) {
-              separationStartTime.value = new Date();
-            }
-            separationProgress.value = progress;
-            separationStage.value = stage;
-            separationSongsAhead.value = songsAhead;
-          },
-          abort.signal,
-        );
+        separatedTrack.value = await run(({ progress, stage, songsAhead }) => {
+          // The elapsed-time estimate counts from when the song left the line, not from submission.
+          if (separationSongsAhead.value !== null && songsAhead === null) {
+            separationStartTime.value = new Date();
+          }
+          separationProgress.value = progress;
+          separationStage.value = stage;
+          separationSongsAhead.value = songsAhead;
+        }, abort.signal);
         recordOutcome("succeeded");
         return separatedTrack.value;
       } catch (err) {
@@ -154,6 +182,7 @@ export const useMediaStore = defineStore("media", () => {
   function clearSeparationState() {
     activeSeparation = null;
     pendingSeparation = null;
+    runningSeparation.value = null;
     isProcessing.value = false;
     separationProgress.value = null;
     separationStage.value = null;
@@ -317,6 +346,7 @@ export const useMediaStore = defineStore("media", () => {
   persistJsonRef("media.songTitle", songTitle);
   persistJsonRef("media.songArtist", songArtist);
   persistJsonRef("media.songDuration", songDuration);
+  persistJsonRef("media.runningSeparation", runningSeparation);
 
   // Blobs → IndexedDB (async load)
   Promise.all([
@@ -330,6 +360,7 @@ export const useMediaStore = defineStore("media", () => {
     persistBlobRef("media.settingsFile", settingsFile),
   ]).finally(() => {
     isHydrating = false;
+    resumeRunningSeparation();
   });
 
   async function clearSession(): Promise<void> {

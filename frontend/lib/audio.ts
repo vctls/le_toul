@@ -202,11 +202,16 @@ async function processZipResponse(zipBlob: Blob): Promise<TrackSeparationResult>
   return { backing: await stemBlob(accompanimentEntry), vocals: await stemBlob(vocalsEntry) };
 }
 
+/**
+ * Separates a song on the backend, resolving with its stems.
+ * `onSubmitted` gets the URL the job is polled at, which `resumeSeparation` can follow again later.
+ */
 export async function separateTrack(
   songFile: File,
   modelName: SeparationModel,
   onProgress?: SeparationProgressCallback,
   signal?: AbortSignal,
+  onSubmitted?: (pollUrl: string) => void,
 ): Promise<TrackSeparationResult> {
   const formData = new FormData();
   formData.append("songFile", songFile);
@@ -231,6 +236,7 @@ export async function separateTrack(
     // The endpoint can return either a JSON response with a URL to poll for results or a direct ZIP file response
     if (contentType?.includes("application/json")) {
       const jsonResponse: PollResponse = await response.json();
+      onSubmitted?.(jsonResponse.finishedTrackURL);
       const zipBlob = await pollForResult(jsonResponse.finishedTrackURL, onProgress, signal);
       return await processZipResponse(zipBlob);
     } else {
@@ -245,4 +251,16 @@ export async function separateTrack(
   }
 }
 
-export default { separateTrack };
+/**
+ * Follows a separation job submitted earlier, such as before the page was reloaded.
+ */
+export async function resumeSeparation(
+  pollUrl: string,
+  onProgress?: SeparationProgressCallback,
+  signal?: AbortSignal,
+): Promise<TrackSeparationResult> {
+  const zipBlob = await pollForResult(pollUrl, onProgress, signal);
+  return await processZipResponse(zipBlob);
+}
+
+export default { separateTrack, resumeSeparation };
