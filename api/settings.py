@@ -53,6 +53,11 @@ SEPARATION_REMOTE_URL = os.getenv("SEPARATION_REMOTE_URL", "")
 SEPARATION_REMOTE_KEY = os.getenv("SEPARATION_REMOTE_KEY", "")
 SEPARATION_REMOTE_SECRET = os.getenv("SEPARATION_REMOTE_SECRET", "")
 
+# The largest song /separate_track accepts, in megabytes. The upload is held in
+# memory, so this bounds what one request can take.
+MAX_UPLOAD_MB = int(os.getenv("MAX_UPLOAD_MB", "200"))
+MAX_UPLOAD_BYTES = MAX_UPLOAD_MB * 1_000_000
+
 # Where separation runs. One of the names in karaoke/separation_backends.py.
 SEPARATION_BACKEND = os.getenv("SEPARATION_BACKEND", "in_process")
 
