@@ -9,15 +9,20 @@ Progress is part of the interface. A backend that cannot report a fraction
 still reports its stage, and the client falls back to an elapsed-time estimate.
 """
 
+import contextlib
 import json
 import os
 import shutil
 import subprocess
 import sys
 import tempfile
+import time
+from collections.abc import Callable
 from pathlib import Path
 from typing import IO, Protocol
+from urllib.parse import quote
 
+import httpx
 import structlog
 
 from api import settings
@@ -32,6 +37,9 @@ from api.karaoke.separation_progress import ProgressCallback
 logger = structlog.get_logger(__name__)
 
 PROGRESS_FD_ENV = "TUUL_PROGRESS_FD"
+
+# Matches the interval the browser polls the job store at.
+REMOTE_POLL_INTERVAL_SECONDS = 3
 
 _WORKER_MODULE = "api.karaoke.separation_worker"
 _REPO_ROOT = Path(__file__).resolve().parents[2]
@@ -250,6 +258,170 @@ class TcpBackend:
         )
 
 
+class RemoteBackend:
+    """Separates on a host that speaks the job protocol of api/separation_tasks.py.
+
+    The song is uploaded, the task polled until it ends, and the stems
+    downloaded under the names the server gives them. Every poll passes through
+    on_progress, whose cancel check is the only place a cancelled job unwinds,
+    and the remote task is cancelled on the way out.
+    """
+
+    name = "remote"
+
+    # A network failure can be a blip on the way to a GPU host, so only a run of
+    # them fails the job. At the poll interval, this is about a minute.
+    MAX_CONSECUTIVE_POLL_FAILURES = 20
+
+    def __init__(self, client: httpx.Client | None = None):
+        self._client = client
+
+    def separate(
+        self,
+        songfile: Path,
+        song_dir: Path,
+        model_name: str,
+        on_progress: ProgressCallback | None = None,
+    ) -> SeparationResult:
+        report = on_progress or (lambda progress, stage: None)
+        # An injected client belongs to the caller, so only one made here is closed.
+        owned = (
+            contextlib.nullcontext(self._client) if self._client else _remote_client()
+        )
+        with owned as client:
+            report(None, separation_progress.UPLOADING_STAGE)
+            try:
+                with songfile.open("rb") as song:
+                    response = client.post(
+                        "/tasks",
+                        data={"modelName": model_name},
+                        files={"songFile": (songfile.name, song)},
+                    )
+            except httpx.TransportError as e:
+                raise RuntimeError(
+                    f"The separation service at {client.base_url} is unreachable: {e}"
+                ) from e
+            _raise_for_status(response)
+            task_id = response.json()["task_id"]
+            logger.info("remote_task_submitted", task_id=task_id)
+
+            try:
+                status = self._wait_for(client, task_id, report)
+            except BaseException:
+                _cancel_quietly(client, task_id)
+                raise
+
+            report(None, separation_progress.DOWNLOADING_STEMS_STAGE)
+            stems = {
+                role: _download(client, task_id, name, song_dir)
+                for role, name in status["files"].items()
+            }
+            return SeparationResult(
+                accompaniment=stems["accompaniment"], vocals=stems["vocals"]
+            )
+
+    def _wait_for(
+        self, client: httpx.Client, task_id: str, report: ProgressCallback
+    ) -> dict:
+        failures = 0
+        while True:
+            try:
+                response = client.get(f"/tasks/{task_id}")
+            except httpx.TransportError as e:
+                failures += 1
+                logger.warning("remote_poll_failed", task_id=task_id, error=str(e))
+                if failures >= self.MAX_CONSECUTIVE_POLL_FAILURES:
+                    raise RuntimeError(
+                        f"The separation service stopped answering: {e}"
+                    ) from e
+                time.sleep(REMOTE_POLL_INTERVAL_SECONDS)
+                continue
+            failures = 0
+
+            if response.status_code == 404:
+                raise RuntimeError(
+                    "The separation service no longer knows this task. "
+                    "It has probably restarted."
+                )
+            _raise_for_status(response)
+            status = response.json()
+
+            if status["status"] == "done":
+                return status
+            if status["status"] == "error":
+                raise RuntimeError(status["error"] or "The separation failed.")
+            if status["status"] == "cancelled":
+                raise RuntimeError("The separation service cancelled the task.")
+
+            if status["status"] == "queued":
+                report(None, separation_progress.WAITING_FOR_GPU_STAGE)
+            else:
+                report(
+                    status["progress"],
+                    status["stage"] or separation_progress.LOADING_STAGE,
+                )
+            time.sleep(REMOTE_POLL_INTERVAL_SECONDS)
+
+
+def _remote_client() -> httpx.Client:
+    headers = {}
+    if settings.SEPARATION_REMOTE_KEY:
+        headers = {
+            "Modal-Key": settings.SEPARATION_REMOTE_KEY,
+            "Modal-Secret": settings.SEPARATION_REMOTE_SECRET,
+        }
+    # Every request returns at once except the transfers, and the timeout applies to
+    # each read and write rather than to a whole transfer.
+    return httpx.Client(
+        base_url=settings.SEPARATION_REMOTE_URL,
+        headers=headers,
+        timeout=httpx.Timeout(60.0),
+    )
+
+
+def _raise_for_status(response: httpx.Response) -> None:
+    if response.status_code == 401:
+        raise RuntimeError(
+            "The separation service rejected this server's credentials. "
+            "Check SEPARATION_REMOTE_KEY and SEPARATION_REMOTE_SECRET."
+        )
+    if response.is_error:
+        try:
+            detail = response.json().get("detail", response.text)
+        except ValueError:
+            detail = response.text
+        raise RuntimeError(
+            f"The separation service answered {response.status_code}: {detail}"
+        )
+
+
+def _download(client: httpx.Client, task_id: str, name: str, song_dir: Path) -> Path:
+    # The name comes from the server, and only its last component is trusted.
+    destination = song_dir / Path(name).name
+    with client.stream(
+        "GET", f"/tasks/{task_id}/files/{quote(name, safe='')}"
+    ) as response:
+        if response.is_error:
+            response.read()
+        _raise_for_status(response)
+        with destination.open("wb") as f:
+            for chunk in response.iter_bytes():
+                f.write(chunk)
+    return destination
+
+
+def _cancel_quietly(client: httpx.Client, task_id: str) -> None:
+    """Ask the server to stop a task this side has given up on.
+
+    Best effort: the job is already ending, and a failure here must not hide why.
+    """
+    try:
+        client.post(f"/tasks/{task_id}/cancel")
+        logger.info("remote_task_cancelled", task_id=task_id)
+    except httpx.HTTPError:
+        logger.warning("remote_task_cancel_failed", task_id=task_id)
+
+
 class PassthroughBackend:
     """Copies the input to both stems, separating nothing.
 
@@ -280,15 +452,30 @@ _BACKENDS: dict[str, type[SeparationBackend]] = {
     SubprocessBackend.name: SubprocessBackend,
     ModalBackend.name: ModalBackend,
     TcpBackend.name: TcpBackend,
+    RemoteBackend.name: RemoteBackend,
     PassthroughBackend.name: PassthroughBackend,
 }
 
-_REQUIRED_SETTING = {
-    ModalBackend.name: (
-        "SEPARATOR_MODAL_API_URL",
-        lambda: settings.SEPARATOR_MODAL_API_URL,
-    ),
-    TcpBackend.name: ("SEPARATOR_HOST", lambda: settings.SEPARATOR_HOST),
+
+def _requires(setting: str) -> Callable[[], str | None]:
+    return lambda: (
+        None if getattr(settings, setting) else f"requires {setting} to be set"
+    )
+
+
+def _check_remote() -> str | None:
+    if not settings.SEPARATION_REMOTE_URL:
+        return "requires SEPARATION_REMOTE_URL to be set"
+    if bool(settings.SEPARATION_REMOTE_KEY) != bool(settings.SEPARATION_REMOTE_SECRET):
+        return "requires SEPARATION_REMOTE_KEY and SEPARATION_REMOTE_SECRET to be set together"
+    return None
+
+
+# Each returns what is wrong with the backend's configuration, or None.
+_CHECKS: dict[str, Callable[[], str | None]] = {
+    ModalBackend.name: _requires("SEPARATOR_MODAL_API_URL"),
+    TcpBackend.name: _requires("SEPARATOR_HOST"),
+    RemoteBackend.name: _check_remote,
 }
 
 
@@ -307,9 +494,9 @@ def get_backend(name: str | None = None) -> SeparationBackend:
             f"Unknown SEPARATION_BACKEND {name!r}. Available: {sorted(_BACKENDS)}"
         ) from None
 
-    required = _REQUIRED_SETTING.get(name)
-    if required and not required[1]():
-        setting_name = required[0]
-        raise ValueError(f"SEPARATION_BACKEND={name} requires {setting_name} to be set")
+    check = _CHECKS.get(name)
+    problem = check() if check else None
+    if problem:
+        raise ValueError(f"SEPARATION_BACKEND={name} {problem}")
 
     return backend_class()

@@ -35,6 +35,7 @@ from .helpers import (
 )
 from .helpers.youtube_helper import YouTubeException
 from .karaoke import separation_backends, separation_progress
+from .karaoke.music_separation import AVAILABLE_MODELS
 from .vite_assets import vite_assets
 
 # Configure logging
@@ -289,6 +290,11 @@ async def separate_track(
     if not songFile or not modelName:
         raise HTTPException(
             status_code=400, detail="songFile and modelName are required"
+        )
+    # A remote backend would otherwise upload the whole song before the name was checked.
+    if modelName not in AVAILABLE_MODELS:
+        raise HTTPException(
+            status_code=400, detail=f"Unknown separation model {modelName}"
         )
 
     # Read file content

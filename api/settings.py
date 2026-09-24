@@ -47,6 +47,12 @@ SEPARATOR_SERVER_SECRET = os.getenv("SEPARATOR_SERVER_SECRET", "")
 # Remote Modal API separation
 SEPARATOR_MODAL_API_URL = os.getenv("SEPARATOR_MODAL_API_URL", "")
 
+# The host the remote backend sends songs to, which speaks the /tasks protocol,
+# and the credentials it sends as the Modal-Key and Modal-Secret headers.
+SEPARATION_REMOTE_URL = os.getenv("SEPARATION_REMOTE_URL", "")
+SEPARATION_REMOTE_KEY = os.getenv("SEPARATION_REMOTE_KEY", "")
+SEPARATION_REMOTE_SECRET = os.getenv("SEPARATION_REMOTE_SECRET", "")
+
 # Where separation runs. One of the names in karaoke/separation_backends.py.
 SEPARATION_BACKEND = os.getenv("SEPARATION_BACKEND", "in_process")
 
