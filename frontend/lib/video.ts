@@ -2,6 +2,7 @@ import type { LogEvent } from "@ffmpeg/ffmpeg";
 import { FFmpeg } from "@ffmpeg/ffmpeg";
 import { fetchFile, toBlobURL } from "@ffmpeg/util";
 
+import { RenderDiagnostics } from "@/lib/renderDiagnostics";
 import { KaraokeOptions } from "@/lib/timing";
 import jszip from "jszip";
 
@@ -176,9 +177,11 @@ async function runFfmpeg(
   args: string[],
   step: RenderStep,
   progress: RenderProgress | null,
+  diagnostics: RenderDiagnostics,
   signal?: AbortSignal,
 ): Promise<void> {
   signal?.throwIfAborted();
+  diagnostics.mark(step.phrase);
   progress?.begin(step);
   const code = await ffmpeg.exec(args);
   if (code !== 0) {
@@ -304,32 +307,46 @@ async function createVideo({
   const baseURL = "https://cdn.jsdelivr.net/npm/@ffmpeg/core-mt@0.12.9/dist/esm";
   // The root worker needs to be served from the same origin as the page to enable SharedArrayBuffer
   const workerBaseUrl = window.location.origin + "/static/ffmpeg";
+  const classWorkerURL = `${workerBaseUrl}/worker.js`;
   const ffmpeg = new FFmpeg();
 
-  // Download most ffmpeg files to local blobs
-  const [coreURL, wasmURL, workerURL] = await Promise.all([
-    toBlobURL(`${baseURL}/ffmpeg-core.js`, "text/javascript").catch((error) => {
-      console.error(`Failed to fetch FFmpeg core from: ${baseURL}/ffmpeg-core.js`, error);
-      throw error;
-    }),
-    toBlobURL(`${baseURL}/ffmpeg-core.wasm`, "application/wasm").catch((error) => {
-      console.error(`Failed to fetch FFmpeg WASM from: ${baseURL}/ffmpeg-core.wasm`, error);
-      throw error;
-    }),
-    toBlobURL(`${baseURL}/ffmpeg-core.worker.js`, "text/javascript").catch((error) => {
-      console.error(`Failed to fetch FFmpeg worker from: ${baseURL}/ffmpeg-core.worker.js`, error);
-      throw error;
-    }),
-  ]);
-  await ffmpeg.load({ coreURL, wasmURL, workerURL, classWorkerURL: `${workerBaseUrl}/worker.js` });
-
-  ffmpeg.on("log", ({ message }) => console.log("ffmpeg output", message));
+  const coreFiles = {
+    core: `${baseURL}/ffmpeg-core.js`,
+    wasm: `${baseURL}/ffmpeg-core.wasm`,
+    worker: `${baseURL}/ffmpeg-core.worker.js`,
+  };
+  const diagnostics = new RenderDiagnostics([...Object.values(coreFiles), classWorkerURL]);
+  diagnostics.start();
 
   // The core does not come back to JS mid-run,
   // so killing its worker is the only way to stop an encode that is already going.
   const terminate = () => ffmpeg.terminate();
   signal?.addEventListener("abort", terminate, { once: true });
   try {
+    diagnostics.mark("downloading the FFmpeg core");
+    // Download most ffmpeg files to local blobs
+    const [coreURL, wasmURL, workerURL] = await Promise.all([
+      toBlobURL(coreFiles.core, "text/javascript").catch((error) => {
+        console.error(`Failed to fetch FFmpeg core from: ${coreFiles.core}`, error);
+        throw error;
+      }),
+      toBlobURL(coreFiles.wasm, "application/wasm").catch((error) => {
+        console.error(`Failed to fetch FFmpeg WASM from: ${coreFiles.wasm}`, error);
+        throw error;
+      }),
+      toBlobURL(coreFiles.worker, "text/javascript").catch((error) => {
+        console.error(`Failed to fetch FFmpeg worker from: ${coreFiles.worker}`, error);
+        throw error;
+      }),
+    ]);
+    signal?.throwIfAborted();
+    diagnostics.mark("loading FFmpeg");
+    await ffmpeg.load({ coreURL, wasmURL, workerURL, classWorkerURL });
+
+    ffmpeg.on("log", ({ message }) => console.log("ffmpeg output", message));
+    ffmpeg.on("log", diagnostics.handleLog);
+    diagnostics.mark("writing the input files");
+
     // Planned before anything runs, so the bar can weigh the whole job rather than restart
     // at each run.
     const alternates = isMkv ? usableAlternates(alternateTracks) : [];
@@ -374,7 +391,7 @@ async function createVideo({
       audioDelayMs,
       metadata,
     );
-    await runFfmpeg(ffmpeg, ffmpegParams, renderStep, progress, signal);
+    await runFfmpeg(ffmpeg, ffmpegParams, renderStep, progress, diagnostics, signal);
 
     if (!isMkv) {
       return (await ffmpeg.readFile(RENDERED_VIDEO_FILE)) as Uint8Array;
@@ -390,11 +407,19 @@ async function createVideo({
         getAlternateTrackParams(inputFile, audioDelayMs, fileName),
         trackSteps[index],
         progress,
+        diagnostics,
         signal,
       );
       encoded.push({ fileName, title });
     }
-    await runFfmpeg(ffmpeg, getMkvMuxParams(encoded, metadata), muxStep, progress, signal);
+    await runFfmpeg(
+      ffmpeg,
+      getMkvMuxParams(encoded, metadata),
+      muxStep,
+      progress,
+      diagnostics,
+      signal,
+    );
 
     return (await ffmpeg.readFile(MKV_FILE)) as Uint8Array;
   } catch (error) {
@@ -402,6 +427,7 @@ async function createVideo({
     signal?.throwIfAborted();
     throw error;
   } finally {
+    diagnostics.stop();
     signal?.removeEventListener("abort", terminate);
     // Each run loads a core of its own, so without this every one leaks a worker holding 30-odd MB of wasm.
     ffmpeg.terminate();

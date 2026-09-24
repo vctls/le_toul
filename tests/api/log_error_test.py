@@ -84,3 +84,44 @@ def test_log_error_empty_data():
     mock_logger.error.assert_called_once_with(
         "Client error: <no message>", extra=expected_data
     )
+
+
+def test_log_error_keeps_undeclared_fields():
+    """Test LogError view passes client context through to the log."""
+    client = TestClient(app)
+
+    with mock.patch("api.main.logger") as mock_logger:
+        response = client.post(
+            "/log_error",
+            json={"message": "Boom", "userAgent": "Chrome", "render": {"stage": "x"}},
+        )
+
+    assert response.status_code == 200
+    extra = mock_logger.error.call_args.kwargs["extra"]
+    assert extra["userAgent"] == "Chrome"
+    assert extra["render"] == {"stage": "x"}
+
+
+def test_log_error_uses_requested_level():
+    """Test LogError view logs diagnostics at the level the client asks for."""
+    client = TestClient(app)
+
+    with mock.patch("api.main.logger") as mock_logger:
+        response = client.post(
+            "/log_error", json={"level": "warning", "message": "Render stalled"}
+        )
+
+    assert response.status_code == 200
+    mock_logger.error.assert_not_called()
+    mock_logger.warning.assert_called_once()
+    assert mock_logger.warning.call_args.args == ("Client warning: Render stalled",)
+    assert "level" not in mock_logger.warning.call_args.kwargs["extra"]
+
+
+def test_log_error_rejects_unknown_level():
+    """Test LogError view refuses a level it has no logger method for."""
+    client = TestClient(app)
+
+    response = client.post("/log_error", json={"level": "critical"})
+
+    assert response.status_code == 422

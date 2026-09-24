@@ -1,5 +1,6 @@
 import tempfile
 from pathlib import Path
+from typing import Literal
 
 import structlog
 from fastapi import (
@@ -21,7 +22,7 @@ from fastapi.responses import FileResponse, JSONResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from markupsafe import Markup
-from pydantic import BaseModel
+from pydantic import BaseModel, ConfigDict
 
 from . import app_logging, settings
 from .helpers import cloud_storage, job_store, youtube_helper, zip_helper
@@ -63,6 +64,10 @@ templates = Jinja2Templates(directory=settings.TEMPLATES_DIR)
 
 # Pydantic models
 class LogErrorRequest(BaseModel):
+    # Clients send context beyond these fields, such as the browser and render diagnostics.
+    model_config = ConfigDict(extra="allow")
+
+    level: Literal["info", "warning", "error"] = "error"
     message: str | None = None
     stack: str | None = None
     url: str | None = None
@@ -430,10 +435,11 @@ async def download_youtube_video(
 
 @app.post("/log_error")
 async def log_error(error_data: LogErrorRequest):
-    """Log client errors."""
-    logger.error(
-        f"Client error: {error_data.message or '<no message>'}",
-        extra=error_data.model_dump(),
+    """Log client errors and diagnostics."""
+    log = getattr(logger, error_data.level)
+    log(
+        f"Client {error_data.level}: {error_data.message or '<no message>'}",
+        extra=error_data.model_dump(exclude={"level"}),
     )
     return {"success": True}
 
