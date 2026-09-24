@@ -27,8 +27,7 @@ from pydantic import BaseModel, ConfigDict
 from . import app_logging, settings
 from .helpers import cloud_storage, job_store, youtube_helper, zip_helper
 from .helpers.youtube_helper import YouTubeException
-from .karaoke import music_separation, separation_progress
-from .karaoke.music_separation import SeparationMethod
+from .karaoke import separation_backends, separation_progress
 from .vite_assets import vite_assets
 
 # Configure logging
@@ -124,26 +123,18 @@ def perform_music_separation(
     with song_file_path.open("wb") as f:
         f.write(song_content)
 
-    separation_method = (
-        SeparationMethod.MODAL_API
-        if settings.SEPARATOR_MODAL_API_URL
-        else SeparationMethod.API
-    )
+    backend = separation_backends.get_backend()
 
     logger.info(
         "separation_started",
-        method=separation_method,
+        backend=backend.name,
         cache_hash=cache_hash,
     )
 
-    separated = music_separation.split_song(
+    separated = backend.separate(
         song_file_path,
         song_files_dir,
-        model_name=model_name,
-        method=separation_method,
-        host=settings.SEPARATOR_HOST,
-        port=settings.SEPARATOR_PORT,
-        modal_api_url=settings.SEPARATOR_MODAL_API_URL,
+        model_name,
         on_progress=on_progress,
     )
 

@@ -9,6 +9,7 @@
 services:
   api:
     environment:
+      SEPARATION_BACKEND: tcp
       SEPARATOR_HOST: separator
       SEPARATOR_PORT: 8001
     depends_on:
