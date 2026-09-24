@@ -109,6 +109,29 @@ def test_split_song_api_method_raises_what_the_separation_raised(
             )
 
 
+@pytest.mark.parametrize("fails", [False, True])
+def test_split_song_api_method_releases_the_gpu_memory_torch_kept(
+    audio_file, temp_output_dir, fails
+):
+    torch = mock.Mock()
+    torch.cuda.is_available.return_value = True
+    with (
+        mock.patch.dict("sys.modules", {"torch": torch}),
+        mock.patch("audio_separator.separator.Separator") as mock_separator,
+    ):
+        if fails:
+            mock_separator.return_value._separate_file.side_effect = RuntimeError()
+
+        try:
+            split_song(
+                audio_file, temp_output_dir, DEFAULT_MODEL, method=SeparationMethod.API
+            )
+        except RuntimeError:
+            assert fails
+
+    torch.cuda.empty_cache.assert_called_once()
+
+
 def test_split_song_both_methods_same_output(audio_file, temp_output_dir):
     """Test that both methods produce the same output structure."""
     with mock.patch("audio_separator.separator.Separator") as mock_separator:
