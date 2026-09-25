@@ -63,8 +63,8 @@
       @confirm="startOver"
     >
       <p>
-        This will discard the current song, tracks, lyrics and timings. Settings will be kept. Save
-        anything you want to keep first.
+        This will discard the current song, tracks, lyrics, timings and uploaded font. Other
+        settings will be kept. Save anything you want to keep first.
       </p>
       <source-file-download-links
         class="mt-4"
@@ -72,6 +72,7 @@
         :song="mediaStore.songFile ?? undefined"
         :lyrics="lyricsStore.lyricText"
         :timings="timingsStore.hasAnyTimings ? timingsStore.timingsFile : undefined"
+        :font="settingsStore.customFont ?? undefined"
         :vocals="mediaStore.separatedTrack?.vocals"
         :accompaniment="mediaStore.separatedTrack?.backing"
       />
@@ -95,6 +96,7 @@ import SourceFileDownloadLinks from "@/components/SourceFileDownloadLinks.vue";
 import { useMediaStore } from "@/stores/media";
 import { useLyricsStore } from "@/stores/lyrics";
 import { useTimingsStore } from "@/stores/timings";
+import { useSettingsStore } from "@/stores/settings";
 import { useHelpStore } from "@/stores/help";
 import { useThemeStore } from "@/stores/theme";
 import { ThemePreference } from "@/lib/colorScheme";
@@ -123,6 +125,7 @@ export default defineComponent({
       mediaStore: useMediaStore(),
       lyricsStore: useLyricsStore(),
       timingsStore: useTimingsStore(),
+      settingsStore: useSettingsStore(),
       helpStore: useHelpStore(),
       themeStore: useThemeStore(),
       ...useTabRoute(),
@@ -153,6 +156,7 @@ export default defineComponent({
       this.timingsStore.clear();
       this.lyricsStore.clear();
       await this.mediaStore.clearSession();
+      await this.settingsStore.setCustomFont(null);
     },
   },
 });
