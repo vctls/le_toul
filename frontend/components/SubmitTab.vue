@@ -374,12 +374,10 @@ import VoiceStyleSettings from "@/components/VoiceStyleSettings.vue";
 import ColorField from "@/components/ColorField.vue";
 import FileUpload from "@/components/FileUpload.vue";
 import jszip from "jszip";
-import yaml from "js-yaml";
 import video from "@/lib/video";
 import { CreationPhase } from "@/types";
 import { useMediaStore } from "@/stores/media";
 import { useSettingsStore, VideoSettings } from "@/stores/settings";
-import { isEmptyOverride, serializeVoiceStyle } from "@/lib/voiceStyle";
 import { useTimingsStore } from "@/stores/timings";
 import { useLyricsStore } from "@/stores/lyrics";
 import { abortable } from "@/lib/util";
@@ -573,36 +571,7 @@ export default defineComponent({
       return this.timingsStore.timingsFile;
     },
     settingsYaml(): string {
-      // Exports the picked font, not the uploaded one:
-      // a settings file naming a font it can't carry would no longer load back.
-      const { vocalSeparationModel, color, ...rest } = this.videoOptions;
-      const styledVoices = Object.entries(this.settingsStore.voiceStyles).filter(
-        ([, style]) => !isEmptyOverride(style),
-      );
-      const document: Record<string, unknown> = {
-        song: {
-          title: this.mediaStore.songTitle,
-          artist: this.mediaStore.songArtist,
-          duration: this.mediaStore.songDuration,
-          youtubeUrl: this.mediaStore.youtubeUrl,
-        },
-        // The model the user actually picked, so the file can be loaded back.
-        separationModel: this.mediaStore.separationModel,
-        videoOptions: {
-          ...rest,
-          color: {
-            background: color.background.toString(),
-            primary: color.primary.toString(),
-            secondary: color.secondary.toString(),
-          },
-        },
-      };
-      if (styledVoices.length > 0) {
-        document.voiceStyles = Object.fromEntries(
-          styledVoices.map(([voice, style]) => [voice, serializeVoiceStyle(style)]),
-        );
-      }
-      return yaml.dump(document);
+      return this.settingsStore.settingsYaml;
     },
   },
   methods: {
