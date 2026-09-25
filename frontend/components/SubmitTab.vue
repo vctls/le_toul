@@ -382,6 +382,7 @@ import { useTimingsStore } from "@/stores/timings";
 import { useLyricsStore } from "@/stores/lyrics";
 import { abortable } from "@/lib/util";
 import { projectSongEntryName } from "@/lib/projectFolder";
+import { BUNDLED_FONTS as fonts } from "@/lib/fonts";
 import { extensionForBlob } from "@/lib/audio";
 
 // The rest of the bar is the zip, which carries the source song and both separated tracks.
@@ -390,21 +391,6 @@ const RENDER_SHARE = 0.95;
 const outputFormatLabels: Record<OutputFormat, string> = {
   mp4: "MP4",
   mkv: "MKV, with vocal and original tracks",
-};
-
-const fonts = {
-  "Andale Mono": "/static/fonts/AndaleMono.ttf",
-  Arial: "/static/fonts/Arial.ttf",
-  "Arial Narrow": "/static/fonts/ArialNarrow.ttf",
-  "Comic Sans MS": "/static/fonts/ComicSans.ttf",
-  "Courier New": "/static/fonts/CourierNew.ttf",
-  Georgia: "/static/fonts/Georgia.ttf",
-  Impact: "/static/fonts/Impact.ttf",
-  "Metal Mania": "/static/fonts/MetalMania.ttf",
-  "Times New Roman": "/static/fonts/TimesNewRoman.ttf",
-  "Trebuchet MS": "/static/fonts/Trebuchet.ttf",
-  Verdana: "/static/fonts/Verdana.ttf",
-  "Liberation Sans": "/static/fonts/LiberationSans.ttf",
 };
 
 export default defineComponent({
