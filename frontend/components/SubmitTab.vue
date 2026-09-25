@@ -362,15 +362,45 @@
           Cancel
         </b-button>
       </div>
-      <source-file-download-links
-        :lyrics="lyricText"
-        :timings="timingsExport"
-        :subtitles="allVoicesSubtitles()"
-        :settings="settingsYaml"
-        :font="customFont ?? undefined"
-        :vocals="mediaStore.separatedTrack?.vocals"
-        :accompaniment="mediaStore.separatedTrack?.backing"
-      />
+      <div class="download-links">
+        <source-file-download-links
+          :lyrics="lyricText"
+          :timings="timingsExport"
+          :subtitles="allVoicesSubtitles()"
+          :settings="settingsYaml"
+          :font="customFont ?? undefined"
+          :vocals="mediaStore.separatedTrack?.vocals"
+          :accompaniment="mediaStore.separatedTrack?.backing"
+        />
+        <div v-if="lyricText.trim()" class="kbp-export is-size-7">
+          <span>Karaoke Builder Studio</span>
+          <b-tooltip
+            append-to-body
+            content-class="wide-tooltip"
+            multilined
+            label="These lyrics and timings as a Karaoke Builder Studio project. They aren't included in the project download."
+          >
+            <b-icon size="is-small" icon="circle-question"></b-icon>
+          </b-tooltip>
+          <span class="ml-1">{{ kbpFileName }}</span>
+          <a @click="downloadKbp" title="download Karaoke Builder Studio project"
+            ><b-icon icon="download"
+          /></a>
+        </div>
+      </div>
+      <b-message
+        v-if="kbpExportWarnings.length"
+        class="kbp-warnings mt-3"
+        type="is-warning"
+        size="is-small"
+        title="Some parts may not look the same in KBS"
+        closable
+        @close="kbpExportWarnings = []"
+      >
+        <ul>
+          <li v-for="warning in kbpExportWarnings" :key="warning">{{ warning }}</li>
+        </ul>
+      </b-message>
     </div>
   </b-tab-item>
 </template>
@@ -396,6 +426,7 @@ import { useLyricsStore } from "@/stores/lyrics";
 import { abortable } from "@/lib/util";
 import { projectSongEntryName } from "@/lib/projectFolder";
 import { BUNDLED_FONTS as fonts } from "@/lib/fonts";
+import { projectFilesToKbp } from "@/lib/kbpConvert";
 import { extensionForBlob } from "@/lib/audio";
 
 // The rest of the bar is the zip, which carries the source song and both separated tracks.
@@ -434,6 +465,8 @@ export default defineComponent({
   },
   data() {
     return {
+      // What the last KBP download couldn't carry over.
+      kbpExportWarnings: [] as string[],
       fonts,
       outputFormatLabels,
       VerticalAlignment,
@@ -551,6 +584,10 @@ export default defineComponent({
         this.videoOptions,
       );
       return sum(map(screens, "audioDelay"));
+    },
+    kbpFileName(): string {
+      const song = this.mediaStore.songFile?.name;
+      return song ? song.replace(/\.[^.]*$/, "") + ".kbp" : "project.kbp";
     },
     zipFileName(): string {
       return `${this.videoFileName}.zip`;
@@ -681,6 +718,21 @@ export default defineComponent({
       }
     },
 
+    downloadKbp() {
+      const { kbp, warnings } = projectFilesToKbp({
+        lyrics: this.lyricText,
+        timings: this.timingsExport,
+        settings: this.settingsYaml,
+        audioName: this.mediaStore.songFile?.name ?? null,
+      });
+      this.kbpExportWarnings = warnings;
+      const anchor = document.createElement("a");
+      anchor.style.display = "none";
+      anchor.href = URL.createObjectURL(new Blob([kbp], { type: "text/plain;charset=utf-8" }));
+      anchor.download = this.kbpFileName;
+      anchor.click();
+      URL.revokeObjectURL(anchor.href);
+    },
     async sendZipFile(zipFile: Blob) {
       const anchor = document.createElement("a");
       const filename = this.zipFileName;
@@ -750,6 +802,35 @@ body > div:has(> .b-tooltip > .tooltip-content.wide-tooltip) {
 }
 </style>
 <style scoped>
+.kbp-warnings ul {
+  list-style: disc;
+  padding-left: 1.25em;
+}
+
+.download-links {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  align-items: center;
+  row-gap: 0.25rem;
+}
+
+.kbp-export {
+  white-space: nowrap;
+  border-left: 1px solid var(--bulma-border);
+  margin-left: 0.75rem;
+  padding-left: 0.75rem;
+}
+
+/* Narrow screens put the export on a line of its own, where a divider would lead nowhere. */
+@media screen and (max-width: 768px) {
+  .kbp-export {
+    border-left: none;
+    margin-left: 0;
+    padding-left: 0;
+  }
+}
+
 /* Buefy pins every .tab-item at flex-shrink: 0,
 which would hold the tab open at its content height inside the clipped .tab-content
 and leave nothing for overflow to scroll. */
