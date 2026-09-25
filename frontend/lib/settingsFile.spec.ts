@@ -1,8 +1,9 @@
 import { describe, expect, test } from "vitest";
 import yaml from "js-yaml";
 import Color from "buefy/src/utils/color";
-import { parseSettingsYaml } from "./settingsFile";
+import { parseSettingsYaml, serializeSettingsYaml, SettingsFileSource } from "./settingsFile";
 import { VerticalAlignment } from "./timing";
+import type { VideoSettings } from "@/stores/settings";
 import { BACKING_VOCALS_HQ_SEPARATOR_MODEL, NO_VOCALS_SEPARATOR_MODEL } from "@/stores/media";
 
 // A file shaped exactly like the one the Submit tab exports.
@@ -182,5 +183,52 @@ describe("parseSettingsYaml", () => {
     expect(() => parseSettingsYaml("")).toThrow(/empty/);
     expect(() => parseSettingsYaml("- one\n- two\n")).toThrow(/mapping/);
     expect(() => parseSettingsYaml("videoOptions: [unclosed\n")).toThrow(/Could not parse/);
+  });
+});
+
+describe("serializeSettingsYaml", () => {
+  const source: SettingsFileSource = {
+    song: { title: "Bohemian Rhapsody", artist: "Queen", duration: 354.2, youtubeUrl: null },
+    separationModel: BACKING_VOCALS_HQ_SEPARATOR_MODEL,
+    videoOptions: {
+      vocalSeparationModel: NO_VOCALS_SEPARATOR_MODEL,
+      addTitleScreen: false,
+      countInMode: "line",
+      countInText: "1 2 3 ",
+      dynamicCountIns: false,
+      countInThreshold: 6.5,
+      countInDuration: 1.5,
+      addInstrumentalScreens: true,
+      addStaggeredLines: true,
+      useBackgroundVideo: true,
+      outputFormat: "mkv",
+      verticalAlignment: VerticalAlignment.Top,
+      font: { size: 30, name: "Impact" },
+      color: {
+        background: Color.parse("#111111"),
+        primary: Color.parse("#222222"),
+        secondary: Color.parse("#333333"),
+      },
+    } as VideoSettings,
+    voiceStyles: { Anna: { fontSize: 26, primary: Color.parse("#abcdef") }, Ben: {} },
+  };
+
+  test("writes a file that reads back to the same settings", () => {
+    const parsed = parseSettingsYaml(serializeSettingsYaml(source));
+
+    expect(parsed.warnings).toEqual([]);
+    expect(parsed.song).toEqual({ title: "Bohemian Rhapsody", artist: "Queen", duration: 354.2 });
+    expect(parsed.separationModel).toBe(BACKING_VOCALS_HQ_SEPARATOR_MODEL);
+    expect(parsed.videoOptions.countInText).toBe("1 2 3 ");
+    expect(parsed.videoOptions.color?.primary.toString()).toBe("#222222");
+    expect(Object.keys(parsed.voiceStyles ?? {})).toEqual(["Anna"]);
+    expect(parsed.voiceStyles?.Anna.primary?.toString()).toBe("#abcdef");
+  });
+
+  test("writes the picked separation model at the top level only", () => {
+    const document = yaml.load(serializeSettingsYaml(source)) as Record<string, any>;
+
+    expect(document.separationModel).toBe(BACKING_VOCALS_HQ_SEPARATOR_MODEL);
+    expect(document.videoOptions).not.toHaveProperty("vocalSeparationModel");
   });
 });

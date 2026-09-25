@@ -1,4 +1,4 @@
-// Reading back the `settings.yaml` file the app exports (see SubmitTab.settingsYaml).
+// Writing the `settings.yaml` file the app exports, and reading it back.
 //
 // The file is meant to be hand-editable as well as round-tripped, so parsing is deliberately lenient:
 // an entry that is unknown or of the wrong type is skipped and reported as a warning rather than
@@ -14,7 +14,12 @@ import {
   OUTPUT_FORMATS,
   VerticalAlignment,
 } from "@/lib/timing";
-import { VoiceStyleOverride, VOICE_STYLE_COLOR_FIELDS } from "@/lib/voiceStyle";
+import {
+  VoiceStyleOverride,
+  VOICE_STYLE_COLOR_FIELDS,
+  isEmptyOverride,
+  serializeVoiceStyle,
+} from "@/lib/voiceStyle";
 import { VoiceId } from "@/lib/voices";
 import { SeparationModel } from "@/types";
 import {
@@ -41,6 +46,50 @@ export interface ParsedSettingsFile {
   // "no opinion" (leave the current overrides alone) from "explicitly empty".
   voiceStyles?: Record<VoiceId, VoiceStyleOverride>;
   warnings: string[];
+}
+
+export interface SettingsFileSource {
+  song: {
+    title: string | null;
+    artist: string | null;
+    duration: number | null;
+    youtubeUrl: string | null;
+  };
+  separationModel: SeparationModel;
+  videoOptions: VideoSettings;
+  voiceStyles: Record<VoiceId, VoiceStyleOverride>;
+}
+
+/**
+ * The settings.yaml the project download carries, and the prompts offer before replacing settings.
+ */
+export function serializeSettingsYaml({
+  song,
+  separationModel,
+  videoOptions,
+  voiceStyles,
+}: SettingsFileSource): string {
+  // The video options' own model gives way to `separationModel`, the one the user actually picked.
+  const { vocalSeparationModel, color, ...rest } = videoOptions;
+  const styledVoices = Object.entries(voiceStyles).filter(([, style]) => !isEmptyOverride(style));
+  const document: Record<string, unknown> = {
+    song,
+    separationModel,
+    videoOptions: {
+      ...rest,
+      color: {
+        background: color.background.toString(),
+        primary: color.primary.toString(),
+        secondary: color.secondary.toString(),
+      },
+    },
+  };
+  if (styledVoices.length > 0) {
+    document.voiceStyles = Object.fromEntries(
+      styledVoices.map(([voice, style]) => [voice, serializeVoiceStyle(style)]),
+    );
+  }
+  return yaml.dump(document);
 }
 
 const SEPARATION_MODELS: readonly string[] = [

@@ -1,7 +1,7 @@
 import { defineStore } from "pinia";
 import { reactive, watch, ref, computed } from "vue";
 import { CountInMode, OutputFormat, VerticalAlignment } from "@/lib/timing";
-import { NO_VOCALS_SEPARATOR_MODEL, BACKING_VOCALS_SEPARATOR_MODEL } from "./media";
+import { NO_VOCALS_SEPARATOR_MODEL, BACKING_VOCALS_SEPARATOR_MODEL, useMediaStore } from "./media";
 import Color from "buefy/src/utils/color";
 import { SeparationModel } from "@/types";
 import { VoiceStyleOverride, serializeVoiceStyle, deserializeVoiceStyle } from "@/lib/voiceStyle";
@@ -9,6 +9,7 @@ import { VoiceId } from "@/lib/voices";
 import { persistBlobRef } from "@/lib/persistence";
 import { TimingKeys, DEFAULT_TIMING_KEYS, isKeyName } from "@/lib/timingKeys";
 import { readFontFamilyName } from "@/lib/fontFile";
+import { serializeSettingsYaml } from "@/lib/settingsFile";
 import {
   DEFAULT_COUNT_IN_MODE,
   DEFAULT_COUNT_IN_TEXT,
@@ -219,6 +220,23 @@ export const useSettingsStore = defineStore("settings", () => {
     customFontUrl.value = URL.createObjectURL(file);
   }
 
+  // Built from the picked font, not the uploaded one:
+  // a settings file naming a font it can't carry would no longer load back.
+  const settingsYaml = computed(() => {
+    const media = useMediaStore();
+    return serializeSettingsYaml({
+      song: {
+        title: media.songTitle,
+        artist: media.songArtist,
+        duration: media.songDuration,
+        youtubeUrl: media.youtubeUrl,
+      },
+      separationModel: media.separationModel,
+      videoOptions,
+      voiceStyles: voiceStyles.value,
+    });
+  });
+
   // What everything that renders lyrics should use: `videoOptions` is raw UI state, where
   // the font picker keeps its own value even while an uploaded font overrides it.
   const renderOptions = computed<VideoSettings>(() =>
@@ -363,6 +381,7 @@ export const useSettingsStore = defineStore("settings", () => {
   return {
     videoOptions,
     renderOptions,
+    settingsYaml,
     voiceStyles,
     timingKeys,
     customFont,
