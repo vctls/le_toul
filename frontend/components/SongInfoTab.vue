@@ -190,8 +190,8 @@
             :accept="['.txt', 'text/plain']"
             label="Lyrics File"
             tooltip="A plain text lyrics file. Its contents replace whatever is in the Lyrics tab."
-            v-model="mediaStore.lyricsFile"
-            @update:modelValue="onLyricsFileChange"
+            :model-value="mediaStore.lyricsFile"
+            @update:model-value="onLyricsFileSelect"
           />
           <file-upload
             expanded
@@ -199,8 +199,8 @@
             :accept="['.json']"
             label="Timings File"
             tooltip="A timings.json exported from the Submit tab. Restores the timings you tapped out, so you can pick up where you left off."
-            v-model="mediaStore.timingsFile"
-            @update:modelValue="onTimingsFileChange"
+            :model-value="mediaStore.timingsFile"
+            @update:model-value="onTimingsFileSelect"
           />
           <file-upload
             expanded
@@ -240,6 +240,32 @@
         label="Current tracks: "
         :vocals="mediaStore.separatedTrack?.vocals"
         :accompaniment="mediaStore.separatedTrack?.backing"
+      />
+    </confirm-modal>
+
+    <confirm-modal
+      v-model="isConfirmingReplacement"
+      :title="`${isClearing ? 'Clear' : 'Replace'} your ${pendingReplacement?.kind}?`"
+      type="is-warning"
+      icon="warning"
+      :confirm-label="isClearing ? 'Clear' : 'Replace'"
+      cancel-label="Keep what I have"
+      @confirm="confirmReplacement"
+    >
+      <p v-if="isClearing">
+        The {{ pendingReplacement?.kind }} you have now will be deleted. Save them first if you want
+        to keep them.
+      </p>
+      <p v-else>
+        The {{ pendingReplacement?.kind }} you have now will be replaced by the ones in
+        <strong>{{ pendingReplacement?.file?.name }}</strong
+        >. Save them first if you want to keep them.
+      </p>
+      <source-file-download-links
+        class="mt-4"
+        :label="`Current ${pendingReplacement?.kind}: `"
+        :lyrics="pendingReplacement?.kind === 'lyrics' ? lyricsStore.lyricText : undefined"
+        :timings="pendingReplacement?.kind === 'timings' ? timingsStore.timingsFile : undefined"
       />
     </confirm-modal>
   </b-tab-item>
@@ -286,6 +312,13 @@ function formatDuration(seconds: number): string {
   return `${Math.floor(total / 60)}:${(total % 60).toString().padStart(2, "0")}`;
 }
 
+// A lyrics or timings file waiting for the user to agree to replace what is loaded.
+// A null file clears the data instead.
+interface PendingReplacement {
+  kind: "lyrics" | "timings";
+  file: File | null;
+}
+
 const OUTCOME_LABELS = {
   succeeded: "Succeeded in",
   failed: "Failed after",
@@ -328,9 +361,16 @@ export default defineComponent({
       BACKING_VOCALS_HQ_ALT_SEPARATOR_MODEL,
       NO_VOCALS_HQ_SEPARATOR_MODEL,
       isConfirmingSeparation: false,
+      isConfirmingReplacement: false,
+      // Left in place once the prompt closes, so the prompt doesn't lose its text while it fades out.
+      // Only confirming applies it.
+      pendingReplacement: null as PendingReplacement | null,
     };
   },
   computed: {
+    isClearing(): boolean {
+      return this.pendingReplacement?.file === null;
+    },
     isSeparatingTrack() {
       return this.mediaStore.isProcessing;
     },
@@ -479,6 +519,36 @@ export default defineComponent({
       } else {
         // Multi-voice format: a per-voice map of timing arrays.
         this.timingsStore.setAllTimings(parsed);
+      }
+    },
+    onLyricsFileSelect(file: File | null) {
+      if (file && this.lyricsStore.lyricText.trim() !== "") {
+        this.askToReplace({ kind: "lyrics", file });
+        return;
+      }
+      this.mediaStore.lyricsFile = file;
+      this.onLyricsFileChange(file);
+    },
+    onTimingsFileSelect(file: File | null) {
+      if (this.timingsStore.hasAnyTimings) {
+        this.askToReplace({ kind: "timings", file });
+        return;
+      }
+      this.mediaStore.timingsFile = file;
+      this.onTimingsFileChange(file);
+    },
+    askToReplace(replacement: PendingReplacement) {
+      this.pendingReplacement = replacement;
+      this.isConfirmingReplacement = true;
+    },
+    confirmReplacement() {
+      const replacement = this.pendingReplacement;
+      if (replacement?.kind === "lyrics") {
+        this.mediaStore.lyricsFile = replacement.file;
+        this.onLyricsFileChange(replacement.file);
+      } else if (replacement?.kind === "timings") {
+        this.mediaStore.timingsFile = replacement.file;
+        this.onTimingsFileChange(replacement.file);
       }
     },
     async onTimingsFileChange(file: File | null) {
