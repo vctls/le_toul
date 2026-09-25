@@ -209,6 +209,12 @@ export default defineComponent({
   overflow: hidden;
 }
 
+/* Buefy adds a bottom margin once the tabs have a sibling after them, such as
+   the start over modal while it is open. The doubled class outranks that rule. */
+.b-tabs.main-tabs {
+  margin-bottom: 0;
+}
+
 .b-tabs.is-vertical {
   flex-wrap: nowrap;
 }
