@@ -242,6 +242,19 @@
               controls-position="compact"
             ></b-numberinput
           ></b-field>
+          <!-- The renderer draws bold unless told otherwise. -->
+          <b-field horizontal label="Bold"
+            ><b-switch
+              :model-value="videoOptions.font.bold !== false"
+              @update:model-value="(bold: boolean) => (videoOptions.font.bold = bold)"
+            ></b-switch
+          ></b-field>
+          <b-field horizontal label="Italic"
+            ><b-switch
+              :model-value="videoOptions.font.italic === true"
+              @update:model-value="(italic: boolean) => (videoOptions.font.italic = italic)"
+            ></b-switch
+          ></b-field>
           <b-field horizontal label="Background Color"
             ><color-field v-model="videoOptions.color.background" label="background color"
           /></b-field>

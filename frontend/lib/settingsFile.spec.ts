@@ -203,7 +203,7 @@ describe("serializeSettingsYaml", () => {
       useBackgroundVideo: true,
       outputFormat: "mkv",
       verticalAlignment: VerticalAlignment.Top,
-      font: { size: 30, name: "Impact" },
+      font: { size: 30, name: "Impact", bold: false, italic: true },
       color: {
         background: Color.parse("#111111"),
         primary: Color.parse("#222222"),
@@ -220,6 +220,12 @@ describe("serializeSettingsYaml", () => {
     expect(parsed.song).toEqual({ title: "Bohemian Rhapsody", artist: "Queen", duration: 354.2 });
     expect(parsed.separationModel).toBe(BACKING_VOCALS_HQ_SEPARATOR_MODEL);
     expect(parsed.videoOptions.countInText).toBe("1 2 3 ");
+    expect(parsed.videoOptions.font).toEqual({
+      size: 30,
+      name: "Impact",
+      bold: false,
+      italic: true,
+    });
     expect(parsed.videoOptions.color?.primary.toString()).toBe("#222222");
     expect(Object.keys(parsed.voiceStyles ?? {})).toEqual(["Anna"]);
     expect(parsed.voiceStyles?.Anna.primary?.toString()).toBe("#abcdef");

@@ -352,12 +352,16 @@ function parseVideoOptions(raw: unknown, warnings: string[]): Partial<VideoSetti
 
   if (raw.font !== undefined && raw.font !== null) {
     if (isMapping(raw.font)) {
-      warnUnknownKeys(raw.font, ["name", "size"], "videoOptions.font", warnings);
+      warnUnknownKeys(raw.font, ["name", "size", "bold", "italic"], "videoOptions.font", warnings);
       const name = readString(raw.font.name, "videoOptions.font.name", warnings);
       const size = readNumber(raw.font.size, "videoOptions.font.size", warnings);
+      const bold = readBoolean(raw.font.bold, "videoOptions.font.bold", warnings);
+      const italic = readBoolean(raw.font.italic, "videoOptions.font.italic", warnings);
       const font: Partial<VideoSettings["font"]> = {};
       if (name !== undefined) font.name = name;
       if (size !== undefined) font.size = size;
+      if (bold !== undefined) font.bold = bold;
+      if (italic !== undefined) font.italic = italic;
       if (Object.keys(font).length > 0) options.font = font as VideoSettings["font"];
     } else {
       warnings.push("videoOptions.font: expected a mapping, ignoring it");
