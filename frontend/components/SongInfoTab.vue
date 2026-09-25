@@ -173,6 +173,7 @@
             expanded
             label="Project Folder"
             tooltip="A folder of files downloaded from the Submit tab and extracted. Loads whichever of the song, lyrics, timings, settings, tracks and font it holds."
+            :folder-name="projectFolderName"
             @select="onProjectFolderSelect"
           />
           <file-upload
@@ -244,6 +245,26 @@
     </confirm-modal>
 
     <confirm-modal
+      v-model="isConfirmingFolder"
+      title="Load this project folder?"
+      type="is-warning"
+      icon="warning"
+      confirm-label="Load folder"
+      cancel-label="Keep what I have"
+      @confirm="confirmFolder"
+    >
+      <p>
+        The files in <strong>{{ pendingFolder?.name ?? "this folder" }}</strong> will replace your
+        {{ pendingFolderLosses.description }}. Save them first if you want to keep them.
+      </p>
+      <source-file-download-links
+        class="mt-4"
+        label="Current files: "
+        v-bind="pendingFolderLosses.files"
+      />
+    </confirm-modal>
+
+    <confirm-modal
       v-model="isConfirmingReplacement"
       :title="`${isClearing ? 'Clear' : 'Replace'} your ${pendingReplacement?.kind}?`"
       type="is-warning"
@@ -289,8 +310,8 @@ import { useTimingsStore } from "@/stores/timings";
 import { useLyricsStore } from "@/stores/lyrics";
 import { useSettingsStore } from "@/stores/settings";
 import { parseSettingsYaml } from "@/lib/settingsFile";
-import { classifyProjectFolder } from "@/lib/projectFolder";
-import { isTimingsFile } from "@/lib/timedSegments";
+import { classifyProjectFolder, ProjectFolder } from "@/lib/projectFolder";
+import { isTimingsFile, TimingsFile } from "@/lib/timedSegments";
 import FileUpload from "@/components/FileUpload.vue";
 import FolderUpload from "@/components/FolderUpload.vue";
 import CircularProgress from "@/components/CircularProgress.vue";
@@ -310,6 +331,20 @@ function formatList(items: string[]): string {
 function formatDuration(seconds: number): string {
   const total = Math.round(seconds);
   return `${Math.floor(total / 60)}:${(total % 60).toString().padStart(2, "0")}`;
+}
+
+// What loading a project folder would overwrite, and the current files to offer for each.
+interface FolderLosses {
+  labels: string[];
+  files: {
+    song?: File;
+    lyrics?: string;
+    timings?: TimingsFile;
+    settings?: string;
+    font?: File;
+    vocals?: Blob;
+    accompaniment?: Blob;
+  };
 }
 
 // A lyrics or timings file waiting for the user to agree to replace what is loaded.
@@ -365,9 +400,19 @@ export default defineComponent({
       // Left in place once the prompt closes, so the prompt doesn't lose its text while it fades out.
       // Only confirming applies it.
       pendingReplacement: null as PendingReplacement | null,
+      isConfirmingFolder: false,
+      // Kept after the prompt closes, like `pendingReplacement`.
+      pendingFolder: null as { project: ProjectFolder; name: string | null } | null,
+      projectFolderName: null as string | null,
     };
   },
   computed: {
+    pendingFolderLosses(): FolderLosses & { description: string } {
+      const losses = this.pendingFolder
+        ? this.folderLosses(this.pendingFolder.project, true)
+        : { labels: [], files: {} };
+      return { ...losses, description: formatList(losses.labels) };
+    },
     isClearing(): boolean {
       return this.pendingReplacement?.file === null;
     },
@@ -589,8 +634,58 @@ export default defineComponent({
     },
     // Loads whatever an extracted project folder holds, applying each file exactly
     // as its own upload field would. What the folder hasn't got is left alone.
-    async onProjectFolderSelect(files: File[]) {
+    /**
+     * Settings always hold something, so they are offered for download but never make the prompt appear on their own.
+     */
+    folderLosses(project: ProjectFolder, includeSettings: boolean): FolderLosses {
+      const losses: FolderLosses = { labels: [], files: {} };
+      const track = this.mediaStore.separatedTrack;
+      if (project.song && this.mediaStore.songFile) {
+        losses.labels.push("song");
+        losses.files.song = this.mediaStore.songFile;
+      }
+      if (project.lyrics && this.lyricsStore.lyricText.trim() !== "") {
+        losses.labels.push("lyrics");
+        losses.files.lyrics = this.lyricsStore.lyricText;
+      }
+      if (project.timings && this.timingsStore.hasAnyTimings) {
+        losses.labels.push("timings");
+        losses.files.timings = this.timingsStore.timingsFile;
+      }
+      if (project.backing && track && track.backing.size > 0) {
+        losses.labels.push("backing track");
+        losses.files.accompaniment = track.backing;
+      }
+      if (project.vocals && track && track.vocals.size > 0) {
+        losses.labels.push("vocal track");
+        losses.files.vocals = track.vocals;
+      }
+      if (project.font && this.settingsStore.customFont) {
+        losses.labels.push("font");
+        losses.files.font = this.settingsStore.customFont;
+      }
+      if (includeSettings && project.settings) {
+        losses.labels.push("settings");
+        losses.files.settings = this.settingsStore.settingsYaml;
+      }
+      return losses;
+    },
+    onProjectFolderSelect(files: File[], name: string | null) {
       const project = classifyProjectFolder(files);
+      if (this.folderLosses(project, false).labels.length > 0) {
+        this.pendingFolder = { project, name };
+        this.isConfirmingFolder = true;
+        return;
+      }
+      this.loadProjectFolder(project, name);
+    },
+    confirmFolder() {
+      if (this.pendingFolder) {
+        this.loadProjectFolder(this.pendingFolder.project, this.pendingFolder.name);
+      }
+    },
+    async loadProjectFolder(project: ProjectFolder, name: string | null) {
+      this.projectFolderName = name;
       const loaded: string[] = [];
       const failed: string[] = [];
       const apply = async (label: string, file: File, run: () => Promise<void> | void) => {
