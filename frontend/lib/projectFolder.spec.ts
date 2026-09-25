@@ -86,6 +86,13 @@ describe("classifyProjectFolder", () => {
     expect(project.song).toBeUndefined();
   });
 
+  test("never loads a Karaoke Builder Studio project, whatever it is named", () => {
+    const project = classifyProjectFolder([file("song.kbp"), file("Pale Moon.kbp")]);
+
+    expect(project.song).toBeUndefined();
+    expect(project.ignored).toEqual(["Pale Moon.kbp", "song.kbp"]);
+  });
+
   test("reports what it could not place", () => {
     const project = classifyProjectFolder([file("project/notes.docx")]);
 

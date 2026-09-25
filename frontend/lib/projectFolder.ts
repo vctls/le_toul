@@ -90,6 +90,12 @@ export function classifyProjectFolder(files: File[]): ProjectFolder {
     if (name.startsWith(".") || DERIVED_NAMES.includes(name)) {
       continue;
     }
+    // A .kbp loads through its own input only. Without this, song.kbp would take the song slot,
+    // since the stems are matched by name whatever their extension.
+    if (extensionOf(name) === "kbp") {
+      project.ignored.push(pathOf(file));
+      continue;
+    }
     const slot =
       NAMED_SLOTS[name] ?? NAMED_STEMS[stemOf(name)] ?? EXTENSION_SLOTS[extensionOf(name)];
     if (!slot || project[slot]) {
