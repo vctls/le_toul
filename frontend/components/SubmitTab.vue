@@ -427,6 +427,7 @@ import { abortable } from "@/lib/util";
 import { projectSongEntryName } from "@/lib/projectFolder";
 import { BUNDLED_FONTS as fonts } from "@/lib/fonts";
 import { projectFilesToKbp } from "@/lib/kbpConvert";
+import { applyVoiceStyle } from "@/lib/voiceStyle";
 import { extensionForBlob } from "@/lib/audio";
 
 // The rest of the bar is the zip, which carries the source song and both separated tracks.
@@ -546,10 +547,25 @@ export default defineComponent({
     // Keyed by the family name an ASS style row references, not by file name.
     fontMap(): Record<string, string> {
       const { customFontFamily, customFontUrl } = this.settingsStore;
-      if (!customFontFamily || !customFontUrl) {
-        return fonts;
+      const map: Record<string, string> = { ...fonts };
+      if (customFontFamily && customFontUrl) {
+        map[customFontFamily] = customFontUrl;
       }
-      return { ...fonts, [customFontFamily]: customFontUrl };
+      return map;
+    },
+    // Only these are written for FFmpeg's libass, which has no fonts of its own to fall back on.
+    renderFontMap(): Record<string, string> {
+      const families = new Set([
+        this.renderOptions.font.name,
+        ...this.voices.map(
+          (voice) =>
+            applyVoiceStyle(this.renderOptions, this.settingsStore.getVoiceStyle(voice)).font
+              .name,
+        ),
+      ]);
+      return Object.fromEntries(
+        Object.entries(this.fontMap).filter(([family]) => families.has(family)),
+      );
     },
     songFile(): File | null {
       return this.mediaStore.songFile as File | null;
@@ -691,7 +707,7 @@ export default defineComponent({
             title: this.mediaStore.songTitle ?? undefined,
             duration: this.mediaStore.songDuration ?? undefined,
           },
-          fontMap: this.fontMap,
+          fontMap: this.renderFontMap,
           alternateTracks: { vocals: separatedTrack.vocals, original: songFile },
           signal: abort.signal,
           onProgress: (progress, step) => {
