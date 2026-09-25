@@ -275,6 +275,7 @@ export interface CreateVideoOptions {
   subtitles: string;
   videoOptions: KaraokeOptions;
   metadata: VideoMetadata;
+  // Every font the subtitles use, keyed by family name.
   fontMap: Record<string, string>;
   backgroundVideo?: Blob | null;
   audioDelay?: number;
@@ -368,14 +369,14 @@ async function createVideo({
     await ffmpeg.writeFile(songFileName, await fetchFile(accompaniment));
 
     // The ass filter indexes fontsdir by the family name inside each file,
-    // so the filename only has to be path-safe, which a family name is not necessarily.
-    const fontSource = fontMap[videoOptions.font.name];
-    if (fontSource) {
+    // so the filename only has to be path-safe and unique, which a family name is not necessarily.
+    for (const [index, [family, source]] of Object.entries(fontMap).entries()) {
       await ffmpeg.writeFile(
-        `/tmp/${videoOptions.font.name.replace(/[^\w.-]+/g, "_")}.ttf`,
-        await fetchFile(fontSource),
+        `/tmp/${index}-${family.replace(/[^\w.-]+/g, "_")}.ttf`,
+        await fetchFile(source),
       );
-    } else {
+    }
+    if (!fontMap[videoOptions.font.name]) {
       console.warn(`No font file available for "${videoOptions.font.name}", falling back`);
     }
 
