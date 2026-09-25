@@ -172,7 +172,7 @@
             name="project-folder-upload"
             expanded
             label="Project Folder"
-            tooltip="A folder of files downloaded from the Submit tab and extracted. Loads whichever of the song, lyrics, timings, settings, tracks and font it holds."
+            tooltip="A folder of files downloaded from the Submit tab and extracted. Loads whichever of the song, lyrics, timings, settings, tracks and fonts are present."
             :folder-name="projectFolderName"
             @select="onProjectFolderSelect"
           />
@@ -190,7 +190,7 @@
             name="lyrics-file-upload"
             :accept="['.txt', 'text/plain']"
             label="Lyrics File"
-            tooltip="A plain text lyrics file. Its contents replace whatever is in the Lyrics tab."
+            tooltip="A plain text lyrics file. Its contents replaces what's in the Lyrics tab."
             :model-value="mediaStore.lyricsFile"
             @update:model-value="onLyricsFileSelect"
           />
@@ -219,6 +219,31 @@
             v-model="mediaStore.vocalTrackFile"
             @update:modelValue="onVocalTrackFileChange"
           />
+        </div>
+        <div class="box kbp-files">
+          <h3 class="title is-5">Karaoke Builder Studio</h3>
+          <file-upload
+            expanded
+            name="kbp-file-upload"
+            :accept="['.kbp']"
+            label="KBP File"
+            tooltip="A Karaoke Builder Studio project. Replaces the lyrics, timings, song details and styles. Project folders don't load .kbp files, so use this input for them."
+            :model-value="mediaStore.kbpFile"
+            @update:model-value="onKbpFileSelect"
+          />
+          <b-message
+            v-if="kbpWarnings.length"
+            class="kbp-warnings"
+            type="is-warning"
+            size="is-small"
+            title="Some parts couldn't be carried over"
+            closable
+            @close="kbpWarnings = []"
+          >
+            <ul>
+              <li v-for="warning in kbpWarnings" :key="warning">{{ warning }}</li>
+            </ul>
+          </b-message>
         </div>
       </div>
     </div>
@@ -266,7 +291,7 @@
 
     <confirm-modal
       v-model="isConfirmingReplacement"
-      :title="`${isClearing ? 'Clear' : 'Replace'} your ${pendingReplacement?.kind}?`"
+      :title="replacementPrompt.title"
       type="is-warning"
       icon="warning"
       :confirm-label="isClearing ? 'Clear' : 'Replace'"
@@ -274,19 +299,18 @@
       @confirm="confirmReplacement"
     >
       <p v-if="isClearing">
-        The {{ pendingReplacement?.kind }} you have now will be deleted. Save them first if you want
-        to keep them.
+        The {{ replacementPrompt.subject }} you have now will be deleted. Save them first if you
+        want to keep them.
       </p>
       <p v-else>
-        The {{ pendingReplacement?.kind }} you have now will be replaced by the ones in
+        The {{ replacementPrompt.subject }} you have now will be replaced by the ones in
         <strong>{{ pendingReplacement?.file?.name }}</strong
         >. Save them first if you want to keep them.
       </p>
       <source-file-download-links
         class="mt-4"
-        :label="`Current ${pendingReplacement?.kind}: `"
-        :lyrics="pendingReplacement?.kind === 'lyrics' ? lyricsStore.lyricText : undefined"
-        :timings="pendingReplacement?.kind === 'timings' ? timingsStore.timingsFile : undefined"
+        :label="replacementPrompt.label"
+        v-bind="replacementPrompt.files"
       />
     </confirm-modal>
   </b-tab-item>
@@ -311,6 +335,8 @@ import { useLyricsStore } from "@/stores/lyrics";
 import { useSettingsStore } from "@/stores/settings";
 import { parseSettingsYaml } from "@/lib/settingsFile";
 import { classifyProjectFolder, ProjectFolder } from "@/lib/projectFolder";
+import { kbpToProjectFiles, KbpImport } from "@/lib/kbpConvert";
+import { BUNDLED_FONTS } from "@/lib/fonts";
 import { isTimingsFile, TimingsFile } from "@/lib/timedSegments";
 import FileUpload from "@/components/FileUpload.vue";
 import FolderUpload from "@/components/FolderUpload.vue";
@@ -347,10 +373,10 @@ interface FolderLosses {
   };
 }
 
-// A lyrics or timings file waiting for the user to agree to replace what is loaded.
+// A lyrics, timings or KBP file waiting for the user to agree to replace what is loaded.
 // A null file clears the data instead.
 interface PendingReplacement {
-  kind: "lyrics" | "timings";
+  kind: "lyrics" | "timings" | "kbp";
   file: File | null;
 }
 
@@ -404,7 +430,15 @@ export default defineComponent({
       // Kept after the prompt closes, like `pendingReplacement`.
       pendingFolder: null as { project: ProjectFolder; name: string | null } | null,
       projectFolderName: null as string | null,
+      kbpWarnings: [] as string[],
     };
+  },
+  watch: {
+    "mediaStore.kbpFile"(file: File | null) {
+      if (!file) {
+        this.kbpWarnings = [];
+      }
+    },
   },
   computed: {
     pendingFolderLosses(): FolderLosses & { description: string } {
@@ -412,6 +446,33 @@ export default defineComponent({
         ? this.folderLosses(this.pendingFolder.project, true)
         : { labels: [], files: {} };
       return { ...losses, description: formatList(losses.labels) };
+    },
+    replacementPrompt(): {
+      title: string;
+      subject: string;
+      label: string;
+      files: { lyrics?: string; timings?: TimingsFile; settings?: string };
+    } {
+      const kind = this.pendingReplacement?.kind;
+      const lyrics = kind !== "timings" ? this.lyricsStore.lyricText : undefined;
+      const timings =
+        kind !== "lyrics" && this.timingsStore.hasAnyTimings
+          ? this.timingsStore.timingsFile
+          : undefined;
+      if (kind === "kbp") {
+        return {
+          title: "Replace your lyrics and timings?",
+          subject: "lyrics, timings, song details and styles",
+          label: "Current files: ",
+          files: { lyrics, timings, settings: this.settingsStore.settingsYaml },
+        };
+      }
+      return {
+        title: `${this.isClearing ? "Clear" : "Replace"} your ${kind}?`,
+        subject: kind ?? "",
+        label: `Current ${kind}: `,
+        files: { lyrics, timings },
+      };
     },
     isClearing(): boolean {
       return this.pendingReplacement?.file === null;
@@ -594,6 +655,61 @@ export default defineComponent({
       } else if (replacement?.kind === "timings") {
         this.mediaStore.timingsFile = replacement.file;
         this.onTimingsFileChange(replacement.file);
+      } else if (replacement?.kind === "kbp" && replacement.file) {
+        this.mediaStore.kbpFile = replacement.file;
+        this.onKbpFileChange(replacement.file);
+      }
+    },
+    // Clearing the input leaves what the file loaded alone, as clearing the lyrics file does.
+    onKbpFileSelect(file: File | null) {
+      const hasData = this.lyricsStore.lyricText.trim() !== "" || this.timingsStore.hasAnyTimings;
+      if (file && hasData) {
+        this.askToReplace({ kind: "kbp", file });
+        return;
+      }
+      this.mediaStore.kbpFile = file;
+      if (file) {
+        this.onKbpFileChange(file);
+      }
+    },
+    /**
+     * Converts the project to the app's own three files and loads them the way their own inputs would.
+     * Returns the converter's warnings together with the settings file's.
+     */
+    async applyKbpFile(file: File): Promise<KbpImport> {
+      const converted = kbpToProjectFiles(await file.text(), { fonts: Object.keys(BUNDLED_FONTS) });
+      this.lyricsStore.setLyrics(converted.lyrics);
+      await this.applyTimingsFile(new File([JSON.stringify(converted.timings)], "timings.json"));
+      const settingsWarnings = await this.applySettingsFile(
+        new File([converted.settings], "settings.yaml"),
+      );
+      // Those inputs would otherwise go on naming files that no longer describe what is loaded.
+      this.mediaStore.lyricsFile = null;
+      this.mediaStore.timingsFile = null;
+      this.mediaStore.settingsFile = null;
+      return { ...converted, warnings: [...converted.warnings, ...settingsWarnings] };
+    },
+    async onKbpFileChange(file: File) {
+      try {
+        const { warnings, audioName } = await this.applyKbpFile(file);
+        this.kbpWarnings = warnings;
+        const song = audioName && !this.mediaStore.songFile ? ` Its song is ${audioName}.` : "";
+        this.$buefy.toast.open({
+          message: warnings.length
+            ? `Project loaded, with a few changes listed under the KBP File input.${song}`
+            : `Project loaded!${song}`,
+          type: warnings.length ? "is-warning" : "is-success",
+          duration: warnings.length || song ? 6000 : 2000,
+        });
+      } catch (e) {
+        console.error(e);
+        this.mediaStore.kbpFile = null;
+        this.kbpWarnings = [];
+        this.$buefy.toast.open({
+          message: `Couldn't read that KBP file: ${(e as Error).message}`,
+          type: "is-danger",
+          duration: 5000,
+        });
       }
     },
     async onTimingsFileChange(file: File | null) {
@@ -799,6 +915,11 @@ export default defineComponent({
 });
 </script>
 <style scoped>
+.kbp-warnings ul {
+  list-style: disc;
+  padding-left: 1.25em;
+}
+
 .song-info-tab {
   overflow-x: hidden;
   overflow-y: auto;

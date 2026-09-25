@@ -24,6 +24,7 @@ const MEDIA_IDB_KEYS = [
   "media.backingTrackFile",
   "media.vocalTrackFile",
   "media.settingsFile",
+  "media.kbpFile",
 ];
 
 export interface SeparatedTrack {
@@ -81,6 +82,7 @@ export const useMediaStore = defineStore("media", () => {
   // these refs exist so the FileUpload widgets can re-display the user's selection after a reload.
   const timingsFile = shallowRef<File | null>(null);
   const lyricsFile = shallowRef<File | null>(null);
+  const kbpFile = shallowRef<File | null>(null);
   const backingTrackFile = shallowRef<File | null>(null);
   const vocalTrackFile = shallowRef<File | null>(null);
   const settingsFile = shallowRef<File | null>(null);
@@ -382,6 +384,7 @@ export const useMediaStore = defineStore("media", () => {
     persistBlobRef("media.backingTrackFile", backingTrackFile),
     persistBlobRef("media.vocalTrackFile", vocalTrackFile),
     persistBlobRef("media.settingsFile", settingsFile),
+    persistBlobRef("media.kbpFile", kbpFile),
   ]).finally(() => {
     isHydrating = false;
     resumeRunningSeparation();
@@ -397,6 +400,7 @@ export const useMediaStore = defineStore("media", () => {
     backingTrackFile.value = null;
     vocalTrackFile.value = null;
     settingsFile.value = null;
+    kbpFile.value = null;
     songTitle.value = null;
     songArtist.value = null;
     songDuration.value = null;
@@ -416,6 +420,7 @@ export const useMediaStore = defineStore("media", () => {
     backgroundVideo,
     timingsFile,
     lyricsFile,
+    kbpFile,
     backingTrackFile,
     vocalTrackFile,
     settingsFile,
