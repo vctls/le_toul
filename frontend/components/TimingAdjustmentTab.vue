@@ -592,9 +592,10 @@ but BFieldBody generates these wrappers itself and forwards no class, so it has 
 }
 
 /* Labels move beside their control once each column can hold both,
-plus room for the Apply button beside the widest row: 13rem of label and 10em of control. */
+13rem of label and 10em of control.
+The Apply button wraps under its control until there is room for it too. */
 @container (min-width: 50rem) {
-  /* Both columns get the same label and control tracks, so every field is the same width.
+  /* Every column gets the same label and control tracks, so every field is the same width.
   The floor clears the longest label.
   max-content grows a longer one rather than clipping it,
   at the cost of that column no longer matching.
@@ -602,7 +603,7 @@ plus room for the Apply button beside the widest row: 13rem of label and 10em of
   centering the label and control in their column. */
   .adjustment-fields {
     grid-template-columns: repeat(
-      2,
+      var(--columns, 2),
       minmax(0, 1fr) minmax(13rem, max-content) minmax(0, auto) minmax(0, 1fr)
     );
     column-gap: 0.75rem;
@@ -623,6 +624,13 @@ plus room for the Apply button beside the widest row: 13rem of label and 10em of
   .adjustment-fields :deep(.field-label) {
     grid-column: 2;
     margin: 0;
+  }
+}
+
+/* Three columns once each fits its label and control on one line, Apply button included. */
+@container (min-width: 83rem) {
+  .adjustment-fields {
+    --columns: 3;
   }
 }
 
