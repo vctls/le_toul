@@ -1,6 +1,10 @@
 <template>
   <div v-if="hasAnyFiles" class="is-size-7 has-text-centered has-text-gray source-file-links">
     <span>{{ label }}</span>
+    <span v-if="song" class="file-item">
+      {{ song.name }}
+      <a @click="download(song, song.name)" title="download song"><b-icon icon="download" /></a>
+    </span>
     <span v-if="lyrics" class="file-item">
       lyrics.txt
       <a @click="download(lyrics, 'lyrics.txt')" title="download lyrics"
@@ -61,6 +65,7 @@ export default defineComponent({
   props: {
     // The trailing space is load-bearing: template whitespace before the first file is stripped at compile time.
     label: { type: String, default: "Source files: " },
+    song: File,
     lyrics: String,
     // Either a single voice's array of [time, marker] tuples, or a per-voice map.
     timings: [Array, Object],
@@ -85,6 +90,7 @@ export default defineComponent({
     },
     hasAnyFiles(): boolean {
       return Boolean(
+        this.song ||
         this.lyrics ||
         this.hasTimings ||
         this.subtitles ||

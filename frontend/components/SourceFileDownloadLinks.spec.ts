@@ -12,6 +12,13 @@ describe("SourceFileDownloadLinks", () => {
     expect(wrapper.text()).toContain("MyFont.ttf");
   });
 
+  it("lists the song under its own file name", () => {
+    const song = new File(["audio bytes"], "My Song.flac");
+    const wrapper = mount(SourceFileDownloadLinks, { props: { song }, global: stubIcons });
+
+    expect(wrapper.text()).toContain("My Song.flac");
+  });
+
   it("shows nothing when there is no font and no other file", () => {
     const wrapper = mount(SourceFileDownloadLinks, { global: stubIcons });
 

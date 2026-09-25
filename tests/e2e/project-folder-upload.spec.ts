@@ -106,4 +106,40 @@ test.describe("Project Folder Upload", () => {
 
     await expect(page.locator('.toast:has-text("Nothing to load")')).toBeVisible();
   });
+
+  test("asks before a folder replaces loaded files, and offers them first", async ({ page }) => {
+    const folder = await makeProjectFolder();
+    await navigateToTab(page, TabId.SongInfo);
+    await page
+      .locator('[name="lyrics-file-upload"] input[type="file"]')
+      .setInputFiles(getFixturePath("lyrics.txt"));
+
+    await loadProjectFolder(page, folder);
+    await expect(page.locator(".modal-card-title")).toHaveText("Load this project folder?");
+    await expect(page.locator(".modal-card-body")).toContainText(
+      "replace your lyrics and settings",
+    );
+    await expect(page.locator(".modal-card-body .source-file-links")).toContainText("lyrics.txt");
+    await expect(page.locator(".modal-card-body .source-file-links")).toContainText(
+      "settings.yaml",
+    );
+    await page.click('.modal-card-foot button:has-text("Keep what I have")');
+
+    await expect(page.locator(".modal-card")).toBeHidden();
+    await expect(page.locator('[name="project-folder-upload"] .file-name')).toHaveText(
+      "No folder chosen",
+    );
+    await expect(page.locator('[name="timings-file-upload"] .file-name')).toHaveText(
+      "No file chosen",
+    );
+
+    await loadProjectFolder(page, folder);
+    await page.click('.modal-card-foot button:has-text("Load folder")');
+
+    await expect(page.locator('.toast:has-text("Loaded")')).toBeVisible();
+    await expect(page.locator('[name="project-folder-upload"] .file-name')).toHaveText("project");
+    await expect(page.locator('[name="timings-file-upload"] .file-name')).toHaveText(
+      "timings.json",
+    );
+  });
 });

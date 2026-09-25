@@ -26,7 +26,7 @@
 </template>
 
 <script lang="ts">
-import { defineComponent } from "vue";
+import { defineComponent, PropType } from "vue";
 
 export default defineComponent({
   emits: ["select"],
@@ -34,6 +34,8 @@ export default defineComponent({
     label: String,
     tooltip: String,
     expanded: Boolean,
+    // The folder the parent loaded, which may not be the last one picked if the parent declined it.
+    folderName: { type: String as PropType<string | null>, default: null },
   },
   data() {
     return {
@@ -41,7 +43,6 @@ export default defineComponent({
       // b-upload appends to the array it was given and only clears the native input when that array goes back to empty,
       // without which picking the same folder twice would do nothing.
       selected: [] as File[],
-      folderName: null as string | null,
     };
   },
   methods: {
@@ -51,8 +52,7 @@ export default defineComponent({
       if (files.length === 0) {
         return;
       }
-      this.folderName = files[0].webkitRelativePath?.split("/")[0] || null;
-      this.$emit("select", files);
+      this.$emit("select", files, files[0].webkitRelativePath?.split("/")[0] || null);
     },
   },
 });
