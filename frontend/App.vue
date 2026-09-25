@@ -62,7 +62,19 @@
       confirm-label="Start over"
       @confirm="startOver"
     >
-      This will discard the current song, lyrics, and timings. Settings will be kept. Continue?
+      <p>
+        This will discard the current song, tracks, lyrics and timings. Settings will be kept. Save
+        anything you want to keep first.
+      </p>
+      <source-file-download-links
+        class="mt-4"
+        label="Current files: "
+        :song="mediaStore.songFile ?? undefined"
+        :lyrics="lyricsStore.lyricText"
+        :timings="timingsStore.hasAnyTimings ? timingsStore.timingsFile : undefined"
+        :vocals="mediaStore.separatedTrack?.vocals"
+        :accompaniment="mediaStore.separatedTrack?.backing"
+      />
     </confirm-modal>
   </div>
 </template>
@@ -79,6 +91,7 @@ import TimingAdjustmentTab from "@/components/TimingAdjustmentTab.vue";
 import TimingEditTab from "@/components/TimingEditTab.vue";
 import SubmitTab from "@/components/SubmitTab.vue";
 import ConfirmModal from "@/components/ConfirmModal.vue";
+import SourceFileDownloadLinks from "@/components/SourceFileDownloadLinks.vue";
 import { useMediaStore } from "@/stores/media";
 import { useLyricsStore } from "@/stores/lyrics";
 import { useTimingsStore } from "@/stores/timings";
@@ -103,9 +116,13 @@ export default defineComponent({
     TimingEditTab,
     SubmitTab,
     ConfirmModal,
+    SourceFileDownloadLinks,
   },
   setup() {
     return {
+      mediaStore: useMediaStore(),
+      lyricsStore: useLyricsStore(),
+      timingsStore: useTimingsStore(),
       helpStore: useHelpStore(),
       themeStore: useThemeStore(),
       ...useTabRoute(),
@@ -133,9 +150,9 @@ export default defineComponent({
       this.isConfirmingStartOver = true;
     },
     async startOver() {
-      useTimingsStore().clear();
-      useLyricsStore().clear();
-      await useMediaStore().clearSession();
+      this.timingsStore.clear();
+      this.lyricsStore.clear();
+      await this.mediaStore.clearSession();
     },
   },
 });
