@@ -1,0 +1,2 @@
+# KBS writes CRLF, and the fixtures must stay byte for byte as it writes them.
+*.kbp -text
