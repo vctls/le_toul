@@ -551,6 +551,12 @@ export default defineComponent({
       if (customFontFamily && customFontUrl) {
         map[customFontFamily] = customFontUrl;
       }
+      for (const voice of this.voices) {
+        const font = this.settingsStore.getVoiceFont(voice);
+        if (font) {
+          map[font.family] = font.url;
+        }
+      }
       return map;
     },
     // Only these are written for FFmpeg's libass, which has no fonts of its own to fall back on.
@@ -559,7 +565,7 @@ export default defineComponent({
         this.renderOptions.font.name,
         ...this.voices.map(
           (voice) =>
-            applyVoiceStyle(this.renderOptions, this.settingsStore.getVoiceStyle(voice)).font
+            applyVoiceStyle(this.renderOptions, this.settingsStore.renderVoiceStyle(voice)).font
               .name,
         ),
       ]);

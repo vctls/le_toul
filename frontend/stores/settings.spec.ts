@@ -356,6 +356,64 @@ describe("Settings Store", () => {
       expect(ben.font.name).toBe("Metal Mania");
     });
 
+    test("a voice's uploaded font overrides its picked one for rendering only", async () => {
+      const store = useSettingsStore();
+      store.setVoiceStyleField("Anna", "fontName", "Impact");
+
+      await store.setVoiceFont("Anna", fontFile("MetalMania.ttf", "anna.ttf"));
+
+      expect(store.getVoiceFont("Anna")).toMatchObject({ family: "Metal Mania" });
+      expect(store.renderVoiceStyle("Anna")?.fontName).toBe("Metal Mania");
+      // What settings.yaml describes keeps the picked font, which it can load back.
+      expect(store.getVoiceStyle("Anna")?.fontName).toBe("Impact");
+      expect(store.renderVoiceStyle("Ben")).toBeUndefined();
+    });
+
+    test("a voice's font needs no other override to take effect", async () => {
+      const store = useSettingsStore();
+
+      await store.setVoiceFont("Anna", fontFile("MetalMania.ttf"));
+
+      expect(applyVoiceStyle(store.renderOptions, store.renderVoiceStyle("Anna")).font.name).toBe(
+        "Metal Mania",
+      );
+    });
+
+    test("a file that is not a font leaves the voice's font as it was", async () => {
+      const store = useSettingsStore();
+      await store.setVoiceFont("Anna", fontFile("Impact.ttf"));
+
+      await expect(store.setVoiceFont("Anna", new File(["nope"], "fake.ttf"))).rejects.toThrow(
+        UnreadableFontError,
+      );
+      expect(store.getVoiceFont("Anna")?.family).toBe("Impact");
+    });
+
+    test("a voice's font follows a rename, and goes with its custom style", async () => {
+      const store = useSettingsStore();
+      await store.setVoiceFont("Anna", fontFile("Impact.ttf"));
+
+      store.renameVoiceStyle("Anna", "Annie");
+      expect(store.getVoiceFont("Anna")).toBeUndefined();
+      expect(store.getVoiceFont("Annie")?.family).toBe("Impact");
+
+      store.clearVoiceStyle("Annie");
+      await nextTick();
+      expect(store.getVoiceFont("Annie")).toBeUndefined();
+    });
+
+    test("clearCustomFonts drops the base font and every voice's", async () => {
+      const store = useSettingsStore();
+      await store.setCustomFont(fontFile("Impact.ttf"));
+      await store.setVoiceFont("Anna", fontFile("MetalMania.ttf"));
+
+      await store.clearCustomFonts();
+
+      expect(store.customFont).toBeNull();
+      expect(store.getVoiceFont("Anna")).toBeUndefined();
+      expect(store.renderVoiceStyle("Anna")).toBeUndefined();
+    });
+
     test("resetSettings drops the uploaded font", async () => {
       const store = useSettingsStore();
       await store.setCustomFont(fontFile("Impact.ttf"));

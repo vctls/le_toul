@@ -1,5 +1,5 @@
 import { defineStore } from "pinia";
-import { reactive, watch, ref, computed } from "vue";
+import { reactive, watch, ref, computed, shallowRef } from "vue";
 import { CountInMode, OutputFormat, VerticalAlignment } from "@/lib/timing";
 import { NO_VOCALS_SEPARATOR_MODEL, BACKING_VOCALS_SEPARATOR_MODEL, useMediaStore } from "./media";
 import Color from "buefy/src/utils/color";
@@ -205,6 +205,59 @@ export const useSettingsStore = defineStore("settings", () => {
     }
   });
 
+  // Per-voice uploaded fonts, kept out of `voiceStyles`, which settings.yaml describes and which holds no files.
+  // Only the files are stored. The family names and URLs are re-derived, as for the base font.
+  const voiceFontFiles = shallowRef<Record<VoiceId, File> | null>(null);
+  const voiceFonts = shallowRef<Record<VoiceId, { family: string; url: string }>>({});
+
+  persistBlobRef("settings.voiceFonts", voiceFontFiles).then(async () => {
+    const loaded: Record<VoiceId, { family: string; url: string }> = {};
+    const readable: Record<VoiceId, File> = {};
+    for (const [voice, file] of Object.entries(voiceFontFiles.value ?? {})) {
+      try {
+        loaded[voice] = { family: await readFontFamilyName(file), url: URL.createObjectURL(file) };
+        readable[voice] = file;
+      } catch (e) {
+        console.error(`Could not read the saved font for ${voice}; ignoring it`, e);
+      }
+    }
+    voiceFonts.value = { ...loaded, ...voiceFonts.value };
+    if (Object.keys(readable).length !== Object.keys(voiceFontFiles.value ?? {}).length) {
+      voiceFontFiles.value = readable;
+    }
+  });
+
+  function getVoiceFont(voice: VoiceId): { file: File; family: string; url: string } | undefined {
+    const file = voiceFontFiles.value?.[voice];
+    const font = voiceFonts.value[voice];
+    return file && font ? { file, ...font } : undefined;
+  }
+
+  /**
+   * Clears the voice's font when given null. Parses the family name before storing anything,
+   * so on UnreadableFontError the font already in use still stands.
+   */
+  async function setVoiceFont(voice: VoiceId, file: File | null): Promise<void> {
+    const { [voice]: _file, ...files } = voiceFontFiles.value ?? {};
+    const { [voice]: _font, ...fonts } = voiceFonts.value;
+    if (file) {
+      const family = await readFontFamilyName(file);
+      files[voice] = file;
+      fonts[voice] = { family, url: URL.createObjectURL(file) };
+    }
+    voiceFontFiles.value = Object.keys(files).length > 0 ? files : null;
+    voiceFonts.value = fonts;
+  }
+
+  /**
+   * The voice's override as the renderer should use it, with an uploaded font standing in for the picked one.
+   */
+  function renderVoiceStyle(voice: VoiceId): VoiceStyleOverride | undefined {
+    const font = voiceFonts.value[voice];
+    const style = voiceStyles.value[voice];
+    return font ? { ...style, fontName: font.family } : style;
+  }
+
   // Clears the font when given null. Parses the family name before storing anything, so
   // on UnreadableFontError the previously active font still stands.
   async function setCustomFont(file: File | null): Promise<void> {
@@ -280,6 +333,7 @@ export const useSettingsStore = defineStore("settings", () => {
   function clearVoiceStyle(voice: VoiceId) {
     const { [voice]: _removed, ...rest } = voiceStyles.value;
     voiceStyles.value = rest;
+    void setVoiceFont(voice, null);
   }
 
   // Move a style override onto another voice id. Used when a lyric tag edit renames a voice,
@@ -287,11 +341,27 @@ export const useSettingsStore = defineStore("settings", () => {
   // or the target already has one.
   function renameVoiceStyle(from: VoiceId, to: VoiceId) {
     const style = voiceStyles.value[from];
-    if (!style || voiceStyles.value[to]) {
-      return;
+    if (style && !voiceStyles.value[to]) {
+      const { [from]: _removed, ...rest } = voiceStyles.value;
+      voiceStyles.value = { ...rest, [to]: style };
     }
-    const { [from]: _removed, ...rest } = voiceStyles.value;
-    voiceStyles.value = { ...rest, [to]: style };
+    const file = voiceFontFiles.value?.[from];
+    const font = voiceFonts.value[from];
+    if (file && font && !voiceFontFiles.value?.[to]) {
+      const { [from]: _file, ...files } = voiceFontFiles.value ?? {};
+      const { [from]: _font, ...fonts } = voiceFonts.value;
+      voiceFontFiles.value = { ...files, [to]: file };
+      voiceFonts.value = { ...fonts, [to]: font };
+    }
+  }
+
+  /**
+   * Every uploaded font, the base one and each voice's, as Start over discards them.
+   */
+  async function clearCustomFonts(): Promise<void> {
+    await setCustomFont(null);
+    voiceFontFiles.value = null;
+    voiceFonts.value = {};
   }
 
   // Merge a partial set of options over the current ones, e.g. from a loaded settings.yaml.
@@ -375,7 +445,7 @@ export const useSettingsStore = defineStore("settings", () => {
     Object.assign(videoOptions, defaultSettings());
     voiceStyles.value = {};
     timingKeys.value = { ...DEFAULT_TIMING_KEYS };
-    void setCustomFont(null);
+    void clearCustomFonts();
   }
 
   return {
@@ -388,6 +458,10 @@ export const useSettingsStore = defineStore("settings", () => {
     customFontFamily,
     customFontUrl,
     setCustomFont,
+    getVoiceFont,
+    setVoiceFont,
+    renderVoiceStyle,
+    clearCustomFonts,
     setTimingKey,
     getVoiceStyle,
     setVoiceStyleField,

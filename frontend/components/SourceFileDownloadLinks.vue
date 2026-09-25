@@ -37,9 +37,9 @@
         ><b-icon icon="copy"
       /></a>
     </span>
-    <span v-if="font" class="file-item">
-      {{ font.name }}
-      <a @click="download(font, font.name)" title="download font"><b-icon icon="download" /></a>
+    <span v-for="(file, index) in allFonts" :key="index" class="file-item">
+      {{ file.name }}
+      <a @click="download(file, file.name)" title="download font"><b-icon icon="download" /></a>
     </span>
     <span v-if="vocals && vocals.size > 0" class="file-item">
       {{ vocalsName }}
@@ -58,7 +58,7 @@
 
 <script lang="ts">
 import { isString } from "lodash-es";
-import { defineComponent } from "vue";
+import { defineComponent, PropType } from "vue";
 import { extensionForBlob } from "@/lib/audio";
 
 export default defineComponent({
@@ -72,10 +72,15 @@ export default defineComponent({
     subtitles: String,
     settings: String,
     font: File,
+    // More fonts, such as the ones uploaded for single voices.
+    fonts: { type: Array as PropType<File[]>, default: () => [] },
     vocals: Blob,
     accompaniment: Blob,
   },
   computed: {
+    allFonts(): File[] {
+      return this.font ? [this.font, ...this.fonts] : this.fonts;
+    },
     vocalsName(): string {
       return `vocals.${extensionForBlob(this.vocals ?? new Blob())}`;
     },
@@ -95,7 +100,7 @@ export default defineComponent({
         this.hasTimings ||
         this.subtitles ||
         this.settings ||
-        this.font ||
+        this.allFonts.length > 0 ||
         (this.vocals && this.vocals.size > 0) ||
         (this.accompaniment && this.accompaniment.size > 0),
       );

@@ -124,4 +124,44 @@ test.describe("Custom Font Upload", () => {
     await expect(page.locator(".custom-font-help")).toHaveCount(0);
     await expect(fontSelect(page)).toHaveValue("Arial Narrow");
   });
+
+  test("a voice takes its own uploaded font, kept across a reload and dropped on Start over", async ({
+    page,
+  }) => {
+    await navigateToTab(page, TabId.SongInfo);
+    await page.locator('[name="lyrics-file-upload"] input[type="file"]').setInputFiles({
+      name: "duet.txt",
+      mimeType: "text/plain",
+      buffer: Buffer.from("[Anna] la_la\n[Ben] hm_hm"),
+    });
+    await openFontSettings(page);
+
+    const ben = page.locator(".voice-style").filter({ hasText: "Ben" });
+    await ben.locator(".switch").click();
+    await ben.locator('.voice-font-upload input[type="file"]').setInputFiles(bundledFontPath());
+
+    await expect(ben.locator(".voice-font-help")).toContainText("Rendering Ben in “Metal Mania”");
+    await expect(
+      page.locator(".voice-style").filter({ hasText: "Anna" }).locator(".voice-font-help"),
+    ).toHaveCount(0);
+
+    await page.reload();
+    await navigateToTab(page, TabId.Submit);
+    await expect(ben.locator(".voice-font-help")).toContainText("Metal Mania");
+
+    await page.click('button[title="Discard the saved session and start fresh"]');
+    await expect(page.locator(".modal-card-body .source-file-links")).toContainText(
+      "MetalMania.ttf",
+    );
+    await page.click('.modal-card-foot button:has-text("Start over")');
+
+    await navigateToTab(page, TabId.SongInfo);
+    await page.locator('[name="lyrics-file-upload"] input[type="file"]').setInputFiles({
+      name: "duet.txt",
+      mimeType: "text/plain",
+      buffer: Buffer.from("[Anna] la_la\n[Ben] hm_hm"),
+    });
+    await navigateToTab(page, TabId.Submit);
+    await expect(page.locator(".voice-font-help")).toHaveCount(0);
+  });
 });

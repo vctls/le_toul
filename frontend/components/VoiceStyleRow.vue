@@ -9,6 +9,20 @@
           <option v-for="(path, name) in fonts" :key="path" :value="name">{{ name }}</option>
         </b-select>
       </b-field>
+      <b-field horizontal label="Custom Font">
+        <file-upload
+          expanded
+          class="voice-font-upload"
+          :accept="['.ttf', '.otf', '.ttc']"
+          :model-value="customFont?.file ?? null"
+          @update:model-value="onCustomFontChange"
+        />
+      </b-field>
+      <b-field horizontal v-if="customFont">
+        <p class="help voice-font-help">
+          Rendering {{ voice }} in &ldquo;{{ customFont.family }}&rdquo;, overriding the font above.
+        </p>
+      </b-field>
       <b-field horizontal label="Font Size">
         <b-numberinput
           expanded
@@ -41,6 +55,7 @@ import { defineComponent, PropType } from "vue";
 import { BField, BSelect, BNumberinput, BSwitch } from "buefy";
 import { default as BuefyColor } from "buefy/src/utils/color";
 import ColorField from "@/components/ColorField.vue";
+import FileUpload from "@/components/FileUpload.vue";
 import { useSettingsStore } from "@/stores/settings";
 import { VoiceStyleOverride, isEmptyOverride } from "@/lib/voiceStyle";
 import { VoiceId } from "@/lib/voices";
@@ -48,7 +63,7 @@ import { VoiceId } from "@/lib/voices";
 // Editor for a single voice's style override.
 // Uses v-model throughout (Vue 3 component model binding), mirroring the base "Fonts and Colors" controls.
 export default defineComponent({
-  components: { BField, BSelect, BNumberinput, BSwitch, ColorField },
+  components: { BField, BSelect, BNumberinput, BSwitch, ColorField, FileUpload },
   props: {
     voice: { type: String as PropType<VoiceId>, required: true },
     fonts: { type: Object as PropType<Record<string, string>>, required: true },
@@ -63,6 +78,9 @@ export default defineComponent({
     };
   },
   computed: {
+    customFont() {
+      return this.settingsStore.getVoiceFont(this.voice);
+    },
     override(): VoiceStyleOverride {
       return this.settingsStore.getVoiceStyle(this.voice) ?? {};
     },
@@ -70,8 +88,9 @@ export default defineComponent({
       return this.settingsStore.videoOptions;
     },
     customizing: {
+      // A saved font loads after the row mounts, so it can't only count towards the initial state.
       get(): boolean {
-        return this.expanded;
+        return this.expanded || this.customFont !== undefined;
       },
       set(on: boolean) {
         this.expanded = on;
@@ -135,6 +154,27 @@ export default defineComponent({
       set(value: BuefyColor) {
         this.settingsStore.setVoiceStyleField(this.voice, "outline", value);
       },
+    },
+  },
+  methods: {
+    async onCustomFontChange(file: File | null) {
+      try {
+        await this.settingsStore.setVoiceFont(this.voice, file);
+        if (file) {
+          this.$buefy.toast.open({
+            message: `Using "${this.customFont?.family}" for ${this.voice}.`,
+            type: "is-success",
+            duration: 2000,
+          });
+        }
+      } catch (e) {
+        console.error(e);
+        this.$buefy.toast.open({
+          message: (e as Error).message,
+          type: "is-danger",
+          duration: 5000,
+        });
+      }
     },
   },
 });
