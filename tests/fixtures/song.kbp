@@ -1,0 +1,93 @@
+-----------------------------
+KARAOKE BUILDER STUDIO
+www.KaraokeBuilder.com
+
+-----------------------------
+HEADERV2
+
+'--- Template Information ---
+
+'Palette Colours (0-15)
+  055,FFF,000,E70,940,CFF,033,0DD,077,FCF,303,F3F,818,000,FFF,000
+
+'Styles (00-19)
+'  Number,Name
+'  Colour: Text,Outline,Text Wipe,Outline Wipe
+'  Font  : Name,Size,Style,Charset
+'  Other : Outline*4,Shadow*2,Wiping,Uppercase
+
+  Style00,Default,1,2,3,4
+    Arial,12,B,0
+    2,2,2,2,0,0,0,L
+
+  Style01,Male,5,6,7,8
+    Arial,12,B,0
+    2,2,2,2,0,0,0,L
+
+  Style02,Female,9,10,11,12
+    Arial,12,B,0
+    2,2,2,2,0,0,0,L
+
+  Style03,Other,4,8,12,14
+    Arial,12,B,0
+    2,2,2,2,0,0,0,L
+
+  StyleEnd
+
+'Margins : L,R,T,Line Spacing
+  2,2,7,12
+
+'Other: Border Colour,Detail Level
+  0,2
+
+'--- Track Information ---
+
+Status    1
+Title     Pale Moon
+Artist    The Placeholders
+Audio     C:\Users\Someone\Karaoke\The Placeholders - Pale Moon.flac
+BuildFile 
+Intro     
+Outro     
+
+Comments  Made up for tests
+          with a second line
+
+-----------------------------
+PAGEV2
+C/A/1/638/0/0/0
+➣➣➣/           301/419/0
+Pale /         420/439/0
+moon /         439/461/0
+ri/            461/498/0
+sing /         499/525/0
+slow/          525/588/0
+
+C/A/1/884/0/0/0
+o/             645/669/0
+ver /          669/681/0
+the /          681/707/0
+qui/           707/727/0
+et /           727/770/0
+hill/          771/834/0
+
+C/A/1/1115/0/0/0
+Lan/           923/945/0
+terns /        945/965/0
+glow/          1037/1065/0
+
+-----------------------------
+PAGEV2
+C/A/1613/2082/0/0/0
+Wan/           1913/1927/0
+der /          1927/1945/0
+a/             1945/1963/0
+way/           1964/2032/0
+
+C/A/1613/2205/0/0/0
+Home /         2083/2113/0
+a/             2113/2133/0
+gain/          2133/2155/0
+
+-----------------------------
+

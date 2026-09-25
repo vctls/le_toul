@@ -28,7 +28,7 @@ export const DEFAULT_VOICE_ID = "Voice 1";
 
 // A leading tag: optional indent, `[...]`, optional single trailing space. The content is
 // any run of characters that isn't `]`.
-const TAG_PATTERN = /^\s*\[([^\]\n]+)\]\s?/;
+export const TAG_PATTERN = /^\s*\[([^\]\n]+)\]\s?/;
 
 export interface AnnotatedLyrics {
   // Distinct voices, in order of first appearance.
