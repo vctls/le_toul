@@ -205,7 +205,7 @@ export const useTimingsStore = defineStore("timings", {
           // Apply the active voice's style override (no-op when it has none).
           const voiceOptions = applyVoiceStyle(
             baseOptions,
-            settingsStore.getVoiceStyle(this.activeVoice),
+            settingsStore.renderVoiceStyle(this.activeVoice),
           );
 
           // font and color merge field by field, so a caller can override one of them
@@ -277,7 +277,7 @@ export const useTimingsStore = defineStore("timings", {
           voice,
           segments: this.timedSegmentsForVoice(voice),
           options: {
-            ...applyVoiceStyle(baseOptions, settingsStore.getVoiceStyle(voice)),
+            ...applyVoiceStyle(baseOptions, settingsStore.renderVoiceStyle(voice)),
             ...options,
           },
         }));

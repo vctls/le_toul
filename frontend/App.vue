@@ -63,7 +63,7 @@
       @confirm="startOver"
     >
       <p>
-        This will discard the current song, tracks, lyrics, timings and uploaded font. Other
+        This will discard the current song, tracks, lyrics, timings and uploaded fonts. Other
         settings will be kept. Save anything you want to keep first.
       </p>
       <source-file-download-links
@@ -73,6 +73,7 @@
         :lyrics="lyricsStore.lyricText"
         :timings="timingsStore.hasAnyTimings ? timingsStore.timingsFile : undefined"
         :font="settingsStore.customFont ?? undefined"
+        :fonts="voiceFonts"
         :vocals="mediaStore.separatedTrack?.vocals"
         :accompaniment="mediaStore.separatedTrack?.backing"
       />
@@ -141,6 +142,11 @@ export default defineComponent({
 
   computed: {
     isMobile,
+    voiceFonts(): File[] {
+      return this.lyricsStore.voices
+        .map((voice) => this.settingsStore.getVoiceFont(voice)?.file)
+        .filter((file): file is File => file !== undefined);
+    },
     themeButton(): { icon: string; label: string } {
       return THEME_BUTTONS[this.themeStore.preference];
     },
@@ -156,7 +162,7 @@ export default defineComponent({
       this.timingsStore.clear();
       this.lyricsStore.clear();
       await this.mediaStore.clearSession();
-      await this.settingsStore.setCustomFont(null);
+      await this.settingsStore.clearCustomFonts();
     },
   },
 });
