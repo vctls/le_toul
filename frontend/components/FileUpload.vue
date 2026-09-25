@@ -7,13 +7,10 @@
       </b-tooltip>
     </template>
     <b-upload
+      ref="upload"
       :expanded="expanded"
       :model-value="file ?? undefined"
-      @update:model-value="
-        (v: File | File[] | null) => {
-          file = Array.isArray(v) ? (v[0] ?? null) : v;
-        }
-      "
+      @update:model-value="onSelect"
       class="file-label"
       :accept="acceptAttribute"
     >
@@ -60,6 +57,16 @@ export default defineComponent({
       set(newValue: File | null) {
         this.$emit("update:modelValue", newValue);
       },
+    },
+  },
+  methods: {
+    /**
+     * Clears the native input after every pick,
+     * so picking the same file again still fires a change when the parent declined the first one.
+     */
+    onSelect(value: File | File[] | null) {
+      this.file = Array.isArray(value) ? (value[0] ?? null) : value;
+      (this.$refs.upload as { clearInput?: () => void } | undefined)?.clearInput?.();
     },
   },
 });

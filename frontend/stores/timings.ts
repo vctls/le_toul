@@ -240,6 +240,15 @@ export const useTimingsStore = defineStore("timings", {
       return useLyricsStore().voices.filter((v) => isTimed(state._segmentsByVoice[v]));
     },
 
+    /**
+     * Whether any timing is stored at all.
+     * Unlike `voicesWithTimings` this counts voices the lyrics no longer name,
+     * which loading a timings file also replaces.
+     */
+    hasAnyTimings(state): boolean {
+      return Object.values(state._segmentsByVoice).some(isTimed);
+    },
+
     timingsForVoice(state) {
       return (voice: VoiceId): Timings => toEvents(state._segmentsByVoice[voice] ?? []);
     },
