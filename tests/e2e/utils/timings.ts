@@ -134,7 +134,21 @@ async function dragRegionHandle(
  * into view.
  */
 export async function scrollWaveformIntoView(page: Page): Promise<void> {
-  await page.locator(".timing-adjustment-tab .wavesurfer-container").scrollIntoViewIfNeeded();
+  const container = page.locator(".timing-adjustment-tab .wavesurfer-container");
+  await container.scrollIntoViewIfNeeded();
+  // A waveform drawn while its tab was hidden is only stretched to fill its container up to 100ms
+  // after the tab is shown, and the regions move with it. Until then a drag grabs a stale position.
+  await expect
+    .poll(() =>
+      container
+        .locator('[part~="wrapper"]')
+        .evaluate(
+          (wrapper) =>
+            wrapper.parentElement!.clientWidth > 0 &&
+            wrapper.clientWidth >= wrapper.parentElement!.clientWidth,
+        ),
+    )
+    .toBe(true);
 }
 
 /** The Adjust tab's rectangle for one lyric segment. */
