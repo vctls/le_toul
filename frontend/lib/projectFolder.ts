@@ -2,6 +2,7 @@
 //
 // The folder is whatever the user points at, so classification is lenient: the names the exporter writes win,
 // an unfamiliar name falls back to its extension, and anything left over is listed rather than refused.
+// Lyrics and timings are matched by name only, since both can be `.txt`, and so can any notes beside them.
 // A folder holding only some of the files loads those.
 
 export interface ProjectFolder {
@@ -30,10 +31,14 @@ const NAMED_STEMS: Record<string, Slot> = {
 
 const NAMED_SLOTS: Record<string, Slot> = {
   "lyrics.txt": "lyrics",
+  "timings.txt": "timings",
   "timings.json": "timings",
   "settings.yaml": "settings",
   "settings.yml": "settings",
 };
+
+// The legacy name, which gives way to the current one whichever sorts first.
+const SUPERSEDED_BY: Record<string, string> = { "timings.json": "timings.txt" };
 
 // Rebuilt from the lyrics and timings, so there is nothing to load back.
 const DERIVED_NAMES = ["subtitles.ass"];
@@ -41,8 +46,6 @@ const DERIVED_NAMES = ["subtitles.ass"];
 // What an unrecognized name falls back to. Video extensions are deliberately absent:
 // the rendered karaoke video sits in the same folder, and the source song is matched by name.
 const EXTENSION_SLOTS: Record<string, Slot> = {
-  txt: "lyrics",
-  json: "timings",
   yaml: "settings",
   yml: "settings",
   ttf: "font",
@@ -98,7 +101,13 @@ export function classifyProjectFolder(files: File[]): ProjectFolder {
     }
     const slot =
       NAMED_SLOTS[name] ?? NAMED_STEMS[stemOf(name)] ?? EXTENSION_SLOTS[extensionOf(name)];
-    if (!slot || project[slot]) {
+    const taken = slot ? project[slot] : undefined;
+    if (slot && taken && SUPERSEDED_BY[taken.name.toLowerCase()] === name) {
+      project.ignored.push(pathOf(taken));
+      project[slot] = file;
+      continue;
+    }
+    if (!slot || taken) {
       project.ignored.push(pathOf(file));
       continue;
     }

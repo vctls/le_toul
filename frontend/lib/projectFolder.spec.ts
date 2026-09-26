@@ -13,7 +13,7 @@ const EXPORTED_FOLDER = [
   "Queen - Bohemian Rhapsody [karaoke].mp4",
   "subtitles.ass",
   "lyrics.txt",
-  "timings.json",
+  "timings.txt",
   "settings.yaml",
   "MetalMania.ttf",
   "song.mp4",
@@ -29,7 +29,7 @@ describe("classifyProjectFolder", () => {
     expect(project.backing?.name).toBe("accompaniment.wav");
     expect(project.vocals?.name).toBe("vocals.wav");
     expect(project.lyrics?.name).toBe("lyrics.txt");
-    expect(project.timings?.name).toBe("timings.json");
+    expect(project.timings?.name).toBe("timings.txt");
     expect(project.settings?.name).toBe("settings.yaml");
     expect(project.font?.name).toBe("MetalMania.ttf");
   });
@@ -53,15 +53,41 @@ describe("classifyProjectFolder", () => {
   test("falls back to the extension for names it does not know", () => {
     const project = classifyProjectFolder([
       file("Bohemian Rhapsody.mp3"),
-      file("my lyrics.TXT"),
       file("settings.yml"),
       file("Impact.otf"),
     ]);
 
     expect(project.song?.name).toBe("Bohemian Rhapsody.mp3");
-    expect(project.lyrics?.name).toBe("my lyrics.TXT");
     expect(project.settings?.name).toBe("settings.yml");
     expect(project.font?.name).toBe("Impact.otf");
+  });
+
+  test("matches lyrics and timings by name only", () => {
+    const project = classifyProjectFolder([
+      file("a notes.txt"),
+      file("a data.json"),
+      file("lyrics.txt"),
+      file("timings.txt"),
+    ]);
+
+    expect(project.lyrics?.name).toBe("lyrics.txt");
+    expect(project.timings?.name).toBe("timings.txt");
+    expect(project.ignored).toEqual(["a data.json", "a notes.txt"]);
+  });
+
+  test("prefers timings.txt over timings.json, whichever comes first", () => {
+    for (const files of [
+      [file("timings.json"), file("timings.txt")],
+      [file("timings.txt"), file("timings.json")],
+    ]) {
+      const project = classifyProjectFolder(files);
+      expect(project.timings?.name).toBe("timings.txt");
+      expect(project.ignored).toEqual(["timings.json"]);
+    }
+  });
+
+  test("still loads a timings.json on its own", () => {
+    expect(classifyProjectFolder([file("timings.json")]).timings?.name).toBe("timings.json");
   });
 
   test("keeps the first candidate for a slot and reports the rest", () => {
