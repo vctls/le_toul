@@ -9,6 +9,7 @@ import {
   uploadTimingsFile,
   expectVideoCreationToBeDisabled,
   expectVideoCreationToBeEnabled,
+  getFixturePath,
 } from "./utils";
 
 test.describe("Timings File Upload", () => {
@@ -42,5 +43,62 @@ test.describe("Timings File Upload", () => {
     await navigateToTab(page, TabId.Submit);
     await expect(page.locator('button:has-text("Create Video")')).toBeVisible();
     await expectVideoCreationToBeEnabled(page);
+  });
+});
+
+test.describe("Telling timings and lyrics files apart", () => {
+  const LYRICS_INPUT = '[name="lyrics-file-upload"] input[type="file"]';
+  const TIMINGS_INPUT = '[name="timings-file-upload"] input[type="file"]';
+  const text = (name: string, rows: string[]) => ({
+    name,
+    mimeType: "text/plain",
+    buffer: Buffer.from(rows.join("\n") + "\n"),
+  });
+
+  test.beforeEach(async ({ page }) => {
+    await setupTestEnvironment(page);
+    await navigateToTab(page, TabId.SongInfo);
+  });
+
+  test("loads a timings.txt and lists what it changed under the input", async ({ page }) => {
+    await page
+      .locator(TIMINGS_INPUT)
+      .setInputFiles(
+        text("timings.txt", [
+          "Toul timings 1",
+          "",
+          "page",
+          "",
+          "-",
+          '"Went "  00:01.00',
+          "-",
+          "",
+          "-",
+          "-",
+        ]),
+      );
+
+    await expect(page.locator('[name="timings-file-upload"] .file-name')).toHaveText("timings.txt");
+    await expect(page.locator(".existing-files .import-warnings")).toContainText(
+      "A blank spacer line was dropped",
+    );
+  });
+
+  test("refuses a timings file in the lyrics input", async ({ page }) => {
+    await page.locator(LYRICS_INPUT).setInputFiles(text("timings.txt", ["Toul timings 1"]));
+
+    await expect(page.locator('.toast:has-text("this is a timings file")')).toBeVisible();
+    await expect(page.locator('[name="lyrics-file-upload"] .file-name')).toHaveText(
+      "No file chosen",
+    );
+  });
+
+  test("refuses a lyrics file in the timings input", async ({ page }) => {
+    await page.locator(TIMINGS_INPUT).setInputFiles(getFixturePath("lyrics.txt"));
+
+    await expect(page.locator('.toast:has-text("it may be a lyrics file")')).toBeVisible();
+    await expect(page.locator('[name="timings-file-upload"] .file-name')).toHaveText(
+      "No file chosen",
+    );
   });
 });

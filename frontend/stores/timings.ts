@@ -24,6 +24,7 @@ import { applyVoiceStyle } from "@/lib/voiceStyle";
 import { VideoSettings } from "./settings";
 import { VoiceId, DEFAULT_VOICE_ID, parseAnnotatedLyrics } from "@/lib/voices";
 import { loadJsonFromStorage } from "@/lib/persistence";
+import { writeTimingsText } from "@/lib/timingsText";
 
 const SEGMENTS_STORAGE_KEY = "timings._segments";
 // This key is read-only now.
@@ -258,11 +259,18 @@ export const useTimingsStore = defineStore("timings", {
     },
 
     /**
-     * What the Submit tab writes to timings.json.
-     * Unlike `allTimings` this keeps untimed segments, so a partly-timed project survives a save/reload.
+     * What the KBP export reads, until it works from `timingsText`'s model.
+     * Unlike `allTimings` this keeps untimed segments.
      */
     timingsFile(state): TimingsFile {
       return { version: TIMINGS_FILE_VERSION, voices: state._segmentsByVoice };
+    },
+
+    /**
+     * The `timings.txt` the Submit tab and the project download write.
+     */
+    timingsText(state): string {
+      return writeTimingsText(state._segmentsByVoice, useLyricsStore().voices);
     },
 
     // Composited subtitles for ALL voices (used by the Submit preview and final video), as opposed to `subtitles`,

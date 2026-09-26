@@ -5,6 +5,7 @@ import { TimedSegment } from "./timedSegments";
 import {
   DISPLAY_PERIOD_WIDENED,
   TimingsTextError,
+  isTimingsText,
   parseTimingsText,
   writeTimingsText,
 } from "./timingsText";
@@ -13,6 +14,20 @@ const file = (...rows: string[]) => rows.join("\n") + "\n";
 const signed = (...rows: string[]) => file("Toul timings 1", ...rows);
 const voice = (text: string, name = "Voice 1") => parseTimingsText(text).voices[name];
 const texts = (segments: TimedSegment[]) => segments.map(({ text }) => text);
+
+describe("isTimingsText", () => {
+  test("recognises the signature, whatever its version", () => {
+    expect(isTimingsText(file("Toul timings 1"))).toBe(true);
+    expect(isTimingsText("\uFEFF\r\n# exported\r\n  Toul timings 7  \r\n")).toBe(true);
+  });
+
+  test("doesn't take lyrics or JSON for timings", () => {
+    expect(isTimingsText("[Anna] Toul timings 1")).toBe(false);
+    expect(isTimingsText("Hel/lo_world\nToul timings 1")).toBe(false);
+    expect(isTimingsText('{"version": 2, "voices": {}}')).toBe(false);
+    expect(isTimingsText("")).toBe(false);
+  });
+});
 
 describe("parseTimingsText", () => {
   test("reads the example of the format", () => {

@@ -365,7 +365,7 @@
       <div class="download-links">
         <source-file-download-links
           :lyrics="lyricText"
-          :timings="timingsExport"
+          :timings="timingsText"
           :subtitles="allVoicesSubtitles()"
           :settings="settingsYaml"
           :font="customFont ?? undefined"
@@ -624,9 +624,8 @@ export default defineComponent({
     timings() {
       return this.timingsStore.rawTimings;
     },
-    // All voices' timings, for the downloadable timings.json.
-    timingsExport() {
-      return this.timingsStore.timingsFile;
+    timingsText(): string {
+      return this.timingsStore.timingsText;
     },
     settingsYaml(): string {
       return this.settingsStore.settingsYaml;
@@ -743,7 +742,7 @@ export default defineComponent({
     downloadKbp() {
       const { kbp, warnings } = projectFilesToKbp({
         lyrics: this.lyricText,
-        timings: this.timingsExport,
+        timings: this.timingsStore.timingsFile,
         settings: this.settingsYaml,
         audioName: this.mediaStore.songFile?.name ?? null,
       });
@@ -770,7 +769,7 @@ export default defineComponent({
       zip.file(this.videoFileName, videoBlob);
       zip.file("subtitles.ass", this.allVoicesSubtitles());
       zip.file("lyrics.txt", this.lyricText);
-      zip.file("timings.json", JSON.stringify(this.timingsExport));
+      zip.file("timings.txt", this.timingsText);
       zip.file("settings.yaml", this.settingsYaml);
       if (this.customFont) {
         zip.file(this.customFont.name, this.customFont);

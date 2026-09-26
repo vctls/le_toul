@@ -71,7 +71,7 @@
         label="Current files: "
         :song="mediaStore.songFile ?? undefined"
         :lyrics="lyricsStore.lyricText"
-        :timings="timingsStore.hasAnyTimings ? timingsStore.timingsFile : undefined"
+        :timings="timingsStore.hasAnyTimings ? timingsStore.timingsText : undefined"
         :font="settingsStore.customFont ?? undefined"
         :fonts="voiceFonts"
         :vocals="mediaStore.separatedTrack?.vocals"

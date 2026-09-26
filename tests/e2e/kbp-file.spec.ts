@@ -34,7 +34,7 @@ test.describe("Karaoke Builder Studio files", () => {
     await expect(page.locator(".toast")).toContainText(
       "Its song is The Placeholders - Pale Moon.flac",
     );
-    const warnings = page.locator(".kbp-files .kbp-warnings");
+    const warnings = page.locator(".kbp-files .import-warnings");
     await expect(warnings).toContainText("Some parts couldn't be carried over");
     await expect(warnings).toContainText('A lead-in syllable "➣➣➣" was dropped');
     await expect(page.locator('[name="kbp-file-upload"] .file-name')).toHaveText("song.kbp");

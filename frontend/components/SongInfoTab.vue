@@ -197,12 +197,25 @@
           <file-upload
             expanded
             name="timings-file-upload"
-            :accept="['.json']"
+            :accept="['.txt', '.json']"
             label="Timings File"
-            tooltip="A timings.json exported from the Submit tab. Restores the timings you tapped out, so you can pick up where you left off."
+            tooltip="A timings.txt exported from the Submit tab, or an older timings.json. Restores the timings you tapped out, so you can pick up where you left off."
             :model-value="mediaStore.timingsFile"
             @update:model-value="onTimingsFileSelect"
           />
+          <b-message
+            v-if="timingsWarnings.length"
+            class="import-warnings"
+            type="is-warning"
+            size="is-small"
+            title="Some parts were changed on load"
+            closable
+            @close="timingsWarnings = []"
+          >
+            <ul>
+              <li v-for="warning in timingsWarnings" :key="warning">{{ warning }}</li>
+            </ul>
+          </b-message>
           <file-upload
             expanded
             name="backing-track-upload"
@@ -233,7 +246,7 @@
           />
           <b-message
             v-if="kbpWarnings.length"
-            class="kbp-warnings"
+            class="import-warnings"
             type="is-warning"
             size="is-small"
             title="Some parts couldn't be carried over"
@@ -337,7 +350,8 @@ import { parseSettingsYaml } from "@/lib/settingsFile";
 import { classifyProjectFolder, ProjectFolder } from "@/lib/projectFolder";
 import { kbpToProjectFiles, KbpImport } from "@/lib/kbpConvert";
 import { BUNDLED_FONTS } from "@/lib/fonts";
-import { isTimingsFile, TimingsFile } from "@/lib/timedSegments";
+import { isTimingsFile } from "@/lib/timedSegments";
+import { isTimingsText, parseTimingsText, TIMINGS_TEXT_VERSION } from "@/lib/timingsText";
 import FileUpload from "@/components/FileUpload.vue";
 import FolderUpload from "@/components/FolderUpload.vue";
 import CircularProgress from "@/components/CircularProgress.vue";
@@ -365,7 +379,7 @@ interface FolderLosses {
   files: {
     song?: File;
     lyrics?: string;
-    timings?: TimingsFile;
+    timings?: string;
     settings?: string;
     font?: File;
     vocals?: Blob;
@@ -431,12 +445,18 @@ export default defineComponent({
       pendingFolder: null as { project: ProjectFolder; name: string | null } | null,
       projectFolderName: null as string | null,
       kbpWarnings: [] as string[],
+      timingsWarnings: [] as string[],
     };
   },
   watch: {
     "mediaStore.kbpFile"(file: File | null) {
       if (!file) {
         this.kbpWarnings = [];
+      }
+    },
+    "mediaStore.timingsFile"(file: File | null) {
+      if (!file) {
+        this.timingsWarnings = [];
       }
     },
   },
@@ -451,13 +471,13 @@ export default defineComponent({
       title: string;
       subject: string;
       label: string;
-      files: { lyrics?: string; timings?: TimingsFile; settings?: string };
+      files: { lyrics?: string; timings?: string; settings?: string };
     } {
       const kind = this.pendingReplacement?.kind;
       const lyrics = kind !== "timings" ? this.lyricsStore.lyricText : undefined;
       const timings =
         kind !== "lyrics" && this.timingsStore.hasAnyTimings
-          ? this.timingsStore.timingsFile
+          ? this.timingsStore.timingsText
           : undefined;
       if (kind === "kbp") {
         return {
@@ -614,8 +634,26 @@ export default defineComponent({
         });
       }
     },
-    async applyTimingsFile(file: File) {
-      const parsed = JSON.parse(await file.text());
+    /**
+     * Loads a timings.txt, or a timings.json in any of its older shapes.
+     * Returns what the timings.txt parser changed on the way.
+     */
+    async applyTimingsFile(file: File): Promise<string[]> {
+      const text = await file.text();
+      if (isTimingsText(text)) {
+        const { voices, warnings } = parseTimingsText(text);
+        this.timingsStore.setAllSegments(voices);
+        return warnings;
+      }
+
+      let parsed;
+      try {
+        parsed = JSON.parse(text);
+      } catch {
+        throw new Error(
+          `it doesn't start with "Toul timings ${TIMINGS_TEXT_VERSION}", so it may be a lyrics file`,
+        );
+      }
       if (Array.isArray(parsed)) {
         // Legacy / single-voice format: one voice, an array of [time, marker] tuples.
         this.timingsStore.resetTimings(parsed);
@@ -626,6 +664,14 @@ export default defineComponent({
         // Multi-voice format: a per-voice map of timing arrays.
         this.timingsStore.setAllTimings(parsed);
       }
+      return [];
+    },
+    async readLyricsFile(file: File): Promise<string> {
+      const text = await file.text();
+      if (isTimingsText(text)) {
+        throw new Error("this is a timings file, so load it with the Timings File input");
+      }
+      return text;
     },
     onLyricsFileSelect(file: File | null) {
       if (file && this.lyricsStore.lyricText.trim() !== "") {
@@ -718,10 +764,18 @@ export default defineComponent({
         return;
       }
       try {
-        await this.applyTimingsFile(file);
+        this.timingsWarnings = await this.applyTimingsFile(file);
+        if (this.timingsWarnings.length) {
+          this.$buefy.toast.open({
+            message: "Timings loaded, with a few changes listed under the Timings File input.",
+            type: "is-warning",
+            duration: 6000,
+          });
+        }
       } catch (e) {
         console.error(e);
         this.mediaStore.timingsFile = null;
+        this.timingsWarnings = [];
         this.$buefy.toast.open({
           message: `Couldn't read that timings file: ${(e as Error).message}`,
           type: "is-danger",
@@ -736,7 +790,7 @@ export default defineComponent({
         return;
       }
       try {
-        this.lyricsStore.setLyrics(await file.text());
+        this.lyricsStore.setLyrics(await this.readLyricsFile(file));
         this.$buefy.toast.open({ message: "Lyrics loaded!", type: "is-success", duration: 2000 });
       } catch (e) {
         console.error(e);
@@ -766,7 +820,7 @@ export default defineComponent({
       }
       if (project.timings && this.timingsStore.hasAnyTimings) {
         losses.labels.push("timings");
-        losses.files.timings = this.timingsStore.timingsFile;
+        losses.files.timings = this.timingsStore.timingsText;
       }
       if (project.backing && track && track.backing.size > 0) {
         losses.labels.push("backing track");
@@ -833,15 +887,16 @@ export default defineComponent({
       if (project.lyrics) {
         const lyrics = project.lyrics;
         await apply("lyrics", lyrics, async () => {
-          this.lyricsStore.setLyrics(await lyrics.text());
+          this.lyricsStore.setLyrics(await this.readLyricsFile(lyrics));
           this.mediaStore.lyricsFile = lyrics;
         });
       }
       if (project.timings) {
         const timings = project.timings;
         await apply("timings", timings, async () => {
-          await this.applyTimingsFile(timings);
+          const warnings = await this.applyTimingsFile(timings);
           this.mediaStore.timingsFile = timings;
+          this.timingsWarnings = warnings;
         });
       }
       if (project.backing) {
@@ -915,7 +970,7 @@ export default defineComponent({
 });
 </script>
 <style scoped>
-.kbp-warnings ul {
+.import-warnings ul {
   list-style: disc;
   padding-left: 1.25em;
 }
