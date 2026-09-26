@@ -2,8 +2,9 @@
 // Every segment carries its own text, so lyrics and timings cannot drift apart.
 // See docs/timed-segments-spec.md.
 
+import { range } from "lodash-es";
 import { LYRIC_MARKERS } from "@/constants";
-import { LyricEvent, Segment, parseLyrics, displayText } from "@/lib/timing";
+import { LyricEvent, Segment, parseLyrics, displayText, resolveStarts } from "@/lib/timing";
 
 export interface TimedSegment {
   // The text includes the trailing `_`, `/`, `\n` or `\n\n` separator, as
@@ -11,6 +12,10 @@ export interface TimedSegment {
   text: string;
   start?: number;
   end?: number;
+  // A line's display period, only read on the line's first segment.
+  // A missing bound is automatic.
+  displayStart?: number;
+  displayEnd?: number;
 }
 
 /**
@@ -133,6 +138,65 @@ function reconcileWindow(stored: TimedSegment[], current: Segment[]): TimedSegme
     segments[segments.length - 1].end = end;
   }
   return segments;
+}
+
+/**
+ * Widen each line's stored display period until it contains what the renderer draws for the line.
+ * That runs from the line's first drawn start to its last drawn end,
+ * where an open end, or one past the next start, stops at the next drawn start.
+ * A line that draws nothing has no period, so its bounds are dropped.
+ * Count-ins come from the settings, so they're left to the render.
+ */
+export function clampDisplayPeriods(segments: TimedSegment[]): {
+  segments: TimedSegment[];
+  widened: number;
+} {
+  const resolved = resolveStarts(segments);
+  const drawnStart = (i: number) => (resolved[i].text === "" ? undefined : resolved[i].start);
+  const result = segments.map((segment) => ({ ...segment }));
+  let widened = 0;
+
+  let first = 0;
+  for (let i = 0; i < segments.length; i++) {
+    if (!segments[i].text.endsWith("\n") && i < segments.length - 1) {
+      continue;
+    }
+    const head = result[first];
+    const drawn = range(first, i + 1).filter((j) => drawnStart(j) !== undefined);
+    first = i + 1;
+    if (head.displayStart === undefined && head.displayEnd === undefined) {
+      continue;
+    }
+    if (drawn.length === 0) {
+      delete head.displayStart;
+      delete head.displayEnd;
+      continue;
+    }
+
+    const startBound = drawnStart(drawn[0]) as number;
+    const last = drawn[drawn.length - 1];
+    const nextStart = range(last + 1, segments.length)
+      .map(drawnStart)
+      .find((start) => start !== undefined);
+    const { end } = resolved[last];
+    const endBound =
+      end === undefined ? nextStart : nextStart === undefined ? end : Math.min(end, nextStart);
+
+    let changed = false;
+    if (head.displayStart !== undefined && head.displayStart > startBound) {
+      head.displayStart = startBound;
+      changed = true;
+    }
+    // The last line's open end runs to the song's end, which the segments don't know.
+    if (head.displayEnd !== undefined && endBound !== undefined && head.displayEnd < endBound) {
+      head.displayEnd = endBound;
+      changed = true;
+    }
+    if (changed) {
+      widened++;
+    }
+  }
+  return { segments: result, widened };
 }
 
 // The `timings.json` the Submit tab exports.

@@ -1,5 +1,11 @@
 import { describe, it, expect } from "vitest";
-import { fromEvents, toEvents, reconcile, TimedSegment } from "./timedSegments";
+import {
+  fromEvents,
+  toEvents,
+  reconcile,
+  clampDisplayPeriods,
+  TimedSegment,
+} from "./timedSegments";
 import { parseLyrics } from "./timing";
 import { LyricEvent } from "./timing";
 import { LYRIC_MARKERS } from "@/constants";
@@ -258,5 +264,24 @@ describe("reconcile", () => {
       const result = reconcile(stored, current);
       expect(result.map((s) => s.text)).toEqual(current.map((s) => s.text));
     }
+  });
+});
+
+describe("clampDisplayPeriods", () => {
+  it("stops an explicit end past the next start at that start", () => {
+    const { segments, widened } = clampDisplayPeriods([
+      { text: "a\n", start: 1, end: 5, displayEnd: 2.5 },
+      { text: "b", start: 3 },
+    ]);
+    expect(segments[0].displayEnd).toBe(3);
+    expect(widened).toBe(1);
+  });
+
+  it("leaves a period that already contains the timings alone", () => {
+    const stored: TimedSegment[] = [
+      { text: "a\n", start: 1, displayStart: 0, displayEnd: 9 },
+      { text: "b", start: 3 },
+    ];
+    expect(clampDisplayPeriods(stored)).toEqual({ segments: stored, widened: 0 });
   });
 });
