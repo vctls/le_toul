@@ -133,6 +133,58 @@ describe("LyricSegmentIterator", () => {
   });
 });
 
+describe("parseLyrics", () => {
+  const texts = (lyrics: string, includeMarkup = true) =>
+    parseLyrics(lyrics, includeMarkup).map(({ text }) => text);
+
+  test("turns a word or syllable break before a line break into the line break", () => {
+    expect(texts("foo_\nbar")).toEqual(["foo\n", "bar"]);
+    expect(texts("foo/\nbar")).toEqual(["foo\n", "bar"]);
+    expect(texts("foo_\n\nbar")).toEqual(["foo\n\n", "bar"]);
+    expect(texts("foo\n_bar")).toEqual(["foo\n", "bar"]);
+  });
+
+  test("collapses blank lines to one page break", () => {
+    expect(texts("foo\n\n\nbar")).toEqual(["foo\n\n", "bar"]);
+    expect(texts("foo\n\n\n\nbar")).toEqual(["foo\n\n", "bar"]);
+  });
+
+  test("collapses repeated breaks within a line", () => {
+    expect(texts("a__b")).toEqual(["a_", "b"]);
+    expect(texts("a//b")).toEqual(["a/", "b"]);
+    expect(texts("a/_b")).toEqual(["a_", "b"]);
+  });
+
+  test("drops a segment of whitespace but keeps its break", () => {
+    expect(texts("foo_ \nbar")).toEqual(["foo\n", "bar"]);
+    expect(texts("foo\n \nbar")).toEqual(["foo\n\n", "bar"]);
+    expect(texts("foo_ _bar")).toEqual(["foo_", "bar"]);
+  });
+
+  test("keeps a trailing break", () => {
+    expect(texts("foo_\n")).toEqual(["foo\n"]);
+    expect(texts("foo\n\n\n")).toEqual(["foo\n\n"]);
+  });
+
+  test("applies the same rules without markup", () => {
+    expect(texts("foo_\nbar", false)).toEqual(["foo\n", "bar"]);
+    expect(texts("a__b", false)).toEqual(["a ", "b"]);
+    expect(texts("al//chemy", false)).toEqual(["al", "chemy"]);
+  });
+
+  test("doesn't draw the markup of a break before a line break", () => {
+    const events: LyricEvent[] = [
+      [1, LYRIC_MARKERS.SEGMENT_START],
+      [2, LYRIC_MARKERS.SEGMENT_START],
+    ];
+    const [screen] = compileLyricTimings(fromEvents("foo_\nbar", events));
+    expect(screen.lines.map((line) => line.segments.map(({ text }) => text.trim()))).toEqual([
+      ["foo"],
+      ["bar"],
+    ]);
+  });
+});
+
 test("compileLyricTimings", () => {
   const screens = compileLyricTimings(fromEvents(testLyrics, testEvents));
   expect(screens.length).toBe(2);

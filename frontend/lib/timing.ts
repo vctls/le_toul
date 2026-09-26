@@ -146,41 +146,50 @@ export function floatToTimecode(t: number): string {
 // Lyric classes
 //
 
+// A segment's text, then the run of separators that ends it.
+const SEGMENT_PATTERN = /([^\n/_]*)([\n/_]*)/g;
+
+/**
+ * Parse marked up lyrics into segments.
+ * Line breaks separate segments, and blank lines separate screens.
+ * Underscores separate segments on word boundaries within a line.
+ * Sla/shes separate segments within a word.
+ *
+ * A run of separators counts as its strongest one,
+ * and a segment of whitespace joins the run around it.
+ * So `foo_\n` ends a line rather than drawing the underscore,
+ * and several blank lines are a single screen break.
+ */
 export function parseLyrics(lyricsText: string, includeMarkup: boolean = false): Segment[] {
-  // Parse marked up lyrics into segments.
-  // Line breaks separate segments.
-  // Double line breaks separate screens.
-  // Underscores separate segments on word boundaries between a line.
-  // Sla/shes separate segments within a word.
-  lyricsText = lyricsText.trimStart();
-  const segments = [];
-  let currentSegment = "";
-  for (let i = 0; i < lyricsText.length; i++) {
-    let finishSegment = false;
-    let char = lyricsText[i];
-    if (["\n", "/", "_"].includes(char) || i == lyricsText.length - 1) {
-      finishSegment = true;
-      if (!includeMarkup) {
-        if (char == "/") {
-          char = "";
-        } else if (char == "_") {
-          char = " ";
-        }
-      }
-    }
-    if (char == "\n" && currentSegment == "" && segments.length > 0) {
-      segments[segments.length - 1].text += char;
-      continue;
-    }
-    currentSegment += char;
-    if (finishSegment) {
-      segments.push({
-        text: currentSegment.trimStart(),
-      });
-      currentSegment = "";
+  const segments: { text: string; separators: string }[] = [];
+  for (const [, body, separators] of lyricsText.matchAll(SEGMENT_PATTERN)) {
+    const text = body.trimStart();
+    if (text !== "") {
+      segments.push({ text, separators });
+    } else if (segments.length > 0) {
+      segments[segments.length - 1].separators += separators;
     }
   }
-  return segments;
+  return segments.map(({ text, separators }) => ({
+    text: text + strongestSeparator(separators, includeMarkup),
+  }));
+}
+
+function strongestSeparator(separators: string, includeMarkup: boolean): string {
+  const newlines = separators.split("\n").length - 1;
+  if (newlines > 1) {
+    return "\n\n";
+  }
+  if (newlines === 1) {
+    return "\n";
+  }
+  if (separators.includes("_")) {
+    return includeMarkup ? "_" : " ";
+  }
+  if (separators.includes("/")) {
+    return includeMarkup ? "/" : "";
+  }
+  return "";
 }
 
 /**
