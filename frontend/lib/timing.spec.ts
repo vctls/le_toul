@@ -161,9 +161,19 @@ describe("parseLyrics", () => {
     expect(texts("foo_ _bar")).toEqual(["foo_", "bar"]);
   });
 
-  test("keeps a trailing break", () => {
-    expect(texts("foo_\n")).toEqual(["foo\n"]);
-    expect(texts("foo\n\n\n")).toEqual(["foo\n\n"]);
+  test("drops the breaks after the last segment", () => {
+    expect(texts("foo\n")).toEqual(["foo"]);
+    expect(texts("foo_\n")).toEqual(["foo"]);
+    expect(texts("foo\n\n\n")).toEqual(["foo"]);
+    expect(texts("foo \n ")).toEqual(["foo"]);
+  });
+
+  test("reads whitespace at the end of a segment as a word break", () => {
+    expect(texts("foo /bar")).toEqual(["foo_", "bar"]);
+    expect(texts("foo \nbar")).toEqual(["foo\n", "bar"]);
+    expect(texts("foo \n\nbar")).toEqual(["foo\n\n", "bar"]);
+    expect(texts("foo bar")).toEqual(["foo bar"]);
+    expect(texts("foo /bar", false)).toEqual(["foo ", "bar"]);
   });
 
   test("applies the same rules without markup", () => {
