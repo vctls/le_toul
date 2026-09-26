@@ -159,19 +159,22 @@ const SEGMENT_PATTERN = /([^\n/_]*)([\n/_]*)/g;
  * and a segment of whitespace joins the run around it.
  * So `foo_\n` ends a line rather than drawing the underscore,
  * and several blank lines are a single screen break.
+ * Whitespace at the end of a segment is a word break,
+ * and the last segment has no separator.
  */
 export function parseLyrics(lyricsText: string, includeMarkup: boolean = false): Segment[] {
   const segments: { text: string; separators: string }[] = [];
   for (const [, body, separators] of lyricsText.matchAll(SEGMENT_PATTERN)) {
-    const text = body.trimStart();
+    const text = body.trim();
+    const run = /\s$/.test(body) ? "_" + separators : separators;
     if (text !== "") {
-      segments.push({ text, separators });
+      segments.push({ text, separators: run });
     } else if (segments.length > 0) {
-      segments[segments.length - 1].separators += separators;
+      segments[segments.length - 1].separators += run;
     }
   }
-  return segments.map(({ text, separators }) => ({
-    text: text + strongestSeparator(separators, includeMarkup),
+  return segments.map(({ text, separators }, i) => ({
+    text: i === segments.length - 1 ? text : text + strongestSeparator(separators, includeMarkup),
   }));
 }
 
