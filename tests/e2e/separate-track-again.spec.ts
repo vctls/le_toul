@@ -47,7 +47,7 @@ test.describe("Separating again over a track that is already loaded", () => {
     await page.click('button:has-text("Separate Track")');
 
     await expect(page.locator(".modal-card-title")).toHaveText("Separate again?");
-    await expect(page.locator(".modal-card-body")).toContainText("accompaniment.wav");
+    await expect(page.locator(".modal-card-body")).toContainText("accompaniment.mp3");
 
     await page.click('.modal-card-foot button:has-text("Separate again")');
 
