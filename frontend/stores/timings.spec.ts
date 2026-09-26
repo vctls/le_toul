@@ -10,6 +10,7 @@ import { beforeEach, describe, expect, test, vi } from "vitest";
 import { LYRIC_MARKERS } from "@/constants";
 import { createAssFile } from "@/lib/timing";
 import { DEFAULT_VOICE_ID } from "@/lib/voices";
+import { parseTimingsText } from "@/lib/timingsText";
 
 // Mock the createAssFile function
 vi.mock("@/lib/timing", async (importOriginal) => ({
@@ -425,6 +426,29 @@ describe("Timings Store", () => {
         { text: "two_" },
         { text: "three", start: 3.0 },
       ]);
+    });
+
+    test("a partly-timed multi-voice project survives the timings.txt round trip", () => {
+      const timings = useTimingsStore();
+      const lyrics = useLyricsStore();
+
+      lyrics.setLyrics("[Anna] one_two\n[Ben] three");
+      timings.setActiveVoice("Anna");
+      timings.add(0, LYRIC_MARKERS.SEGMENT_START, 1.0);
+      timings.setActiveVoice("Ben");
+      timings.add(0, LYRIC_MARKERS.SEGMENT_START, 3.0);
+
+      const text = timings.timingsText;
+      expect(text).toMatch(/^Toul timings 1\n\nvoice "Anna"\n/);
+
+      timings.clear();
+      timings.setAllSegments(parseTimingsText(text).voices);
+
+      expect(timings.timedSegmentsForVoice("Anna")).toEqual([
+        { text: "one_", start: 1.0 },
+        { text: "two" },
+      ]);
+      expect(timings.timedSegmentsForVoice("Ben")).toEqual([{ text: "three", start: 3.0 }]);
     });
 
     test("the exported timings.json keeps the old shape", () => {

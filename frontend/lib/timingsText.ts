@@ -58,6 +58,19 @@ export interface ParsedTimingsText {
 }
 
 /**
+ * Whether the text starts with the signature, whatever its version.
+ * Lyrics and timings are both `.txt`, so this is what tells one from the other.
+ */
+export function isTimingsText(text: string): boolean {
+  const first = text
+    .replace(/^﻿/, "")
+    .split(/\r?\n/)
+    .map((row) => stripComment(row).trim())
+    .find((row) => row !== "");
+  return first !== undefined && SIGNATURE_ROW.test(first);
+}
+
+/**
  * Parse a `timings.txt` into each voice's segments.
  * A malformed row throws a `TimingsTextError` that names it.
  * Anything the app can't hold but can recover from is dropped or changed, with a warning.

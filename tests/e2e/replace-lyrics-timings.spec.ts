@@ -74,7 +74,7 @@ test.describe("Replacing loaded lyrics or timings from a file", () => {
 
     await page.locator(TIMINGS_INPUT).setInputFiles(getFixturePath("timings-adjust-group.json"));
     await expect(page.locator(".modal-card-title")).toHaveText("Replace your timings?");
-    await expect(page.locator(".modal-card-body .source-file-links")).toContainText("timings.json");
+    await expect(page.locator(".modal-card-body .source-file-links")).toContainText("timings.txt");
     await page.click('.modal-card-foot button:has-text("Keep what I have")');
     await expect(page.locator('[name="timings-file-upload"] .file-name')).toHaveText(
       "timings.json",
@@ -93,7 +93,7 @@ test.describe("Replacing loaded lyrics or timings from a file", () => {
 
     await trash.click();
     await expect(page.locator(".modal-card-title")).toHaveText("Clear your timings?");
-    await expect(page.locator(".modal-card-body .source-file-links")).toContainText("timings.json");
+    await expect(page.locator(".modal-card-body .source-file-links")).toContainText("timings.txt");
     await page.click('.modal-card-foot button:has-text("Keep what I have")');
     await expect(page.locator('[name="timings-file-upload"] .file-name')).toHaveText(
       "timings.json",

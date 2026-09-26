@@ -13,9 +13,9 @@
         ><b-icon icon="copy"
       /></a>
     </span>
-    <span v-if="hasTimings" class="file-item">
-      timings.json
-      <a @click="download(timings, 'timings.json')" title="download timings"
+    <span v-if="timings" class="file-item">
+      timings.txt
+      <a @click="download(timings, 'timings.txt')" title="download timings"
         ><b-icon icon="download" /></a
       ><a @click="copyToClipboard(timings)" title="copy timings to clipboard"
         ><b-icon icon="copy"
@@ -67,8 +67,7 @@ export default defineComponent({
     label: { type: String, default: "Source files: " },
     song: File,
     lyrics: String,
-    // Either a single voice's array of [time, marker] tuples, or a per-voice map.
-    timings: [Array, Object],
+    timings: String,
     subtitles: String,
     settings: String,
     font: File,
@@ -87,17 +86,11 @@ export default defineComponent({
     accompanimentName(): string {
       return `accompaniment.${extensionForBlob(this.accompaniment ?? new Blob())}`;
     },
-    hasTimings(): boolean {
-      if (!this.timings) return false;
-      return Array.isArray(this.timings)
-        ? this.timings.length > 0
-        : Object.keys(this.timings).length > 0;
-    },
     hasAnyFiles(): boolean {
       return Boolean(
         this.song ||
         this.lyrics ||
-        this.hasTimings ||
+        this.timings ||
         this.subtitles ||
         this.settings ||
         this.allFonts.length > 0 ||

@@ -49,7 +49,7 @@
         lyric in the song, you can watch the preview, fiddle with fonts and colors, and click the
         <code>Submit</code> button. Wait 5-10 minutes. Eventually you'll be asked to download a zip
         file. Inside that zip is an <code>.mp4</code> file which is your karaoke video! The zip file
-        also includes generated <code>subtitles.ass</code> and <code>timings.json</code> files that
+        also includes generated <code>subtitles.ass</code> and <code>timings.txt</code> files that
         were used to make your video. You can upload them to the Song Info tab if you want to re-do
         your video without re-doing the timings.
       </p>

@@ -222,43 +222,49 @@ export async function adjustTiming(
 }
 
 /**
- * Gets the current timings by navigating to Submit tab and copying timings.json to clipboard
+ * Gets the default voice's timings as events, by copying timings.txt from the Submit tab.
  */
 export async function getCurrentTimings(page: Page): Promise<any> {
-  // Navigate to Submit tab
   await navigateToTab(page, TabId.Submit);
 
-  // Click the "copy to clipboard" button for timings.json
   const timingsClipboardButton = page.locator('a[title="copy timings to clipboard"]');
   await timingsClipboardButton.click();
-
-  // Wait for toast notification confirming copy
   await page.locator(".toast.is-success").waitFor({ state: "visible" });
 
-  // Read clipboard content
   const clipboardContent = await page.evaluate(() => navigator.clipboard.readText());
+  return eventsFromTimingsText(clipboardContent, DEFAULT_VOICE_ID);
+}
 
-  const exported = JSON.parse(clipboardContent);
-  // These helpers assert against one voice's event stream, which every export shape can produce:
-  // a bare array (oldest), a per-voice map of arrays, or the versioned per-voice segments.
-  if (Array.isArray(exported)) {
-    return exported;
+/**
+ * This reads just the syllable rows, rather than importing the app's parser,
+ * because frontend/lib/timingsText pulls in timing.ts and its buefy dependency,
+ * which won't resolve in Playwright's Node runtime.
+ */
+function eventsFromTimingsText(text: string, voice: string): [number, number][] {
+  const seconds = (time: string) => {
+    const [minutes, rest] = time.split(":");
+    return Number(minutes) * 60 + Number(rest);
+  };
+  const events: [number, number][] = [];
+  let current = voice;
+  for (const row of text.split("\n")) {
+    const voiceRow = row.match(/^voice "((?:[^"\\]|\\.)*)"$/);
+    if (voiceRow) {
+      current = voiceRow[1].replace(/\\(["\\])/g, "$1");
+      continue;
+    }
+    const syllable = row.match(/^"(?:[^"\\]|\\.)*"\s*(.*)$/);
+    if (current !== voice || !syllable) {
+      continue;
+    }
+    const [start, end] = syllable[1].split(/\s+/).filter((value) => value !== "");
+    if (start === undefined || start === "-") {
+      continue;
+    }
+    events.push([seconds(start), 1]);
+    if (end !== undefined && end !== "-") {
+      events.push([seconds(end), 2]);
+    }
   }
-  // This is projected here rather than imported, because pulling frontend/lib/timedSegments into
-  // Playwright's Node runtime drags in timing.ts and its buefy dependency, which won't resolve
-  // there.
-  if (typeof exported.version === "number") {
-    const segments = exported.voices?.[DEFAULT_VOICE_ID] ?? [];
-    return segments.flatMap((segment: { start?: number; end?: number }) =>
-      segment.start === undefined
-        ? []
-        : segment.end === undefined
-          ? [[segment.start, 1]]
-          : [
-              [segment.start, 1],
-              [segment.end, 2],
-            ],
-    );
-  }
-  return exported[DEFAULT_VOICE_ID] ?? [];
+  return events;
 }
