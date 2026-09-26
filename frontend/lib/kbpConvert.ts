@@ -18,6 +18,7 @@ import { TimedSegment, TimingsFile, TIMINGS_FILE_VERSION } from "./timedSegments
 import { DEFAULT_VOICE_ID, parseAnnotatedLyrics, TAG_PATTERN, VoiceId } from "./voices";
 import { ParsedSettingsFile, parseSettingsYaml } from "./settingsFile";
 import { convertSpacesToUnderscores } from "./lyrics";
+import { BRACKETS_REMOVED, MARKUP_REMOVED, SPACER_DROPPED, Warnings } from "./importWarnings";
 
 // kbp2ass scales a KBP font size by the output height over the 216-high CDG canvas, and by 1.4
 // for the difference between the two font size conventions.
@@ -79,23 +80,6 @@ function basename(path: string): string | null {
   return name ? name : null;
 }
 
-/**
- * Counts each kind of dropped item once, so a long song yields a short list.
- */
-class Warnings {
-  private counts = new Map<string, number>();
-
-  add(message: string): void {
-    this.counts.set(message, (this.counts.get(message) ?? 0) + 1);
-  }
-
-  list(): string[] {
-    return [...this.counts].map(([message, count]) =>
-      count > 1 ? `${message} (×${count})` : message,
-    );
-  }
-}
-
 interface ImportedSyllable {
   // The segment text without its separator, as parseLyrics will yield it.
   word: string;
@@ -130,7 +114,7 @@ function importSyllables(
   line.syllables.forEach((syllable: KbpSyllable, index) => {
     let text = syllable.text;
     if (/[/_]/.test(text)) {
-      warnings.add("A / or _ in the lyrics was removed, since the app uses both as markup");
+      warnings.add(MARKUP_REMOVED);
       text = text.replace(/[/_]/g, "");
     }
     if (style.uppercase) {
@@ -325,14 +309,12 @@ export function kbpToProjectFiles(text: string, options: { fonts: string[] }): K
     for (const { line, style } of lines) {
       const syllables = importSyllables(line, style, lineTexts.length === 0, warnings);
       if (syllables.length === 0) {
-        warnings.add("A blank spacer line was dropped");
+        warnings.add(SPACER_DROPPED);
         continue;
       }
       let markup = lineMarkup(syllables);
       if (markup.startsWith("[")) {
-        warnings.add(
-          "Square brackets starting a line were removed, since they would read as a voice tag",
-        );
+        warnings.add(BRACKETS_REMOVED);
         markup = markup.replace(/[[\]]/g, "");
         syllables.forEach((s) => (s.word = s.word.replace(/[[\]]/g, "")));
       }
