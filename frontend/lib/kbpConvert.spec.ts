@@ -2,7 +2,7 @@ import { readFileSync } from "node:fs";
 import path from "node:path";
 import yaml from "js-yaml";
 import { KBP_DIVIDER, parseKbp } from "./kbp";
-import { kbpToProjectFiles, projectFilesToKbp, ProjectFiles } from "./kbpConvert";
+import { COUNT_INS_OFF, kbpToProjectFiles, projectFilesToKbp, ProjectFiles } from "./kbpConvert";
 import { parseSettingsYaml } from "./settingsFile";
 import { TimedSegment } from "./timedSegments";
 import { DISPLAY_PERIOD_WIDENED } from "./importWarnings";
@@ -38,7 +38,7 @@ describe("kbpToProjectFiles", () => {
 
     expect(result.lyrics).toBe(
       [
-        "Pale_moon_ri/sing_slow",
+        "➣➣➣/Pale_moon_ri/sing_slow",
         "o/ver_the_qui/et_hill",
         "Lan/terns_glow",
         "",
@@ -49,7 +49,8 @@ describe("kbpToProjectFiles", () => {
     // An end at the next start, or 1 cs before it, is left open. Any other end is a release.
     expect(result.timings).toEqual({
       "Voice 1": [
-        { text: "Pale_", start: 4.2, displayStart: 0.01, displayEnd: 6.38 },
+        { text: "➣➣➣/", start: 3.01, displayStart: 0.01, displayEnd: 6.38 },
+        { text: "Pale_", start: 4.2 },
         { text: "moon_", start: 4.39 },
         { text: "ri/", start: 4.61 },
         { text: "sing_", start: 4.99 },
@@ -73,13 +74,13 @@ describe("kbpToProjectFiles", () => {
       ],
     });
     expect(result.audioName).toBe("The Placeholders - Pale Moon.flac");
-    expect(result.warnings).toEqual([
-      'A lead-in syllable "➣➣➣" was dropped, since the app draws its own count-ins',
-    ]);
+    expect(result.warnings).toEqual([COUNT_INS_OFF]);
 
     const settings = parseSettingsYaml(result.settings);
     expect(settings.warnings).toEqual([]);
     expect(settings.song).toEqual({ title: "Pale Moon", artist: "The Placeholders" });
+    expect(settings.videoOptions.countInMode).toBe("none");
+    expect(settings.videoOptions.addInstrumentalScreens).toBe(false);
     expect(settings.videoOptions.font).toEqual({
       name: "Arial",
       size: 22,
@@ -172,6 +173,7 @@ describe("kbpToProjectFiles", () => {
       "A blank spacer line was dropped",
       "A fixed line was imported untimed, since the app has no text without a wipe",
       "A / or _ in the lyrics was removed, since the app uses both as markup (×2)",
+      COUNT_INS_OFF,
     ]);
   });
 
@@ -192,7 +194,7 @@ describe("kbpToProjectFiles", () => {
       { text: "two\n", start: 1.4, end: 2 },
       { text: "three", start: 2.5, end: 4, displayStart: 2.5, displayEnd: 4 },
     ]);
-    expect(result.warnings).toEqual([`${DISPLAY_PERIOD_WIDENED} (×2)`]);
+    expect(result.warnings).toEqual([`${DISPLAY_PERIOD_WIDENED} (×2)`, COUNT_INS_OFF]);
   });
 
   test("leaves out a font the app doesn't bundle", () => {
