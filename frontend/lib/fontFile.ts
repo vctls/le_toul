@@ -1,3 +1,5 @@
+import { CJK_CHAR } from "./fonts";
+
 // libass matches an ASS style's `Fontname` against the family name stored inside the font, not against the file's name,
 // both in the browser preview and in FFmpeg's ass filter.
 
@@ -18,6 +20,9 @@ const SFNT_VERSIONS = [
 const TTC_TAG = 0x74746366; // 'ttcf', a font collection holding several faces
 const WOFF_TAGS = [0x774f4646, 0x774f4632]; // 'wOFF', 'wOF2'
 const NAME_TAG = 0x6e616d65; // 'name'
+const CMAP_TAG = 0x636d6170; // 'cmap'
+
+const CJK = new RegExp(CJK_CHAR, "u");
 
 // Messages reach the user as-is.
 export class UnreadableFontError extends Error {
@@ -47,16 +52,24 @@ function sfntOffset(view: DataView): number {
   return 0;
 }
 
-function nameTableOffset(view: DataView, offset: number): number {
+function tableOffset(view: DataView, offset: number, tag: number): number | undefined {
   const numTables = view.getUint16(offset + 4);
   for (let i = 0; i < numTables; i++) {
     const record = offset + 12 + i * 16;
     if (record + 16 > view.byteLength) {
       break;
     }
-    if (view.getUint32(record) === NAME_TAG) {
+    if (view.getUint32(record) === tag) {
       return view.getUint32(record + 8);
     }
+  }
+  return undefined;
+}
+
+function nameTableOffset(view: DataView, offset: number): number {
+  const table = tableOffset(view, offset, NAME_TAG);
+  if (table !== undefined) {
+    return table;
   }
   throw new UnreadableFontError(
     "This font file has no name table, so we can't tell which font it is.",
@@ -127,6 +140,105 @@ export function parseFontFamilyName(data: ArrayBuffer): string {
   return best.name;
 }
 
+/**
+ * The offset of the cmap subtable that maps Unicode code points, preferring one that reaches past the BMP.
+ */
+function unicodeSubtable(view: DataView, cmap: number): number | undefined {
+  let bmpOnly: number | undefined;
+  const count = view.getUint16(cmap + 2);
+  for (let i = 0; i < count; i++) {
+    const record = cmap + 4 + i * 8;
+    const platformId = view.getUint16(record);
+    const encodingId = view.getUint16(record + 2);
+    if (
+      platformId !== PLATFORM_UNICODE &&
+      !(platformId === PLATFORM_WINDOWS && [1, 10].includes(encodingId))
+    ) {
+      continue;
+    }
+    const subtable = cmap + view.getUint32(record + 4);
+    const format = view.getUint16(subtable);
+    if (format === 12) {
+      return subtable;
+    }
+    if (format === 4) {
+      bmpOnly ??= subtable;
+    }
+  }
+  return bmpOnly;
+}
+
+/**
+ * Calls `found` with every code point a cmap subtable maps to a glyph.
+ */
+function eachMappedCodePoint(view: DataView, subtable: number, found: (codePoint: number) => void) {
+  if (view.getUint16(subtable) === 12) {
+    const groups = view.getUint32(subtable + 12);
+    for (let i = 0; i < groups; i++) {
+      const group = subtable + 16 + i * 12;
+      const end = view.getUint32(group + 4);
+      for (let c = view.getUint32(group); c <= end; c++) {
+        found(c);
+      }
+    }
+    return;
+  }
+  const segCountX2 = view.getUint16(subtable + 6);
+  const ends = subtable + 14;
+  const starts = ends + segCountX2 + 2;
+  const deltas = starts + segCountX2;
+  const rangeOffsets = deltas + segCountX2;
+  for (let i = 0; i < segCountX2; i += 2) {
+    const start = view.getUint16(starts + i);
+    const end = view.getUint16(ends + i);
+    const delta = view.getUint16(deltas + i);
+    const rangeOffset = view.getUint16(rangeOffsets + i);
+    for (let c = start; c <= end; c++) {
+      // A range offset is relative to its own position in the file.
+      const glyph = rangeOffset
+        ? view.getUint16(rangeOffsets + i + rangeOffset + (c - start) * 2)
+        : (c + delta) & 0xffff;
+      if (glyph !== 0) {
+        found(c);
+      }
+    }
+  }
+}
+
+/**
+ * The CJK characters a font can draw.
+ * A cmap that can't be read counts as drawing none, so the bundled CJK font draws them instead.
+ */
+export function parseCjkCoverage(data: ArrayBuffer): Set<number> {
+  const covered = new Set<number>();
+  try {
+    const view = new DataView(data);
+    const cmap = tableOffset(view, sfntOffset(view), CMAP_TAG);
+    const subtable = cmap === undefined ? undefined : unicodeSubtable(view, cmap);
+    if (subtable !== undefined) {
+      eachMappedCodePoint(view, subtable, (c) => {
+        if (CJK.test(String.fromCodePoint(c))) {
+          covered.add(c);
+        }
+      });
+    }
+  } catch (e) {
+    if (!(e instanceof RangeError || e instanceof UnreadableFontError)) {
+      throw e;
+    }
+  }
+  return covered;
+}
+
 export async function readFontFamilyName(file: File): Promise<string> {
   return parseFontFamilyName(await file.arrayBuffer());
+}
+
+/**
+ * The family name a font declares, and the CJK characters it can draw.
+ * Throws UnreadableFontError as parseFontFamilyName does.
+ */
+export async function readFont(file: File): Promise<{ family: string; cjk: Set<number> }> {
+  const data = await file.arrayBuffer();
+  return { family: parseFontFamilyName(data), cjk: parseCjkCoverage(data) };
 }
