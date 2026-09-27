@@ -520,8 +520,8 @@ export class LyricsLine {
       console.error("NaN value for line", this.toString(), screenStart, screenEnd);
       throw Error("NaN value for timestamp");
     }
-    const displayStart = this.customDisplayStartTime || screenStart;
-    const displayEnd = this.customDisplayEndTime || screenEnd;
+    const displayStart = this.customDisplayStartTime ?? screenStart;
+    const displayEnd = this.customDisplayEndTime ?? screenEnd;
     const e: AssEvent = {
       type: "Dialogue",
       Layer: 0,
@@ -567,8 +567,14 @@ export class LyricsLine {
   }
 
   adjustTimestamps(adjustment: number): LyricsLine {
-    const segments = map(this.segments, method("adjustTimestamps", adjustment));
-    return new LyricsLine(segments);
+    const line = new LyricsLine(map(this.segments, method("adjustTimestamps", adjustment)));
+    const shift = (time: Timestamp | undefined) =>
+      time === undefined ? undefined : time + adjustment;
+    line.customDisplayStartTime = shift(this.customDisplayStartTime);
+    line.customDisplayEndTime = shift(this.customDisplayEndTime);
+    line.fadeInDuration = this.fadeInDuration;
+    line.fadeOutDuration = this.fadeOutDuration;
+    return line;
   }
 }
 
