@@ -108,6 +108,11 @@ export const DEFAULT_KARAOKE_OPTIONS: KaraokeOptions = {
 
 export interface Segment {
   text: string;
+  // Blank spacer lines above the line, which hold a slot on the page but draw nothing.
+  // Only read on a line's first segment.
+  spacersBefore?: number;
+  // Spacers below the line. Only read on the first segment of a page's last line.
+  spacersAfter?: number;
 }
 
 interface AssEvent {
@@ -188,9 +193,13 @@ const SEGMENT_PATTERN = /([^\n/_]*)([\n/_]*)/g;
  * and several blank lines are a single screen break.
  * Whitespace at the end of a segment is a word break,
  * and the last segment has no separator.
+ *
+ * A line holding only `/` is a blank spacer line, counted on the line below it,
+ * or on the line above it at the bottom of a page.
  */
 export function parseLyrics(lyricsText: string, includeMarkup: boolean = false): Segment[] {
   const segments: { text: string; separators: string }[] = [];
+  let leading = "";
   for (const [, body, separators] of lyricsText.matchAll(SEGMENT_PATTERN)) {
     const text = body.trim();
     const run = /\s$/.test(body) ? "_" + separators : separators;
@@ -198,19 +207,77 @@ export function parseLyrics(lyricsText: string, includeMarkup: boolean = false):
       segments.push({ text, separators: run });
     } else if (segments.length > 0) {
       segments[segments.length - 1].separators += run;
+    } else {
+      leading += run;
     }
   }
-  return segments.map(({ text, separators }, i) => ({
+  const parsed: Segment[] = segments.map(({ text, separators }, i) => ({
     text: i === segments.length - 1 ? text : text + strongestSeparator(separators, includeMarkup),
   }));
+  countSpacers(
+    parsed,
+    leading,
+    segments.map(({ separators }) => separators),
+  );
+  return parsed;
+}
+
+/**
+ * The lines of a separator run that sit between two of its line breaks, so hold only markup.
+ */
+function wholeLines(run: string): string[] {
+  return run.split("\n").slice(1, -1);
+}
+
+const isSpacer = (line: string) => line.includes("/");
+
+/**
+ * Split the whole lines between two lyric lines at the page break, if there is one.
+ * Spacers before the first blank line end the page above,
+ * and spacers after the last one start the page below.
+ * Spacers between two blank lines are on a page with no line, so they count for neither.
+ */
+function splitSpacers(lines: string[]): { closing: number; opening: number } {
+  const blanks = lines.flatMap((line, i) => (isSpacer(line) ? [] : [i]));
+  if (blanks.length === 0) {
+    return { closing: 0, opening: lines.length };
+  }
+  return { closing: blanks[0], opening: lines.length - 1 - blanks[blanks.length - 1] };
+}
+
+/**
+ * Set each line's spacer counts on its first segment, from the separator runs around it.
+ */
+function countSpacers(segments: Segment[], leading: string, separators: string[]): void {
+  if (segments.length === 0) {
+    return;
+  }
+  const set = (i: number, key: "spacersBefore" | "spacersAfter", count: number) => {
+    if (count > 0) {
+      segments[i][key] = count;
+    }
+  };
+  // The start and the end of the lyrics count as page breaks.
+  set(0, "spacersBefore", splitSpacers(wholeLines("\n\n" + leading)).opening);
+  let head = 0;
+  for (let i = 0; i < segments.length - 1; i++) {
+    if (!separators[i].includes("\n")) {
+      continue;
+    }
+    const { closing, opening } = splitSpacers(wholeLines(separators[i]));
+    set(head, "spacersAfter", closing);
+    set(i + 1, "spacersBefore", opening);
+    head = i + 1;
+  }
+  const last = separators[separators.length - 1];
+  set(head, "spacersAfter", splitSpacers(wholeLines(last + "\n\n")).closing);
 }
 
 function strongestSeparator(separators: string, includeMarkup: boolean): string {
-  const newlines = separators.split("\n").length - 1;
-  if (newlines > 1) {
+  if (wholeLines(separators).some((line) => !isSpacer(line))) {
     return "\n\n";
   }
-  if (newlines === 1) {
+  if (separators.includes("\n")) {
     return "\n";
   }
   if (separators.includes("_")) {

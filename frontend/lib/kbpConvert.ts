@@ -14,7 +14,7 @@ import {
   serializeKbp,
 } from "./kbp";
 import { parseLyrics } from "./timing";
-import { clampDisplayPeriods, TimedSegment } from "./timedSegments";
+import { clampDisplayPeriods, fromLyric, TimedSegment } from "./timedSegments";
 import { DEFAULT_VOICE_ID, parseAnnotatedLyrics, TAG_PATTERN, VoiceId } from "./voices";
 import { ParsedSettingsFile, parseSettingsYaml } from "./settingsFile";
 import { convertSpacesToUnderscores } from "./lyrics";
@@ -373,10 +373,10 @@ export function kbpToProjectFiles(text: string, options: { fonts: string[] }): K
       throw new Error(`The converted timings for ${voice} don't line up with its lyrics.`);
     }
     const clamped = clampDisplayPeriods(
-      segments.map(({ text }, i): TimedSegment => {
+      segments.map((segment, i): TimedSegment => {
         const { start, end, displayStart, displayEnd } = syllables[i];
         return {
-          text,
+          ...fromLyric(segment),
           ...(start !== undefined ? { start } : {}),
           ...(end !== undefined ? { end } : {}),
           ...(displayStart !== undefined ? { displayStart: displayStart / 100 } : {}),

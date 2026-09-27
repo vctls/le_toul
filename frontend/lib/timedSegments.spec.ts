@@ -56,6 +56,12 @@ describe("fromEvents", () => {
     expect(fromEvents("", events)).toEqual([{ text: "", start: 1.0, end: 2.0 }]);
   });
 
+  it("keeps the lyrics' spacer counts", () => {
+    expect(fromEvents("/\nfoo", [[1.0, SEGMENT_START]])).toEqual([
+      { text: "foo", start: 1.0, spacersBefore: 1 },
+    ]);
+  });
+
   it("parses the shared fixture into one segment per lyric segment", () => {
     const segments = fromEvents(testLyrics, shortIntroTestEvents);
     expect(segments).toEqual([
@@ -210,6 +216,45 @@ describe("reconcile", () => {
       timed("bravo_"),
       timed("charlie_"),
       timed("three", 3.0),
+    ]);
+  });
+
+  it("rule 1: adding or removing a spacer keeps every timing and display period", () => {
+    const stored: TimedSegment[] = [
+      { text: "one\n", start: 1.0, displayStart: 0.5 },
+      timed("two", 2.0),
+    ];
+    const spaced = reconcile(stored, lyrics("one\n/\ntwo"));
+
+    expect(spaced).toEqual([
+      { text: "one\n", start: 1.0, displayStart: 0.5 },
+      { text: "two", start: 2.0, spacersBefore: 1 },
+    ]);
+    expect(reconcile(spaced, lyrics("one\ntwo"))).toEqual(stored);
+  });
+
+  it("rule 2: takes the spacers outside the window from the lyrics", () => {
+    const stored: TimedSegment[] = [
+      timed("one_", 1.0),
+      timed("two\n", 2.0),
+      { text: "three", start: 3.0, spacersBefore: 1 },
+    ];
+
+    expect(reconcile(stored, lyrics("/\nzero_one_two\nthree"))).toEqual([
+      { text: "zero_", spacersBefore: 1 },
+      timed("one_", 1.0),
+      timed("two\n", 2.0),
+      timed("three", 3.0),
+    ]);
+  });
+
+  it("rule 3: takes the spacers inside the window from the lyrics", () => {
+    const stored = [timed("one\n", 1.0), timed("alchemy", 2.0, 2.9)];
+
+    expect(reconcile(stored, lyrics("one\n/\nal/chemy"))).toEqual([
+      timed("one\n", 1.0),
+      { text: "al/", start: 2.0, spacersBefore: 1 },
+      timed("chemy", undefined, 2.9),
     ]);
   });
 

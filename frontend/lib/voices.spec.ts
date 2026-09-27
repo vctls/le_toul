@@ -39,6 +39,12 @@ describe("parseAnnotatedLyrics", () => {
     expect(result.lyricTextByVoice["Ben"]).toBe("together\nother");
   });
 
+  it("gives a tagged spacer to its voices", () => {
+    const result = parseAnnotatedLyrics("[Anna+Ben] /\n[Anna] a1\n[Ben] b1\n/");
+    expect(result.lyricTextByVoice["Anna"]).toBe("/\na1");
+    expect(result.lyricTextByVoice["Ben"]).toBe("/\nb1\n/");
+  });
+
   it("accepts arbitrary strings (including spaces) as voice names", () => {
     const result = parseAnnotatedLyrics("[lead vocal] x\n[backing] y");
     expect(result.voices).toEqual(["lead vocal", "backing"]);
