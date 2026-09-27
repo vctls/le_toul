@@ -1,6 +1,6 @@
 import { defineStore } from "pinia";
 import { reactive, watch, ref, computed, shallowRef } from "vue";
-import { CountInMode, OutputFormat, VerticalAlignment } from "@/lib/timing";
+import { CjkCoverage, CountInMode, OutputFormat, VerticalAlignment } from "@/lib/timing";
 import { NO_VOCALS_SEPARATOR_MODEL, BACKING_VOCALS_SEPARATOR_MODEL, useMediaStore } from "./media";
 import Color from "buefy/src/utils/color";
 import { SeparationModel } from "@/types";
@@ -8,7 +8,7 @@ import { VoiceStyleOverride, serializeVoiceStyle, deserializeVoiceStyle } from "
 import { VoiceId } from "@/lib/voices";
 import { persistBlobRef } from "@/lib/persistence";
 import { TimingKeys, DEFAULT_TIMING_KEYS, isKeyName } from "@/lib/timingKeys";
-import { readFontFamilyName } from "@/lib/fontFile";
+import { readFont } from "@/lib/fontFile";
 import { serializeSettingsYaml } from "@/lib/settingsFile";
 import {
   DEFAULT_COUNT_IN_MODE,
@@ -122,6 +122,12 @@ function defaultSettings(): VideoSettings {
   };
 }
 
+interface LoadedFont {
+  family: string;
+  url: string;
+  cjk: ReadonlySet<number>;
+}
+
 export const useSettingsStore = defineStore("settings", () => {
   // Initialize with default settings
   const videoOptions = reactive<VideoSettings>(defaultSettings());
@@ -142,6 +148,8 @@ export const useSettingsStore = defineStore("settings", () => {
   // libass takes URLs, not blobs. Not revoked while the font is in use: the preview's
   // worker and FFmpeg read it lazily, and revoking mid-read fails the read.
   const customFontUrl = ref<string | null>(null);
+  // The CJK characters the uploaded font can draw. The bundled CJK font draws the rest.
+  const customFontCjk = shallowRef<ReadonlySet<number>>(new Set());
 
   // Load saved settings when the store is initialized
   loadSettings();
@@ -197,7 +205,9 @@ export const useSettingsStore = defineStore("settings", () => {
       return;
     }
     try {
-      customFontFamily.value = await readFontFamilyName(file);
+      const { family, cjk } = await readFont(file);
+      customFontFamily.value = family;
+      customFontCjk.value = cjk;
       customFontUrl.value = URL.createObjectURL(file);
     } catch (e) {
       console.error("Could not read the saved custom font; ignoring it", e);
@@ -208,14 +218,14 @@ export const useSettingsStore = defineStore("settings", () => {
   // Per-voice uploaded fonts, kept out of `voiceStyles`, which settings.yaml describes and which holds no files.
   // Only the files are stored. The family names and URLs are re-derived, as for the base font.
   const voiceFontFiles = shallowRef<Record<VoiceId, File> | null>(null);
-  const voiceFonts = shallowRef<Record<VoiceId, { family: string; url: string }>>({});
+  const voiceFonts = shallowRef<Record<VoiceId, LoadedFont>>({});
 
   persistBlobRef("settings.voiceFonts", voiceFontFiles).then(async () => {
-    const loaded: Record<VoiceId, { family: string; url: string }> = {};
+    const loaded: Record<VoiceId, LoadedFont> = {};
     const readable: Record<VoiceId, File> = {};
     for (const [voice, file] of Object.entries(voiceFontFiles.value ?? {})) {
       try {
-        loaded[voice] = { family: await readFontFamilyName(file), url: URL.createObjectURL(file) };
+        loaded[voice] = { ...(await readFont(file)), url: URL.createObjectURL(file) };
         readable[voice] = file;
       } catch (e) {
         console.error(`Could not read the saved font for ${voice}; ignoring it`, e);
@@ -227,7 +237,7 @@ export const useSettingsStore = defineStore("settings", () => {
     }
   });
 
-  function getVoiceFont(voice: VoiceId): { file: File; family: string; url: string } | undefined {
+  function getVoiceFont(voice: VoiceId): (LoadedFont & { file: File }) | undefined {
     const file = voiceFontFiles.value?.[voice];
     const font = voiceFonts.value[voice];
     return file && font ? { file, ...font } : undefined;
@@ -241,9 +251,9 @@ export const useSettingsStore = defineStore("settings", () => {
     const { [voice]: _file, ...files } = voiceFontFiles.value ?? {};
     const { [voice]: _font, ...fonts } = voiceFonts.value;
     if (file) {
-      const family = await readFontFamilyName(file);
+      const font = await readFont(file);
       files[voice] = file;
-      fonts[voice] = { family, url: URL.createObjectURL(file) };
+      fonts[voice] = { ...font, url: URL.createObjectURL(file) };
     }
     voiceFontFiles.value = Object.keys(files).length > 0 ? files : null;
     voiceFonts.value = fonts;
@@ -264,12 +274,14 @@ export const useSettingsStore = defineStore("settings", () => {
     if (!file) {
       customFont.value = null;
       customFontFamily.value = null;
+      customFontCjk.value = new Set();
       customFontUrl.value = null;
       return;
     }
-    const family = await readFontFamilyName(file);
+    const { family, cjk } = await readFont(file);
     customFont.value = file;
     customFontFamily.value = family;
+    customFontCjk.value = cjk;
     customFontUrl.value = URL.createObjectURL(file);
   }
 
@@ -297,6 +309,17 @@ export const useSettingsStore = defineStore("settings", () => {
       ? { ...videoOptions, font: { ...videoOptions.font, name: customFontFamily.value } }
       : videoOptions,
   );
+
+  const cjkCoverage = computed<CjkCoverage>(() => {
+    const coverage: Record<string, ReadonlySet<number>> = {};
+    for (const font of Object.values(voiceFonts.value)) {
+      coverage[font.family] = font.cjk;
+    }
+    if (customFontFamily.value) {
+      coverage[customFontFamily.value] = customFontCjk.value;
+    }
+    return coverage;
+  });
 
   // Binding a key another role already holds swaps the two, so no two roles point at the same key,
   // which would make one of them unreachable.
@@ -461,6 +484,7 @@ export const useSettingsStore = defineStore("settings", () => {
     getVoiceFont,
     setVoiceFont,
     renderVoiceStyle,
+    cjkCoverage,
     clearCustomFonts,
     setTimingKey,
     getVoiceStyle,

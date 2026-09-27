@@ -789,6 +789,7 @@ describe("Timings Store", () => {
       "Test Song",
       "Test Artist",
       expect.objectContaining({ font: expect.objectContaining({ name: "Impact" }) }),
+      settingsStore.cjkCoverage,
     );
   });
 

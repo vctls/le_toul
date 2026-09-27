@@ -475,9 +475,26 @@ describe("CJK lyrics in the ASS file", () => {
     expect(createAssFile(segments, 10, "Title", "坂本 真綾", cjkOptions)).not.toContain("\\fn");
   });
 
-  test("leaves the text alone for a custom font", () => {
-    const customOptions = { ...options, font: { ...options.font, name: "My Uploaded Font" } };
-    expect(createAssFile(segments, 10, "Title", "坂本 真綾", customOptions)).not.toContain("\\fn");
+  const uploaded = { ...options, font: { ...options.font, name: "My Uploaded Font" } };
+  const codePoints = (text: string) => new Set([...text].map((c) => c.codePointAt(0)!));
+
+  test("names the CJK font for an uploaded font without CJK glyphs", () => {
+    const ass = createAssFile(segments, 10, "Title", "坂本 真綾", uploaded);
+    expect(ass).toContain("{\\fnNoto Sans CJK JP}残酷な天使{\\fn}");
+  });
+
+  test("leaves the text alone for an uploaded font that draws all of it", () => {
+    const coverage = { "My Uploaded Font": codePoints("残酷な天使坂本真綾") };
+    expect(createAssFile(segments, 10, "Title", "坂本 真綾", uploaded, coverage)).not.toContain(
+      "\\fn",
+    );
+  });
+
+  test("names the CJK font for a run the uploaded font only partly draws", () => {
+    const coverage = { "My Uploaded Font": codePoints("残酷天使坂本真綾") };
+    const ass = createAssFile(segments, 10, "Title", "坂本 真綾", uploaded, coverage);
+    expect(ass).toContain("{\\fnNoto Sans CJK JP}残酷な天使{\\fn}");
+    expect(ass).not.toContain("{\\fnNoto Sans CJK JP}坂本 真綾{\\fn}");
   });
 });
 

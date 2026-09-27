@@ -20,7 +20,7 @@ import {
   endTitleScreenBy,
   fitInstrumentalScreens,
 } from "./adjustments";
-import { BUNDLED_FONTS, CJK_FONT } from "./fonts";
+import { CJK_CHAR, CJK_FONT } from "./fonts";
 import { map, method, isNumber } from "lodash-es";
 import { default as BuefyColor } from "buefy/src/utils/color";
 // This import must stay type-only,
@@ -731,32 +731,31 @@ interface VoiceTrackRender {
   options: KaraokeOptions;
 }
 
-// U+3000–U+33FF holds CJK punctuation, kana and CJK symbols. U+FF00–U+FFEF holds full-width forms.
-const CJK_CHAR = String.raw`[\p{sc=Han}\p{sc=Hangul}\p{sc=Bopomofo}\u3000-\u33ff\uff00-\uffef]`;
 const CJK_RUN = new RegExp(`${CJK_CHAR}+(?: +${CJK_CHAR}+)*`, "gu");
 
-/**
- * Switch every run of CJK text outside override blocks to the bundled CJK font.
- * FFmpeg.wasm's libass has no fontconfig, so it can't fall back to another font on its own.
- */
-export function withCjkFont(events: string): string {
-  return events.replace(/(\{[^}]*\})|[^{]+/g, (chunk, block) =>
-    block ? chunk : chunk.replace(CJK_RUN, (run) => `{\\fn${CJK_FONT}}${run}{\\fn}`),
-  );
-}
+// The CJK characters each uploaded font can draw, by family name.
+// Any other font but the bundled CJK one counts as drawing none.
+export type CjkCoverage = Readonly<Record<string, ReadonlySet<number>>>;
 
 /**
- * Whether a style's font is one of the bundled fonts that has no CJK glyphs.
- * A custom font is trusted to cover the lyrics it was uploaded for.
+ * Switch every run of CJK text outside override blocks to the bundled CJK font,
+ * unless the style's font can draw the whole run.
+ * FFmpeg.wasm's libass has no fontconfig, so it can't fall back to another font on its own.
  */
-function lacksCjkGlyphs(fontName: string): boolean {
-  return fontName in BUNDLED_FONTS && fontName !== CJK_FONT;
+export function withCjkFont(events: string, covered: ReadonlySet<number> = new Set()): string {
+  const drawable = (run: string) =>
+    [...run].every((c) => c === " " || covered.has(c.codePointAt(0)!));
+  return events.replace(/(\{[^}]*\})|[^{]+/g, (chunk, block) =>
+    block
+      ? chunk
+      : chunk.replace(CJK_RUN, (run) => (drawable(run) ? run : `{\\fn${CJK_FONT}}${run}{\\fn}`)),
+  );
 }
 
 // Render one ASS document from one or more styled tracks. Each track contributes its own
 // [V4+ Styles] row and its screens' events, tagged with that track's style. All tracks
 // share the same style field set (Format line), since displayParams always has every key.
-function renderAssDocument(tracks: VoiceTrackRender[]): string {
+function renderAssDocument(tracks: VoiceTrackRender[], cjkCoverage: CjkCoverage): string {
   const formatKeys = Object.keys(tracks[0].displayParams);
   const styleLines = tracks
     .map((t) => `Style: ${formatKeys.map((k) => t.displayParams[k]).join(",")}`)
@@ -784,10 +783,11 @@ ${styleLines}
 Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
 `;
   for (const track of tracks) {
-    const tagCjk = lacksCjkGlyphs(track.displayParams.Fontname as string);
+    const fontName = track.displayParams.Fontname as string;
+    const covered = fontName === CJK_FONT ? null : (cjkCoverage[fontName] ?? new Set<number>());
     for (const screen of track.screens) {
       const events = screen.toAssEvents(track.displayParams, track.options, track.styleName);
-      assText += tagCjk ? withCjkFont(events) : events;
+      assText += covered ? withCjkFont(events, covered) : events;
     }
   }
   return assText;
@@ -797,9 +797,13 @@ function createSubtitles(
   screens: LyricsScreen[],
   options: KaraokeOptions,
   formatParams: Object,
+  cjkCoverage: CjkCoverage,
 ): string {
   const displayParams = buildDisplayParams(formatParams, "Default");
-  return renderAssDocument([{ styleName: "Default", displayParams, screens, options }]);
+  return renderAssDocument(
+    [{ styleName: "Default", displayParams, screens, options }],
+    cjkCoverage,
+  );
 }
 
 export function createScreens(
@@ -867,10 +871,11 @@ export function createAssFile(
   title: string,
   artist: string,
   options: KaraokeOptions,
+  cjkCoverage: CjkCoverage = {},
 ) {
   // Entry point to subtitles. Creates an .ass file from the given info.
   const screensWithTitle = createScreens(segments, songDuration, title, artist, options);
-  return createSubtitles(screensWithTitle, options, optionsToFormatParams(options));
+  return createSubtitles(screensWithTitle, options, optionsToFormatParams(options), cjkCoverage);
 }
 
 export interface VoiceTrack {
@@ -931,6 +936,7 @@ export function createMultiVoiceAssFile(
   songDuration: number,
   title: string,
   artist: string,
+  cjkCoverage: CjkCoverage = {},
 ): string {
   if (tracks.length === 0) {
     return "";
@@ -964,5 +970,5 @@ export function createMultiVoiceAssFile(
     endTitleScreenBy(renders[0].screens, Math.min(...otherStarts));
   }
   assignVoiceLanes(renders);
-  return renderAssDocument(renders);
+  return renderAssDocument(renders, cjkCoverage);
 }
