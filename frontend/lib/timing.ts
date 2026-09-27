@@ -411,11 +411,13 @@ export class LyricSegment {
   text: string;
   timestamp: number;
   endTimestamp?: number;
+  countIn: boolean;
 
-  constructor(text: string, timestamp: number, endTimestamp?: number) {
+  constructor(text: string, timestamp: number, endTimestamp?: number, countIn = false) {
     this.text = text;
     this.timestamp = timestamp;
     this.endTimestamp = endTimestamp;
+    this.countIn = countIn;
   }
 
   toString(): string {
@@ -425,7 +427,7 @@ export class LyricSegment {
   adjustTimestamps(adjustment: number): LyricSegment {
     const newTs = this.timestamp + adjustment;
     const newEndTs = this.endTimestamp === undefined ? undefined : this.endTimestamp + adjustment;
-    return new LyricSegment(this.text, newTs, newEndTs);
+    return new LyricSegment(this.text, newTs, newEndTs, this.countIn);
   }
 
   toAss() {
@@ -478,7 +480,7 @@ export class LyricsScreen {
   }
 
   get singStart(): Timestamp {
-    return this.lines[0].timestamp;
+    return this.lines[0].singTimestamp;
   }
 
   get singEnd(): Timestamp {
@@ -640,6 +642,13 @@ export class LyricsLine {
 
   set timestamp(ts: Timestamp) {
     this.segments[0].timestamp = ts;
+  }
+
+  /**
+   * When the singing starts, which is after the line's count-in.
+   */
+  get singTimestamp(): Timestamp {
+    return this.segments.find((segment) => !segment.countIn)?.timestamp ?? this.timestamp;
   }
 
   get endTimestamp(): Timestamp {

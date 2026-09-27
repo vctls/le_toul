@@ -438,6 +438,30 @@ describe("fast lines display early by slot", () => {
     expect(second.lines.map((line) => line.customDisplayStartTime)).toEqual([2.75, undefined]);
   });
 
+  it("measures the gap between screens from the singing, not the count-in", () => {
+    const options: KaraokeOptions = {
+      ...DEFAULT_OPTIONS,
+      countInMode: "line",
+      dynamicCountIns: true,
+      countInThreshold: 1,
+    };
+    const screens = addGapCountIns(
+      denormalizeTimestamps(
+        compileLyricTimings([
+          { text: "one\n", start: 1, end: 2 },
+          { text: "two\n\n", start: 2, end: 3 },
+          { text: "three", start: 5.5, end: 6 },
+        ]),
+        7,
+      ),
+      options,
+    );
+    const [, first, second] = displayQuickLinesEarly([new LyricsScreen(), ...screens], options);
+    expect(second.lines[0].timestamp).toBe(4.5);
+    expect(first.lines[0].customDisplayEndTime).toBeUndefined();
+    expect(second.staggered).toBe(false);
+  });
+
   it("leaves a screen alone when only spacers are in those slots", () => {
     const [, first, second] = stagger([
       { text: "one\n", start: 1, spacersBefore: 2 },

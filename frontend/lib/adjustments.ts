@@ -100,6 +100,7 @@ function countInMarks(
       `{\\alpha&H${hex}&}${mark}`,
       timestamp + i * step,
       timestamp + (i + 1) * step,
+      true,
     );
   });
 }
@@ -118,7 +119,7 @@ function countInSegments(
       return [];
     }
     const timestamp = endTimestamp - options.countInDuration;
-    return [new LyricSegment(options.countInText, timestamp, endTimestamp)];
+    return [new LyricSegment(options.countInText, timestamp, endTimestamp, true)];
   }
   const marks = countInMarkTexts(options);
   const step = options.countInThreshold / marks.length;
@@ -157,7 +158,7 @@ export function addQuickStartCountIn(
   adjustedScreens[0].lines[0].addSegmentsToFront(
     options.dynamicCountIns
       ? countInMarks(options, marks, marks.length, newFirstSegment.timestamp)
-      : [new LyricSegment(options.countInText, 0.0, newFirstSegment.timestamp)],
+      : [new LyricSegment(options.countInText, 0.0, newFirstSegment.timestamp, true)],
   );
 
   return adjustedScreens;
