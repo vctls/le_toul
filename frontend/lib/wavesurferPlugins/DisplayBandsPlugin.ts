@@ -1,9 +1,12 @@
 // Draws each line in a waveform row of its own, framed by its display period.
 // The frame's left and right edges can be dragged. The syllables inside are for reference only.
+// Hovering or dragging a frame tints it, and more lightly the frames of lines drawn at the same height
+// in the video.
 
 import { BasePlugin, BasePluginEvents } from "wavesurfer.js/dist/base-plugin";
 import createElement from "wavesurfer.js/dist/dom";
 import { DisplayBand } from "@/lib/displayBands";
+import { sameHeight } from "@/lib/linePlacements";
 import { makeDraggable } from "./OpenEndedRegionPlugin";
 
 export type DisplayBandsPluginEvents = BasePluginEvents & {
@@ -19,12 +22,17 @@ const ROW_INSET = 3;
 const HANDLE_WIDTH = 12;
 const FRAME_COLOR = "var(--region-label-on-waveform)";
 const OVERLAP_COLOR = "var(--bulma-danger)";
+const ACTIVE_FILL = "color-mix(in srgb, var(--bulma-primary) 45%, transparent)";
+const SAME_HEIGHT_FILL = "color-mix(in srgb, var(--bulma-primary) 20%, transparent)";
 
 class DisplayBandsPlugin extends BasePlugin<DisplayBandsPluginEvents, undefined> {
   private readonly container: HTMLElement;
   private bands: DisplayBand[] = [];
   private enabled = true;
   private cleanups: (() => void)[] = [];
+  private frames: { band: DisplayBand; frame: HTMLElement }[] = [];
+  private hovered?: DisplayBand;
+  private dragged?: DisplayBand;
 
   constructor() {
     super(undefined);
@@ -65,6 +73,9 @@ class DisplayBandsPlugin extends BasePlugin<DisplayBandsPluginEvents, undefined>
   private render() {
     this.cleanups.forEach((cleanup) => cleanup());
     this.cleanups = [];
+    this.frames = [];
+    this.hovered = undefined;
+    this.dragged = undefined;
     this.container.replaceChildren();
     const duration = this.wavesurfer?.getDuration() ?? 0;
     if (!duration) return;
@@ -137,11 +148,21 @@ class DisplayBandsPlugin extends BasePlugin<DisplayBandsPluginEvents, undefined>
           borderLeft: `2px ${band.startStored ? "solid" : "dashed"} ${color}`,
           borderRight: `2px ${band.endStored ? "solid" : "dashed"} ${color}`,
           borderRadius: "3px",
+          pointerEvents: this.enabled ? "auto" : "none",
         },
       },
       row,
     );
     if (overlaps) frame.dataset.overlaps = "";
+    this.frames.push({ band, frame });
+    const enter = () => this.setHovered(band);
+    const leave = () => this.setHovered(undefined);
+    frame.addEventListener("mouseenter", enter);
+    frame.addEventListener("mouseleave", leave);
+    this.cleanups.push(() => {
+      frame.removeEventListener("mouseenter", enter);
+      frame.removeEventListener("mouseleave", leave);
+    });
     let { start, end } = band;
     const place = () => {
       frame.style.left = percent(start);
@@ -195,13 +216,42 @@ class DisplayBandsPlugin extends BasePlugin<DisplayBandsPluginEvents, undefined>
             }
             place();
           },
-          undefined,
-          () => this.emit("band-updated", band.segmentIndex, side, side === "start" ? start : end),
+          () => this.setDragged(band),
+          () => {
+            this.setDragged(undefined);
+            this.emit("band-updated", band.segmentIndex, side, side === "start" ? start : end);
+          },
           1,
         ),
       );
     }
     return row;
+  }
+
+  private setHovered(band: DisplayBand | undefined) {
+    this.hovered = band;
+    this.highlightFrames();
+  }
+
+  private setDragged(band: DisplayBand | undefined) {
+    this.dragged = band;
+    this.highlightFrames();
+  }
+
+  /**
+   * Tint the dragged or hovered frame, and more lightly the frames of the lines drawn at its height.
+   */
+  private highlightFrames() {
+    // A drag keeps its highlight when the pointer leaves the frame.
+    const active = this.dragged ?? this.hovered;
+    for (const { band, frame } of this.frames) {
+      const atSameHeight =
+        active?.placement !== undefined &&
+        band.placement !== undefined &&
+        sameHeight(band.placement, active.placement);
+      frame.style.backgroundColor =
+        band === active ? ACTIVE_FILL : atSameHeight ? SAME_HEIGHT_FILL : "";
+    }
   }
 
   /** Destroy the plugin and clean up */

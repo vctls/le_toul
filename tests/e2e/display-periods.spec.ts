@@ -165,6 +165,36 @@ test.describe("Adjust tab display mode", () => {
     expect(await frame.evaluate((el) => getComputedStyle(el).borderRightStyle)).toBe("solid");
   });
 
+  test("tints the hovered or dragged frame, and the frames of lines at its height", async ({
+    page,
+  }) => {
+    // Two screens of two lines, so One and Three share a height, and so do Two and Four.
+    await setupDisplayMode(page, "One\nTwo\n\nThree\nFour");
+    const frames = page.locator('[part="display-band"]');
+    const fills = () =>
+      frames.evaluateAll((all) => all.map((frame) => getComputedStyle(frame).backgroundColor));
+    const none = "rgba(0, 0, 0, 0)";
+    await expect.poll(fills).toEqual([none, none, none, none]);
+
+    await frames.nth(1).hover();
+    const [, active, , sameHeight] = await fills();
+    expect(active).not.toBe(none);
+    expect(sameHeight).not.toBe(none);
+    expect(sameHeight).not.toBe(active);
+    await expect.poll(fills).toEqual([none, active, none, sameHeight]);
+
+    // The tint follows a drag after the pointer has left the frame.
+    const box = (await frames.first().locator('[part~="display-band-end"]').boundingBox())!;
+    await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
+    await page.mouse.down();
+    await page.mouse.move(box.x + box.width / 2, box.y + 200, { steps: 10 });
+    await expect.poll(fills).toEqual([active, none, sameHeight, none]);
+
+    await page.mouse.up();
+    await page.mouse.move(0, 0);
+    await expect.poll(fills).toEqual([none, none, none, none]);
+  });
+
   test("stops a dragged end at the line at its height, which then appears as it ends", async ({
     page,
   }) => {
