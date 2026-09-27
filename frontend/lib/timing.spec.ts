@@ -224,6 +224,13 @@ test("LyricSegment", () => {
   expect(underSecondSegment.toAss()).toBe("{\\kf25}baby");
 });
 
+test("karaoke tags don't lose a centisecond to float error", () => {
+  // In floats, 27.99 - 25.87 is 2.1199999, and 35.73 - 25.33 is 10.3999999.
+  expect(new LyricSegment("▅", 25.87, 27.99).toAss()).toBe("{\\kf212}▅");
+  const line = new LyricsLine([new LyricSegment("With", 35.73, 35.97)]);
+  expect(line.decorateAssLine(line.segments, 25.33)).toBe("{\\k1040}{\\kf24}With");
+});
+
 // test('LyricScreen does ass', () => {
 //     const screen = new LyricsScreen();
 //     screen.toAss

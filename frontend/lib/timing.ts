@@ -132,6 +132,15 @@ function colorToString(color: Color): string {
   return "&H" + color.map(toHex).reverse().join("");
 }
 
+/**
+ * Seconds to whole centiseconds, the precision of ASS.
+ * Durations subtract two of these rather than flooring the difference,
+ * where float error turns 2.12 s into 211.99999 cs and loses one.
+ */
+function toCentiseconds(seconds: number): number {
+  return Math.round(seconds * 100);
+}
+
 export function floatToTimecode(t: number): string {
   // Format t (seconds) as HH:MM:SS.cc. Every field is derived from one rounded centisecond count:
   // rounding the fraction on its own drops the carry at .995 and up, which silently shifts the
@@ -317,7 +326,8 @@ export class LyricSegment {
 
   toAss() {
     // Render this segment as part of an ASS event line
-    const durationInCentiseconds = Math.floor(((this.endTimestamp ?? 0) - this.timestamp) * 100);
+    const durationInCentiseconds =
+      toCentiseconds(this.endTimestamp ?? 0) - toCentiseconds(this.timestamp);
     return `{\\kf${durationInCentiseconds}}${this.text}`;
   }
 }
@@ -515,7 +525,7 @@ export class LyricsLine {
     // following the tag.
 
     // Delay between line display and start of line animation
-    let singStartDelay = Math.floor((this.timestamp - displayStartTime) * 100);
+    let singStartDelay = toCentiseconds(this.timestamp) - toCentiseconds(displayStartTime);
     if (singStartDelay < 0) {
       console.error(`Negative line startTime: ${this}: ${singStartDelay}`);
       singStartDelay = 0;
