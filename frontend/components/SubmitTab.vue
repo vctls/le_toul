@@ -60,20 +60,25 @@
                 append-to-body
                 content-class="wide-tooltip"
                 multilined
-                label="Draw marks sized to the gap: a long gap gets three, shorter gaps get fewer, and a gap too short for one gets none. Turn this off to show your own text for a fixed length instead"
+                label="Split the count-in text into up to three marks: a long gap gets them all, shorter gaps get fewer, and a gap too short for one gets none. Turn this off to show the whole text for a fixed length instead"
               >
                 <b-icon size="is-small" icon="circle-question"></b-icon>
               </b-tooltip>
             </template>
             <b-switch v-model="videoOptions.dynamicCountIns"></b-switch>
           </b-field>
-          <b-field v-if="!videoOptions.dynamicCountIns" horizontal>
+          <b-field horizontal>
             <template #label>
               Count-In Text
               <b-tooltip
                 append-to-body
                 content-class="wide-tooltip"
-                label="What a count-in shows before the singing starts"
+                multilined
+                :label="
+                  videoOptions.dynamicCountIns
+                    ? 'What a count-in shows before the singing starts, split by word if it has spaces and by character otherwise. Leave it empty to draw blocks'
+                    : 'What a count-in shows before the singing starts'
+                "
               >
                 <b-icon size="is-small" icon="circle-question"></b-icon>
               </b-tooltip>
@@ -94,7 +99,7 @@
                 multilined
                 :label="
                   videoOptions.dynamicCountIns
-                    ? 'A line that starts this long after the previous one gets all three marks, shorter gaps get fewer, and a gap under a third of it gets none. A full count-in lasts this long, so the marks tick a third of it apart'
+                    ? 'A line that starts this long after the previous one gets every mark, shorter gaps get fewer, and a gap too short for one gets none. A full count-in lasts this long, with its marks evenly spaced'
                     : 'Add a count-in when a line starts more than this many seconds after the previous line ends'
                 "
               >

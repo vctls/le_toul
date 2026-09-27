@@ -26,7 +26,7 @@ const COUNT_IN_MARK_HEIGHT_RATIO = 0.6;
 // Script units, so the marks stay the same distance apart in any font at any size.
 const COUNT_IN_MARK_GAP = 5;
 
-function countInMark(fontSize: number, alpha: number, last: boolean): string {
+function countInMark(fontSize: number, last: boolean): string {
   // A drawing rather than a glyph.
   // Inline with the lyrics there is a text baseline, so \pbo sits the mark on it.
   // Each mark starts its own path at 0: libass takes a run's advance from its bounding box,
@@ -39,27 +39,68 @@ function countInMark(fontSize: number, alpha: number, last: boolean): string {
   const pad = width + COUNT_IN_MARK_GAP;
   // The last mark is followed by the lyrics, so an ordinary word space separates them.
   const gap = last ? "" : ` m ${pad} 0 l ${pad} 0`;
-  const hex = alpha.toString(16).padStart(2, "0").toUpperCase();
-  return `{\\alpha&H${hex}&\\p1\\pbo${height}}${rect}${gap}{\\p0}${last ? " " : ""}`;
+  return `{\\p1\\pbo${height}}${rect}${gap}{\\p0}${last ? " " : ""}`;
 }
 
-// Marks ending as the singing starts, faintest first.
-// Sliced from the front because slice(-markCount) would return every mark when markCount is 0.
+/**
+ * Split count-in text into at most three marks that join back into it,
+ * by word when it has spaces and by character otherwise.
+ * Leftover words or characters go to the first marks.
+ */
+function countInTextMarks(text: string): string[] {
+  const body = text.trim();
+  if (!body) {
+    return [];
+  }
+  const units = /\s/.test(body)
+    ? body.split(/(?<=\s)(?=\S)/)
+    : Array.from(new Intl.Segmenter().segment(body), ({ segment }) => segment);
+  const markCount = Math.min(COUNT_IN_MARKS_MAX, units.length);
+  const marks: string[] = [];
+  for (let i = 0, start = 0; i < markCount; i++) {
+    const size = Math.floor(units.length / markCount) + (i < units.length % markCount ? 1 : 0);
+    marks.push(units.slice(start, start + size).join(""));
+    start += size;
+  }
+  // The text's own leading and trailing spaces stay, as in a fixed count-in.
+  marks[0] = text.slice(0, text.indexOf(body)) + marks[0];
+  marks[markCount - 1] += text.slice(text.indexOf(body) + body.length);
+  return marks;
+}
+
+function countInMarkTexts(options: KaraokeOptions): string[] {
+  const marks = countInTextMarks(options.countInText);
+  if (marks.length > 0) {
+    return marks;
+  }
+  return Array.from({ length: COUNT_IN_MARKS_MAX }, (_, i) =>
+    countInMark(options.font.size, i === COUNT_IN_MARKS_MAX - 1),
+  );
+}
+
+/**
+ * The last markCount marks, ending as the singing starts, faintest first.
+ * A full count-in lasts countInThreshold, whatever the number of marks.
+ * They are sliced from the front,
+ * because slice(-markCount) returns every mark when markCount is 0.
+ */
 function countInMarks(
   options: KaraokeOptions,
+  marks: string[],
   markCount: number,
   endTimestamp: Timestamp,
 ): LyricSegment[] {
-  const step = options.countInThreshold / COUNT_IN_MARKS_MAX;
+  const step = options.countInThreshold / marks.length;
   const timestamp = endTimestamp - markCount * step;
-  return COUNT_IN_MARK_ALPHAS.slice(COUNT_IN_MARKS_MAX - markCount).map(
-    (alpha, i) =>
-      new LyricSegment(
-        countInMark(options.font.size, alpha, i === markCount - 1),
-        timestamp + i * step,
-        timestamp + (i + 1) * step,
-      ),
-  );
+  const alphas = COUNT_IN_MARK_ALPHAS.slice(COUNT_IN_MARKS_MAX - markCount);
+  return marks.slice(marks.length - markCount).map((mark, i) => {
+    const hex = alphas[i].toString(16).padStart(2, "0").toUpperCase();
+    return new LyricSegment(
+      `{\\alpha&H${hex}&}${mark}`,
+      timestamp + i * step,
+      timestamp + (i + 1) * step,
+    );
+  });
 }
 
 // Dynamic count-ins spend a fixed time per mark,
@@ -78,9 +119,10 @@ function countInSegments(
     const timestamp = endTimestamp - options.countInDuration;
     return [new LyricSegment(options.countInText, timestamp, endTimestamp)];
   }
-  const step = options.countInThreshold / COUNT_IN_MARKS_MAX;
-  const markCount = Math.min(COUNT_IN_MARKS_MAX, Math.floor(gap / step));
-  return countInMarks(options, markCount, endTimestamp);
+  const marks = countInMarkTexts(options);
+  const step = options.countInThreshold / marks.length;
+  const markCount = Math.min(marks.length, Math.floor(gap / step));
+  return countInMarks(options, marks, markCount, endTimestamp);
 }
 
 function countInLength(options: KaraokeOptions): Timestamp {
@@ -110,9 +152,10 @@ export function addQuickStartCountIn(
   adjustedScreens[0].audioDelay += addedTime;
   // The song was moved to make room for a whole count-in, so this one is never cut short.
   const newFirstSegment = adjustedScreens[0].lines[0].segments[0];
+  const marks = countInMarkTexts(options);
   adjustedScreens[0].lines[0].addSegmentsToFront(
     options.dynamicCountIns
-      ? countInMarks(options, COUNT_IN_MARKS_MAX, newFirstSegment.timestamp)
+      ? countInMarks(options, marks, marks.length, newFirstSegment.timestamp)
       : [new LyricSegment(options.countInText, 0.0, newFirstSegment.timestamp)],
   );
 

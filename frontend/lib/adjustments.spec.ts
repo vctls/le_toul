@@ -158,10 +158,11 @@ test("line mode gives a mid-screen line its own count-in", () => {
   expect(countIn.endTimestamp).toBe(20.0);
 });
 
-test("dynamic count-ins draw marks instead of the text", () => {
+test("dynamic count-ins draw marks when there is no text", () => {
   const options: KaraokeOptions = {
     ...DEFAULT_OPTIONS,
     countInMode: "line",
+    countInText: " ",
     dynamicCountIns: true,
     countInThreshold: 3.0,
   };
@@ -181,13 +182,70 @@ test("dynamic count-ins draw marks instead of the text", () => {
   const segments = screen.lines[1].segments;
   // One segment per mark, so the sweep fills them one at a time over the 3s count-in.
   expect(segments.slice(0, 3).map((s) => s.text)).toEqual([
-    `{\\alpha&H80&\\p1\\pbo13}${rect}${gap}{\\p0}`,
-    `{\\alpha&H40&\\p1\\pbo13}${rect}${gap}{\\p0}`,
-    `{\\alpha&H00&\\p1\\pbo13}${rect}{\\p0} `,
+    `{\\alpha&H80&}{\\p1\\pbo13}${rect}${gap}{\\p0}`,
+    `{\\alpha&H40&}{\\p1\\pbo13}${rect}${gap}{\\p0}`,
+    `{\\alpha&H00&}{\\p1\\pbo13}${rect}{\\p0} `,
   ]);
   expect(segments.slice(0, 3).map((s) => s.timestamp)).toEqual([17.0, 18.0, 19.0]);
   expect(segments[2].endTimestamp).toBe(20.0);
   expect(segments[3].text).toBe("second line");
+});
+
+/**
+ * The marks a dynamic count-in splits the text into, with a gap long enough for all of them.
+ */
+function dynamicCountInMarks(countInText: string, countInThreshold = 3.0): LyricSegment[] {
+  const options: KaraokeOptions = {
+    ...DEFAULT_OPTIONS,
+    countInMode: "line",
+    countInText,
+    dynamicCountIns: true,
+    countInThreshold,
+  };
+  const screen = addGapCountIns(
+    denormalizeTimestamps(
+      compileLyricTimings(fromEvents(MID_SCREEN_GAP_LYRICS, MID_SCREEN_GAP_TIMINGS)),
+      60.0,
+    ),
+    options,
+  )[0];
+  return screen.lines[1].segments.slice(0, -1);
+}
+
+const markTexts = (segments: LyricSegment[]) =>
+  segments.map((segment) => segment.text.replace(/^\{\\alpha&H..&\}/, ""));
+
+test("dynamic count-ins split the text by word when it has spaces", () => {
+  const marks = dynamicCountInMarks("Ready, set, go! ");
+
+  expect(markTexts(marks)).toEqual(["Ready, ", "set, ", "go! "]);
+  expect(marks.map((s) => s.text.slice(0, 13))).toEqual([
+    "{\\alpha&H80&}",
+    "{\\alpha&H40&}",
+    "{\\alpha&H00&}",
+  ]);
+  expect(marks.map((s) => s.timestamp)).toEqual([17.0, 18.0, 19.0]);
+});
+
+test("dynamic count-ins split the text by character when it has no spaces", () => {
+  expect(markTexts(dynamicCountInMarks("♪♪♪"))).toEqual(["♪", "♪", "♪"]);
+  expect(markTexts(dynamicCountInMarks("Hello"))).toEqual(["He", "ll", "o"]);
+});
+
+test("extra words go to the first marks", () => {
+  expect(markTexts(dynamicCountInMarks("5 4 3 2 1 "))).toEqual(["5 4 ", "3 2 ", "1 "]);
+});
+
+test("the text's own leading and trailing spaces stay", () => {
+  expect(markTexts(dynamicCountInMarks("  ••• "))).toEqual(["  •", "•", "• "]);
+});
+
+test("a text too short for three marks spreads the fewer marks over the whole count-in", () => {
+  const marks = dynamicCountInMarks("Go ", 4.0);
+
+  expect(markTexts(marks)).toEqual(["G", "o "]);
+  expect(marks.map((s) => s.timestamp)).toEqual([16.0, 18.0]);
+  expect(marks.map((s) => s.text.slice(9, 11))).toEqual(["40", "00"]);
 });
 
 test("the number of marks follows the size of the gap", () => {
