@@ -300,16 +300,8 @@ export function displayQuickLinesEarly(
 
     // TODO what if nextScreen.length == 2 and screen.length == 3?
     const earlyDisplayLines = nextScreen.lines.slice(0, earlyRemovalLines.length);
-    // Adjust y positions so they don't overwrite remaining lines. The next screen's block
-    // is laid out as if it had this screen's line count, which puts its first line in the
-    // slot this screen's first line is vacating. Recording the line count rather than the
-    // resulting Y keeps this correct once voice lanes are assigned (multi-voice), which
-    // happens after this pass and moves the whole block.
-    const fontSize = displayOptions.font.size;
-    const alignment = displayOptions.verticalAlignment;
-    if (screen.getLineY(0, fontSize, alignment) < nextScreen.getLineY(0, fontSize, alignment)) {
-      nextScreen.positionAsLineCount = screen.positionAsLineCount ?? screen.lines.length;
-    }
+    nextScreen.staggered = true;
+    placeStaggeredScreen(screen, nextScreen, displayOptions);
 
     earlyDisplayLines.forEach((line, i) => {
       line.customDisplayStartTime = earlyDisplayTime;
@@ -317,6 +309,36 @@ export function displayQuickLinesEarly(
     });
   }
   return screens;
+}
+
+/**
+ * Lay a staggered screen out as if it had the previous screen's line count
+ * when its own would put its first line below the previous screen's first line.
+ * That puts its early lines in the slots the previous screen's first lines leave.
+ */
+function placeStaggeredScreen(
+  previous: LyricsScreen,
+  screen: LyricsScreen,
+  options: KaraokeOptions,
+): void {
+  const { size } = options.font;
+  const alignment = options.verticalAlignment;
+  screen.positionAsLineCount = undefined;
+  if (previous.getLineY(0, size, alignment) < screen.getLineY(0, size, alignment)) {
+    screen.positionAsLineCount = previous.positionAsLineCount ?? previous.lines.length;
+  }
+}
+
+/**
+ * Place every staggered screen again, once voice lanes have moved the blocks.
+ * A screen in a lane is centred in it whatever the alignment, so the first placement no longer holds.
+ */
+export function placeStaggeredScreens(screens: LyricsScreen[], options: KaraokeOptions): void {
+  for (const [i, screen] of screens.entries()) {
+    if (i > 0 && screen.staggered) {
+      placeStaggeredScreen(screens[i - 1], screen, options);
+    }
+  }
 }
 
 /**
@@ -339,11 +361,11 @@ export function applyStoredDisplayPeriods(screens: LyricsScreen[]): LyricsScreen
   return screens;
 }
 
-function displayStartOf(line: LyricsLine, screen: LyricsScreen): Timestamp {
+export function displayStartOf(line: LyricsLine, screen: LyricsScreen): Timestamp {
   return line.customDisplayStartTime ?? screen.startTimestamp ?? 0;
 }
 
-function displayEndOf(line: LyricsLine, screen: LyricsScreen): Timestamp {
+export function displayEndOf(line: LyricsLine, screen: LyricsScreen): Timestamp {
   return line.customDisplayEndTime ?? screen.endTimestamp;
 }
 

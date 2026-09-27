@@ -19,6 +19,7 @@ import {
   earliestStoredStart,
   endTitleScreenBy,
   fitInstrumentalScreens,
+  placeStaggeredScreens,
 } from "./adjustments";
 import { BUNDLED_SYMBOLS, FALLBACK_FONTS } from "./fonts";
 import { map, method, isNumber } from "lodash-es";
@@ -328,12 +329,12 @@ export class LyricsScreen {
   startTimestamp?: Timestamp;
   // Seconds to delay the start of the audio. Only valid on the title screen and first lyrics screen.
   audioDelay: number = 0.0;
-  // For staggered timings, this screen's first lines are displayed early, in the slot the previous
-  // screen's lines are vacating, so the block has to be laid out as if it had that screen's line
-  // count instead of its own. Stored as a line count rather than a ready-made Y offset so the
-  // same correction resolves correctly under any vertical alignment and inside a voice lane.
-  // See displayQuickLinesEarly.
+  // For staggered timings, this screen's first lines are displayed early, in the slots the previous
+  // screen's first lines leave, so the block may be laid out as if it had that screen's line count
+  // instead of its own (see placeStaggeredScreens).
   positionAsLineCount?: number;
+  // Staggered lines show this screen's first lines while the previous screen is still displayed.
+  staggered = false;
   // Multi-voice only: when this screen overlaps another voice in time, it is confined to a
   // vertical "lane" so the voices don't interleave (see createMultiVoiceAssFile). When unset,
   // the screen uses the full height (normal centered/aligned layout).
@@ -735,7 +736,7 @@ function buildDisplayParams(formatParams: Object, styleName: string): Record<str
   return displayParams;
 }
 
-interface VoiceTrackRender {
+export interface VoiceTrackRender {
   styleName: string;
   displayParams: Record<string, unknown>;
   screens: LyricsScreen[];
@@ -839,7 +840,10 @@ function createSubtitles(
   );
 }
 
-export function createScreens(
+/**
+ * One voice's screens as the automatic rules lay them out, before any stored display period applies.
+ */
+function createAutomaticScreens(
   segments: TimedSegment[],
   songDuration: number,
   title: string,
@@ -866,6 +870,20 @@ export function createScreens(
   if (options.addInstrumentalScreens) {
     screens = addInstrumentalScreens(screens, options);
   }
+  return screens;
+}
+
+/**
+ * One voice's screens with its stored display periods applied.
+ */
+export function createScreens(
+  segments: TimedSegment[],
+  songDuration: number,
+  title: string,
+  artist: string,
+  options: KaraokeOptions,
+): LyricsScreen[] {
+  let screens = createAutomaticScreens(segments, songDuration, title, artist, options);
   if (options.useStoredDisplayPeriods) {
     screens = applyStoredDisplayPeriods(screens);
     endTitleScreenBy(screens, earliestStoredStart(screens));
@@ -910,8 +928,13 @@ export function createAssFile(
   glyphCoverage: GlyphCoverage = {},
 ) {
   // Entry point to subtitles. Creates an .ass file from the given info.
-  const screensWithTitle = createScreens(segments, songDuration, title, artist, options);
-  return createSubtitles(screensWithTitle, options, optionsToFormatParams(options), glyphCoverage);
+  const [{ screens }] = layOutVoices(
+    [{ voice: "", segments, options }],
+    songDuration,
+    title,
+    artist,
+  );
+  return createSubtitles(screens, options, optionsToFormatParams(options), glyphCoverage);
 }
 
 export interface VoiceTrack {
@@ -948,6 +971,7 @@ function screensOverlapInTime(a: LyricsScreen, b: LyricsScreen): boolean {
 // its voice's horizontal band (voice 0 on top, voice 1 below, ...), so simultaneous voices
 // stack as separate blocks instead of letting libass's collision-avoidance interleave them.
 // Screens with no cross-voice overlap keep their default full-height centered layout.
+// This runs on the automatic periods, so a stored period never moves a line to another height.
 function assignVoiceLanes(renders: VoiceTrackRender[]): void {
   const voiceCount = renders.length;
   if (voiceCount < 2) {
@@ -955,16 +979,78 @@ function assignVoiceLanes(renders: VoiceTrackRender[]): void {
   }
   const laneHeight = SUBTITLE_CANVAS.height / voiceCount;
   renders.forEach((render, index) => {
+    const lane = { top: index * laneHeight, height: laneHeight };
     for (const screen of render.screens) {
       const overlapsOtherVoice = renders.some(
         (other, otherIndex) =>
           otherIndex !== index && other.screens.some((os) => screensOverlapInTime(screen, os)),
       );
       if (overlapsOtherVoice) {
-        screen.verticalZone = { top: index * laneHeight, height: laneHeight };
+        screen.verticalZone = lane;
+      }
+    }
+    // A staggered screen's early lines share the slots of the previous screen's lines,
+    // so the two screens are either both in the lane or both out of it.
+    let changed = true;
+    while (changed) {
+      changed = false;
+      for (const [i, screen] of render.screens.entries()) {
+        const previous = render.screens[i - 1];
+        if (i > 0 && screen.staggered && !previous.verticalZone !== !screen.verticalZone) {
+          previous.verticalZone = screen.verticalZone = lane;
+          changed = true;
+        }
       }
     }
   });
+}
+
+/**
+ * Every voice's screens as the video lays them out, lanes included, in the order of `tracks`.
+ * Heights come from the automatic periods alone, and stored periods only change when lines are shown.
+ */
+export function layOutVoices(
+  tracks: VoiceTrack[],
+  songDuration: number,
+  title: string,
+  artist: string,
+): VoiceTrackRender[] {
+  const renders: VoiceTrackRender[] = tracks.map((track, index) => {
+    const isPrimary = index === 0;
+    // The title and instrumental-break screens are global: only the primary voice contributes them.
+    // Count-ins stay per voice. Non-primary voices have no title/instrumental to fill long gaps,
+    // so cap how early their screens display.
+    const options: KaraokeOptions = isPrimary
+      ? track.options
+      : { ...track.options, addTitleScreen: false, addInstrumentalScreens: false };
+    let screens = createAutomaticScreens(track.segments, songDuration, title, artist, options);
+    if (!isPrimary) {
+      screens = deferScreenStarts(screens);
+    }
+    const styleName = styleNameForVoice(index);
+    return {
+      styleName,
+      displayParams: buildDisplayParams(optionsToFormatParams(options), styleName),
+      screens,
+      options,
+    };
+  });
+  assignVoiceLanes(renders);
+  for (const render of renders) {
+    placeStaggeredScreens(render.screens, render.options);
+    if (render.options.useStoredDisplayPeriods) {
+      render.screens = fitInstrumentalScreens(applyStoredDisplayPeriods(render.screens));
+    }
+  }
+  // The title screen is global, so it gives way to every voice's stored periods.
+  const storedStarts = renders
+    .filter((render) => render.options.useStoredDisplayPeriods)
+    .map((render) => earliestStoredStart(render.screens))
+    .filter((start) => start !== undefined);
+  if (renders.length > 0 && storedStarts.length > 0) {
+    endTitleScreenBy(renders[0].screens, Math.min(...storedStarts));
+  }
+  return renders;
 }
 
 export function createMultiVoiceAssFile(
@@ -977,35 +1063,5 @@ export function createMultiVoiceAssFile(
   if (tracks.length === 0) {
     return "";
   }
-  const renders: VoiceTrackRender[] = tracks.map((track, index) => {
-    const isPrimary = index === 0;
-    // The title and instrumental-break screens are global: only the primary voice contributes them.
-    // Count-ins stay per voice. Non-primary voices have no title/instrumental to fill long gaps,
-    // so cap how early their screens display.
-    const options: KaraokeOptions = isPrimary
-      ? track.options
-      : { ...track.options, addTitleScreen: false, addInstrumentalScreens: false };
-    let screens = createScreens(track.segments, songDuration, title, artist, options);
-    if (!isPrimary) {
-      screens = deferScreenStarts(screens);
-    }
-    const styleName = styleNameForVoice(index);
-    return {
-      styleName,
-      displayParams: buildDisplayParams(optionsToFormatParams(options), styleName),
-      screens,
-      options,
-    };
-  });
-  // The title screen is global, so it gives way to every voice's stored periods.
-  const otherStarts = renders
-    .slice(1)
-    .filter((render) => render.options.useStoredDisplayPeriods)
-    .map((render) => earliestStoredStart(render.screens))
-    .filter((start) => start !== undefined);
-  if (otherStarts.length > 0) {
-    endTitleScreenBy(renders[0].screens, Math.min(...otherStarts));
-  }
-  assignVoiceLanes(renders);
-  return renderAssDocument(renders, glyphCoverage);
+  return renderAssDocument(layOutVoices(tracks, songDuration, title, artist), glyphCoverage);
 }
