@@ -25,10 +25,14 @@ const FRAME_COLOR = "var(--region-label-on-waveform)";
 const OVERLAP_COLOR = "var(--bulma-danger)";
 const ACTIVE_FILL = "color-mix(in srgb, var(--bulma-primary) 45%, transparent)";
 const SAME_HEIGHT_FILL = "color-mix(in srgb, var(--bulma-primary) 20%, transparent)";
+// The fills are translucent, so the more frames overlap, the darker the area they share.
+const restFill = (color: string) => `color-mix(in srgb, ${color} 7%, transparent)`;
 // The z-indexes of the lifted frame, and of the halves of each handle outside and inside its frame.
 const LIFTED_Z = "1";
 const OUTER_HANDLE_Z = "2";
 const INNER_HANDLE_Z = "3";
+
+const bandColor = (band: DisplayBand) => (band.placement?.overlaps ? OVERLAP_COLOR : FRAME_COLOR);
 
 class DisplayBandsPlugin extends BasePlugin<DisplayBandsPluginEvents, undefined> {
   private readonly container: HTMLElement;
@@ -93,7 +97,7 @@ class DisplayBandsPlugin extends BasePlugin<DisplayBandsPluginEvents, undefined>
   private createBand(band: DisplayBand, duration: number) {
     const percent = (time: number) => `${(time / duration) * 100}%`;
     const overlaps = band.placement?.overlaps ?? false;
-    const color = overlaps ? OVERLAP_COLOR : FRAME_COLOR;
+    const color = bandColor(band);
     const rowStyle = {
       position: "absolute",
       left: "0",
@@ -154,7 +158,9 @@ class DisplayBandsPlugin extends BasePlugin<DisplayBandsPluginEvents, undefined>
           borderBottom: `1px solid ${color}`,
           borderLeft: `2px ${band.startStored ? "solid" : "dashed"} ${color}`,
           borderRight: `2px ${band.endStored ? "solid" : "dashed"} ${color}`,
-          borderRadius: "3px",
+          // The rounded corners show which side of an edge its frame is on.
+          borderRadius: "var(--bulma-control-radius)",
+          backgroundColor: restFill(color),
           pointerEvents: this.enabled ? "auto" : "none",
         },
       },
@@ -286,7 +292,7 @@ class DisplayBandsPlugin extends BasePlugin<DisplayBandsPluginEvents, undefined>
         band.placement !== undefined &&
         sameHeight(band.placement, active.placement);
       frame.style.backgroundColor =
-        band === active ? ACTIVE_FILL : atSameHeight ? SAME_HEIGHT_FILL : "";
+        band === active ? ACTIVE_FILL : atSameHeight ? SAME_HEIGHT_FILL : restFill(bandColor(band));
     }
   }
 

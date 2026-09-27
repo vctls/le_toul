@@ -179,8 +179,10 @@ test.describe("Adjust tab display mode", () => {
     const frames = page.locator('[part="display-band"]');
     const fills = () =>
       frames.evaluateAll((all) => all.map((frame) => getComputedStyle(frame).backgroundColor));
-    const none = "rgba(0, 0, 0, 0)";
-    await expect.poll(fills).toEqual([none, none, none, none]);
+    // Every frame has the same faint fill at rest.
+    await expect.poll(async () => new Set(await fills()).size).toBe(1);
+    const [none] = await fills();
+    expect(none).not.toBe("rgba(0, 0, 0, 0)");
 
     await frames.nth(1).hover();
     const [, active, , sameHeight] = await fills();
