@@ -1,7 +1,8 @@
 // Draws each line in a waveform row of its own, framed by its display period.
 // The frame's left and right edges can be dragged. The syllables inside are for reference only.
-// Hovering or dragging a frame tints it, and more lightly the frames of lines drawn at the same height
-// in the video.
+// Hovering or dragging a frame tints it and lifts it over the others, and more lightly tints
+// the frames of lines drawn at the same height in the video.
+// Frames can overlap, so the handles are drawn over every frame, even the lifted one.
 
 import { BasePlugin, BasePluginEvents } from "wavesurfer.js/dist/base-plugin";
 import createElement from "wavesurfer.js/dist/dom";
@@ -19,18 +20,22 @@ export type DisplayBandsPluginEvents = BasePluginEvents & {
 // Keep in sync with the region rows in OpenEndedRegionPlugin.
 const ROWS = 5;
 const ROW_INSET = 3;
-const HANDLE_WIDTH = 12;
+const HANDLE_WIDTH = 16;
 const FRAME_COLOR = "var(--region-label-on-waveform)";
 const OVERLAP_COLOR = "var(--bulma-danger)";
 const ACTIVE_FILL = "color-mix(in srgb, var(--bulma-primary) 45%, transparent)";
 const SAME_HEIGHT_FILL = "color-mix(in srgb, var(--bulma-primary) 20%, transparent)";
+// The z-indexes of the lifted frame, and of the halves of each handle outside and inside its frame.
+const LIFTED_Z = "1";
+const OUTER_HANDLE_Z = "2";
+const INNER_HANDLE_Z = "3";
 
 class DisplayBandsPlugin extends BasePlugin<DisplayBandsPluginEvents, undefined> {
   private readonly container: HTMLElement;
   private bands: DisplayBand[] = [];
   private enabled = true;
   private cleanups: (() => void)[] = [];
-  private frames: { band: DisplayBand; frame: HTMLElement }[] = [];
+  private frames: { band: DisplayBand; row: HTMLElement; frame: HTMLElement }[] = [];
   private hovered?: DisplayBand;
   private dragged?: DisplayBand;
 
@@ -81,23 +86,25 @@ class DisplayBandsPlugin extends BasePlugin<DisplayBandsPluginEvents, undefined>
     if (!duration) return;
     this.container.style.opacity = this.enabled ? "1" : "0.4";
     for (const band of this.bands) {
-      this.container.appendChild(this.createBand(band, duration));
+      this.createBand(band, duration);
     }
   }
 
-  private createBand(band: DisplayBand, duration: number): HTMLElement {
+  private createBand(band: DisplayBand, duration: number) {
     const percent = (time: number) => `${(time / duration) * 100}%`;
     const overlaps = band.placement?.overlaps ?? false;
     const color = overlaps ? OVERLAP_COLOR : FRAME_COLOR;
-    const row = createElement("div", {
-      style: {
-        position: "absolute",
-        left: "0",
-        width: "100%",
-        top: `calc(${(band.row * 100) / ROWS}% + ${ROW_INSET}px)`,
-        height: `calc(${100 / ROWS}% - ${2 * ROW_INSET}px)`,
-      },
-    });
+    const rowStyle = {
+      position: "absolute",
+      left: "0",
+      width: "100%",
+      top: `calc(${(band.row * 100) / ROWS}% + ${ROW_INSET}px)`,
+      height: `calc(${100 / ROWS}% - ${2 * ROW_INSET}px)`,
+    };
+    const row = createElement("div", { style: rowStyle }, this.container);
+    // The handles sit outside the frame's row, so a lifted row can't cover them.
+    // Their layer must not get a z-index, or theirs would only apply inside it.
+    const handles = createElement("div", { style: rowStyle }, this.container);
 
     for (const syllable of band.syllables) {
       createElement(
@@ -154,21 +161,16 @@ class DisplayBandsPlugin extends BasePlugin<DisplayBandsPluginEvents, undefined>
       row,
     );
     if (overlaps) frame.dataset.overlaps = "";
-    this.frames.push({ band, frame });
-    const enter = () => this.setHovered(band);
-    const leave = () => this.setHovered(undefined);
-    frame.addEventListener("mouseenter", enter);
-    frame.addEventListener("mouseleave", leave);
-    this.cleanups.push(() => {
-      frame.removeEventListener("mouseenter", enter);
-      frame.removeEventListener("mouseleave", leave);
-    });
+    this.frames.push({ band, row, frame });
+    const hoverables: HTMLElement[] = [frame];
     let { start, end } = band;
+    const edges = {} as Record<"start" | "end", HTMLElement>;
     const place = () => {
       frame.style.left = percent(start);
       frame.style.right = percent(duration - end);
+      edges.start.style.left = `calc(${percent(start)} - ${HANDLE_WIDTH / 2}px)`;
+      edges.end.style.left = `calc(${percent(end)} - ${HANDLE_WIDTH / 2}px)`;
     };
-    place();
 
     for (const side of ["start", "end"] as const) {
       const handle = createElement(
@@ -180,13 +182,33 @@ class DisplayBandsPlugin extends BasePlugin<DisplayBandsPluginEvents, undefined>
             top: "0",
             height: "100%",
             width: `${HANDLE_WIDTH}px`,
-            [side === "start" ? "left" : "right"]: `-${HANDLE_WIDTH / 2}px`,
             cursor: this.enabled ? "ew-resize" : "default",
             pointerEvents: this.enabled ? "all" : "none",
           },
         },
-        frame,
+        handles,
       );
+      edges[side] = handle;
+      hoverables.push(handle);
+      // Where two edges meet, their handles overlap.
+      // The half inside each frame is on top, so each side of the edge grabs its own line.
+      for (const half of ["left", "right"] as const) {
+        const inside = (side === "start") === (half === "right");
+        createElement(
+          "div",
+          {
+            style: {
+              position: "absolute",
+              top: "0",
+              height: "100%",
+              width: `${HANDLE_WIDTH / 2}px`,
+              [half]: "0",
+              zIndex: inside ? INNER_HANDLE_Z : OUTER_HANDLE_Z,
+            },
+          },
+          handle,
+        );
+      }
 
       // The waveform seeks on click, which the end of a drag would trigger.
       const stopClick = (event: MouseEvent) => event.stopPropagation();
@@ -225,7 +247,19 @@ class DisplayBandsPlugin extends BasePlugin<DisplayBandsPluginEvents, undefined>
         ),
       );
     }
-    return row;
+    place();
+
+    // A handle isn't inside its frame, so it keeps the frame hovered on its own.
+    const enter = () => this.setHovered(band);
+    const leave = () => this.setHovered(undefined);
+    for (const element of hoverables) {
+      element.addEventListener("mouseenter", enter);
+      element.addEventListener("mouseleave", leave);
+      this.cleanups.push(() => {
+        element.removeEventListener("mouseenter", enter);
+        element.removeEventListener("mouseleave", leave);
+      });
+    }
   }
 
   private setHovered(band: DisplayBand | undefined) {
@@ -239,12 +273,14 @@ class DisplayBandsPlugin extends BasePlugin<DisplayBandsPluginEvents, undefined>
   }
 
   /**
-   * Tint the dragged or hovered frame, and more lightly the frames of the lines drawn at its height.
+   * Tint and lift the dragged or hovered frame, and more lightly tint the frames of the lines
+   * drawn at its height.
    */
   private highlightFrames() {
     // A drag keeps its highlight when the pointer leaves the frame.
     const active = this.dragged ?? this.hovered;
-    for (const { band, frame } of this.frames) {
+    for (const { band, row, frame } of this.frames) {
+      row.style.zIndex = band === active ? LIFTED_Z : "";
       const atSameHeight =
         active?.placement !== undefined &&
         band.placement !== undefined &&

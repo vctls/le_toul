@@ -28,7 +28,7 @@ function displayTimesField(page: Page) {
   });
 }
 
-async function setupDisplayMode(page: Page, lyrics = LYRICS) {
+async function setupDisplayMode(page: Page, lyrics = LYRICS, timings = FIXTURE_TIMINGS) {
   await navigateToTab(page, TabId.SongInfo);
   await uploadAudioFile(
     page,
@@ -39,11 +39,18 @@ async function setupDisplayMode(page: Page, lyrics = LYRICS) {
   await navigateToTab(page, TabId.LyricInput);
   await loadAndEnterLyrics(page, lyrics);
   await navigateToTab(page, TabId.SongInfo);
-  await uploadTimingsFile(page, FIXTURE_TIMINGS);
+  await uploadTimingsFile(page, timings);
   await navigateToTab(page, TabId.TimingAdjustment);
   await displayTimesField(page).locator(".switch").click();
   await scrollWaveformIntoView(page);
-  await expect(page.locator('[part="display-band"]')).toHaveCount(4);
+  await expect(page.locator('[part="display-band"]')).toHaveCount(lyrics.split(/\n+/).length);
+}
+
+/**
+ * The handle on one side of a line's frame. The handles are drawn apart from the frames.
+ */
+function handle(page: Page, side: "start" | "end", line = 0) {
+  return page.locator(`[part~="display-band-${side}"]`).nth(line);
 }
 
 function firstSegment(page: Page) {
@@ -59,10 +66,7 @@ function firstSegment(page: Page) {
 async function dragFirstEndEdgeBack(page: Page) {
   // The first line shows until its screen ends at 8 s. Far more than the six seconds back to its
   // own end at 2 s.
-  const endEdge = page
-    .locator('[part="display-band"]')
-    .first()
-    .locator('[part~="display-band-end"]');
+  const endEdge = handle(page, "end");
   const pixelsPerSecond = await waveformPixelsPerSecond(page);
   const box = (await endEdge.boundingBox())!;
   const y = box.y + box.height / 2;
@@ -94,7 +98,7 @@ test.describe("Adjust tab display mode", () => {
     await expect(page.locator('[part~="region"]')).toHaveCount(0);
 
     const frame = page.locator('[part="display-band"]').first();
-    const endEdge = frame.locator('[part~="display-band-end"]');
+    const endEdge = handle(page, "end");
     const borderRight = () => frame.evaluate((el) => getComputedStyle(el).borderRightStyle);
     await expect.poll(borderRight).toBe("dashed");
 
@@ -186,7 +190,7 @@ test.describe("Adjust tab display mode", () => {
     await expect.poll(fills).toEqual([none, active, none, sameHeight]);
 
     // The tint follows a drag after the pointer has left the frame.
-    const box = (await frames.first().locator('[part~="display-band-end"]').boundingBox())!;
+    const box = (await handle(page, "end").boundingBox())!;
     await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
     await page.mouse.down();
     await page.mouse.move(box.x + box.width / 2, box.y + 200, { steps: 10 });
@@ -204,7 +208,7 @@ test.describe("Adjust tab display mode", () => {
     await setupDisplayMode(page, "One\nTwo\n\nThree\nFour");
     const frames = page.locator('[part="display-band"]');
     const pixelsPerSecond = await waveformPixelsPerSecond(page);
-    const box = (await frames.first().locator('[part~="display-band-end"]').boundingBox())!;
+    const box = (await handle(page, "end").boundingBox())!;
     const y = box.y + box.height / 2;
     await page.mouse.move(box.x + box.width / 2, y);
     await page.mouse.down();
@@ -219,5 +223,42 @@ test.describe("Adjust tab display mode", () => {
     };
     await expect.poll(threeStart).toBeCloseTo(5, 1);
     await expect(page.locator("[data-overlaps]")).toHaveCount(0);
+  });
+
+  test("keeps a handle within reach under the frame of another line in its row", async ({
+    page,
+  }) => {
+    // One and Six share the first row. Six's screen shows from when One's ends until 12 s,
+    // and Four, at One's height, is sung from 7 s.
+    await setupDisplayMode(
+      page,
+      "One\nTwo\n\nThree\nFour\nFive\nSix",
+      "timings-adjust-six-lines.json",
+    );
+    const pixelsPerSecond = await waveformPixelsPerSecond(page);
+    const endEdge = handle(page, "end");
+    // One's end meets Six's start, so this grabs the half of the edge inside One's frame.
+    let box = (await endEdge.boundingBox())!;
+    let x = box.x + box.width / 4;
+    const y = box.y + box.height / 2;
+    await page.mouse.move(x, y);
+    await page.mouse.down();
+    await page.mouse.move(x + 4 * pixelsPerSecond, y, { steps: 10 });
+    await page.mouse.up();
+    await expect.poll(() => firstSegment(page)).toMatchObject({ displayEnd: 7 });
+
+    box = (await endEdge.boundingBox())!;
+    x = box.x + box.width / 2;
+    const topmost = await endEdge.evaluate(
+      (edge, [x, y]) => edge.contains((edge.getRootNode() as ShadowRoot).elementFromPoint(x, y)),
+      [x, y],
+    );
+    expect(topmost).toBe(true);
+
+    await page.mouse.move(x, y);
+    await page.mouse.down();
+    await page.mouse.move(x - 10 * pixelsPerSecond, y, { steps: 10 });
+    await page.mouse.up();
+    await expect.poll(() => firstSegment(page)).toMatchObject({ displayEnd: 2 });
   });
 });
