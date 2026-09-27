@@ -6,6 +6,7 @@ import TimingAdjustmentTab from "@/components/TimingAdjustmentTab.vue";
 import { useLyricsStore } from "@/stores/lyrics";
 import { useMediaStore } from "@/stores/media";
 import { useTimingsStore } from "@/stores/timings";
+import { useAdvancedStore } from "@/stores/advanced";
 import { LYRIC_MARKERS } from "@/constants";
 import { DEFAULT_VOICE_ID } from "@/lib/voices";
 
@@ -237,6 +238,26 @@ describe("TimingAdjustmentTab shortcuts", () => {
   describe("display mode", () => {
     const adjuster = (wrapper: ReturnType<typeof mountTab>) =>
       wrapper.findComponent({ name: "TimingAdjuster" });
+
+    beforeEach(() => {
+      useAdvancedStore().isAdvanced = true;
+    });
+
+    it("stays off, with its switch hidden, outside advanced mode, and comes back with it", async () => {
+      useAdvancedStore().isAdvanced = false;
+      const wrapper = mountTab();
+      wrapper.vm.showDisplayBands = true;
+      await nextTick();
+
+      expect(adjuster(wrapper).vm.$attrs.displayMode).toBe(false);
+      expect(adjuster(wrapper).vm.$attrs.bands).toEqual([]);
+      // Only the pitch switch is left.
+      expect(wrapper.findAllComponents({ name: "BSwitch" })).toHaveLength(1);
+      useAdvancedStore().isAdvanced = true;
+      await nextTick();
+      expect(wrapper.findAllComponents({ name: "BSwitch" })).toHaveLength(2);
+      expect(adjuster(wrapper).vm.$attrs.displayMode).toBe(true);
+    });
 
     it("hands the adjuster the line frames only while it is on", async () => {
       const wrapper = mountTab();

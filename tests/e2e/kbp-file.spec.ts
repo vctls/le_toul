@@ -1,7 +1,13 @@
 import { expect, test, Page } from "@playwright/test";
 import { promises as fs } from "fs";
 import path from "path";
-import { getFixturePath, navigateToTab, setupTestEnvironment, TabId } from "./utils";
+import {
+  enableAdvancedMode,
+  getFixturePath,
+  navigateToTab,
+  setupTestEnvironment,
+  TabId,
+} from "./utils";
 
 const KBP_INPUT = '[name="kbp-file-upload"] input[type="file"]';
 const IMPORTED_LYRICS = [
@@ -23,6 +29,7 @@ async function lyricsEditorValue(page: Page): Promise<string> {
 test.describe("Karaoke Builder Studio files", () => {
   test.beforeEach(async ({ page }) => {
     await setupTestEnvironment(page);
+    await enableAdvancedMode(page);
     await navigateToTab(page, TabId.SongInfo);
   });
 

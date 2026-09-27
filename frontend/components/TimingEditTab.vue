@@ -17,7 +17,7 @@
         starts, then when it ends. A syllable with no end lasts until the next one starts. A space
         at the end of a syllable ends its word, and <code>page</code> starts a new page.
       </p>
-      <p>
+      <p v-if="advancedStore.isAdvanced">
         The time rows around a line hold when it appears and disappears, and <code>-</code> leaves
         that to the app. The video doesn't use them yet.
       </p>
@@ -73,6 +73,7 @@ import { BButton, BField, BInput, BMessage } from "buefy";
 import HelpSection from "@/components/HelpSection.vue";
 import VoiceSelector from "@/components/VoiceSelector.vue";
 import { useTimingsStore } from "@/stores/timings";
+import { useAdvancedStore } from "@/stores/advanced";
 import { useLyricsStore } from "@/stores/lyrics";
 import { parseVoiceTimingsText, writeVoiceTimingsText } from "@/lib/timingsText";
 import { VoiceId } from "@/lib/voices";
@@ -88,7 +89,7 @@ export default defineComponent({
   setup() {
     const timingsStore = useTimingsStore();
     const lyricsStore = useLyricsStore();
-    return { timingsStore, lyricsStore };
+    return { timingsStore, lyricsStore, advancedStore: useAdvancedStore() };
   },
   data() {
     return {

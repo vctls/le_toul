@@ -2,6 +2,7 @@ import { test, expect, Page } from "@playwright/test";
 import {
   defaultTestConfig,
   setupTestEnvironment,
+  enableAdvancedMode,
   navigateToTab,
   TabId,
   uploadAudioFile,
@@ -83,6 +84,7 @@ test.describe("Adjust tab display mode", () => {
 
   test.beforeEach(async ({ page }) => {
     await setupTestEnvironment(page);
+    await enableAdvancedMode(page);
   });
 
   test("stores a dragged edge, stopped at the line's syllables, and resets it on a double-click", async ({

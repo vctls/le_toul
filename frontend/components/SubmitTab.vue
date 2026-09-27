@@ -162,7 +162,7 @@
             </b-tooltip> </template
           ><b-switch v-model="videoOptions.addStaggeredLines"></b-switch
         ></b-field>
-        <b-field v-if="timingsStore.hasDisplayPeriods" horizontal>
+        <b-field v-if="advancedStore.isAdvanced && timingsStore.hasDisplayPeriods" horizontal>
           <template #label>
             Use Line Display Times
             <b-tooltip
@@ -385,7 +385,7 @@
           :vocals="mediaStore.separatedTrack?.vocals"
           :accompaniment="mediaStore.separatedTrack?.backing"
         />
-        <div v-if="lyricText.trim()" class="kbp-export is-size-7">
+        <div v-if="advancedStore.isAdvanced && lyricText.trim()" class="kbp-export is-size-7">
           <span>Karaoke Builder Studio</span>
           <b-tooltip
             append-to-body
@@ -402,7 +402,7 @@
         </div>
       </div>
       <b-message
-        v-if="kbpExportWarnings.length"
+        v-if="advancedStore.isAdvanced && kbpExportWarnings.length"
         class="kbp-warnings mt-3"
         type="is-warning"
         size="is-small"
@@ -435,6 +435,7 @@ import { CreationPhase } from "@/types";
 import { useMediaStore } from "@/stores/media";
 import { useSettingsStore, VideoSettings } from "@/stores/settings";
 import { useTimingsStore } from "@/stores/timings";
+import { useAdvancedStore } from "@/stores/advanced";
 import { useLyricsStore } from "@/stores/lyrics";
 import { useFallbackFontsStore } from "@/stores/fallbackFonts";
 import { abortable } from "@/lib/util";
@@ -475,6 +476,7 @@ export default defineComponent({
       timingsStore,
       lyricsStore,
       fallbackFontsStore,
+      advancedStore: useAdvancedStore(),
       lyricText,
       voices,
       allVoicesSubtitles,

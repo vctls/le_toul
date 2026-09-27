@@ -17,6 +17,14 @@
               <b-icon icon="circle-question" size="is-large" title="Instructions"></b-icon>
             </b-button>
             <b-button
+              :type="advancedStore.isAdvanced ? 'is-primary' : 'is-text'"
+              @click="advancedStore.toggleAdvanced()"
+              title="Show or hide the advanced features: Karaoke Builder Studio files and line display times"
+              class="advanced-toggle"
+            >
+              <b-icon icon="sliders" size="is-large" title="Advanced"></b-icon>
+            </b-button>
+            <b-button
               type="is-text"
               @click="confirmStartOver"
               title="Discard the saved session and start fresh"
@@ -99,6 +107,7 @@ import { useLyricsStore } from "@/stores/lyrics";
 import { useTimingsStore } from "@/stores/timings";
 import { useSettingsStore } from "@/stores/settings";
 import { useHelpStore } from "@/stores/help";
+import { useAdvancedStore } from "@/stores/advanced";
 import { useThemeStore } from "@/stores/theme";
 import { useFallbackFontsStore } from "@/stores/fallbackFonts";
 import { ThemePreference } from "@/lib/colorScheme";
@@ -129,6 +138,7 @@ export default defineComponent({
       timingsStore: useTimingsStore(),
       settingsStore: useSettingsStore(),
       helpStore: useHelpStore(),
+      advancedStore: useAdvancedStore(),
       themeStore: useThemeStore(),
       fallbackFontsStore: useFallbackFontsStore(),
       ...useTabRoute(),

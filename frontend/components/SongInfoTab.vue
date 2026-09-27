@@ -233,7 +233,7 @@
             @update:modelValue="onVocalTrackFileChange"
           />
         </div>
-        <div class="box kbp-files">
+        <div v-if="advancedStore.isAdvanced" class="box kbp-files">
           <h3 class="title is-5">Karaoke Builder Studio</h3>
           <file-upload
             expanded
@@ -344,6 +344,7 @@ import {
   NO_VOCALS_HQ_SEPARATOR_MODEL,
 } from "@/stores/media";
 import { useTimingsStore } from "@/stores/timings";
+import { useAdvancedStore } from "@/stores/advanced";
 import { useLyricsStore } from "@/stores/lyrics";
 import { useSettingsStore } from "@/stores/settings";
 import { parseSettingsYaml } from "@/lib/settingsFile";
@@ -423,6 +424,7 @@ export default defineComponent({
       timingsStore,
       settingsStore,
       lyricsStore,
+      advancedStore: useAdvancedStore(),
     };
   },
   data() {
