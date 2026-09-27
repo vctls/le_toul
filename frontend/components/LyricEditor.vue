@@ -70,7 +70,7 @@ export default defineComponent({
         const currentText = input.value;
         const currentWord = getCurrentWord(currentText, currentPosition);
         const newValue = slashifyAllOccurences(
-          this.modelValue,
+          currentText,
           currentWord.replaceAll("/", ""),
           currentWord,
         );
