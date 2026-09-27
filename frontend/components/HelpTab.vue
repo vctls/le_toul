@@ -9,13 +9,14 @@
       <p>
         <strong>Step 2: Prepare the lyrics.</strong> Paste song lyrics into the
         <code>Lyrics</code> box. Next, divide them up into screens by adding a blank line between
-        the last line of one screen and the first line of the next. Add underscores to separate
-        words, and slashes to separate syllables. How precisely you want to split up your timings is
-        up to you. Following the rhythm in the next screen may be easier when syllables are
-        correctly defined. <strong>Pro tip:</strong> listen to the song once while reading the
-        lyrics, to make sure all the lyrics are there. Sometimes the Internet is wrong, and changing
-        the lyrics after entering the timings might mess up your data, forcing you to redo the whole
-        timing input process.
+        the last line of one screen and the first line of the next. A line holding only a slash
+        leaves an empty line on its screen. Add underscores to separate words, and slashes to
+        separate syllables. How precisely you want to split up your timings is up to you. Following
+        the rhythm in the next screen may be easier when syllables are correctly defined.
+        <strong>Pro tip:</strong> listen to the song once while reading the lyrics, to make sure all
+        the lyrics are there. Sometimes the Internet is wrong, and changing the lyrics after
+        entering the timings might mess up your data, forcing you to redo the whole timing input
+        process.
       </p>
       <p>
         <strong>Step 3: Add Timing Information.</strong> You're gonna tell The Tüül when all those
