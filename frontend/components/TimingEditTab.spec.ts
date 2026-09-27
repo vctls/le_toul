@@ -5,7 +5,7 @@ import TimingEditTab from "@/components/TimingEditTab.vue";
 import { useLyricsStore } from "@/stores/lyrics";
 import { useTimingsStore } from "@/stores/timings";
 import { LYRIC_MARKERS } from "@/constants";
-import { DISPLAY_PERIOD_WIDENED } from "@/lib/timingsText";
+import { DISPLAY_PERIOD_WIDENED } from "@/lib/importWarnings";
 
 const { SEGMENT_START, SEGMENT_END } = LYRIC_MARKERS;
 
