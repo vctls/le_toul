@@ -438,6 +438,9 @@ export class LyricsScreen {
     styleName: string = "Default",
   ) {
     const self = this;
+    // The alignment lays out the lyrics. The title screen stays centred.
+    const alignment =
+      this.kind === "title" ? VerticalAlignment.Middle : videoOptions.verticalAlignment;
     return (
       this.lines
         .map((l, i) =>
@@ -445,12 +448,7 @@ export class LyricsScreen {
             self.startTimestamp ?? 0,
             self.endTimestamp,
             styleName,
-            self.getLineY(
-              i,
-              formatParams["Fontsize"] as number,
-              videoOptions.verticalAlignment,
-              videoOptions,
-            ),
+            self.getLineY(i, formatParams["Fontsize"] as number, alignment, videoOptions),
           ),
         )
         .join("\n") + "\n"
