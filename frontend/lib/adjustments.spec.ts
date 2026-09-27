@@ -1,4 +1,4 @@
-import { fromEvents } from "./timedSegments";
+import { fromEvents, TimedSegment } from "./timedSegments";
 import {
   addTitleScreen,
   addInstrumentalScreens,
@@ -9,6 +9,8 @@ import {
 } from "./adjustments";
 import {
   compileLyricTimings,
+  createMultiVoiceAssFile,
+  createScreens,
   denormalizeTimestamps,
   LyricEvent,
   LyricSegment,
@@ -19,7 +21,12 @@ import {
   VerticalAlignment,
 } from "./timing";
 import { testLyrics, shortIntroTestEvents } from "./timing.spec";
-import { LYRIC_MARKERS, DEFAULT_COUNT_IN_THRESHOLD, DEFAULT_COUNT_IN_DURATION } from "@/constants";
+import {
+  LYRIC_MARKERS,
+  DEFAULT_COUNT_IN_THRESHOLD,
+  DEFAULT_COUNT_IN_DURATION,
+  TITLE_SCREEN_DURATION,
+} from "@/constants";
 import { default as BuefyColor } from "buefy/src/utils/color";
 
 // Pinned rather than taken from the default, which is now empty and draws marks instead.
@@ -364,12 +371,147 @@ describe("deferScreenStarts", () => {
   });
 });
 
+describe("stored display periods", () => {
+  const plain: KaraokeOptions = {
+    ...DEFAULT_OPTIONS,
+    addTitleScreen: false,
+    countInMode: "none",
+    addInstrumentalScreens: false,
+    addStaggeredLines: false,
+  };
+  const lyricScreens = (screens: LyricsScreen[]) => screens.filter((s) => s.kind === "lyrics");
+  const lines = (screens: LyricsScreen[]) => lyricScreens(screens).flatMap((s) => s.lines);
+  const periods = (screens: LyricsScreen[]) =>
+    lines(screens).map((line) => [line.customDisplayStartTime, line.customDisplayEndTime]);
+
+  // Two screens: "a b" and "c", then "d" 3 s later.
+  const song = (first: Partial<TimedSegment> = {}, fourth: Partial<TimedSegment> = {}) => [
+    { text: "a_", start: 10, ...first },
+    { text: "b\n", start: 11, end: 12 },
+    { text: "c\n\n", start: 13, end: 14 },
+    { text: "d", start: 17, end: 18, ...fourth },
+  ];
+
+  it("replace the automatic period, and leave the other lines automatic", () => {
+    const screens = createScreens(song({ displayStart: 5, displayEnd: 20 }), 30, "T", "A", plain);
+
+    expect(periods(screens)).toEqual([
+      [5, 20],
+      [undefined, undefined],
+      [undefined, undefined],
+    ]);
+  });
+
+  it("are widened to contain the line's timings", () => {
+    const screens = createScreens(
+      song({ displayStart: 10.5, displayEnd: 11 }),
+      30,
+      "T",
+      "A",
+      plain,
+    );
+
+    expect(periods(screens)[0]).toEqual([10, 12]);
+  });
+
+  it("are widened to contain a count-in, and released when count-ins are off", () => {
+    const stored = song({ displayStart: 9.5 });
+    const withCountIns = createScreens(stored, 30, "T", "A", { ...plain, countInMode: "screen" });
+    const without = createScreens(stored, 30, "T", "A", plain);
+
+    expect(lines(withCountIns)[0].customDisplayStartTime).toBe(10 - DEFAULT_COUNT_IN_DURATION);
+    expect(lines(without)[0].customDisplayStartTime).toBe(9.5);
+  });
+
+  it("move with a title screen that delays the song", () => {
+    const screens = createScreens(
+      song({ start: 1.5, displayStart: 1, displayEnd: 13 }),
+      30,
+      "T",
+      "A",
+      { ...plain, addTitleScreen: true },
+    );
+
+    expect(periods(screens)[0]).toEqual([1 + TITLE_SCREEN_DURATION, 13 + TITLE_SCREEN_DURATION]);
+  });
+
+  it("move with a quick-start count-in", () => {
+    const options: KaraokeOptions = { ...plain, countInMode: "screen" };
+    const screens = createScreens(song({ start: 0.5, displayEnd: 13 }), 30, "T", "A", options);
+    const shift = DEFAULT_COUNT_IN_DURATION - 0.5;
+
+    expect(lines(screens)[0].customDisplayEndTime).toBe(13 + shift);
+  });
+
+  it("replace what the staggered-lines pass set, fades included", () => {
+    const segments = [
+      { text: "a\n", start: 10, end: 11, displayEnd: 20 },
+      { text: "b\n", start: 11, end: 12 },
+      { text: "c\n\n", start: 12, end: 13 },
+      { text: "d\n", start: 13.5, end: 14 },
+      { text: "e", start: 14, end: 15 },
+    ];
+    const options: KaraokeOptions = { ...plain, addTitleScreen: true, addStaggeredLines: true };
+    const [a, b] = lines(createScreens(segments, 30, "T", "A", options));
+
+    expect([a.customDisplayEndTime, a.fadeOutDuration]).toEqual([20, 0]);
+    expect(b.fadeOutDuration).toBeGreaterThan(0);
+  });
+
+  it("end the title screen at the earliest stored start", () => {
+    const options: KaraokeOptions = { ...plain, addTitleScreen: true };
+    const [title] = createScreens(song({ displayStart: 2 }), 30, "T", "A", options);
+
+    expect(title.lines.map((line) => line.customDisplayEndTime)).toEqual([2, 2]);
+  });
+
+  it("keep a title screen that loses every line, with its audio delay", () => {
+    const options: KaraokeOptions = { ...plain, addTitleScreen: true };
+    const [title] = createScreens(song({ start: 1.5, displayStart: 0 }), 30, "T", "A", options);
+
+    // The song is delayed by the title screen, so a stored 0 still shows after it.
+    expect(title.lines).toHaveLength(2);
+
+    const [early] = createScreens(song({ displayStart: 0 }), 30, "T", "A", options);
+    expect(early.kind).toBe("title");
+    expect(early.lines).toHaveLength(0);
+  });
+
+  it("shorten an instrumental screen, or remove it", () => {
+    const options: KaraokeOptions = { ...plain, addInstrumentalScreens: true };
+    const bar = (screens: LyricsScreen[]) => {
+      const screen = screens.find((s) => s.kind === "instrumental");
+      return screen && [screen.startTimestamp, screen.lines[0].segments[0].endTimestamp];
+    };
+    const late = (displayStart: number) => song({}, { start: 30, end: 31, displayStart });
+
+    expect(bar(createScreens(song({}, { start: 30, end: 31 }), 40, "T", "A", options))).toEqual([
+      14, 30,
+    ]);
+    expect(bar(createScreens(late(20), 40, "T", "A", options))).toEqual([14, 20]);
+    expect(bar(createScreens(late(14), 40, "T", "A", options))).toBeUndefined();
+  });
+
+  it("end the title screen at another voice's stored start", () => {
+    const tracks = [
+      { voice: "Anna", segments: song(), options: { ...plain, addTitleScreen: true } },
+      { voice: "Ben", segments: [{ text: "hm", start: 12, displayStart: 3 }], options: plain },
+    ];
+    const ass = createMultiVoiceAssFile(tracks, 30, "Title", "Artist");
+    const titleEvent = ass.split("\n").find((row) => row.endsWith("}Title"));
+
+    expect(titleEvent?.split(",")[2]).toBe("0:00:03.00");
+  });
+});
+
 describe("LyricsLine.adjustTimestamps", () => {
   it("shifts the display times and keeps the fades", () => {
     const line = new LyricsLine([new LyricSegment("a", 1, 2)]);
     Object.assign(line, {
       customDisplayStartTime: 0.5,
       customDisplayEndTime: 3,
+      storedDisplayStart: 0.25,
+      storedDisplayEnd: 4,
       fadeInDuration: 0.1,
       fadeOutDuration: 0.2,
     });
@@ -377,12 +519,14 @@ describe("LyricsLine.adjustTimestamps", () => {
     expect(line.adjustTimestamps(10)).toMatchObject({
       customDisplayStartTime: 10.5,
       customDisplayEndTime: 13,
+      storedDisplayStart: 10.25,
+      storedDisplayEnd: 14,
       fadeInDuration: 0.1,
       fadeOutDuration: 0.2,
     });
   });
 
-  it("draws a display start of 0 from 0", () => {
+  it("draws a stored display start of 0 from 0", () => {
     const line = new LyricsLine([new LyricSegment("a", 1, 2)]);
     line.customDisplayStartTime = 0;
 

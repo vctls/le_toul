@@ -13,8 +13,12 @@ import {
   addGapCountIns,
   addTitleScreen,
   addInstrumentalScreens,
+  applyStoredDisplayPeriods,
   displayQuickLinesEarly,
   deferScreenStarts,
+  earliestStoredStart,
+  endTitleScreenBy,
+  fitInstrumentalScreens,
 } from "./adjustments";
 import { map, method, isNumber } from "lodash-es";
 import { default as BuefyColor } from "buefy/src/utils/color";
@@ -312,8 +316,11 @@ export class LyricSegment {
   }
 }
 
+export type ScreenKind = "lyrics" | "title" | "instrumental";
+
 export class LyricsScreen {
   lines: LyricsLine[];
+  kind: ScreenKind = "lyrics";
   startTimestamp?: Timestamp;
   // Seconds to delay the start of the audio. Only valid on the title screen and first lyrics screen.
   audioDelay: number = 0.0;
@@ -415,6 +422,7 @@ export class LyricsScreen {
   adjustTimestamps(adjustment: number): LyricsScreen {
     const lines = map(this.lines, method("adjustTimestamps", adjustment));
     const screen = new LyricsScreen(lines, this.audioDelay);
+    screen.kind = this.kind;
     screen.startTimestamp = this.startTimestamp;
     if (isNumber(this.startTimestamp)) {
       screen.startTimestamp = this.startTimestamp + adjustment;
@@ -434,6 +442,7 @@ export class LyricsScreen {
       );
     }
     const trimmedScreen = new LyricsScreen(this.lines, this.audioDelay);
+    trimmedScreen.kind = this.kind;
     trimmedScreen.startTimestamp = newStartTime;
     return trimmedScreen;
   }
@@ -448,6 +457,10 @@ export class LyricsLine {
   customDisplayEndTime?: Timestamp;
   fadeInDuration: Seconds = 0.0;
   fadeOutDuration: Seconds = 0.0;
+  // The display period the user stored, in the same time base as the segments.
+  // It replaces the automatic one once every other pass has run (see applyStoredDisplayPeriods).
+  storedDisplayStart?: Timestamp;
+  storedDisplayEnd?: Timestamp;
 
   constructor(segments: LyricSegment[] = []) {
     this.segments = segments;
@@ -572,6 +585,8 @@ export class LyricsLine {
       time === undefined ? undefined : time + adjustment;
     line.customDisplayStartTime = shift(this.customDisplayStartTime);
     line.customDisplayEndTime = shift(this.customDisplayEndTime);
+    line.storedDisplayStart = shift(this.storedDisplayStart);
+    line.storedDisplayEnd = shift(this.storedDisplayEnd);
     line.fadeInDuration = this.fadeInDuration;
     line.fadeOutDuration = this.fadeOutDuration;
     return line;
@@ -589,17 +604,29 @@ export function compileLyricTimings(segments: TimedSegment[]): LyricsScreen[] {
   const screens: LyricsScreen[] = [];
   let screen = new LyricsScreen();
   let line = new LyricsLine();
+  // A line's display period lives on its first segment, which may be untimed.
+  let head: TimedSegment | undefined;
+  const closeLine = () => {
+    if (line.segments.length > 0) {
+      line.storedDisplayStart = head?.displayStart;
+      line.storedDisplayEnd = head?.displayEnd;
+      screen.lines.push(line);
+      line = new LyricsLine();
+    }
+    head = undefined;
+  };
 
-  for (const { text, start, end } of segments) {
+  for (const segment of segments) {
+    const { text, start, end } = segment;
+    head ??= segment;
     // An untimed segment draws nothing, but its separator still breaks the line or screen,
     // so the break below runs either way.
     // Empty text means a timing with no lyric (see fromEvents).
     if (start !== undefined && text !== "") {
       line.segments.push(new LyricSegment(displayText(text), start, end));
     }
-    if (text.endsWith("\n") && line.segments.length > 0) {
-      screen.lines.push(line);
-      line = new LyricsLine();
+    if (text.endsWith("\n")) {
+      closeLine();
     }
     if (text.endsWith("\n\n") && screen.lines.length > 0) {
       screens.push(screen);
@@ -607,9 +634,7 @@ export function compileLyricTimings(segments: TimedSegment[]): LyricsScreen[] {
     }
   }
 
-  if (line.segments.length > 0) {
-    screen.lines.push(line);
-  }
+  closeLine();
   if (screen.lines.length > 0) {
     screens.push(screen);
   }
@@ -779,7 +804,9 @@ export function createScreens(
   if (options.addInstrumentalScreens) {
     screens = addInstrumentalScreens(screens, options);
   }
-  return screens;
+  screens = applyStoredDisplayPeriods(screens);
+  endTitleScreenBy(screens, earliestStoredStart(screens));
+  return fitInstrumentalScreens(screens);
 }
 
 // Derive the ASS style format params (font + colors + bold/italic) from karaoke options.
@@ -903,6 +930,14 @@ export function createMultiVoiceAssFile(
       options,
     };
   });
+  // The title screen is global, so it gives way to every voice's stored periods.
+  const otherStarts = renders
+    .slice(1)
+    .map((render) => earliestStoredStart(render.screens))
+    .filter((start) => start !== undefined);
+  if (otherStarts.length > 0) {
+    endTitleScreenBy(renders[0].screens, Math.min(...otherStarts));
+  }
   assignVoiceLanes(renders);
   return renderAssDocument(renders);
 }
