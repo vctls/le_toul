@@ -462,6 +462,30 @@ describe("fast lines display early by slot", () => {
     expect(second.staggered).toBe(false);
   });
 
+  it("times the early lines from the singing, not the count-in", () => {
+    const options: KaraokeOptions = {
+      ...DEFAULT_OPTIONS,
+      countInMode: "line",
+      dynamicCountIns: true,
+      countInThreshold: 1,
+    };
+    const screens = addGapCountIns(
+      denormalizeTimestamps(
+        compileLyricTimings([
+          { text: "one\n", start: 1, end: 2 },
+          { text: "two\n\n", start: 3, end: 4 },
+          { text: "three", start: 5, end: 6 },
+        ]),
+        7,
+      ),
+      options,
+    );
+    const [, first, second] = displayQuickLinesEarly([new LyricsScreen(), ...screens], options);
+    expect(first.lines[1].timestamp).toBe(2);
+    expect(first.lines[0].customDisplayEndTime).toBe(3.5);
+    expect(second.lines[0].customDisplayStartTime).toBe(3.75);
+  });
+
   it("leaves a screen alone when only spacers are in those slots", () => {
     const [, first, second] = stagger([
       { text: "one\n", start: 1, spacersBefore: 2 },
