@@ -425,7 +425,7 @@ import { useTimingsStore } from "@/stores/timings";
 import { useLyricsStore } from "@/stores/lyrics";
 import { abortable } from "@/lib/util";
 import { projectSongEntryName } from "@/lib/projectFolder";
-import { BUNDLED_FONTS as fonts, CJK_FONT } from "@/lib/fonts";
+import { BUNDLED_FONTS as fonts } from "@/lib/fonts";
 import { projectFilesToKbp } from "@/lib/kbpConvert";
 import { applyVoiceStyle } from "@/lib/voiceStyle";
 import { extensionForBlob } from "@/lib/audio";
@@ -569,8 +569,8 @@ export default defineComponent({
               .name,
         ),
       ]);
-      if (this.allVoicesSubtitles().includes(`\\fn${CJK_FONT}`)) {
-        families.add(CJK_FONT);
+      for (const [, family] of this.allVoicesSubtitles().matchAll(/\\fn([^\\}]+)/g)) {
+        families.add(family);
       }
       return Object.fromEntries(
         Object.entries(this.fontMap).filter(([family]) => families.has(family)),

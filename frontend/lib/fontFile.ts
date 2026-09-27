@@ -1,4 +1,4 @@
-import { CJK_CHAR } from "./fonts";
+import { FALLBACK_FONTS } from "./fonts";
 
 // libass matches an ASS style's `Fontname` against the family name stored inside the font, not against the file's name,
 // both in the browser preview and in FFmpeg's ass filter.
@@ -22,7 +22,7 @@ const WOFF_TAGS = [0x774f4646, 0x774f4632]; // 'wOFF', 'wOF2'
 const NAME_TAG = 0x6e616d65; // 'name'
 const CMAP_TAG = 0x636d6170; // 'cmap'
 
-const CJK = new RegExp(CJK_CHAR, "u");
+const FALLBACK_CHAR = new RegExp(FALLBACK_FONTS.map(({ chars }) => chars).join("|"), "u");
 
 // Messages reach the user as-is.
 export class UnreadableFontError extends Error {
@@ -206,10 +206,10 @@ function eachMappedCodePoint(view: DataView, subtable: number, found: (codePoint
 }
 
 /**
- * The CJK characters a font can draw.
- * A cmap that can't be read counts as drawing none, so the bundled CJK font draws them instead.
+ * The characters matching `chars` that a font can draw.
+ * A cmap that can't be read counts as drawing none, so the fallback fonts draw them instead.
  */
-export function parseCjkCoverage(data: ArrayBuffer): Set<number> {
+export function parseCoverage(data: ArrayBuffer, chars: RegExp = FALLBACK_CHAR): Set<number> {
   const covered = new Set<number>();
   try {
     const view = new DataView(data);
@@ -217,7 +217,7 @@ export function parseCjkCoverage(data: ArrayBuffer): Set<number> {
     const subtable = cmap === undefined ? undefined : unicodeSubtable(view, cmap);
     if (subtable !== undefined) {
       eachMappedCodePoint(view, subtable, (c) => {
-        if (CJK.test(String.fromCodePoint(c))) {
+        if (chars.test(String.fromCodePoint(c))) {
           covered.add(c);
         }
       });
@@ -235,10 +235,10 @@ export async function readFontFamilyName(file: File): Promise<string> {
 }
 
 /**
- * The family name a font declares, and the CJK characters it can draw.
+ * The family name a font declares, and which of the characters the fallback fonts stand in for it can draw.
  * Throws UnreadableFontError as parseFontFamilyName does.
  */
-export async function readFont(file: File): Promise<{ family: string; cjk: Set<number> }> {
+export async function readFont(file: File): Promise<{ family: string; coverage: Set<number> }> {
   const data = await file.arrayBuffer();
-  return { family: parseFontFamilyName(data), cjk: parseCjkCoverage(data) };
+  return { family: parseFontFamilyName(data), coverage: parseCoverage(data) };
 }

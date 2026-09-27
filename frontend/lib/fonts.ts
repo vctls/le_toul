@@ -21,3 +21,6 @@ export const CJK_FONT = "Noto Sans CJK JP";
 
 // U+3000–U+33FF holds CJK punctuation, kana and CJK symbols. U+FF00–U+FFEF holds full-width forms.
 export const CJK_CHAR = String.raw`[\p{sc=Han}\p{sc=Hangul}\p{sc=Bopomofo}\u3000-\u33ff\uff00-\uffef]`;
+
+// The bundled fonts that draw what a style's font can't, and the characters each one stands in for.
+export const FALLBACK_FONTS = [{ family: CJK_FONT, chars: CJK_CHAR }];
