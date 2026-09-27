@@ -39,9 +39,10 @@ export default defineComponent({
       type: Boolean,
       default: false,
     },
-    minPxPerSec: {
+    // A percentage of the width that fits the whole track.
+    zoom: {
       type: Number,
-      default: 50,
+      default: 100,
     },
     regions: {
       type: Array as PropType<RegionParams[]>,
@@ -119,7 +120,11 @@ export default defineComponent({
 
     // Hiding the container (display: none) drops its scroll box, so the browser resets the scroll offset.
     // Nothing re-asserts it while playback is paused, so do it whenever the container is laid out again.
-    this._resizeObserver = new ResizeObserver(() => this.restoreScroll());
+    // The zoom is relative to the width, so it has to be converted again whenever that changes.
+    this._resizeObserver = new ResizeObserver(() => {
+      this.restoreScroll();
+      this.applyZoom();
+    });
     this._resizeObserver.observe(this.$refs["wavesurfer-container"] as HTMLElement);
 
     this.wavesurfer = WaveSurfer.create({
@@ -132,7 +137,6 @@ export default defineComponent({
       barHeight: 1,
       barGap: 2,
       height: 200,
-      minPxPerSec: this.minPxPerSec,
       normalize: false,
       plugins: [
         this.regionsPlugin as unknown as GenericPlugin,
@@ -158,6 +162,7 @@ export default defineComponent({
     this.wavesurfer.on("ready", () => {
       this.updateRegions(this.regions);
       this.bandsPlugin.setBands(this.bands, this.bandsEnabled);
+      this.applyZoom();
       this.applyInitialScroll();
     });
 
@@ -189,20 +194,8 @@ export default defineComponent({
         this.wavesurfer.loadBlob(newAudioData);
       }
     },
-    minPxPerSec(value: number) {
-      if (this.wavesurfer) {
-        this.wavesurfer.zoom(value);
-        this.$nextTick(() => {
-          const scrollEl = this.scrollElement();
-          if (scrollEl) {
-            if (this._zoomAnchor) {
-              scrollEl.scrollLeft = this._zoomAnchor.time * value - this._zoomAnchor.cursorX;
-              this._zoomAnchor = null;
-            }
-            scrollEl.dispatchEvent(new Event("scroll"));
-          }
-        });
-      }
+    zoom() {
+      this.applyZoom();
     },
     bands(bands: DisplayBand[]) {
       this.bandsPlugin.setBands(bands, this.bandsEnabled);
@@ -255,11 +248,38 @@ export default defineComponent({
       const scrollEl = this.scrollElement();
       if (scrollEl) {
         const cursorX = event.clientX - scrollEl.getBoundingClientRect().left;
-        const time = (scrollEl.scrollLeft + cursorX) / this.minPxPerSec;
+        const time = (scrollEl.scrollLeft + cursorX) / this.pixelsPerSecond(scrollEl);
         this._zoomAnchor = { time, cursorX };
       }
       // Scrolling up zooms in, matching maps and image viewers.
-      this.$emit("zoom-change", -Math.sign(event.deltaY) * 10);
+      this.$emit("zoom-change", -Math.sign(event.deltaY));
+    },
+    pixelsPerSecond(scrollEl: HTMLElement): number {
+      return scrollEl.scrollWidth / (this.wavesurfer?.getDuration() || 1);
+    },
+    /**
+     * Converts the zoom percentage into the pixels per second WaveSurfer takes, for the current
+     * width.
+     */
+    applyZoom() {
+      const scrollEl = this.scrollElement();
+      const duration = this.wavesurfer?.getDuration() ?? 0;
+      if (!this.wavesurfer || !this.isReady() || !scrollEl?.clientWidth || !duration) return;
+      // WaveSurfer rounds a set width up, which can overflow by a pixel at 100%. Its own fill can't.
+      const pxPerSec = this.zoom <= 100 ? 0 : ((this.zoom / 100) * scrollEl.clientWidth) / duration;
+      if (pxPerSec === this.wavesurfer.options.minPxPerSec) {
+        this._zoomAnchor = null;
+        return;
+      }
+      this.wavesurfer.zoom(pxPerSec);
+      this.$nextTick(() => {
+        if (this._zoomAnchor) {
+          scrollEl.scrollLeft =
+            this._zoomAnchor.time * this.pixelsPerSecond(scrollEl) - this._zoomAnchor.cursorX;
+          this._zoomAnchor = null;
+        }
+        scrollEl.dispatchEvent(new Event("scroll"));
+      });
     },
     play() {
       if (this.wavesurfer) {
@@ -277,7 +297,6 @@ export default defineComponent({
       const duration = this.wavesurfer?.getDuration() ?? 0;
       if (!scrollEl?.scrollWidth || !duration) return null;
       const { scrollWidth, scrollLeft, clientWidth } = scrollEl;
-      // Measured off the laid-out waveform rather than minPxPerSec, which the zoom only asks for.
       const pxPerSec = scrollWidth / duration;
       const endPx = Math.min(scrollWidth, scrollLeft + clientWidth);
       // A playhead landing outside the viewport makes wavesurfer re-center the waveform, and on an

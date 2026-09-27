@@ -74,14 +74,14 @@
           </template>
           <b-switch v-model="showDisplayBands"></b-switch>
         </b-field>
-        <b-field label="Waveform zoom" horizontal>
+        <b-field label="Waveform zoom (%)" horizontal>
           <b-numberinput
             expanded
             :model-value="zoom"
             @update:model-value="(v: number | null | undefined) => (zoom = Number(v ?? zoom))"
-            :min="10"
-            :max="500"
-            :step="10"
+            :min="MIN_ZOOM"
+            :max="MAX_ZOOM"
+            :step="50"
             controls-position="compact"
           />
         </b-field>
@@ -209,13 +209,18 @@ interface AdjustVoiceState {
   manualPlayhead: number;
   prerollSeconds: number;
   shiftMs: number;
-  zoom: number;
+  zoomPercent: number;
   waveformScroll: number;
   playbackRate: number;
   playbackTrackChoice: "full" | "vocals";
 }
 
 const ADJUST_STORAGE_KEY = "adjust.state";
+
+// Zoom is a percentage, where 100% fits the whole track in the waveform's width.
+const MIN_ZOOM = 100;
+const MAX_ZOOM = 10000;
+const ZOOM_WHEEL_FACTOR = 1.25;
 
 // Everything the Adjust view restores on reload. It is per voice, except for the pitch toggle,
 // which is a property of playback.
@@ -231,7 +236,7 @@ function defaultAdjustState(): AdjustVoiceState {
     manualPlayhead: 0.0,
     prerollSeconds: 1,
     shiftMs: 0,
-    zoom: 50,
+    zoomPercent: 100,
     waveformScroll: 0,
     playbackRate: 1,
     playbackTrackChoice: "full",
@@ -264,6 +269,8 @@ export default defineComponent({
       settingsStore,
       fallbackFontsStore,
       subtitles,
+      MIN_ZOOM,
+      MAX_ZOOM,
     };
   },
   data() {
@@ -278,7 +285,7 @@ export default defineComponent({
       manualPlayhead: 0.0,
       prerollSeconds: 1,
       shiftMs: 0,
-      zoom: 50,
+      zoom: 100,
       waveformScroll: 0,
       playbackRate: 1,
       // Default off: the browser's stretcher warbles at slow rates,
@@ -437,7 +444,7 @@ export default defineComponent({
         manualPlayhead: this.manualPlayhead,
         prerollSeconds: this.prerollSeconds,
         shiftMs: this.shiftMs,
-        zoom: this.zoom,
+        zoomPercent: this.zoom,
         waveformScroll: this.waveformScroll,
         playbackRate: this.playbackRate,
         playbackTrackChoice: this.playbackTrackChoice,
@@ -449,7 +456,7 @@ export default defineComponent({
       this.manualPlayhead = state.manualPlayhead;
       this.prerollSeconds = state.prerollSeconds;
       this.shiftMs = state.shiftMs;
-      this.zoom = state.zoom;
+      this.zoom = state.zoomPercent ?? 100;
       this.waveformScroll = state.waveformScroll ?? 0;
       this.playbackRate = state.playbackRate;
       this.playbackTrackChoice = state.playbackTrackChoice;
@@ -466,8 +473,9 @@ export default defineComponent({
     onScrollChange(startSeconds: number) {
       this.waveformScroll = startSeconds;
     },
-    onZoomChange(delta: number) {
-      this.zoom = Math.min(500, Math.max(10, this.zoom + delta));
+    onZoomChange(direction: number) {
+      const zoom = Math.round(this.zoom * ZOOM_WHEEL_FACTOR ** direction);
+      this.zoom = Math.min(MAX_ZOOM, Math.max(MIN_ZOOM, zoom));
     },
     onKeyDown(event: KeyboardEvent) {
       const isEnter = event.code === "Enter" || event.code === "NumpadEnter";
