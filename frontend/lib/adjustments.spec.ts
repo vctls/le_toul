@@ -175,10 +175,10 @@ test("dynamic count-ins draw marks when there is no text", () => {
   )[0];
 
   // fontSize 22 => a 9x9 mark on the baseline via \pbo, fading in across the three.
-  // The first two carry an empty contour at x=14, widening the bounding box into a fixed gap;
-  // the last takes a word space instead, since the lyrics follow it.
+  // The first two carry a bare move to x=14, widening the bounding box into a fixed gap.
+  // The last takes a word space instead, since the lyrics follow it.
   const square = "m 0 0 l 9 0 9 -9 0 -9";
-  const gap = " m 14 0 l 14 0";
+  const gap = " m 14 0";
   const segments = screen.lines[1].segments;
   // One segment per mark, so the sweep fills them one at a time over the 3s count-in.
   expect(segments.slice(0, 3).map((s) => s.text)).toEqual([

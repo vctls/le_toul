@@ -30,13 +30,14 @@ function countInMark(fontSize: number, last: boolean): string {
   // Inline with the lyrics there is a text baseline, so \pbo sits the mark on it.
   // Each mark starts its own path at 0: libass takes a run's advance from its bounding box,
   // so an offset path would overlap the text after it.
-  // The gap is a second, empty contour widening that box, so it stays in script units
+  // The gap is a bare move widening that box, so it stays in script units
   // rather than taking the width of a space in the current font.
+  // A zero-length line would do the same, but libass draws the outline around it as a dot.
   const size = Math.round(fontSize * COUNT_IN_MARK_SIZE_RATIO);
   const square = `m 0 0 l ${size} 0 ${size} -${size} 0 -${size}`;
   const pad = size + COUNT_IN_MARK_GAP;
   // The last mark is followed by the lyrics, so an ordinary word space separates them.
-  const gap = last ? "" : ` m ${pad} 0 l ${pad} 0`;
+  const gap = last ? "" : ` m ${pad} 0`;
   return `{\\p1\\pbo${size}}${square}${gap}{\\p0}${last ? " " : ""}`;
 }
 
