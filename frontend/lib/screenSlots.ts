@@ -96,7 +96,7 @@ export function giveWayToStoredPeriods(renders: VoiceTrackRender[]): void {
       );
       if (before.length > 0) {
         line.customDisplayStartTime = Math.max(...before.map((other) => other.fixedEnd));
-        line.startGaveWay = true;
+        line.startMoved = true;
       }
     }
     if (!slotted.endStored) {
@@ -105,7 +105,7 @@ export function giveWayToStoredPeriods(renders: VoiceTrackRender[]): void {
       );
       if (after.length > 0) {
         line.customDisplayEndTime = Math.min(...after.map((other) => other.fixedStart));
-        line.endGaveWay = true;
+        line.endMoved = true;
       }
     }
   }

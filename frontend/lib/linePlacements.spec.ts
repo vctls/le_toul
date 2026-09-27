@@ -71,16 +71,16 @@ describe("placeLines", () => {
     it("starts once the stored end of the line at its height has passed", () => {
       const lines = place(withPeriod(twoScreens, 0, { displayEnd: 5 }));
 
-      expect(lines.get(2)).toMatchObject({ startGaveWay: 5, overlaps: false });
-      expect(lines.get(3)?.startGaveWay).toBeUndefined();
+      expect(lines.get(2)).toMatchObject({ startMoved: 5, overlaps: false });
+      expect(lines.get(3)?.startMoved).toBeUndefined();
     });
 
     it("ends when a stored start shows the line at its height", () => {
       const lines = place(withPeriod(twoScreens, 2, { displayStart: 3.5 }));
 
       // a is shown until its screen ends at 4 unless it gives way.
-      expect(lines.get(0)).toMatchObject({ endGaveWay: 3.5, overlaps: false });
-      expect(lines.get(1)?.endGaveWay).toBeUndefined();
+      expect(lines.get(0)).toMatchObject({ endMoved: 3.5, overlaps: false });
+      expect(lines.get(1)?.endMoved).toBeUndefined();
     });
 
     it("gives way to a line of another voice", () => {
@@ -95,7 +95,7 @@ describe("placeLines", () => {
         "",
       );
 
-      expect(placements.Ben.get(0)).toMatchObject({ startGaveWay: 20, overlaps: false });
+      expect(placements.Ben.get(0)).toMatchObject({ startMoved: 20, overlaps: false });
     });
   });
 
