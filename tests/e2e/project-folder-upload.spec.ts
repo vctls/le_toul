@@ -142,4 +142,34 @@ test.describe("Project Folder Upload", () => {
       "timings.json",
     );
   });
+
+  test("counts the tracks a new song discards, and offers them but not the song", async ({
+    page,
+  }) => {
+    const folder = await makeFolder("song-only");
+    await fs.copyFile(getFixturePath(defaultTestConfig.audioFile), path.join(folder, "song.mp3"));
+    await navigateToTab(page, TabId.SongInfo);
+    await page
+      .locator('[name="song-file-upload"] input[type="file"]')
+      .setInputFiles(getFixturePath(defaultTestConfig.audioFile));
+    await page
+      .locator('[name="backing-track-upload"] input[type="file"]')
+      .setInputFiles(getFixturePath(defaultTestConfig.audioFile));
+
+    await loadProjectFolder(page, folder);
+    await expect(page.locator(".modal-card-title")).toHaveText("Load this project folder?");
+    await expect(page.locator(".modal-card-body")).toContainText(
+      "replace your song and backing track",
+    );
+    const links = page.locator(".modal-card-body .source-file-links");
+    await expect(links).toContainText("accompaniment.");
+    await expect(links).not.toContainText(defaultTestConfig.audioFile);
+    await page.click('.modal-card-foot button:has-text("Load folder")');
+
+    await expect(page.locator('.toast:has-text("Loaded")')).toBeVisible();
+    await expect(page.locator('[name="song-file-upload"] .file-name')).toHaveText("song.mp3");
+    await expect(page.locator('[name="backing-track-upload"] .file-name')).toHaveText(
+      "No file chosen",
+    );
+  });
 });

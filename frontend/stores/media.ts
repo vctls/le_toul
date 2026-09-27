@@ -350,6 +350,9 @@ export const useMediaStore = defineStore("media", () => {
     songFile,
     async (newFile) => {
       if (isHydrating) return;
+      // A loader that brings its own tracks or video has to set them after the song.
+      discardSeparatedTrack();
+      backgroundVideo.value = null;
       if (!newFile) {
         songTitle.value = null;
         songArtist.value = null;
