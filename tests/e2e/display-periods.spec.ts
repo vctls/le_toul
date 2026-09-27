@@ -1,4 +1,4 @@
-import { test, expect, Page } from "@playwright/test";
+import { test, expect, Locator, Page } from "@playwright/test";
 import {
   defaultTestConfig,
   setupTestEnvironment,
@@ -210,20 +210,27 @@ test.describe("Adjust tab display mode", () => {
     await setupDisplayMode(page, "One\nTwo\n\nThree\nFour");
     const frames = page.locator('[part="display-band"]');
     const pixelsPerSecond = await waveformPixelsPerSecond(page);
+    const wrapper = page.locator('.timing-adjustment-tab .wavesurfer-container [part~="wrapper"]');
+    const secondsAt = async (element: Locator) => {
+      const [box, waveform] = [await element.boundingBox(), await wrapper.boundingBox()];
+      return (box!.x - waveform!.x) / pixelsPerSecond;
+    };
     const box = (await handle(page, "end").boundingBox())!;
     const y = box.y + box.height / 2;
     await page.mouse.move(box.x + box.width / 2, y);
+
+    // Hovering One marks where its end would reach Three. Nothing limits its start.
+    const endLimit = page.locator('[part~="display-band-limit-end"]');
+    await expect(endLimit).toBeVisible();
+    expect(await secondsAt(endLimit)).toBeCloseTo(5, 1);
+    await expect(page.locator('[part~="display-band-limit-start"]')).toBeHidden();
+
     await page.mouse.down();
     await page.mouse.move(box.x + box.width / 2 + 6 * pixelsPerSecond, y, { steps: 10 });
     await page.mouse.up();
 
     await expect.poll(() => firstSegment(page)).toMatchObject({ displayEnd: 5 });
-    const wrapper = page.locator('.timing-adjustment-tab .wavesurfer-container [part~="wrapper"]');
-    const threeStart = async () => {
-      const [frame, waveform] = [await frames.nth(2).boundingBox(), await wrapper.boundingBox()];
-      return (frame!.x - waveform!.x) / pixelsPerSecond;
-    };
-    await expect.poll(threeStart).toBeCloseTo(5, 1);
+    await expect.poll(() => secondsAt(frames.nth(2))).toBeCloseTo(5, 1);
     await expect(page.locator("[data-overlaps]")).toHaveCount(0);
   });
 
