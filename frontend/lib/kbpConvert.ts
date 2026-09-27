@@ -48,6 +48,9 @@ const DEFAULT_PALETTE = [
 
 const EXPORT_COMMENT = "Exported from The Tüül";
 
+export const COUNT_INS_OFF =
+  "Count-ins and instrumental screens were turned off, since a KBS project has its own in the lyrics";
+
 export interface ProjectFiles {
   lyrics: string;
   timings: Record<VoiceId, TimedSegment[]>;
@@ -111,16 +114,11 @@ function styleFor(document: KbpDocument, letter: string, warnings: Warnings): Kb
  * The line's syllables as segment words. Spaces around a syllable become word boundaries,
  * and characters that are lyric markup in the app are removed.
  */
-function importSyllables(
-  line: KbpLine,
-  style: KbpStyle,
-  isPageStart: boolean,
-  warnings: Warnings,
-): ImportedSyllable[] {
+function importSyllables(line: KbpLine, style: KbpStyle, warnings: Warnings): ImportedSyllable[] {
   const fixed = line.style === line.style.toLowerCase();
   const syllables: ImportedSyllable[] = [];
 
-  line.syllables.forEach((syllable: KbpSyllable, index) => {
+  line.syllables.forEach((syllable: KbpSyllable) => {
     let text = syllable.text;
     if (/[/_]/.test(text)) {
       warnings.add(MARKUP_REMOVED);
@@ -131,12 +129,6 @@ function importSyllables(
     }
 
     const word = text.trim();
-    if (index === 0 && isPageStart && word !== "" && !/[\p{L}\p{N}]/u.test(word)) {
-      warnings.add(
-        `A lead-in syllable "${word}" was dropped, since the app draws its own count-ins`,
-      );
-      return;
-    }
     const previous = syllables[syllables.length - 1];
     if (previous && /^\s/.test(text)) {
       previous.wordEnd = true;
@@ -225,9 +217,14 @@ function styleSettings(
   };
   const fontSize = (style: KbpStyle) => Math.round(style.fontSize * FONT_SCALE);
 
+  // A KBS author types count-ins and instrumental breaks into the lyrics, in any characters,
+  // so the app's own would duplicate them.
   const videoOptions: Record<string, unknown> = {
+    countInMode: "none",
+    addInstrumentalScreens: false,
     color: { background: color(0) },
   };
+  warnings.add(COUNT_INS_OFF);
   if (base) {
     const name = fontName(base);
     videoOptions.font = {
@@ -319,7 +316,7 @@ export function kbpToProjectFiles(text: string, options: { fonts: string[] }): K
   for (const lines of pages) {
     const lineTexts: string[] = [];
     for (const { line, style } of lines) {
-      const syllables = importSyllables(line, style, lineTexts.length === 0, warnings);
+      const syllables = importSyllables(line, style, warnings);
       if (syllables.length === 0) {
         warnings.add(SPACER_DROPPED);
         continue;
