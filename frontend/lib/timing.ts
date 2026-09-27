@@ -465,6 +465,8 @@ export class LyricsLine {
   // It replaces the automatic one once every other pass has run (see applyStoredDisplayPeriods).
   storedDisplayStart?: Timestamp;
   storedDisplayEnd?: Timestamp;
+  // The index of the segment that starts this line and holds its stored period.
+  headIndex?: number;
 
   constructor(segments: LyricSegment[] = []) {
     this.segments = segments;
@@ -593,6 +595,7 @@ export class LyricsLine {
     line.storedDisplayEnd = shift(this.storedDisplayEnd);
     line.fadeInDuration = this.fadeInDuration;
     line.fadeOutDuration = this.fadeOutDuration;
+    line.headIndex = this.headIndex;
     return line;
   }
 }
@@ -610,19 +613,24 @@ export function compileLyricTimings(segments: TimedSegment[]): LyricsScreen[] {
   let line = new LyricsLine();
   // A line's display period lives on its first segment, which may be untimed.
   let head: TimedSegment | undefined;
+  let headIndex = 0;
   const closeLine = () => {
     if (line.segments.length > 0) {
       line.storedDisplayStart = head?.displayStart;
       line.storedDisplayEnd = head?.displayEnd;
+      line.headIndex = headIndex;
       screen.lines.push(line);
       line = new LyricsLine();
     }
     head = undefined;
   };
 
-  for (const segment of segments) {
+  for (const [index, segment] of segments.entries()) {
     const { text, start, end } = segment;
-    head ??= segment;
+    if (!head) {
+      head = segment;
+      headIndex = index;
+    }
     // An untimed segment draws nothing, but its separator still breaks the line or screen,
     // so the break below runs either way.
     // Empty text means a timing with no lyric (see fromEvents).
