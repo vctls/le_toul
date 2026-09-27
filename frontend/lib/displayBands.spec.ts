@@ -83,7 +83,7 @@ describe("displayBands", () => {
       overlaps: false,
       earliestStart: 2,
       latestEnd: 30,
-      startGaveWay: 2,
+      startMoved: 2,
     };
     const [band] = displayBands(segments, 30, options, new Map([[0, placement]]));
     expect(band.start).toBe(2);

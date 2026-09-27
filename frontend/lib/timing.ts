@@ -622,8 +622,8 @@ export class LyricsLine {
   // The line's position on its page, counting spacers. Without it, the line sits at its index.
   slot?: number;
   // An automatic bound moved to make way for another line at the same height (see giveWayToStoredPeriods).
-  startGaveWay = false;
-  endGaveWay = false;
+  startMoved = false;
+  endMoved = false;
 
   constructor(segments: LyricSegment[] = []) {
     this.segments = segments;

@@ -14,8 +14,8 @@ export interface LinePlacement {
   earliestStart: number;
   latestEnd: number;
   // Set when an automatic bound moved to make way for another line.
-  startGaveWay?: number;
-  endGaveWay?: number;
+  startMoved?: number;
+  endMoved?: number;
 }
 
 // In centiseconds, since that is all the video's timecodes can tell apart.
@@ -64,8 +64,8 @@ export function placeLines(
       overlaps,
       earliestStart: Math.max(0, ...before.map((other) => songTime(other.fixedEnd))),
       latestEnd: Math.min(songDuration, ...after.map((other) => songTime(other.fixedStart))),
-      startGaveWay: line.startGaveWay ? songTime(line.customDisplayStartTime!) : undefined,
-      endGaveWay: line.endGaveWay ? songTime(line.customDisplayEndTime!) : undefined,
+      startMoved: line.startMoved ? songTime(line.customDisplayStartTime!) : undefined,
+      endMoved: line.endMoved ? songTime(line.customDisplayEndTime!) : undefined,
     });
   }
   return placements;

@@ -60,8 +60,8 @@ export function displayBands(
         end: segment.endTimestamp ?? segment.timestamp,
       })),
       start:
-        placement(line)?.startGaveWay ?? line.customDisplayStartTime ?? screen.startTimestamp ?? 0,
-      end: placement(line)?.endGaveWay ?? line.customDisplayEndTime ?? screen.endTimestamp,
+        placement(line)?.startMoved ?? line.customDisplayStartTime ?? screen.startTimestamp ?? 0,
+      end: placement(line)?.endMoved ?? line.customDisplayEndTime ?? screen.endTimestamp,
       startStored: line.storedDisplayStart !== undefined,
       endStored: line.storedDisplayEnd !== undefined,
       latestStart: line.timestamp,
