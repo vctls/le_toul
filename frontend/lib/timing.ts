@@ -21,6 +21,7 @@ import {
   fitInstrumentalScreens,
   placeStaggeredScreens,
 } from "./adjustments";
+import { giveWayToStoredPeriods } from "./screenSlots";
 import { BUNDLED_SYMBOLS, FALLBACK_FONTS } from "./fonts";
 import { map, method, isNumber } from "lodash-es";
 import { default as BuefyColor } from "buefy/src/utils/color";
@@ -468,6 +469,9 @@ export class LyricsLine {
   storedDisplayEnd?: Timestamp;
   // The index of the segment that starts this line and holds its stored period.
   headIndex?: number;
+  // An automatic bound moved to make way for another line at the same height (see giveWayToStoredPeriods).
+  startGaveWay = false;
+  endGaveWay = false;
 
   constructor(segments: LyricSegment[] = []) {
     this.segments = segments;
@@ -875,6 +879,7 @@ function createAutomaticScreens(
 
 /**
  * One voice's screens with its stored display periods applied.
+ * Unlike `layOutVoices`, this leaves automatic periods that overlap a stored one as they are.
  */
 export function createScreens(
   segments: TimedSegment[],
@@ -1050,6 +1055,7 @@ export function layOutVoices(
   if (renders.length > 0 && storedStarts.length > 0) {
     endTitleScreenBy(renders[0].screens, Math.min(...storedStarts));
   }
+  giveWayToStoredPeriods(renders);
   return renders;
 }
 
