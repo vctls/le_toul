@@ -42,88 +42,95 @@
         line of every voice back on the automatic times.
       </p>
     </help-section>
-    <div class="adjustment-form">
-      <div class="adjustment-fields">
-        <b-field label="Playback rate" horizontal>
-          <b-numberinput
-            expanded
-            :model-value="playbackRate"
-            @update:model-value="
-              (v: number | null | undefined) => (playbackRate = Number(v ?? playbackRate))
-            "
-            :min="0.25"
-            :max="2"
-            :step="0.25"
-            controls-position="compact"
-          />
-        </b-field>
-        <b-field horizontal>
-          <template #label>
-            Preserve pitch
-            <b-tooltip
-              multilined
-              label="Hold the original key at other speeds. The stretching it needs sounds rough well below 1x."
-            >
-              <b-icon size="is-small" icon="circle-question"></b-icon>
-            </b-tooltip>
-          </template>
-          <b-switch v-model="preservePitch"></b-switch>
-        </b-field>
-        <b-field v-if="advancedStore.isAdvanced" horizontal>
-          <template #label>
-            Line display times
-            <b-tooltip multilined label="Edit when each line is on screen, instead of its timings.">
-              <b-icon size="is-small" icon="circle-question"></b-icon>
-            </b-tooltip>
-          </template>
-          <b-switch v-model="showDisplayBands"></b-switch>
-          <b-button
-            v-if="displayMode"
-            class="reset-display-periods"
-            label="Reset all"
-            :disabled="!timingsStore.hasDisplayPeriods"
-            @click="isConfirmingReset = true"
-          />
-        </b-field>
-        <b-field label="Shift all timings (ms)" horizontal>
-          <b-numberinput
-            expanded
-            :model-value="shiftMs"
-            @update:model-value="(v: number | null | undefined) => (shiftMs = Number(v ?? shiftMs))"
-            :step="1"
-            controls-position="compact"
-          />
-          <b-button label="Apply" @click="applyShift" />
-        </b-field>
-        <b-field label="Playhead preroll (seconds)" horizontal>
-          <b-numberinput
-            expanded
-            :model-value="prerollSeconds"
-            @update:model-value="
-              (v: number | null | undefined) => (prerollSeconds = Number(v ?? prerollSeconds))
-            "
-            :min="0"
-            :max="30"
-            :step="1"
-            controls-position="compact"
-          />
-        </b-field>
-        <b-field v-if="vocalTrack" label="Playback track" horizontal>
-          <b-select expanded v-model="playbackTrackChoice">
-            <option value="full">Full track</option>
-            <option value="vocals">Vocals only</option>
-          </b-select>
-        </b-field>
+    <div class="adjust-top">
+      <div class="adjustment-form">
+        <div class="adjustment-fields">
+          <b-field label="Playback rate" horizontal>
+            <b-numberinput
+              expanded
+              :model-value="playbackRate"
+              @update:model-value="
+                (v: number | null | undefined) => (playbackRate = Number(v ?? playbackRate))
+              "
+              :min="0.25"
+              :max="2"
+              :step="0.25"
+              controls-position="compact"
+            />
+          </b-field>
+          <b-field horizontal>
+            <template #label>
+              Preserve pitch
+              <b-tooltip
+                multilined
+                label="Hold the original key at other speeds. The stretching it needs sounds rough well below 1x."
+              >
+                <b-icon size="is-small" icon="circle-question"></b-icon>
+              </b-tooltip>
+            </template>
+            <b-switch v-model="preservePitch"></b-switch>
+          </b-field>
+          <b-field v-if="advancedStore.isAdvanced" horizontal>
+            <template #label>
+              Line display times
+              <b-tooltip
+                multilined
+                label="Edit when each line is on screen, instead of its timings."
+              >
+                <b-icon size="is-small" icon="circle-question"></b-icon>
+              </b-tooltip>
+            </template>
+            <b-switch v-model="showDisplayBands"></b-switch>
+            <b-button
+              v-if="displayMode"
+              class="reset-display-periods"
+              label="Reset all"
+              :disabled="!timingsStore.hasDisplayPeriods"
+              @click="isConfirmingReset = true"
+            />
+          </b-field>
+          <b-field label="Shift all timings (ms)" horizontal>
+            <b-numberinput
+              expanded
+              :model-value="shiftMs"
+              @update:model-value="
+                (v: number | null | undefined) => (shiftMs = Number(v ?? shiftMs))
+              "
+              :step="1"
+              controls-position="compact"
+            />
+            <b-button label="Apply" @click="applyShift" />
+          </b-field>
+          <b-field label="Playhead preroll (seconds)" horizontal>
+            <b-numberinput
+              expanded
+              :model-value="prerollSeconds"
+              @update:model-value="
+                (v: number | null | undefined) => (prerollSeconds = Number(v ?? prerollSeconds))
+              "
+              :min="0"
+              :max="30"
+              :step="1"
+              controls-position="compact"
+            />
+          </b-field>
+          <b-field v-if="vocalTrack" label="Playback track" horizontal>
+            <b-select expanded v-model="playbackTrackChoice">
+              <option value="full">Full track</option>
+              <option value="vocals">Vocals only</option>
+            </b-select>
+          </b-field>
+        </div>
       </div>
+      <subtitle-display
+        class="subtitle-display"
+        v-if="songFile && debouncedSubtitles"
+        ref="subtitleDisplay"
+        :subtitles="debouncedSubtitles"
+        :fonts="previewFonts"
+        :backgroundColor="previewColors.background.toString()"
+      />
     </div>
-    <subtitle-display
-      class="subtitle-display"
-      v-if="songFile && debouncedSubtitles"
-      ref="subtitleDisplay"
-      :subtitles="debouncedSubtitles"
-      :fonts="previewFonts"
-      :backgroundColor="previewColors.background.toString()"
-    />
     <timing-adjuster
       v-if="songFile && adjustmentSubtitles"
       ref="timing-adjuster"
@@ -577,7 +584,7 @@ export default defineComponent({
 
 <style scoped>
 .timing-adjustment-tab {
-  container-type: inline-size;
+  container: adjust-tab / inline-size;
   display: flex;
   flex-direction: column;
 }
@@ -722,15 +729,65 @@ The Apply button wraps under its control until there is room for it too. */
   padding-inline: 0.25em;
 }
 
+.adjust-top {
+  display: flex;
+  flex-direction: column;
+}
+
 /* libass takes the glyph scale from the frame height,
 so 480px is a readable preview and the floor is where it stops being one.
 Shrinking below 480 keeps the waveform on screen.
 The width follows from the height, so the frame is centred. */
-.timing-adjustment-tab > .subtitle-display {
+.adjust-top > .subtitle-display {
   align-self: center;
   flex: 0 1 auto;
   height: min(480px, 100cqw * 9 / 16);
   min-height: 15rem;
   width: auto;
+}
+
+/* Once the preview fits beside the settings at its floor height, the two share a row,
+which leaves the height to the waveform.
+As on the Submit tab, the settings take a third and the preview the rest.
+The settings need about 31rem for one column with their labels beside them.
+The preview's width sets its height, so it is capped at 400px to leave the waveform on screen,
+and centred in its column.
+These rules come last so they win over the form's own column rules. */
+@container adjust-tab (min-width: 60rem) {
+  .adjust-top {
+    --settings-width: max(31rem, (100cqw - 1.5rem) / 3);
+    flex-direction: row;
+    align-items: center;
+    gap: 1.5rem;
+  }
+
+  .adjust-top > .adjustment-form {
+    flex: 0 0 var(--settings-width);
+  }
+
+  .adjust-top > .subtitle-display {
+    flex: 0 0 auto;
+    width: min(100cqw - 1.5rem - var(--settings-width), 400px * 16 / 9);
+    height: auto;
+    margin-inline: auto;
+  }
+
+  .adjustment-fields {
+    grid-template-columns: minmax(0, 1fr) minmax(13rem, max-content) minmax(0, auto) minmax(0, 1fr);
+    column-gap: 0.75rem;
+    justify-items: stretch;
+  }
+
+  .adjustment-fields > :deep(.field.is-horizontal) {
+    display: grid;
+    grid-column: span 4;
+    grid-template-columns: subgrid;
+    align-items: center;
+  }
+
+  .adjustment-fields :deep(.field-label) {
+    grid-column: 2;
+    margin: 0;
+  }
 }
 </style>

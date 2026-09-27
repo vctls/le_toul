@@ -136,7 +136,7 @@ export default defineComponent({
       barWidth: 3,
       barHeight: 1,
       barGap: 2,
-      height: 200,
+      height: 300,
       normalize: false,
       plugins: [
         this.regionsPlugin as unknown as GenericPlugin,
