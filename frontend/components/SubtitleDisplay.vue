@@ -81,6 +81,11 @@ export default defineComponent({
     effectiveSubtitles(): string {
       return this.subtitles || EMPTY_ASS;
     },
+    // The families named by inline \fn tags, as one comparable string.
+    inlineFontFamilies(): string {
+      const families = [...this.effectiveSubtitles.matchAll(/\\fn([^\\}]+)/g)].map((m) => m[1]);
+      return [...new Set(families)].sort().join("\n");
+    },
   },
   created() {
     // Chrome video stutters when currentTime is set frequently, so we throttle it to 15fps
@@ -125,6 +130,11 @@ export default defineComponent({
       if (isEqual(newFonts, oldFonts)) {
         return;
       }
+      this.destroyRenderer();
+      this.createRenderer();
+    },
+    // The worker loads an \fn font only from the track it starts with, not from a later setTrack.
+    inlineFontFamilies() {
       this.destroyRenderer();
       this.createRenderer();
     },
