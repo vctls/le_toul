@@ -20,6 +20,7 @@ import {
   endTitleScreenBy,
   fitInstrumentalScreens,
 } from "./adjustments";
+import { BUNDLED_FONTS, CJK_FONT } from "./fonts";
 import { map, method, isNumber } from "lodash-es";
 import { default as BuefyColor } from "buefy/src/utils/color";
 // This import must stay type-only,
@@ -730,6 +731,28 @@ interface VoiceTrackRender {
   options: KaraokeOptions;
 }
 
+// U+3000–U+33FF holds CJK punctuation, kana and CJK symbols. U+FF00–U+FFEF holds full-width forms.
+const CJK_CHAR = String.raw`[\p{sc=Han}\p{sc=Hangul}\p{sc=Bopomofo}\u3000-\u33ff\uff00-\uffef]`;
+const CJK_RUN = new RegExp(`${CJK_CHAR}+(?: +${CJK_CHAR}+)*`, "gu");
+
+/**
+ * Switch every run of CJK text outside override blocks to the bundled CJK font.
+ * FFmpeg.wasm's libass has no fontconfig, so it can't fall back to another font on its own.
+ */
+export function withCjkFont(events: string): string {
+  return events.replace(/(\{[^}]*\})|[^{]+/g, (chunk, block) =>
+    block ? chunk : chunk.replace(CJK_RUN, (run) => `{\\fn${CJK_FONT}}${run}{\\fn}`),
+  );
+}
+
+/**
+ * Whether a style's font is one of the bundled fonts that has no CJK glyphs.
+ * A custom font is trusted to cover the lyrics it was uploaded for.
+ */
+function lacksCjkGlyphs(fontName: string): boolean {
+  return fontName in BUNDLED_FONTS && fontName !== CJK_FONT;
+}
+
 // Render one ASS document from one or more styled tracks. Each track contributes its own
 // [V4+ Styles] row and its screens' events, tagged with that track's style. All tracks
 // share the same style field set (Format line), since displayParams always has every key.
@@ -761,8 +784,10 @@ ${styleLines}
 Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
 `;
   for (const track of tracks) {
+    const tagCjk = lacksCjkGlyphs(track.displayParams.Fontname as string);
     for (const screen of track.screens) {
-      assText += screen.toAssEvents(track.displayParams, track.options, track.styleName);
+      const events = screen.toAssEvents(track.displayParams, track.options, track.styleName);
+      assText += tagCjk ? withCjkFont(events) : events;
     }
   }
   return assText;

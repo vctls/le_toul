@@ -15,6 +15,7 @@ import {
   VerticalAlignment,
   resolveStarts,
   parseLyrics,
+  withCjkFont,
 } from "./timing";
 import { LYRIC_MARKERS, DEFAULT_COUNT_IN_THRESHOLD, DEFAULT_COUNT_IN_DURATION } from "@/constants";
 import { LyricSegment } from "./timing";
@@ -432,6 +433,52 @@ test("compileLyricTimings renders a partially timed project", () => {
   // The timed head renders. The untimed tail contributes its breaks but no drawn text.
   expect(screens.length).toBe(1);
   expect(screens[0].lines[0].segments.map((s) => s.text)).toEqual(["Be bop ", "a lu bop\n"]);
+});
+
+describe("withCjkFont", () => {
+  test("switches a CJK run to the CJK font and back", () => {
+    expect(withCjkFont("{\\kf100}Sakamoto 坂本 真綾!")).toBe(
+      "{\\kf100}Sakamoto {\\fnNoto Sans CJK JP}坂本 真綾{\\fn}!",
+    );
+  });
+
+  test("covers kana, the long vowel mark, CJK punctuation and Hangul", () => {
+    expect(withCjkFont("「カラオケー」한국")).toBe(
+      "{\\fnNoto Sans CJK JP}「カラオケー」한국{\\fn}",
+    );
+  });
+
+  test("leaves Latin text and override blocks alone", () => {
+    const line = "{\\fad(100,100)}{\\kf50}Crème brûlée · naïve";
+    expect(withCjkFont(line)).toBe(line);
+  });
+});
+
+describe("CJK lyrics in the ASS file", () => {
+  const options: KaraokeOptions = {
+    ...DEFAULT_OPTIONS,
+    addTitleScreen: true,
+    countInMode: "none",
+    addInstrumentalScreens: false,
+    addStaggeredLines: false,
+  };
+  const segments = fromEvents("残酷な天使\n", [[5.0, LYRIC_MARKERS.SEGMENT_START]]);
+
+  test("names the CJK font when the style's font is a bundled one without CJK glyphs", () => {
+    const ass = createAssFile(segments, 10, "Title", "坂本 真綾", options);
+    expect(ass).toContain("{\\fnNoto Sans CJK JP}残酷な天使{\\fn}");
+    expect(ass).toContain("{\\fnNoto Sans CJK JP}坂本 真綾{\\fn}");
+  });
+
+  test("leaves the text alone when the style already uses the CJK font", () => {
+    const cjkOptions = { ...options, font: { ...options.font, name: "Noto Sans CJK JP" } };
+    expect(createAssFile(segments, 10, "Title", "坂本 真綾", cjkOptions)).not.toContain("\\fn");
+  });
+
+  test("leaves the text alone for a custom font", () => {
+    const customOptions = { ...options, font: { ...options.font, name: "My Uploaded Font" } };
+    expect(createAssFile(segments, 10, "Title", "坂本 真綾", customOptions)).not.toContain("\\fn");
+  });
 });
 
 describe("createMultiVoiceAssFile", () => {

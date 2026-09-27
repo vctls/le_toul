@@ -12,4 +12,9 @@ export const BUNDLED_FONTS = {
   "Trebuchet MS": "/static/fonts/Trebuchet.ttf",
   Verdana: "/static/fonts/Verdana.ttf",
   "Liberation Sans": "/static/fonts/LiberationSans.ttf",
+  "Noto Sans CJK JP": "/static/fonts/NotoSansCJKjp-Regular.otf",
 };
+
+// The only bundled font with Chinese, Japanese and Korean glyphs.
+// It draws the characters those languages share in their Japanese forms.
+export const CJK_FONT = "Noto Sans CJK JP";
