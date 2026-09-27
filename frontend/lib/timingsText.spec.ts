@@ -7,7 +7,9 @@ import {
   TimingsTextError,
   isTimingsText,
   parseTimingsText,
+  parseVoiceTimingsText,
   writeTimingsText,
+  writeVoiceTimingsText,
 } from "./timingsText";
 
 const file = (...rows: string[]) => rows.join("\n") + "\n";
@@ -482,5 +484,61 @@ describe("round trip", () => {
       writeTimingsText({ "Voice 1": [{ text: "a", start: 1.23456, end: 2.005 }] }, ["Voice 1"]),
     );
     expect(voices["Voice 1"]).toEqual([{ text: "a", start: 1.23, end: 2.01 }]);
+  });
+});
+
+describe("the section of one voice", () => {
+  const segments: TimedSegment[] = [
+    { text: "Been_", start: 27.99, displayStart: 25.33 },
+    { text: "a\n\n", start: 28.37, end: 28.6 },
+    { text: "road", start: 29.81 },
+  ];
+  const section = file(
+    "page",
+    "",
+    "00:25.33",
+    '"Been "  00:27.99',
+    '"a"      00:28.37  00:28.60',
+    "-",
+    "",
+    "page",
+    "",
+    "-",
+    '"road"  00:29.81',
+    "-",
+  );
+
+  test("is written without the signature or a voice row", () => {
+    expect(writeVoiceTimingsText(segments)).toBe(section);
+    expect(writeVoiceTimingsText([])).toBe("");
+  });
+
+  test("reads back what it wrote", () => {
+    expect(parseVoiceTimingsText(section)).toEqual({ segments, warnings: [] });
+    expect(parseVoiceTimingsText("")).toEqual({ segments: [], warnings: [] });
+  });
+
+  test("spells out the lyrics the lyric parser reads", () => {
+    const lyrics = "Be bop_a lu bop\nShe's my ba/by\n\nAnd_here's_screen_two";
+    const lyricSegments = parseLyrics(lyrics, true).map(({ text }) => ({ text }));
+    const { segments } = parseVoiceTimingsText(writeVoiceTimingsText(lyricSegments));
+    expect(segments).toEqual(lyricSegments);
+  });
+
+  test("rejects the rows of a whole file, naming them", () => {
+    expect(() => parseVoiceTimingsText(file("Toul timings 1", "-", '"a"', "-"))).toThrow(
+      "Row 1: This row belongs to the whole timings file, not to one voice's section.",
+    );
+    expect(() => parseVoiceTimingsText(file("-", '"a"', "-", 'voice "Anna"'))).toThrow(
+      "Row 4: This row belongs to the whole timings file",
+    );
+    expect(() => parseVoiceTimingsText(file("-", "a", "-"))).toThrow(
+      "Row 2: This row isn't a page, a time or a syllable.",
+    );
+  });
+
+  test("returns its warnings", () => {
+    const { warnings } = parseVoiceTimingsText(file("00:05.00", '"a"  00:01.00', "-"));
+    expect(warnings).toEqual([DISPLAY_PERIOD_WIDENED]);
   });
 });
