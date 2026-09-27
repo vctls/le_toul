@@ -34,6 +34,13 @@
         a timing. Scroll up and down on the waveform to zoom in and out on the area under the
         cursor.
       </p>
+      <p>
+        With <strong>Line display times</strong> on, each line is drawn in a frame that spans the
+        time it's on screen. Drag a frame's left or right edge to set when the line appears or
+        disappears, and double-click an edge to go back to the automatic time. A dashed edge follows
+        the automatic rules, and a solid one has been set. <strong>Reset all</strong> puts every
+        line of every voice back on the automatic times.
+      </p>
     </help-section>
     <div class="adjustment-form">
       <div class="adjustment-fields">
@@ -65,10 +72,7 @@
         <b-field horizontal>
           <template #label>
             Line display times
-            <b-tooltip
-              multilined
-              label="Show each line in a frame that spans the time it's on screen, instead of the timing rectangles. Drag a frame's left or right edge to set when the line appears or disappears, and double-click it to go back to the automatic time. A dashed edge follows the automatic rules, and a solid one has been set."
-            >
+            <b-tooltip multilined label="Edit when each line is on screen, instead of its timings.">
               <b-icon size="is-small" icon="circle-question"></b-icon>
             </b-tooltip>
           </template>
