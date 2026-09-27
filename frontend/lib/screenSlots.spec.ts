@@ -15,15 +15,18 @@ function layOut(segments: TimedSegment[], trackOptions: KaraokeOptions = options
   return layOutVoices([{ voice: "v", segments, options: trackOptions }], 30, "", "")[0].screens;
 }
 
+// The ASS file holds fades in milliseconds.
+const ms = (time: number | undefined) => time && Math.round(time * 1000) / 1000;
+
 function lines(screens: LyricsScreen[]) {
   return screens
     .filter((screen) => screen.kind === "lyrics")
     .flatMap((screen) =>
       screen.lines.map((line) => ({
-        start: line.customDisplayStartTime ?? screen.startTimestamp,
-        end: line.customDisplayEndTime ?? screen.endTimestamp,
-        fadeIn: line.fadeInDuration,
-        fadeOut: line.fadeOutDuration,
+        start: ms(line.customDisplayStartTime ?? screen.startTimestamp),
+        end: ms(line.customDisplayEndTime ?? screen.endTimestamp),
+        fadeIn: ms(line.fadeInDuration),
+        fadeOut: ms(line.fadeOutDuration),
       })),
     );
 }
