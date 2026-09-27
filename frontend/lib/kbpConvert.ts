@@ -14,11 +14,17 @@ import {
   serializeKbp,
 } from "./kbp";
 import { parseLyrics } from "./timing";
-import { TimedSegment } from "./timedSegments";
+import { clampDisplayPeriods, TimedSegment } from "./timedSegments";
 import { DEFAULT_VOICE_ID, parseAnnotatedLyrics, TAG_PATTERN, VoiceId } from "./voices";
 import { ParsedSettingsFile, parseSettingsYaml } from "./settingsFile";
 import { convertSpacesToUnderscores } from "./lyrics";
-import { BRACKETS_REMOVED, MARKUP_REMOVED, SPACER_DROPPED, Warnings } from "./importWarnings";
+import {
+  BRACKETS_REMOVED,
+  DISPLAY_PERIOD_WIDENED,
+  MARKUP_REMOVED,
+  SPACER_DROPPED,
+  Warnings,
+} from "./importWarnings";
 
 // kbp2ass scales a KBP font size by the output height over the 216-high CDG canvas, and by 1.4
 // for the difference between the two font size conventions.
@@ -86,6 +92,9 @@ interface ImportedSyllable {
   wordEnd: boolean;
   start?: number;
   end?: number;
+  // The line's display period, on its first syllable only.
+  displayStart?: number;
+  displayEnd?: number;
 }
 
 function styleFor(document: KbpDocument, letter: string, warnings: Warnings): KbpStyle {
@@ -144,6 +153,9 @@ function importSyllables(
 
   if (fixed && syllables.length > 0) {
     warnings.add("A fixed line was imported untimed, since the app has no text without a wipe");
+  } else if (syllables.length > 0) {
+    syllables[0].displayStart = line.start;
+    syllables[0].displayEnd = line.end;
   }
   return syllables;
 }
@@ -346,14 +358,22 @@ export function kbpToProjectFiles(text: string, options: { fonts: string[] }): K
     if (mismatch) {
       throw new Error(`The converted timings for ${voice} don't line up with its lyrics.`);
     }
-    timings[voice] = segments.map(({ text }, i): TimedSegment => {
-      const { start, end } = syllables[i];
-      return {
-        text,
-        ...(start !== undefined ? { start } : {}),
-        ...(end !== undefined ? { end } : {}),
-      };
-    });
+    const clamped = clampDisplayPeriods(
+      segments.map(({ text }, i): TimedSegment => {
+        const { start, end, displayStart, displayEnd } = syllables[i];
+        return {
+          text,
+          ...(start !== undefined ? { start } : {}),
+          ...(end !== undefined ? { end } : {}),
+          ...(displayStart !== undefined ? { displayStart: displayStart / 100 } : {}),
+          ...(displayEnd !== undefined ? { displayEnd: displayEnd / 100 } : {}),
+        };
+      }),
+    );
+    for (let i = 0; i < clamped.widened; i++) {
+      warnings.add(DISPLAY_PERIOD_WIDENED);
+    }
+    timings[voice] = clamped.segments;
   }
 
   const base =
@@ -388,6 +408,8 @@ interface ExportStyle {
 interface ExportLine {
   voiceIndex: number;
   syllables: KbpSyllable[];
+  displayStart?: number;
+  displayEnd?: number;
 }
 
 interface ExportPage {
@@ -479,6 +501,7 @@ class Palette {
 /**
  * A voice's timed segments grouped into pages of lines by their separators.
  * Untimed segments are left out, and an open end runs to 1 cs before the next start, as KBS writes it.
+ * A line's display period comes from its first segment, timed or not.
  */
 function voicePages(
   segments: TimedSegment[],
@@ -488,15 +511,24 @@ function voicePages(
   const pages: ExportPage[] = [];
   let lines: ExportLine[] = [];
   let syllables: KbpSyllable[] = [];
+  let head: TimedSegment | undefined;
   const all: { syllable: KbpSyllable; end?: number }[] = [];
+  const cs = (seconds: number | undefined) =>
+    seconds === undefined ? undefined : Math.round(seconds * 100);
 
   const closeLine = () => {
     if (syllables.length > 0) {
       const last = syllables[syllables.length - 1];
       last.text = last.text.trimEnd();
-      lines.push({ voiceIndex, syllables });
+      lines.push({
+        voiceIndex,
+        syllables,
+        displayStart: cs(head?.displayStart),
+        displayEnd: cs(head?.displayEnd),
+      });
     }
     syllables = [];
+    head = undefined;
   };
   const closePage = () => {
     closeLine();
@@ -507,6 +539,7 @@ function voicePages(
   };
 
   for (const segment of segments) {
+    head ??= segment;
     const text = segment.text.replace(/\n+$/, "").replace(/_$/, " ").replace(/\/$/, "");
     if (segment.start !== undefined && text.trim() !== "") {
       const syllable: KbpSyllable = {
@@ -574,6 +607,7 @@ function mergePages(pages: ExportPage[]): ExportPage[] {
 /**
  * A line shows 3 s before its page starts, or once the line in its slot on the previous page has gone,
  * whichever is later, and never after its own first syllable.
+ * A stored display period replaces those rules, widened to contain the line's syllables.
  */
 function layOutLines(pages: ExportPage[]): KbpPage[] {
   let previous: KbpLine[] = [];
@@ -584,13 +618,15 @@ function layOutLines(pages: ExportPage[]): KbpPage[] {
       const before = previous[Math.min(slot, previous.length - 1)];
       const start = Math.min(
         first,
-        Math.max(0, page.first - LINE_LEAD_CS, before ? before.end + 1 : 0),
+        line.displayStart ?? Math.max(0, page.first - LINE_LEAD_CS, before ? before.end + 1 : 0),
       );
+      const end =
+        line.displayEnd === undefined ? last + LINE_TAIL_CS : Math.max(line.displayEnd, last);
       return {
         align: "C",
         style: String.fromCharCode("A".charCodeAt(0) + Math.min(line.voiceIndex, MAX_STYLES - 1)),
         start,
-        end: last + LINE_TAIL_CS,
+        end,
         right: 0,
         down: 0,
         rotation: 0,

@@ -4,6 +4,8 @@ import yaml from "js-yaml";
 import { KBP_DIVIDER, parseKbp } from "./kbp";
 import { kbpToProjectFiles, projectFilesToKbp, ProjectFiles } from "./kbpConvert";
 import { parseSettingsYaml } from "./settingsFile";
+import { TimedSegment } from "./timedSegments";
+import { DISPLAY_PERIOD_WIDENED } from "./importWarnings";
 
 const FIXTURE = readFileSync(path.resolve(__dirname, "../../tests/fixtures/song.kbp"), "utf8");
 const HEADER = FIXTURE.slice(0, FIXTURE.indexOf(`${KBP_DIVIDER}\r\nPAGEV2`));
@@ -47,25 +49,25 @@ describe("kbpToProjectFiles", () => {
     // An end at the next start, or 1 cs before it, is left open. Any other end is a release.
     expect(result.timings).toEqual({
       "Voice 1": [
-        { text: "Pale_", start: 4.2 },
+        { text: "Pale_", start: 4.2, displayStart: 0.01, displayEnd: 6.38 },
         { text: "moon_", start: 4.39 },
         { text: "ri/", start: 4.61 },
         { text: "sing_", start: 4.99 },
         { text: "slow\n", start: 5.25, end: 5.88 },
-        { text: "o/", start: 6.45 },
+        { text: "o/", start: 6.45, displayStart: 0.01, displayEnd: 8.84 },
         { text: "ver_", start: 6.69 },
         { text: "the_", start: 6.81 },
         { text: "qui/", start: 7.07 },
         { text: "et_", start: 7.27 },
         { text: "hill\n", start: 7.71, end: 8.34 },
-        { text: "Lan/", start: 9.23 },
+        { text: "Lan/", start: 9.23, displayStart: 0.01, displayEnd: 11.15 },
         { text: "terns_", start: 9.45, end: 9.65 },
         { text: "glow\n\n", start: 10.37, end: 10.65 },
-        { text: "Wan/", start: 19.13 },
+        { text: "Wan/", start: 19.13, displayStart: 16.13, displayEnd: 20.82 },
         { text: "der_", start: 19.27 },
         { text: "a/", start: 19.45 },
         { text: "way\n", start: 19.64, end: 20.32 },
-        { text: "Home_", start: 20.83 },
+        { text: "Home_", start: 20.83, displayStart: 16.13, displayEnd: 22.05 },
         { text: "a/", start: 21.13 },
         { text: "gain", start: 21.33, end: 21.55 },
       ],
@@ -113,10 +115,10 @@ describe("kbpToProjectFiles", () => {
     expect(result.lyrics).toBe("[Lead Harmony] Hi\n[Lead Harmony 2] Yo\n\n[Lead Harmony] Hey");
     expect(result.timings).toEqual({
       "Lead Harmony": [
-        { text: "Hi\n\n", start: 0.1, end: 0.2 },
-        { text: "Hey", start: 1.5, end: 1.6 },
+        { text: "Hi\n\n", start: 0.1, end: 0.2, displayStart: 0, displayEnd: 1 },
+        { text: "Hey", start: 1.5, end: 1.6, displayStart: 0, displayEnd: 2 },
       ],
-      "Lead Harmony 2": [{ text: "Yo", start: 0.3, end: 0.4 }],
+      "Lead Harmony 2": [{ text: "Yo", start: 0.3, end: 0.4, displayStart: 0, displayEnd: 1 }],
     });
 
     // The first style in use is the base, and the other voice keeps only what differs from it.
@@ -156,10 +158,10 @@ describe("kbpToProjectFiles", () => {
 
     expect(result.lyrics).toBe("ASIDE\nFIXED_TEXT\nANDOR_SNAKECASE");
     expect(result.timings["Voice 1"]).toEqual([
-      { text: "ASIDE\n", start: 0.1, end: 0.2 },
+      { text: "ASIDE\n", start: 0.1, end: 0.2, displayStart: 0, displayEnd: 1 },
       { text: "FIXED_" },
       { text: "TEXT\n" },
-      { text: "ANDOR_", start: 0.3 },
+      { text: "ANDOR_", start: 0.3, displayStart: 0, displayEnd: 1 },
       { text: "SNAKECASE", start: 0.4, end: 0.5 },
     ]);
     expect(result.warnings).toEqual([
@@ -171,6 +173,26 @@ describe("kbpToProjectFiles", () => {
       "A fixed line was imported untimed, since the app has no text without a wipe",
       "A / or _ in the lyrics was removed, since the app uses both as markup (×2)",
     ]);
+  });
+
+  test("widens a line's display period to contain its syllables, and says so", () => {
+    const text = withPages(HEADER, [
+      "C/A/150/300/0/0/0",
+      "one /          100/140/0",
+      "two/           140/200/0",
+      "",
+      "C/A/250/260/0/0/0",
+      "three/         250/400/0",
+      "",
+    ]);
+    const result = kbpToProjectFiles(text, { fonts: FONTS });
+
+    expect(result.timings["Voice 1"]).toEqual([
+      { text: "one_", start: 1, displayStart: 1, displayEnd: 3 },
+      { text: "two\n", start: 1.4, end: 2 },
+      { text: "three", start: 2.5, end: 4, displayStart: 2.5, displayEnd: 4 },
+    ]);
+    expect(result.warnings).toEqual([`${DISPLAY_PERIOD_WIDENED} (×2)`]);
   });
 
   test("leaves out a font the app doesn't bundle", () => {
@@ -261,6 +283,28 @@ describe("projectFilesToKbp", () => {
 
     expect(first.end).toBe(250);
     expect(second.start).toBe(220);
+  });
+
+  test("writes a stored display period, widened to contain the line's syllables", () => {
+    const result = projectFilesToKbp({
+      lyrics: "a\nb\nc",
+      timings: {
+        "Voice 1": [
+          { text: "a\n", displayStart: 0.5, displayEnd: 9 },
+          { text: "b\n", start: 1, end: 2, displayStart: 1.5 },
+          { text: "c", start: 3, end: 4 },
+        ],
+      },
+      settings: settingsFile(),
+      audioName: null,
+    });
+    const lines = parseKbp(result.kbp).pages[0].lines;
+
+    // The untimed line is left out, and the last line keeps the automatic rules.
+    expect(lines.map((line) => [line.start, line.end])).toEqual([
+      [100, 250],
+      [0, 450],
+    ]);
   });
 
   test("writes the base font's bold and italic, which voices inherit", () => {
@@ -365,7 +409,7 @@ describe("round trip", () => {
     expect(back.settings).toBe(imported.settings);
   });
 
-  test("each voice of the app's project comes back with the same segments", () => {
+  test("each voice of the app's project comes back with the same timings", () => {
     const project: ProjectFiles = {
       lyrics: "[Anna] la_la\n[Anna+Ben] oh\n[Ben] hm",
       timings: {
@@ -385,6 +429,10 @@ describe("round trip", () => {
       fonts: FONTS,
     });
 
-    expect(back.timings).toEqual(project.timings);
+    // Export writes every line's display period, so they all come back stored.
+    const withoutDisplayPeriods = ({ displayStart: _s, displayEnd: _e, ...rest }: TimedSegment) =>
+      rest;
+    expect(back.timings.Anna.map(withoutDisplayPeriods)).toEqual(project.timings.Anna);
+    expect(back.timings.Ben.map(withoutDisplayPeriods)).toEqual(project.timings.Ben);
   });
 });
