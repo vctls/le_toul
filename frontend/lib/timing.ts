@@ -20,7 +20,7 @@ import {
   endTitleScreenBy,
   fitInstrumentalScreens,
 } from "./adjustments";
-import { CJK_CHAR, CJK_FONT } from "./fonts";
+import { FALLBACK_FONTS } from "./fonts";
 import { map, method, isNumber } from "lodash-es";
 import { default as BuefyColor } from "buefy/src/utils/color";
 // This import must stay type-only,
@@ -731,31 +731,53 @@ interface VoiceTrackRender {
   options: KaraokeOptions;
 }
 
-const CJK_RUN = new RegExp(`${CJK_CHAR}+(?: +${CJK_CHAR}+)*`, "gu");
+// One capture group per fallback font, matching a run of the characters it stands in for.
+const FALLBACK_RUN = new RegExp(
+  FALLBACK_FONTS.map(({ chars }) => `(${chars}+(?: +${chars}+)*)`).join("|"),
+  "gu",
+);
 
-// The CJK characters each uploaded font can draw, by family name.
-// Any other font but the bundled CJK one counts as drawing none.
-export type CjkCoverage = Readonly<Record<string, ReadonlySet<number>>>;
+// Which of the characters the fallback fonts stand in for each uploaded font can draw, by family name.
+// Any other font counts as drawing none.
+export type GlyphCoverage = Readonly<Record<string, ReadonlySet<number>>>;
 
 /**
- * Switch every run of CJK text outside override blocks to the bundled CJK font,
+ * Switch every run of CJK text outside override blocks to the fallback font for it,
  * unless the style's font can draw the whole run.
  * FFmpeg.wasm's libass has no fontconfig, so it can't fall back to another font on its own.
  */
-export function withCjkFont(events: string, covered: ReadonlySet<number> = new Set()): string {
-  const drawable = (run: string) =>
-    [...run].every((c) => c === " " || covered.has(c.codePointAt(0)!));
+export function withFallbackFonts(
+  events: string,
+  fontName: string,
+  covered: ReadonlySet<number> = new Set(),
+): string {
+  const drawable = (word: string) => [...word].every((c) => covered.has(c.codePointAt(0)!));
   return events.replace(/(\{[^}]*\})|[^{]+/g, (chunk, block) =>
     block
       ? chunk
-      : chunk.replace(CJK_RUN, (run) => (drawable(run) ? run : `{\\fn${CJK_FONT}}${run}{\\fn}`)),
+      : chunk.replace(FALLBACK_RUN, (run, ...groups) => {
+          const { family } = FALLBACK_FONTS[groups.findIndex((group) => group !== undefined)];
+          const tag = (text: string) => `{\\fn${family}}${text}{\\fn}`;
+          // Odd indexes hold the spaces between words.
+          const parts = run.split(/( +)/);
+          const words = parts.filter((_, i) => i % 2 === 0);
+          if (family === fontName || words.every(drawable)) {
+            return run;
+          }
+          if (!words.some(drawable)) {
+            return tag(run);
+          }
+          return parts
+            .map((part, i) => (i % 2 === 0 && !drawable(part) ? tag(part) : part))
+            .join("");
+        }),
   );
 }
 
 // Render one ASS document from one or more styled tracks. Each track contributes its own
 // [V4+ Styles] row and its screens' events, tagged with that track's style. All tracks
 // share the same style field set (Format line), since displayParams always has every key.
-function renderAssDocument(tracks: VoiceTrackRender[], cjkCoverage: CjkCoverage): string {
+function renderAssDocument(tracks: VoiceTrackRender[], glyphCoverage: GlyphCoverage): string {
   const formatKeys = Object.keys(tracks[0].displayParams);
   const styleLines = tracks
     .map((t) => `Style: ${formatKeys.map((k) => t.displayParams[k]).join(",")}`)
@@ -784,10 +806,10 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
 `;
   for (const track of tracks) {
     const fontName = track.displayParams.Fontname as string;
-    const covered = fontName === CJK_FONT ? null : (cjkCoverage[fontName] ?? new Set<number>());
+    const covered = glyphCoverage[fontName];
     for (const screen of track.screens) {
       const events = screen.toAssEvents(track.displayParams, track.options, track.styleName);
-      assText += covered ? withCjkFont(events, covered) : events;
+      assText += withFallbackFonts(events, fontName, covered);
     }
   }
   return assText;
@@ -797,12 +819,12 @@ function createSubtitles(
   screens: LyricsScreen[],
   options: KaraokeOptions,
   formatParams: Object,
-  cjkCoverage: CjkCoverage,
+  glyphCoverage: GlyphCoverage,
 ): string {
   const displayParams = buildDisplayParams(formatParams, "Default");
   return renderAssDocument(
     [{ styleName: "Default", displayParams, screens, options }],
-    cjkCoverage,
+    glyphCoverage,
   );
 }
 
@@ -871,11 +893,11 @@ export function createAssFile(
   title: string,
   artist: string,
   options: KaraokeOptions,
-  cjkCoverage: CjkCoverage = {},
+  glyphCoverage: GlyphCoverage = {},
 ) {
   // Entry point to subtitles. Creates an .ass file from the given info.
   const screensWithTitle = createScreens(segments, songDuration, title, artist, options);
-  return createSubtitles(screensWithTitle, options, optionsToFormatParams(options), cjkCoverage);
+  return createSubtitles(screensWithTitle, options, optionsToFormatParams(options), glyphCoverage);
 }
 
 export interface VoiceTrack {
@@ -936,7 +958,7 @@ export function createMultiVoiceAssFile(
   songDuration: number,
   title: string,
   artist: string,
-  cjkCoverage: CjkCoverage = {},
+  glyphCoverage: GlyphCoverage = {},
 ): string {
   if (tracks.length === 0) {
     return "";
@@ -970,5 +992,5 @@ export function createMultiVoiceAssFile(
     endTitleScreenBy(renders[0].screens, Math.min(...otherStarts));
   }
   assignVoiceLanes(renders);
-  return renderAssDocument(renders, cjkCoverage);
+  return renderAssDocument(renders, glyphCoverage);
 }

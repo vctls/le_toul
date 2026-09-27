@@ -1,6 +1,6 @@
 import { defineStore } from "pinia";
 import { reactive, watch, ref, computed, shallowRef } from "vue";
-import { CjkCoverage, CountInMode, OutputFormat, VerticalAlignment } from "@/lib/timing";
+import { GlyphCoverage, CountInMode, OutputFormat, VerticalAlignment } from "@/lib/timing";
 import { NO_VOCALS_SEPARATOR_MODEL, BACKING_VOCALS_SEPARATOR_MODEL, useMediaStore } from "./media";
 import Color from "buefy/src/utils/color";
 import { SeparationModel } from "@/types";
@@ -125,7 +125,7 @@ function defaultSettings(): VideoSettings {
 interface LoadedFont {
   family: string;
   url: string;
-  cjk: ReadonlySet<number>;
+  coverage: ReadonlySet<number>;
 }
 
 export const useSettingsStore = defineStore("settings", () => {
@@ -148,8 +148,8 @@ export const useSettingsStore = defineStore("settings", () => {
   // libass takes URLs, not blobs. Not revoked while the font is in use: the preview's
   // worker and FFmpeg read it lazily, and revoking mid-read fails the read.
   const customFontUrl = ref<string | null>(null);
-  // The CJK characters the uploaded font can draw. The bundled CJK font draws the rest.
-  const customFontCjk = shallowRef<ReadonlySet<number>>(new Set());
+  // Which of the characters the fallback fonts stand in for the uploaded font can draw.
+  const customFontCoverage = shallowRef<ReadonlySet<number>>(new Set());
 
   // Load saved settings when the store is initialized
   loadSettings();
@@ -205,9 +205,9 @@ export const useSettingsStore = defineStore("settings", () => {
       return;
     }
     try {
-      const { family, cjk } = await readFont(file);
+      const { family, coverage } = await readFont(file);
       customFontFamily.value = family;
-      customFontCjk.value = cjk;
+      customFontCoverage.value = coverage;
       customFontUrl.value = URL.createObjectURL(file);
     } catch (e) {
       console.error("Could not read the saved custom font; ignoring it", e);
@@ -274,14 +274,14 @@ export const useSettingsStore = defineStore("settings", () => {
     if (!file) {
       customFont.value = null;
       customFontFamily.value = null;
-      customFontCjk.value = new Set();
+      customFontCoverage.value = new Set();
       customFontUrl.value = null;
       return;
     }
-    const { family, cjk } = await readFont(file);
+    const { family, coverage } = await readFont(file);
     customFont.value = file;
     customFontFamily.value = family;
-    customFontCjk.value = cjk;
+    customFontCoverage.value = coverage;
     customFontUrl.value = URL.createObjectURL(file);
   }
 
@@ -310,13 +310,13 @@ export const useSettingsStore = defineStore("settings", () => {
       : videoOptions,
   );
 
-  const cjkCoverage = computed<CjkCoverage>(() => {
+  const glyphCoverage = computed<GlyphCoverage>(() => {
     const coverage: Record<string, ReadonlySet<number>> = {};
     for (const font of Object.values(voiceFonts.value)) {
-      coverage[font.family] = font.cjk;
+      coverage[font.family] = font.coverage;
     }
     if (customFontFamily.value) {
-      coverage[customFontFamily.value] = customFontCjk.value;
+      coverage[customFontFamily.value] = customFontCoverage.value;
     }
     return coverage;
   });
@@ -484,7 +484,7 @@ export const useSettingsStore = defineStore("settings", () => {
     getVoiceFont,
     setVoiceFont,
     renderVoiceStyle,
-    cjkCoverage,
+    glyphCoverage,
     clearCustomFonts,
     setTimingKey,
     getVoiceStyle,

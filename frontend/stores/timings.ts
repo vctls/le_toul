@@ -224,7 +224,7 @@ export const useTimingsStore = defineStore("timings", {
             mediaStore.songTitle ?? "",
             mediaStore.songArtist ?? "",
             adjustedOptions,
-            settingsStore.cjkCoverage,
+            settingsStore.glyphCoverage,
           );
         } catch (e) {
           console.error("Failed to create subtitles", e);
@@ -300,7 +300,7 @@ export const useTimingsStore = defineStore("timings", {
             mediaStore.songDuration ?? 0,
             mediaStore.songTitle ?? "",
             mediaStore.songArtist ?? "",
-            settingsStore.cjkCoverage,
+            settingsStore.glyphCoverage,
           );
         } catch (e) {
           console.error("Failed to create multi-voice subtitles", e);

@@ -15,7 +15,7 @@ import {
   VerticalAlignment,
   resolveStarts,
   parseLyrics,
-  withCjkFont,
+  withFallbackFonts,
 } from "./timing";
 import { LYRIC_MARKERS, DEFAULT_COUNT_IN_THRESHOLD, DEFAULT_COUNT_IN_DURATION } from "@/constants";
 import { LyricSegment } from "./timing";
@@ -435,22 +435,22 @@ test("compileLyricTimings renders a partially timed project", () => {
   expect(screens[0].lines[0].segments.map((s) => s.text)).toEqual(["Be bop ", "a lu bop\n"]);
 });
 
-describe("withCjkFont", () => {
+describe("withFallbackFonts", () => {
   test("switches a CJK run to the CJK font and back", () => {
-    expect(withCjkFont("{\\kf100}Sakamoto 坂本 真綾!")).toBe(
+    expect(withFallbackFonts("{\\kf100}Sakamoto 坂本 真綾!", "Arial")).toBe(
       "{\\kf100}Sakamoto {\\fnNoto Sans CJK JP}坂本 真綾{\\fn}!",
     );
   });
 
   test("covers kana, the long vowel mark, CJK punctuation and Hangul", () => {
-    expect(withCjkFont("「カラオケー」한국")).toBe(
+    expect(withFallbackFonts("「カラオケー」한국", "Arial")).toBe(
       "{\\fnNoto Sans CJK JP}「カラオケー」한국{\\fn}",
     );
   });
 
   test("leaves Latin text and override blocks alone", () => {
     const line = "{\\fad(100,100)}{\\kf50}Crème brûlée · naïve";
-    expect(withCjkFont(line)).toBe(line);
+    expect(withFallbackFonts(line, "Arial")).toBe(line);
   });
 });
 
