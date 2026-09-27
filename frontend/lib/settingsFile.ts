@@ -105,6 +105,7 @@ const BOOLEAN_OPTIONS = [
   "dynamicCountIns",
   "addInstrumentalScreens",
   "addStaggeredLines",
+  "useStoredDisplayPeriods",
   "useBackgroundVideo",
 ] as const;
 

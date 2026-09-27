@@ -41,6 +41,7 @@ const DEFAULT_OPTIONS: KaraokeOptions = {
   countInDuration: DEFAULT_COUNT_IN_DURATION,
   addInstrumentalScreens: true,
   addStaggeredLines: true,
+  useStoredDisplayPeriods: true,
   useBackgroundVideo: false,
   outputFormat: "mp4",
   verticalAlignment: VerticalAlignment.Middle,
@@ -490,6 +491,29 @@ describe("stored display periods", () => {
     ]);
     expect(bar(createScreens(late(20), 40, "T", "A", options))).toEqual([14, 20]);
     expect(bar(createScreens(late(14), 40, "T", "A", options))).toBeUndefined();
+  });
+
+  it("are ignored when the option is off, along with the screens giving way", () => {
+    const options: KaraokeOptions = {
+      ...plain,
+      addTitleScreen: true,
+      addInstrumentalScreens: true,
+      useStoredDisplayPeriods: false,
+    };
+    const screens = createScreens(
+      song({ displayStart: 2, displayEnd: 20 }, { start: 30, end: 31, displayStart: 14 }),
+      40,
+      "T",
+      "A",
+      options,
+    );
+
+    expect(periods(screens)[0]).toEqual([undefined, undefined]);
+    expect(screens[0].lines.map((line) => line.customDisplayEndTime)).toEqual([
+      undefined,
+      undefined,
+    ]);
+    expect(screens.some((screen) => screen.kind === "instrumental")).toBe(true);
   });
 
   it("end the title screen at another voice's stored start", () => {
