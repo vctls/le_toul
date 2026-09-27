@@ -304,7 +304,7 @@ export function displayQuickLinesEarly(
     const earlyDisplayLines = nextScreen.lines.filter(
       (_, j) => nextScreen.slotOf(j) < leavingSlots,
     );
-    nextScreen.staggered = true;
+    nextScreen.earlySlots = leavingSlots;
     placeStaggeredScreen(screen, nextScreen, displayOptions);
 
     earlyDisplayLines.forEach((line, i) => {
@@ -333,6 +333,24 @@ function placeStaggeredScreen(
   ) {
     screen.positionAsSlotCount = previous.positionAsSlotCount ?? previous.slots;
   }
+}
+
+/**
+ * Show a staggered screen's early lines at the usual time again,
+ * and keep the previous screen's lines in those slots until then.
+ */
+export function unstagger(previous: LyricsScreen, screen: LyricsScreen): void {
+  const early = (s: LyricsScreen) => s.lines.filter((_, i) => s.slotOf(i) < screen.earlySlots);
+  for (const line of early(previous)) {
+    line.customDisplayEndTime = undefined;
+    line.fadeOutDuration = 0;
+  }
+  for (const line of early(screen)) {
+    line.customDisplayStartTime = undefined;
+    line.fadeInDuration = 0;
+  }
+  screen.earlySlots = 0;
+  screen.positionAsSlotCount = undefined;
 }
 
 /**

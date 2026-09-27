@@ -22,6 +22,7 @@ import {
   endTitleScreenBy,
   fitInstrumentalScreens,
   placeStaggeredScreens,
+  unstagger,
 } from "./adjustments";
 import { giveWayToStoredPeriods } from "./screenSlots";
 import { BUNDLED_SYMBOLS, FALLBACK_FONTS } from "./fonts";
@@ -454,8 +455,9 @@ export class LyricsScreen {
   // screen's first lines leave, so the block may be laid out as if it had that screen's slot count
   // instead of its own (see placeStaggeredScreens).
   positionAsSlotCount?: number;
-  // Staggered lines show this screen's first lines while the previous screen is still displayed.
-  staggered = false;
+  // Staggered lines show this screen's lines in its first `earlySlots` slots
+  // while the previous screen is still displayed.
+  earlySlots = 0;
   // Multi-voice only: when this screen overlaps another voice in time, it is confined to a
   // vertical "lane" so the voices don't interleave (see createMultiVoiceAssFile). When unset,
   // the screen uses the full height (normal centered/aligned layout).
@@ -483,6 +485,10 @@ export class LyricsScreen {
 
   get segments(): LyricSegment[] {
     return this.lines.flatMap((l) => l.segments);
+  }
+
+  get staggered(): boolean {
+    return this.earlySlots > 0;
   }
 
   get slots(): number {
@@ -1151,17 +1157,13 @@ function assignVoiceLanes(renders: VoiceTrackRender[]): void {
         screen.verticalZone = lane;
       }
     }
-    // A staggered screen's early lines share the slots of the previous screen's lines,
-    // so the two screens are either both in the lane or both out of it.
-    let changed = true;
-    while (changed) {
-      changed = false;
-      for (const [i, screen] of render.screens.entries()) {
-        const previous = render.screens[i - 1];
-        if (i > 0 && screen.staggered && !previous.verticalZone !== !screen.verticalZone) {
-          previous.verticalZone = screen.verticalZone = lane;
-          changed = true;
-        }
+    // A staggered screen's early lines only fill the slots the previous screen's lines leave
+    // when both screens are in the lane or both are out of it.
+    // Moving the other screen too would move its own staggered neighbour, and so on down the song.
+    for (const [i, screen] of render.screens.entries()) {
+      const previous = render.screens[i - 1];
+      if (i > 0 && screen.staggered && !previous.verticalZone !== !screen.verticalZone) {
+        unstagger(previous, screen);
       }
     }
   });

@@ -156,8 +156,8 @@ describe("placeLines", () => {
 });
 
 describe("placeLines with staggered lines and voice lanes", () => {
-  // Anna's second screen shows its first lines early, while her first screen is still displayed.
-  // Ben's line puts her first screen in a lane, and the staggered screen has to follow it there.
+  // Anna's second screen would show its first lines early, while her first screen is still displayed.
+  // Ben's line puts only her first screen in a lane, so the second one stays out of it.
   const anna: TimedSegment[] = [
     { text: "x\n\n", start: 1, end: 2 },
     { text: "a\n", start: 3, end: 3.9 },
@@ -174,7 +174,7 @@ describe("placeLines with staggered lines and voice lanes", () => {
     VerticalAlignment.Middle,
     VerticalAlignment.Bottom,
   ]) {
-    it(`puts the early lines in the slots they take over (alignment ${verticalAlignment})`, () => {
+    it(`shows the next screen's lines at the usual time, out of the lane (alignment ${verticalAlignment})`, () => {
       const staggered = { ...options, addStaggeredLines: true, verticalAlignment };
       const placements = placeLines(
         [
@@ -185,11 +185,12 @@ describe("placeLines with staggered lines and voice lanes", () => {
         "",
         "",
       );
+      const alone = place(anna, { ...options, verticalAlignment });
       const lines = placements.Anna;
 
       expect(overlapping(lines)).toEqual(new Set());
-      expect(lines.get(5)?.top).toBe(lines.get(1)?.top);
-      expect(lines.get(6)?.top).toBe(lines.get(2)?.top);
+      expect(lines.get(5)?.top).toBe(alone.get(5)?.top);
+      expect(lines.get(6)?.top).toBe(alone.get(6)?.top);
     });
   }
 });

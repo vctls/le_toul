@@ -17,6 +17,7 @@ import {
   parseLyrics,
   joinLyrics,
   withFallbackFonts,
+  layOutVoices,
 } from "./timing";
 import { LYRIC_MARKERS, DEFAULT_COUNT_IN_THRESHOLD, DEFAULT_COUNT_IN_DURATION } from "@/constants";
 import { LyricSegment } from "./timing";
@@ -764,6 +765,42 @@ describe("createMultiVoiceAssFile", () => {
 });
 
 describe("multi-voice vertical lanes", () => {
+  it("keeps a chain of staggered screens out of the lane except where another voice sings", () => {
+    const quick: KaraokeOptions = {
+      ...DEFAULT_OPTIONS,
+      addTitleScreen: false,
+      countInMode: "none",
+      addInstrumentalScreens: false,
+      addStaggeredLines: true,
+    };
+    // Four screens of two lines, each following the last closely enough to be staggered.
+    const lead = fromEvents(
+      "a1\na2\n\nb1\nb2\n\nc1\nc2\n\nd1\nd2",
+      [1, 2, 3, 4, 5, 6, 7, 8].map((t) => [t, LYRIC_MARKERS.SEGMENT_START] as LyricEvent),
+    );
+    const backing = fromEvents("x", [
+      [6.2, LYRIC_MARKERS.SEGMENT_START],
+      [6.8, LYRIC_MARKERS.SEGMENT_END],
+    ]);
+    const [render] = layOutVoices(
+      [
+        { voice: "lead", segments: lead, options: quick },
+        { voice: "backing", segments: backing, options: quick },
+      ],
+      10,
+      "",
+      "",
+    );
+
+    // Only the third screen overlaps the backing voice.
+    expect(render.screens.map((screen) => Boolean(screen.verticalZone))).toEqual([
+      false,
+      false,
+      true,
+      false,
+    ]);
+  });
+
   function marginVsForStyle(ass: string, style: string): number[] {
     return ass
       .split("\n")
