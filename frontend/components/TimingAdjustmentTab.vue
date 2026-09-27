@@ -62,6 +62,18 @@
           </template>
           <b-switch v-model="preservePitch"></b-switch>
         </b-field>
+        <b-field horizontal>
+          <template #label>
+            Line display times
+            <b-tooltip
+              multilined
+              label="Show each line in a frame that spans the time it's on screen, instead of the timing rectangles. Drag a frame's left or right edge to set when the line appears or disappears, and double-click it to go back to the automatic time. A dashed edge follows the automatic rules, and a solid one has been set."
+            >
+              <b-icon size="is-small" icon="circle-question"></b-icon>
+            </b-tooltip>
+          </template>
+          <b-switch v-model="showDisplayBands"></b-switch>
+        </b-field>
         <b-field label="Waveform zoom" horizontal>
           <b-numberinput
             expanded
@@ -116,6 +128,9 @@
       v-if="songFile && adjustmentSubtitles"
       ref="timing-adjuster"
       :segments="timingsStore.activeSegments"
+      :displayMode="showDisplayBands"
+      :bands="displayBands"
+      :bandsEnabled="settingsStore.videoOptions.useStoredDisplayPeriods"
       :audioData="songFile ?? undefined"
       :vocalTrack="vocalTrack ?? undefined"
       :playbackTrack="playbackTrack ?? undefined"
@@ -126,6 +141,8 @@
       :initialPlayhead="restoredPlayhead"
       :initialScroll="restoredScroll"
       @segmentschange="onSegmentsChange"
+      @band-updated="onBandUpdated"
+      @band-reset="onBandReset"
       @zoom-change="onZoomChange"
       @scroll-change="onScrollChange"
       @timeupdate="onPlayheadUpdate"
@@ -149,6 +166,7 @@ import { BButton, BField, BNumberinput, BSelect, BSwitch } from "buefy";
 import { VoiceId } from "@/lib/voices";
 import { clampSegmentOverlaps } from "@/lib/timingValidation";
 import { TimedSegment } from "@/lib/timedSegments";
+import { DisplayBand, displayBands } from "@/lib/displayBands";
 import { resolveThemeColor } from "@/lib/themeColor";
 import { onSchemeChange } from "@/lib/colorScheme";
 import { loadJsonFromStorage } from "@/lib/persistence";
@@ -204,6 +222,7 @@ const ADJUST_STORAGE_KEY = "adjust.state";
 interface PersistedAdjust {
   voiceState: Record<VoiceId, AdjustVoiceState>;
   preservePitch: boolean;
+  showDisplayBands?: boolean;
 }
 
 function defaultAdjustState(): AdjustVoiceState {
@@ -265,6 +284,8 @@ export default defineComponent({
       // Default off: the browser's stretcher warbles at slow rates,
       // and a dropped key costs nothing while tapping timings.
       preservePitch: restored?.preservePitch ?? false,
+      // Off by default, since most users never set display times.
+      showDisplayBands: restored?.showDisplayBands ?? false,
       // Which track to play back. The waveform always stays on the vocals.
       playbackTrackChoice: "full" as "full" | "vocals",
       // Per-voice control state.
@@ -294,6 +315,7 @@ export default defineComponent({
       return {
         voiceState: { ...this.voiceState, [this.activeVoice]: this.snapshotState() },
         preservePitch: this.preservePitch,
+        showDisplayBands: this.showDisplayBands,
       };
     },
     activeVoice(): VoiceId {
@@ -320,6 +342,14 @@ export default defineComponent({
     },
     isEnabled(): boolean {
       return this.timingsStore.length > 0;
+    },
+    displayBands(): DisplayBand[] {
+      if (!this.showDisplayBands) return [];
+      return displayBands(
+        this.timingsStore.activeSegments,
+        this.mediaStore.songDuration ?? 0,
+        this.settingsStore.renderOptions,
+      );
     },
     adjustmentSubtitles(): string {
       return this.subtitles({
@@ -485,6 +515,17 @@ export default defineComponent({
         end: shift(segment.end),
       }));
       this.timingsStore.resetSegments(clampSegmentOverlaps(shifted));
+    },
+    onBandUpdated(segmentIndex: number, side: "start" | "end", time: number) {
+      const segments = this.timingsStore.activeSegments.map((segment) => ({ ...segment }));
+      const bound = side === "start" ? "displayStart" : "displayEnd";
+      segments[segmentIndex] = { ...segments[segmentIndex], [bound]: time };
+      this.timingsStore.resetSegments(segments);
+    },
+    onBandReset(segmentIndex: number, side: "start" | "end") {
+      const segments = this.timingsStore.activeSegments.map((segment) => ({ ...segment }));
+      delete segments[segmentIndex][side === "start" ? "displayStart" : "displayEnd"];
+      this.timingsStore.resetSegments(segments);
     },
     onSegmentsChange(newSegments: Array<TimedSegment>) {
       // Guard against a committed overlap (an end past the next segment's start).

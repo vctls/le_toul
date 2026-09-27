@@ -1,5 +1,6 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import { shallowMount } from "@vue/test-utils";
+import { nextTick } from "vue";
 import { createPinia, setActivePinia } from "pinia";
 import TimingAdjustmentTab from "@/components/TimingAdjustmentTab.vue";
 import { useLyricsStore } from "@/stores/lyrics";
@@ -228,5 +229,47 @@ describe("TimingAdjustmentTab shortcuts", () => {
     (wrapper.vm.$options.watch!.activeVoice as Function).call(wrapper.vm, "voice1", "voice2");
     pressKey("Enter");
     expect(restartAt).toHaveBeenLastCalledWith(12.5);
+  });
+
+  describe("display mode", () => {
+    const adjuster = (wrapper: ReturnType<typeof mountTab>) =>
+      wrapper.findComponent({ name: "TimingAdjuster" });
+
+    it("hands the adjuster the line frames only while it is on", async () => {
+      const wrapper = mountTab();
+      expect(adjuster(wrapper).vm.$attrs.displayMode).toBe(false);
+      expect(adjuster(wrapper).vm.$attrs.bands).toEqual([]);
+
+      wrapper.vm.showDisplayBands = true;
+      await nextTick();
+
+      expect(adjuster(wrapper).vm.$attrs.displayMode).toBe(true);
+      expect(adjuster(wrapper).vm.$attrs.bands).toMatchObject([
+        { segmentIndex: 0, text: "hello world" },
+      ]);
+    });
+
+    it("stores a dragged edge on the line's first segment", () => {
+      const wrapper = mountTab();
+      adjuster(wrapper).vm.$emit("band-updated", 0, "start", 0.25);
+      adjuster(wrapper).vm.$emit("band-updated", 0, "end", 3);
+
+      expect(useTimingsStore().activeSegments[0]).toMatchObject({
+        start: 0.5,
+        displayStart: 0.25,
+        displayEnd: 3,
+      });
+    });
+
+    it("clears only the double-clicked edge", () => {
+      const wrapper = mountTab();
+      adjuster(wrapper).vm.$emit("band-updated", 0, "start", 0.25);
+      adjuster(wrapper).vm.$emit("band-updated", 0, "end", 3);
+      adjuster(wrapper).vm.$emit("band-reset", 0, "start");
+
+      const [segment] = useTimingsStore().activeSegments;
+      expect(segment.displayStart).toBeUndefined();
+      expect(segment.displayEnd).toBe(3);
+    });
   });
 });
