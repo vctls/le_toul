@@ -112,7 +112,7 @@ export function giveWayToStoredPeriods(renders: VoiceTrackRender[]): void {
 }
 
 // The longest a line takes to fade in or out.
-export const LINE_FADE: Timestamp = 0.25;
+export const LINE_FADE: Timestamp = 0.15;
 
 /**
  * How far the title screen and a quick-start count-in delay a voice's song in the render.
