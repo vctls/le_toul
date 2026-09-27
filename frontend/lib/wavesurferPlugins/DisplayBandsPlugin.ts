@@ -6,6 +6,7 @@
 
 import { BasePlugin, BasePluginEvents } from "wavesurfer.js/dist/base-plugin";
 import createElement from "wavesurfer.js/dist/dom";
+import { groupBy, sortBy } from "lodash-es";
 import { DisplayBand } from "@/lib/displayBands";
 import { sameHeight } from "@/lib/linePlacements";
 import { makeDraggable } from "./OpenEndedRegionPlugin";
@@ -34,6 +35,18 @@ const OUTER_HANDLE_Z = "2";
 const INNER_HANDLE_Z = "3";
 
 const bandColor = (band: DisplayBand) => (band.placement?.overlaps ? OVERLAP_COLOR : FRAME_COLOR);
+
+/**
+ * When the label after each band's own starts in its row. The last label of a row has none.
+ */
+function nextLabelStarts(bands: DisplayBand[]): Map<DisplayBand, number> {
+  const ends = new Map<DisplayBand, number>();
+  for (const row of Object.values(groupBy(bands, (band) => band.row))) {
+    const sorted = sortBy(row, (band) => band.latestStart);
+    sorted.slice(0, -1).forEach((band, i) => ends.set(band, sorted[i + 1].latestStart));
+  }
+  return ends;
+}
 
 class DisplayBandsPlugin extends BasePlugin<DisplayBandsPluginEvents, undefined> {
   private readonly container: HTMLElement;
@@ -91,8 +104,9 @@ class DisplayBandsPlugin extends BasePlugin<DisplayBandsPluginEvents, undefined>
     const duration = this.wavesurfer?.getDuration() ?? 0;
     if (!duration) return;
     this.container.style.opacity = this.enabled ? "1" : "0.4";
+    const labelEnds = nextLabelStarts(this.bands);
     for (const band of this.bands) {
-      this.createBand(band, duration);
+      this.createBand(band, duration, labelEnds.get(band));
     }
     const limit = (side: "start" | "end") =>
       createElement(
@@ -112,7 +126,7 @@ class DisplayBandsPlugin extends BasePlugin<DisplayBandsPluginEvents, undefined>
     this.limits = { start: limit("start"), end: limit("end") };
   }
 
-  private createBand(band: DisplayBand, duration: number) {
+  private createBand(band: DisplayBand, duration: number, labelEnd: number | undefined) {
     const percent = (time: number) => `${(time / duration) * 100}%`;
     const overlaps = band.placement?.overlaps ?? false;
     const color = bandColor(band);
@@ -154,6 +168,9 @@ class DisplayBandsPlugin extends BasePlugin<DisplayBandsPluginEvents, undefined>
           position: "absolute",
           top: "1px",
           left: `calc(${percent(band.latestStart)} + 2px)`,
+          // A label runs on until the next one in its row, which hides the rest of it.
+          maxWidth: labelEnd === undefined ? "" : percent(labelEnd - band.latestStart),
+          overflow: "hidden",
           whiteSpace: "nowrap",
           fontSize: "0.85em",
           color,
