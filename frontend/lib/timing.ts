@@ -44,8 +44,10 @@ export type CountInMode = (typeof COUNT_IN_MODES)[number];
 export interface KaraokeOptions {
   addTitleScreen: boolean;
   countInMode: CountInMode;
+  // Dynamic count-ins draw blocks when this is blank.
   countInText: string;
-  // Draw marks sized to the gap instead of showing countInText for countInDuration.
+  // Split countInText into marks, fewer for a shorter gap,
+  // instead of showing it whole for countInDuration.
   // Also changes countInThreshold from the gap a line needs to earn a count-in
   // into the gap that earns a full one.
   dynamicCountIns: boolean;
