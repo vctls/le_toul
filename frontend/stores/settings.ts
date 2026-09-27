@@ -62,6 +62,7 @@ export type VideoSettings = {
   countInDuration: number;
   addInstrumentalScreens: boolean;
   addStaggeredLines: boolean;
+  useStoredDisplayPeriods: boolean;
   useBackgroundVideo: boolean;
   outputFormat: OutputFormat;
   verticalAlignment: VerticalAlignment;
@@ -97,6 +98,7 @@ const DEFAULT_SETTINGS: VideoSettings = {
   countInDuration: DEFAULT_COUNT_IN_DURATION,
   addInstrumentalScreens: true,
   addStaggeredLines: true,
+  useStoredDisplayPeriods: true,
   useBackgroundVideo: false,
   outputFormat: "mp4",
   verticalAlignment: VerticalAlignment.Middle,

@@ -48,6 +48,8 @@ export interface KaraokeOptions {
   countInDuration: number;
   addInstrumentalScreens: boolean;
   addStaggeredLines: boolean;
+  // When this is off, every line follows the automatic rules, but the stored periods are kept.
+  useStoredDisplayPeriods: boolean;
   useBackgroundVideo: boolean;
   outputFormat: OutputFormat;
   verticalAlignment: VerticalAlignment;
@@ -79,6 +81,7 @@ export const DEFAULT_KARAOKE_OPTIONS: KaraokeOptions = {
   countInDuration: DEFAULT_COUNT_IN_DURATION,
   addInstrumentalScreens: true,
   addStaggeredLines: true,
+  useStoredDisplayPeriods: true,
   useBackgroundVideo: false,
   outputFormat: "mp4",
   verticalAlignment: VerticalAlignment.Middle,
@@ -855,9 +858,12 @@ export function createScreens(
   if (options.addInstrumentalScreens) {
     screens = addInstrumentalScreens(screens, options);
   }
-  screens = applyStoredDisplayPeriods(screens);
-  endTitleScreenBy(screens, earliestStoredStart(screens));
-  return fitInstrumentalScreens(screens);
+  if (options.useStoredDisplayPeriods) {
+    screens = applyStoredDisplayPeriods(screens);
+    endTitleScreenBy(screens, earliestStoredStart(screens));
+    screens = fitInstrumentalScreens(screens);
+  }
+  return screens;
 }
 
 // Derive the ASS style format params (font + colors + bold/italic) from karaoke options.
@@ -986,6 +992,7 @@ export function createMultiVoiceAssFile(
   // The title screen is global, so it gives way to every voice's stored periods.
   const otherStarts = renders
     .slice(1)
+    .filter((render) => render.options.useStoredDisplayPeriods)
     .map((render) => earliestStoredStart(render.screens))
     .filter((start) => start !== undefined);
   if (otherStarts.length > 0) {

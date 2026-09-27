@@ -33,6 +33,7 @@ const DEFAULT_OPTIONS: KaraokeOptions = {
   countInDuration: DEFAULT_COUNT_IN_DURATION,
   addInstrumentalScreens: true,
   addStaggeredLines: true,
+  useStoredDisplayPeriods: true,
   useBackgroundVideo: false,
   outputFormat: "mp4",
   verticalAlignment: VerticalAlignment.Middle,

@@ -23,6 +23,7 @@ const EXPORTED_FILE = yaml.dump({
     countInDuration: 1.5,
     addInstrumentalScreens: true,
     addStaggeredLines: true,
+    useStoredDisplayPeriods: false,
     useBackgroundVideo: true,
     outputFormat: "mkv",
     verticalAlignment: VerticalAlignment.Top,
@@ -54,6 +55,7 @@ describe("parseSettingsYaml", () => {
     expect(parsed.videoOptions.countInDuration).toBe(1.5);
     expect(parsed.videoOptions.addInstrumentalScreens).toBe(true);
     expect(parsed.videoOptions.addStaggeredLines).toBe(true);
+    expect(parsed.videoOptions.useStoredDisplayPeriods).toBe(false);
     expect(parsed.videoOptions.useBackgroundVideo).toBe(true);
     expect(parsed.videoOptions.outputFormat).toBe("mkv");
     expect(parsed.videoOptions.verticalAlignment).toBe(VerticalAlignment.Top);
