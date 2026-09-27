@@ -25,6 +25,7 @@ const FRAME_COLOR = "var(--region-label-on-waveform)";
 const OVERLAP_COLOR = "var(--bulma-danger)";
 const ACTIVE_FILL = "color-mix(in srgb, var(--bulma-primary) 45%, transparent)";
 const SAME_HEIGHT_FILL = "color-mix(in srgb, var(--bulma-primary) 20%, transparent)";
+const LIMIT_COLOR = "var(--bulma-primary)";
 // The fills are translucent, so the more frames overlap, the darker the area they share.
 const restFill = (color: string) => `color-mix(in srgb, ${color} 7%, transparent)`;
 // The z-indexes of the lifted frame, and of the halves of each handle outside and inside its frame.
@@ -40,6 +41,7 @@ class DisplayBandsPlugin extends BasePlugin<DisplayBandsPluginEvents, undefined>
   private enabled = true;
   private cleanups: (() => void)[] = [];
   private frames: { band: DisplayBand; row: HTMLElement; frame: HTMLElement }[] = [];
+  private limits: Record<"start" | "end", HTMLElement> | undefined;
   private hovered?: DisplayBand;
   private dragged?: DisplayBand;
 
@@ -92,6 +94,22 @@ class DisplayBandsPlugin extends BasePlugin<DisplayBandsPluginEvents, undefined>
     for (const band of this.bands) {
       this.createBand(band, duration);
     }
+    const limit = (side: "start" | "end") =>
+      createElement(
+        "div",
+        {
+          part: `display-band-limit display-band-limit-${side}`,
+          style: {
+            position: "absolute",
+            top: "0",
+            height: "100%",
+            borderLeft: `2px dashed ${LIMIT_COLOR}`,
+            display: "none",
+          },
+        },
+        this.container,
+      );
+    this.limits = { start: limit("start"), end: limit("end") };
   }
 
   private createBand(band: DisplayBand, duration: number) {
@@ -280,7 +298,7 @@ class DisplayBandsPlugin extends BasePlugin<DisplayBandsPluginEvents, undefined>
 
   /**
    * Tint and lift the dragged or hovered frame, and more lightly tint the frames of the lines
-   * drawn at its height.
+   * drawn at its height. Mark how far its edges can be dragged before they reach one of those lines.
    */
   private highlightFrames() {
     // A drag keeps its highlight when the pointer leaves the frame.
@@ -293,6 +311,21 @@ class DisplayBandsPlugin extends BasePlugin<DisplayBandsPluginEvents, undefined>
         sameHeight(band.placement, active.placement);
       frame.style.backgroundColor =
         band === active ? ACTIVE_FILL : atSameHeight ? SAME_HEIGHT_FILL : restFill(bandColor(band));
+    }
+    const duration = this.wavesurfer?.getDuration() ?? 0;
+    if (!this.limits || !duration) return;
+    // A limit at the song's bounds comes from no line, so it isn't marked.
+    const { earliestStart = 0, latestEnd = duration } = active?.placement ?? {};
+    const times = {
+      start: earliestStart > 0 ? earliestStart : undefined,
+      end: latestEnd < duration ? latestEnd : undefined,
+    };
+    for (const side of ["start", "end"] as const) {
+      const time = times[side];
+      Object.assign(this.limits[side].style, {
+        display: time === undefined ? "none" : "",
+        left: time === undefined ? "" : `${(time / duration) * 100}%`,
+      });
     }
   }
 
