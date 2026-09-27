@@ -5,6 +5,7 @@ import { TimedSegment } from "./timedSegments";
 import {
   DISPLAY_PERIOD_WIDENED,
   TimingsTextError,
+  formatTimecode,
   isTimingsText,
   parseTimingsText,
   parseVoiceTimingsText,
@@ -540,5 +541,17 @@ describe("the section of one voice", () => {
   test("returns its warnings", () => {
     const { warnings } = parseVoiceTimingsText(file("00:05.00", '"a"  00:01.00', "-"));
     expect(warnings).toEqual([DISPLAY_PERIOD_WIDENED]);
+  });
+});
+
+describe("formatTimecode", () => {
+  test("formats seconds as MM:SS.cc", () => {
+    expect(formatTimecode(0)).toBe("00:00.00");
+    expect(formatTimecode(65.07)).toBe("01:05.07");
+    expect(formatTimecode(9.5)).toBe("00:09.50");
+  });
+
+  test("carries a rounded centisecond into the seconds and minutes", () => {
+    expect(formatTimecode(59.999)).toBe("01:00.00");
   });
 });
