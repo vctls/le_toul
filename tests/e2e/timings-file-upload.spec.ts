@@ -73,14 +73,14 @@ test.describe("Telling timings and lyrics files apart", () => {
           '"Went "  00:01.00',
           "-",
           "",
-          "-",
-          "-",
+          "00:02.00",
+          "00:03.00",
         ]),
       );
 
     await expect(page.locator('[name="timings-file-upload"] .file-name')).toHaveText("timings.txt");
     await expect(page.locator(".existing-files .import-warnings")).toContainText(
-      "A blank spacer line was dropped",
+      "A blank spacer line's display times were dropped",
     );
   });
 

@@ -3,10 +3,11 @@ import {
   BRACKETS_REMOVED,
   DISPLAY_PERIOD_WIDENED,
   MARKUP_REMOVED,
-  SPACER_DROPPED,
+  SPACER_BOUNDS_DROPPED,
+  SPACER_PAGE_DROPPED,
 } from "./importWarnings";
 import { parseLyrics } from "./timing";
-import { TimedSegment } from "./timedSegments";
+import { TimedSegment, fromLyric } from "./timedSegments";
 import {
   TimingsTextError,
   formatTimecode,
@@ -73,9 +74,15 @@ describe("parseTimingsText", () => {
       { text: "a_", start: 28.37 },
       { text: "fol/", start: 30.52 },
       { text: "low\n\n", start: 31.01, end: 31.77 },
-      { text: "▅▅▅▅▅▅▅▅▅▅▅", start: 40.57, displayStart: 40.15, displayEnd: 42.29 },
+      {
+        text: "▅▅▅▅▅▅▅▅▅▅▅",
+        start: 40.57,
+        displayStart: 40.15,
+        displayEnd: 42.29,
+        spacersBefore: 1,
+      },
     ]);
-    expect(warnings).toEqual([SPACER_DROPPED]);
+    expect(warnings).toEqual([]);
   });
 
   test("puts rows before any voice row in the default voice", () => {
@@ -283,6 +290,29 @@ describe("parseTimingsText", () => {
     });
   });
 
+  describe("spacers", () => {
+    test("are counted on the line below them", () => {
+      const segments = voice(
+        signed("-", "-", "-", '"a"', "-", "-", "-", "-", "-", "-", '"b"', "-"),
+      );
+      expect(segments).toEqual([
+        { text: "a\n", spacersBefore: 1 },
+        { text: "b", spacersBefore: 2 },
+      ]);
+    });
+
+    test("at the bottom of a page are counted on its last line", () => {
+      const segments = voice(
+        signed("-", '"a "', '"b"', "-", "-", "-", "page", "-", "-", "-", '"c"', "-", "-", "-"),
+      );
+      expect(segments).toEqual([
+        { text: "a_", spacersAfter: 1 },
+        { text: "b\n\n" },
+        { text: "c", spacersBefore: 1, spacersAfter: 1 },
+      ]);
+    });
+  });
+
   describe("removes what the lyrics can't hold", () => {
     test("a / or _ in the text", () => {
       const { voices, warnings } = parseTimingsText(signed("-", '"a/b "', '"c_d"', "-"));
@@ -298,12 +328,20 @@ describe("parseTimingsText", () => {
       expect(warnings).toEqual([BRACKETS_REMOVED]);
     });
 
-    test("spacers, with or without times", () => {
+    test("the display period of a spacer", () => {
       const { voices, warnings } = parseTimingsText(
-        signed("page", "-", "-", "-", '"a"', "-", "00:01.00", "00:02.00", "page", "-", "-"),
+        signed("00:01.00", "00:02.00", "-", '"a"  00:03.00', "-"),
       );
-      expect(texts(voices["Voice 1"])).toEqual(["a"]);
-      expect(warnings).toEqual([`${SPACER_DROPPED} (×3)`]);
+      expect(voices["Voice 1"]).toEqual([{ text: "a", start: 3, spacersBefore: 1 }]);
+      expect(warnings).toEqual([SPACER_BOUNDS_DROPPED]);
+    });
+
+    test("a page holding only spacers", () => {
+      const { voices, warnings } = parseTimingsText(
+        signed("-", '"a"', "-", "page", "-", "-", "-", "-", "page", "-", '"b"', "-"),
+      );
+      expect(voices["Voice 1"]).toEqual([{ text: "a\n\n" }, { text: "b" }]);
+      expect(warnings).toEqual([SPACER_PAGE_DROPPED]);
     });
   });
 
@@ -424,6 +462,39 @@ describe("writeTimingsText", () => {
     ]);
   });
 
+  test("writes spacers as a header followed directly by its footer", () => {
+    expect(
+      writeVoiceTimingsText([
+        { text: "a\n", start: 1, spacersBefore: 1 },
+        { text: "b", start: 2, spacersBefore: 1, spacersAfter: 2 },
+      ]),
+    ).toBe(
+      file(
+        "page",
+        "",
+        "-",
+        "-",
+        "",
+        "-",
+        '"a"  00:01.00',
+        "-",
+        "",
+        "-",
+        "-",
+        "",
+        "-",
+        '"b"  00:02.00',
+        "-",
+        "",
+        "-",
+        "-",
+        "",
+        "-",
+        "-",
+      ),
+    );
+  });
+
   test("puts empty syllables on the line of the last one with text", () => {
     const text = writeTimingsText(
       {
@@ -462,10 +533,10 @@ describe("writeTimingsText", () => {
 
 describe("round trip", () => {
   const lyricSegments = (lyrics: string): TimedSegment[] =>
-    parseLyrics(lyrics, true).map(({ text }) => ({ text }));
+    parseLyrics(lyrics, true).map(fromLyric);
 
-  test("keeps holes, open ends, ends with no start, textless timings and display periods", () => {
-    const anna = lyricSegments("Hel/lo_world\nsec/ond_line\n\nnext_page");
+  test("keeps holes, open ends, ends with no start, textless timings, display periods and spacers", () => {
+    const anna = lyricSegments("/\nHel/lo_world\n/\nsec/ond_line\n/\n\nnext_page\n/");
     Object.assign(anna[0], { start: 1, displayStart: 0.5 });
     Object.assign(anna[1], { start: 1.25 });
     Object.assign(anna[2], { start: 1.5, end: 1.75 });
@@ -524,8 +595,8 @@ describe("the section of one voice", () => {
   });
 
   test("spells out the lyrics the lyric parser reads", () => {
-    const lyrics = "Be bop_a lu bop\nShe's my ba/by\n\nAnd_here's_screen_two";
-    const lyricSegments = parseLyrics(lyrics, true).map(({ text }) => ({ text }));
+    const lyrics = "Be bop_a lu bop\n/\nShe's my ba/by\n\nAnd_here's_screen_two";
+    const lyricSegments = parseLyrics(lyrics, true).map(fromLyric);
     const { segments } = parseVoiceTimingsText(writeVoiceTimingsText(lyricSegments));
     expect(segments).toEqual(lyricSegments);
   });

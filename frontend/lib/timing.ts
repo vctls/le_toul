@@ -223,6 +223,32 @@ export function parseLyrics(lyricsText: string, includeMarkup: boolean = false):
 }
 
 /**
+ * The lyric text that `parseLyrics` reads back into these segments, spacers included.
+ */
+export function joinLyrics(segments: Segment[]): string {
+  let text = "";
+  let head: Segment | undefined;
+  segments.forEach((segment, i) => {
+    head ??= segment;
+    if (segment === head) {
+      text += "/\n".repeat(segment.spacersBefore ?? 0);
+    }
+    const after = "/\n".repeat(head.spacersAfter ?? 0);
+    if (segment.text.endsWith("\n\n")) {
+      text += segment.text.slice(0, -1) + after + "\n";
+    } else if (i === segments.length - 1 && after !== "") {
+      text += segment.text + "\n" + after.slice(0, -1);
+    } else {
+      text += segment.text;
+    }
+    if (segment.text.endsWith("\n")) {
+      head = undefined;
+    }
+  });
+  return text;
+}
+
+/**
  * The lines of a separator run that sit between two of its line breaks, so hold only markup.
  */
 function wholeLines(run: string): string[] {

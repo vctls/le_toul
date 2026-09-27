@@ -95,7 +95,30 @@ describe("TimingEditTab", () => {
     wrapper.vm.draft = wrapper.vm.draft.replace('"world"', '"there"');
     wrapper.vm.apply();
 
-    expect(wrapper.vm.error).toContain("Edit the words in the Lyrics tab.");
+    expect(wrapper.vm.error).toContain("Edit the words and blank lines in the Lyrics tab.");
     expect(useLyricsStore().lyricText).toContain("hel/lo_world");
+  });
+
+  it("writes a new spacer back to the lyrics, keeping the timings", () => {
+    const wrapper = mountTab();
+    wrapper.vm.draft = wrapper.vm.draft.replace("page\n\n", "page\n\n-\n-\n\n");
+    wrapper.vm.apply();
+
+    expect(wrapper.vm.error).toBe("");
+    expect(useLyricsStore().lyricText).toBe("/\nhel/lo_world");
+    expect(useTimingsStore().activeSegments[0]).toEqual({
+      text: "hel/",
+      start: 0.5,
+      spacersBefore: 1,
+    });
+  });
+
+  it("refuses a new spacer when the song has several voices", () => {
+    const wrapper = mountTab("[Anna]\nhel/lo_world\n[Ben]\nother_words");
+    wrapper.vm.draft = wrapper.vm.draft.replace("page\n\n", "page\n\n-\n-\n\n");
+    wrapper.vm.apply();
+
+    expect(wrapper.vm.error).toContain("blank lines");
+    expect(useTimingsStore().activeSegments[0].spacersBefore).toBeUndefined();
   });
 });
