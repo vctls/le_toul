@@ -27,7 +27,7 @@ function displayTimesField(page: Page) {
   });
 }
 
-async function setupDisplayMode(page: Page) {
+async function setupDisplayMode(page: Page, lyrics = LYRICS) {
   await navigateToTab(page, TabId.SongInfo);
   await uploadAudioFile(
     page,
@@ -36,7 +36,7 @@ async function setupDisplayMode(page: Page) {
     defaultTestConfig.title,
   );
   await navigateToTab(page, TabId.LyricInput);
-  await loadAndEnterLyrics(page, LYRICS);
+  await loadAndEnterLyrics(page, lyrics);
   await navigateToTab(page, TabId.SongInfo);
   await uploadTimingsFile(page, FIXTURE_TIMINGS);
   await navigateToTab(page, TabId.TimingAdjustment);
@@ -163,5 +163,29 @@ test.describe("Adjust tab display mode", () => {
     const frameEnd = (frameBox.x + frameBox.width - wrapperBox.x) / pixelsPerSecond;
     expect(frameEnd).toBeCloseTo(displayEnd, 1);
     expect(await frame.evaluate((el) => getComputedStyle(el).borderRightStyle)).toBe("solid");
+  });
+
+  test("stops a dragged end at the line at its height, which then appears as it ends", async ({
+    page,
+  }) => {
+    // Two screens of two lines, so One and Three share a height. Three is sung from 5 s.
+    await setupDisplayMode(page, "One\nTwo\n\nThree\nFour");
+    const frames = page.locator('[part="display-band"]');
+    const pixelsPerSecond = await waveformPixelsPerSecond(page);
+    const box = (await frames.first().locator('[part~="display-band-end"]').boundingBox())!;
+    const y = box.y + box.height / 2;
+    await page.mouse.move(box.x + box.width / 2, y);
+    await page.mouse.down();
+    await page.mouse.move(box.x + box.width / 2 + 6 * pixelsPerSecond, y, { steps: 10 });
+    await page.mouse.up();
+
+    await expect.poll(() => firstSegment(page)).toMatchObject({ displayEnd: 5 });
+    const wrapper = page.locator('.timing-adjustment-tab .wavesurfer-container [part~="wrapper"]');
+    const threeStart = async () => {
+      const [frame, waveform] = [await frames.nth(2).boundingBox(), await wrapper.boundingBox()];
+      return (frame!.x - waveform!.x) / pixelsPerSecond;
+    };
+    await expect.poll(threeStart).toBeCloseTo(5, 1);
+    await expect(page.locator("[data-overlaps]")).toHaveCount(0);
   });
 });

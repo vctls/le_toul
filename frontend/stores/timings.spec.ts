@@ -451,6 +451,25 @@ describe("Timings Store", () => {
       });
     });
 
+    test("flags the active voice's lines that the video shows in the same place", () => {
+      const timings = useTimingsStore();
+      useMediaStore().songDuration = 30;
+      useLyricsStore().setLyrics("a\n\nb");
+      timings.setAllSegments({
+        [DEFAULT_VOICE_ID]: [
+          { text: "a\n\n", start: 1, end: 2, displayEnd: 4 },
+          { text: "b", start: 3, end: 4 },
+        ],
+      });
+
+      const overlaps = () =>
+        [...timings.activeLinePlacements.values()].map((line) => line.overlaps);
+      expect(overlaps()).toEqual([true, true]);
+
+      useSettingsStore().videoOptions.useStoredDisplayPeriods = false;
+      expect(overlaps()).toEqual([false, false]);
+    });
+
     test("deleting a line drops its period with it", async () => {
       const { timings, lyrics } = withPeriods("one\ntwo\nthree", [
         { text: "one\n", start: 1, displayStart: 0.5 },

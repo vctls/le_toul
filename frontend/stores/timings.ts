@@ -11,7 +11,9 @@ import {
   createMultiVoiceAssFile,
   resolveStarts,
   DEFAULT_KARAOKE_OPTIONS,
+  VoiceTrack,
 } from "@/lib/timing";
+import { LinePlacement, placeLines } from "@/lib/linePlacements";
 import {
   TimedSegment,
   fromEvents,
@@ -280,15 +282,14 @@ export const useTimingsStore = defineStore("timings", {
       return writeTimingsText(state._segmentsByVoice, useLyricsStore().voices);
     },
 
-    // Composited subtitles for ALL voices (used by the Submit preview and final video), as opposed to `subtitles`,
-    // which renders only the active voice (used by Adjust).
-    allVoicesSubtitles() {
-      return (options: Partial<VideoSettings> = {}): string => {
+    /**
+     * Each timed voice with the segments and styled options the video renders it with.
+     */
+    voiceTracks() {
+      return (options: Partial<VideoSettings> = {}): VoiceTrack[] => {
         const settingsStore = useSettingsStore();
-        const mediaStore = useMediaStore();
         const baseOptions = settingsStore.renderOptions || DEFAULT_KARAOKE_OPTIONS;
-
-        const tracks = this.voicesWithTimings.map((voice) => ({
+        return this.voicesWithTimings.map((voice) => ({
           voice,
           segments: this.timedSegmentsForVoice(voice),
           options: {
@@ -296,6 +297,16 @@ export const useTimingsStore = defineStore("timings", {
             ...options,
           },
         }));
+      };
+    },
+
+    // Composited subtitles for ALL voices (used by the Submit preview and final video), as opposed to `subtitles`,
+    // which renders only the active voice (used by Adjust).
+    allVoicesSubtitles() {
+      return (options: Partial<VideoSettings> = {}): string => {
+        const settingsStore = useSettingsStore();
+        const mediaStore = useMediaStore();
+        const tracks = this.voiceTracks(options);
         if (tracks.length === 0) {
           return "";
         }
@@ -313,6 +324,25 @@ export const useTimingsStore = defineStore("timings", {
           return "";
         }
       };
+    },
+
+    /**
+     * Where the video draws each of the active voice's lines, keyed by the index of its first segment.
+     */
+    activeLinePlacements(): Map<number, LinePlacement> {
+      const mediaStore = useMediaStore();
+      try {
+        const placements = placeLines(
+          this.voiceTracks(),
+          mediaStore.songDuration ?? 0,
+          mediaStore.songTitle ?? "",
+          mediaStore.songArtist ?? "",
+        );
+        return placements[this.activeVoice] ?? new Map();
+      } catch (e) {
+        console.error("Failed to place lines", e);
+        return new Map();
+      }
     },
   },
 
