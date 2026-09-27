@@ -279,6 +279,23 @@ test("LyricScreen follows the line spacing and top margin", () => {
   expect(tops).toEqual([60, 205, 350, 495].map((y) => Math.round((y * 288) / 1080)));
 });
 
+test("the title screen stays centred whatever the alignment", () => {
+  const options: KaraokeOptions = {
+    ...DEFAULT_OPTIONS,
+    countInMode: "none",
+    addInstrumentalScreens: false,
+    addStaggeredLines: false,
+    verticalAlignment: VerticalAlignment.Top,
+  };
+  const ass = createAssFile([{ text: "a", start: 10 }], 20, "Title", "Artist", options);
+  const marginVs = ass
+    .split("\n")
+    .filter((line) => line.startsWith("Dialogue:"))
+    .map((line) => Number(line.split(",")[7]));
+  // Two title lines centred on 144, then the lyric line in the top slot.
+  expect(marginVs).toEqual([118, 148, 30]);
+});
+
 test("setScreenStartTimes", () => {
   const screens = compileLyricTimings(fromEvents(testLyrics, testEvents));
   const adjusted = setScreenStartTimes(screens);
