@@ -1,4 +1,4 @@
-import { getCurrentWord, slashifyAllOccurences } from "./lyrics";
+import { getCurrentWord, slashifiedPosition, slashifyAllOccurences } from "./lyrics";
 
 test("getCurrentWord", () => {
   const text = `The quick brown
@@ -20,4 +20,12 @@ test("slashifyAllOccurences", () => {
   expect(slashifyAllOccurences("Ggg end\nbegin ggg", "Ggg", "G/gg")).toBe("G/gg end\nbegin g/gg");
   expect(slashifyAllOccurences("ggg\n/\n\nggg\n", "", "/")).toBe("ggg\n/\n\nggg\n");
   expect(slashifyAllOccurences("ggg ,/\n\n", ",", ",/")).toBe("ggg ,/\n\n");
+});
+
+test("slashifiedPosition", () => {
+  expect(slashifiedPosition("gold x gold/", "gold/ x gold/", 12)).toBe(13);
+  expect(slashifiedPosition("go/ld x gold", "go/ld x go/ld", 3)).toBe(3);
+  expect(slashifiedPosition("go/ld x/y\ngo/ld", "go/ld x/y\ngold", 7)).toBe(7);
+  expect(slashifiedPosition("gold/ gold", "gold/ gold/", 10)).toBe(10);
+  expect(slashifiedPosition("ab cd a/b", "a/b cd a/b", 8)).toBe(9);
 });

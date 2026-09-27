@@ -93,3 +93,22 @@ export function slashifyAllOccurences(
 
   return result;
 }
+/**
+ * Maps a position in [oldText] to the same place in [newText], where [newText] differs only by
+ * slashes added or removed outside the word holding the position.
+ */
+export function slashifiedPosition(oldText: string, newText: string, position: number): number {
+  let wordStart = position;
+  while (wordStart > 0 && !isBoundaryChar(oldText[wordStart - 1])) {
+    wordStart--;
+  }
+  let boundariesLeft = oldText.slice(0, wordStart).split("").filter(isBoundaryChar).length;
+  let newWordStart = 0;
+  while (boundariesLeft > 0) {
+    if (isBoundaryChar(newText[newWordStart])) {
+      boundariesLeft--;
+    }
+    newWordStart++;
+  }
+  return newWordStart + position - wordStart;
+}
