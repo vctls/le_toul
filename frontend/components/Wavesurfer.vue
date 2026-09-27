@@ -12,6 +12,8 @@ import { defineComponent, markRaw, PropType } from "vue";
 import WaveSurfer from "wavesurfer.js";
 import type { GenericPlugin } from "wavesurfer.js/dist/base-plugin";
 import RegionsPlugin, { Region, RegionParams } from "@/lib/wavesurferPlugins/OpenEndedRegionPlugin";
+import DisplayBandsPlugin from "@/lib/wavesurferPlugins/DisplayBandsPlugin";
+import { DisplayBand } from "@/lib/displayBands";
 import { onSchemeChange } from "@/lib/colorScheme";
 
 // WaveSurfer paints to a canvas, so custom properties have to be resolved to literal colors rather than inherited.
@@ -45,6 +47,15 @@ export default defineComponent({
       type: Array as PropType<RegionParams[]>,
       default: () => [],
     },
+    // Each line's display period, drawn in a lane under the waveform. Empty hides the lane.
+    bands: {
+      type: Array as PropType<DisplayBand[]>,
+      default: () => [],
+    },
+    bandsEnabled: {
+      type: Boolean,
+      default: true,
+    },
     // This is where the view was scrolled to, in seconds. It is applied once, when the waveform
     // is laid out.
     initialScroll: {
@@ -66,6 +77,7 @@ export default defineComponent({
       // Not reactive: Vue would hand back proxies of the regions the plugin holds,
       // and the raw instances its own events carry would no longer compare equal to them.
       regionsPlugin: markRaw(RegionsPlugin.create()),
+      bandsPlugin: markRaw(DisplayBandsPlugin.create()),
       isVisible: false,
       _observer: null as IntersectionObserver | null,
       _resizeObserver: null as ResizeObserver | null,
@@ -122,7 +134,10 @@ export default defineComponent({
       height: 200,
       minPxPerSec: this.minPxPerSec,
       normalize: false,
-      plugins: [this.regionsPlugin as unknown as GenericPlugin],
+      plugins: [
+        this.regionsPlugin as unknown as GenericPlugin,
+        this.bandsPlugin as unknown as GenericPlugin,
+      ],
     });
     if (this.audioData) this.wavesurfer.loadBlob(this.audioData);
 
@@ -142,7 +157,15 @@ export default defineComponent({
     // Landing straight on this tab (a #adjust deep link or reload) is the case that hits it.
     this.wavesurfer.on("ready", () => {
       this.updateRegions(this.regions);
+      this.bandsPlugin.setBands(this.bands, this.bandsEnabled);
       this.applyInitialScroll();
+    });
+
+    this.bandsPlugin.on("band-updated", (segmentIndex, side, time) => {
+      this.$emit("band-updated", segmentIndex, side, time);
+    });
+    this.bandsPlugin.on("band-reset", (segmentIndex, side) => {
+      this.$emit("band-reset", segmentIndex, side);
     });
 
     this.regionsPlugin.on("region-updated", (region: Region) => {
@@ -181,6 +204,12 @@ export default defineComponent({
         });
       }
     },
+    bands(bands: DisplayBand[]) {
+      this.bandsPlugin.setBands(bands, this.bandsEnabled);
+    },
+    bandsEnabled(enabled: boolean) {
+      this.bandsPlugin.setBands(this.bands, enabled);
+    },
     regions: {
       handler: function (newRegions) {
         // A drag just moved this region in place, so the prop change is only the store value catching up.
@@ -201,7 +230,15 @@ export default defineComponent({
       deep: true,
     },
   },
-  emits: ["seeking", "region-updated", "regions-updated", "zoom-change", "scroll-change"],
+  emits: [
+    "seeking",
+    "region-updated",
+    "regions-updated",
+    "band-updated",
+    "band-reset",
+    "zoom-change",
+    "scroll-change",
+  ],
   methods: {
     schemeColors() {
       return {

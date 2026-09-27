@@ -14,12 +14,16 @@
     <wavesurfer
       ref="wavesurfer"
       :audioData="vocalTrack || audioData"
-      :regions="regions"
+      :regions="displayMode ? [] : regions"
+      :bands="bands"
+      :bandsEnabled="bandsEnabled"
       :mediaControls="false"
       :minPxPerSec="zoom"
       :initialScroll="initialScroll"
       @region-updated="onRegionUpdated"
       @regions-updated="onRegionsUpdated"
+      @band-updated="(...args: unknown[]) => $emit('band-updated', ...args)"
+      @band-reset="(...args: unknown[]) => $emit('band-reset', ...args)"
       @seeking="onWavesurferSeeking"
       @zoom-change="$emit('zoom-change', $event)"
       @scroll-change="$emit('scroll-change', $event)"
@@ -28,13 +32,14 @@
 </template>
 
 <script lang="ts">
-import { defineComponent, markRaw } from "vue";
+import { defineComponent, markRaw, PropType } from "vue";
 import { RegionParams, Region } from "@/lib/wavesurferPlugins/OpenEndedRegionPlugin";
 import Wavesurfer from "@/components/Wavesurfer.vue";
 import SmoothAudioPlayer from "./SmoothAudioPlayer.vue";
 
 import { displayText, resolveStarts } from "@/lib/timing";
 import { TimedSegment } from "@/lib/timedSegments";
+import { DisplayBand } from "@/lib/displayBands";
 
 function createLyricRegion(
   id: number,
@@ -50,13 +55,25 @@ function createLyricRegion(
 }
 
 export default defineComponent({
-  emits: ["segmentschange", "timeupdate", "seeking", "zoom-change", "scroll-change"],
+  emits: [
+    "segmentschange",
+    "band-updated",
+    "band-reset",
+    "timeupdate",
+    "seeking",
+    "zoom-change",
+    "scroll-change",
+  ],
   components: {
     Wavesurfer,
     SmoothAudioPlayer,
   },
   props: {
     segments: Array<TimedSegment>,
+    // Display mode draws each line's display period in place of the timing regions.
+    displayMode: { type: Boolean, default: false },
+    bands: { type: Array as PropType<DisplayBand[]>, default: () => [] },
+    bandsEnabled: { type: Boolean, default: true },
     audioData: Blob,
     // URL to the vocal track audio file
     vocalTrack: { type: Blob, required: false },

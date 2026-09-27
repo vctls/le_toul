@@ -12,7 +12,7 @@ import { BasePluginEvents } from "wavesurfer.js/dist/base-plugin";
 import EventEmitter from "wavesurfer.js/dist/event-emitter";
 import createElement from "wavesurfer.js/dist/dom";
 
-function makeDraggable(
+export function makeDraggable(
   element: HTMLElement,
   onDrag: (dx: number, dy: number, x: number, y: number) => void,
   onStart?: (x: number, y: number) => void,
