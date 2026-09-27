@@ -219,6 +219,10 @@ describe("kbpToProjectFiles", () => {
       { text: "home", spacersBefore: 1, spacersAfter: 1 },
     ]);
     expect(result.warnings).toEqual([SPACER_PAGE_DROPPED, COUNT_INS_OFF]);
+    // KBS anchors lines to the top, where spacers push them down a full slot.
+    expect(parseSettingsYaml(result.settings).videoOptions.verticalAlignment).toBe(
+      VerticalAlignment.Top,
+    );
   });
 
   test("gives a spacer the voice of the line it pushes down, whatever its style", () => {
