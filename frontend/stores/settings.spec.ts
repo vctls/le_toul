@@ -356,6 +356,19 @@ describe("Settings Store", () => {
       expect(ben.font.name).toBe("Metal Mania");
     });
 
+    test("the CJK characters of uploaded fonts are known by family", async () => {
+      const store = useSettingsStore();
+
+      await store.setCustomFont(fontFile("NotoSansCJKjp-Regular.otf"));
+      await store.setVoiceFont("Anna", fontFile("Impact.ttf"));
+
+      expect(store.cjkCoverage["Noto Sans CJK JP"].has("坂".codePointAt(0)!)).toBe(true);
+      expect(store.cjkCoverage["Impact"].size).toBe(0);
+
+      await store.setCustomFont(null);
+      expect(store.cjkCoverage).not.toHaveProperty("Noto Sans CJK JP");
+    });
+
     test("a voice's uploaded font overrides its picked one for rendering only", async () => {
       const store = useSettingsStore();
       store.setVoiceStyleField("Anna", "fontName", "Impact");
