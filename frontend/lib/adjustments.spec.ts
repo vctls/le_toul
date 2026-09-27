@@ -363,3 +363,29 @@ describe("deferScreenStarts", () => {
     expect(screens[0].startTimestamp).toBe(8);
   });
 });
+
+describe("LyricsLine.adjustTimestamps", () => {
+  it("shifts the display times and keeps the fades", () => {
+    const line = new LyricsLine([new LyricSegment("a", 1, 2)]);
+    Object.assign(line, {
+      customDisplayStartTime: 0.5,
+      customDisplayEndTime: 3,
+      fadeInDuration: 0.1,
+      fadeOutDuration: 0.2,
+    });
+
+    expect(line.adjustTimestamps(10)).toMatchObject({
+      customDisplayStartTime: 10.5,
+      customDisplayEndTime: 13,
+      fadeInDuration: 0.1,
+      fadeOutDuration: 0.2,
+    });
+  });
+
+  it("draws a display start of 0 from 0", () => {
+    const line = new LyricsLine([new LyricSegment("a", 1, 2)]);
+    line.customDisplayStartTime = 0;
+
+    expect(line.toAssEvent(5, 10, "Default", 0)).toMatch(/^Dialogue: 0,0:00:00\.00,/);
+  });
+});
