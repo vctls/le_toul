@@ -204,6 +204,7 @@ function createInstrumentalScreen(
     new LyricSegment(instrumentalBar(fontSize), startTime, startTime + duration),
   ]);
   const screen = new LyricsScreen([line]);
+  screen.kind = "instrumental";
   screen.startTimestamp = startTime;
   return screen;
 }
@@ -261,6 +262,7 @@ export function addTitleScreen(
     audioDelay,
   );
   const denormalizedScreen = denormalizeTimestamps([titleScreen], TITLE_SCREEN_DURATION)[0];
+  denormalizedScreen.kind = "title";
   const screensWithTitle = adjustedLyricScreens.slice();
   screensWithTitle.unshift(denormalizedScreen);
   return screensWithTitle;
@@ -315,4 +317,90 @@ export function displayQuickLinesEarly(
     });
   }
   return screens;
+}
+
+/**
+ * A line's stored display period replaces the automatic one, widened to contain what the line draws,
+ * count-in included.
+ * This runs last, so it sees every count-in and replaces what the staggered-lines pass set.
+ * A stored side has no fade, since the user chose when the line appears or disappears.
+ */
+export function applyStoredDisplayPeriods(screens: LyricsScreen[]): LyricsScreen[] {
+  for (const line of screens.flatMap((screen) => screen.lines)) {
+    if (line.storedDisplayStart !== undefined) {
+      line.customDisplayStartTime = Math.min(line.storedDisplayStart, line.timestamp);
+      line.fadeInDuration = 0;
+    }
+    if (line.storedDisplayEnd !== undefined) {
+      line.customDisplayEndTime = Math.max(line.storedDisplayEnd, line.endTimestamp);
+      line.fadeOutDuration = 0;
+    }
+  }
+  return screens;
+}
+
+function displayStartOf(line: LyricsLine, screen: LyricsScreen): Timestamp {
+  return line.customDisplayStartTime ?? screen.startTimestamp ?? 0;
+}
+
+function displayEndOf(line: LyricsLine, screen: LyricsScreen): Timestamp {
+  return line.customDisplayEndTime ?? screen.endTimestamp;
+}
+
+/**
+ * The earliest time a stored display period shows a line, which the title screen gives way to.
+ */
+export function earliestStoredStart(screens: LyricsScreen[]): Timestamp | undefined {
+  const starts = screens.flatMap((screen) =>
+    screen.lines
+      .filter((line) => line.storedDisplayStart !== undefined)
+      .map((line) => displayStartOf(line, screen)),
+  );
+  return starts.length > 0 ? Math.min(...starts) : undefined;
+}
+
+/**
+ * The title screen ends when a stored display period first shows a line.
+ * The user asked for the line to be there, and the title is filler.
+ */
+export function endTitleScreenBy(screens: LyricsScreen[], time: Timestamp | undefined): void {
+  const title = screens.find((screen) => screen.kind === "title");
+  if (!title || time === undefined) {
+    return;
+  }
+  const start = title.startTimestamp ?? 0;
+  // The screen stays even when it loses every line, since it can carry the audio delay.
+  title.lines = title.lines.filter((line) => {
+    line.customDisplayEndTime = Math.min(displayEndOf(line, title), time);
+    return line.customDisplayEndTime > start;
+  });
+}
+
+/**
+ * An instrumental screen only covers the time when no line of its voice is displayed,
+ * so stored display periods that reach into the break shorten it, or remove it.
+ */
+export function fitInstrumentalScreens(screens: LyricsScreen[]): LyricsScreen[] {
+  return screens.filter((screen, i) => {
+    if (screen.kind !== "instrumental") {
+      return true;
+    }
+    const lyrics = (range: LyricsScreen[]) => range.filter((s) => s.kind === "lyrics");
+    const endsBefore = lyrics(screens.slice(0, i)).flatMap((s) =>
+      s.lines.map((line) => displayEndOf(line, s)),
+    );
+    const startsAfter = lyrics(screens.slice(i + 1)).flatMap((s) =>
+      s.lines.map((line) => displayStartOf(line, s)),
+    );
+    const start = Math.max(screen.startTimestamp ?? 0, ...endsBefore);
+    const end = Math.min(screen.endTimestamp, ...startsAfter);
+    if (end <= start) {
+      return false;
+    }
+    const [bar] = screen.lines[0].segments;
+    bar.timestamp = start;
+    bar.endTimestamp = end;
+    screen.startTimestamp = start;
+    return true;
+  });
 }
