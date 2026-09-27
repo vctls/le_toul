@@ -26,9 +26,15 @@ import {
   Warnings,
 } from "./importWarnings";
 
-// kbp2ass scales a KBP font size by the output height over the 216-high CDG canvas, and by 1.4
+// KBS lays out lines on a 216-high CDG canvas.
+const CDG_SCALE = SUBTITLE_CANVAS.height / 216;
+// kbp2ass scales a KBP font size by the output height over the CDG canvas height, and by 1.4
 // for the difference between the two font size conventions.
-const FONT_SCALE = (SUBTITLE_CANVAS.height / 216) * 1.4;
+const FONT_SCALE = CDG_SCALE * 1.4;
+// kbp2ass puts a page's first line below the CDG border, and each line 19 below the one above,
+// plus the file's own top margin and line spacing.
+const CDG_TOP_BORDER = 12;
+const CDG_LINE_HEIGHT = 19;
 
 // KBS's own timing, as measured on its files: a line shows 3 s before its page's first syllable
 // and hides 0.5 s after its own last one.
@@ -222,10 +228,21 @@ function styleSettings(
   const videoOptions: Record<string, unknown> = {
     countInMode: "none",
     addInstrumentalScreens: false,
+    // KBS anchors a page's lines to the top of the screen, and its spacers push them down from there.
+    verticalAlignment: "top",
     color: { background: color(0) },
   };
   warnings.add(COUNT_INS_OFF);
   if (base) {
+    const size = fontSize(base);
+    const [, , top, spacing] = document.margins;
+    const multiple = (cdg: number) => Math.round(((cdg * CDG_SCALE) / size) * 1000) / 1000;
+    if (spacing !== undefined) {
+      videoOptions.lineSpacing = multiple(spacing + CDG_LINE_HEIGHT);
+    }
+    if (top !== undefined) {
+      videoOptions.topMargin = multiple(top + CDG_TOP_BORDER);
+    }
     const name = fontName(base);
     videoOptions.font = {
       ...(name ? { name } : {}),

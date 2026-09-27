@@ -6,6 +6,7 @@ import { COUNT_INS_OFF, kbpToProjectFiles, projectFilesToKbp, ProjectFiles } fro
 import { parseSettingsYaml } from "./settingsFile";
 import { TimedSegment } from "./timedSegments";
 import { DISPLAY_PERIOD_WIDENED } from "./importWarnings";
+import { VerticalAlignment } from "./timing";
 
 const FIXTURE = readFileSync(path.resolve(__dirname, "../../tests/fixtures/song.kbp"), "utf8");
 const HEADER = FIXTURE.slice(0, FIXTURE.indexOf(`${KBP_DIVIDER}\r\nPAGEV2`));
@@ -81,6 +82,11 @@ describe("kbpToProjectFiles", () => {
     expect(settings.song).toEqual({ title: "Pale Moon", artist: "The Placeholders" });
     expect(settings.videoOptions.countInMode).toBe("none");
     expect(settings.videoOptions.addInstrumentalScreens).toBe(false);
+    expect(settings.videoOptions.verticalAlignment).toBe(VerticalAlignment.Top);
+    // The fixture's margins are top 7 and line spacing 12, and its font size is 22 once scaled:
+    // (12 + 19) and (7 + 12) CDG units, times 288 / 216, over 22.
+    expect(settings.videoOptions.lineSpacing).toBe(1.879);
+    expect(settings.videoOptions.topMargin).toBe(1.152);
     expect(settings.videoOptions.font).toEqual({
       name: "Arial",
       size: 22,
