@@ -7,6 +7,7 @@ import { useLyricsStore } from "@/stores/lyrics";
 import { useMediaStore } from "@/stores/media";
 import { useTimingsStore } from "@/stores/timings";
 import { LYRIC_MARKERS } from "@/constants";
+import { DEFAULT_VOICE_ID } from "@/lib/voices";
 
 const togglePlayPause = vi.fn();
 const restartAt = vi.fn();
@@ -272,6 +273,27 @@ describe("TimingAdjustmentTab shortcuts", () => {
       const [segment] = useTimingsStore().activeSegments;
       expect(segment.displayStart).toBeUndefined();
       expect(segment.displayEnd).toBe(3);
+    });
+
+    it("flags the lines the video shows in the same place", async () => {
+      const wrapper = mountTab();
+      useMediaStore().songDuration = 30;
+      useLyricsStore().setLyrics("hello\n\nworld");
+      useTimingsStore().setAllSegments({
+        [DEFAULT_VOICE_ID]: [
+          { text: "hello\n\n", start: 1, end: 2 },
+          { text: "world", start: 3, end: 4 },
+        ],
+      });
+      wrapper.vm.showDisplayBands = true;
+      await nextTick();
+      adjuster(wrapper).vm.$emit("band-updated", 0, "end", 3.5);
+      await nextTick();
+
+      expect(adjuster(wrapper).vm.$attrs.bands).toMatchObject([
+        { text: "hello", placement: { overlaps: true } },
+        { text: "world", placement: { overlaps: true } },
+      ]);
     });
 
     const resetButton = (wrapper: ReturnType<typeof mountTab>) =>

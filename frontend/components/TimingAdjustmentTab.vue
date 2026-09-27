@@ -369,6 +369,7 @@ export default defineComponent({
         this.timingsStore.activeSegments,
         this.mediaStore.songDuration ?? 0,
         this.settingsStore.renderOptions,
+        this.timingsStore.activeLinePlacements,
       );
     },
     adjustmentSubtitles(): string {

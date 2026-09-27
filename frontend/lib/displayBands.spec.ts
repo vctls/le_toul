@@ -64,6 +64,32 @@ describe("displayBands", () => {
     ]);
   });
 
+  it("gives each line the placement stored under its first segment", () => {
+    const segments = [
+      { text: "a\n", start: 1, end: 2 },
+      { text: "b_", start: 3 },
+      { text: "c", start: 4, end: 5 },
+    ];
+    const placement = { top: 10, bottom: 30, overlaps: true, earliestStart: 0, latestEnd: 30 };
+    const bands = displayBands(segments, 30, options, new Map([[1, placement]]));
+    expect(bands.map((band) => band.placement)).toEqual([undefined, placement]);
+  });
+
+  it("moves a bound that gave way to another line", () => {
+    const segments = [{ text: "a", start: 3, end: 4 }];
+    const placement = {
+      top: 10,
+      bottom: 30,
+      overlaps: false,
+      earliestStart: 2,
+      latestEnd: 30,
+      startGaveWay: 2,
+    };
+    const [band] = displayBands(segments, 30, options, new Map([[0, placement]]));
+    expect(band.start).toBe(2);
+    expect(band.end).toBe(4);
+  });
+
   it("puts every fifth line back in the first row", () => {
     const segments = Array.from({ length: 6 }, (_, i) => ({ text: `l${i}\n`, start: i }));
     expect(displayBands(segments, 30, options).map((band) => band.row)).toEqual([0, 1, 2, 3, 4, 0]);

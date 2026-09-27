@@ -1,5 +1,6 @@
-import { createScreens, KaraokeOptions } from "./timing";
+import { createScreens, KaraokeOptions, LyricsLine } from "./timing";
 import { TimedSegment } from "./timedSegments";
+import { LinePlacement } from "./linePlacements";
 
 // One line's display period as the Adjust tab draws it, in song time.
 export interface DisplayBand {
@@ -16,6 +17,9 @@ export interface DisplayBand {
   // A period always contains the line's timings, so its edges can't be dragged past them.
   latestStart: number;
   earliestEnd: number;
+  // Where and when the video draws the line, when it is known.
+  // It also moves a bound that gives way to another line, which this layout alone can't tell.
+  placement?: LinePlacement;
 }
 
 // The number of rows the Adjust tab lays regions out in.
@@ -24,11 +28,13 @@ const ROWS = 5;
 /**
  * Every line's display period, automatic or stored, as the render computes it.
  * The title screen and count-ins are left out, since they move the song away from song time.
+ * `placements` are keyed by the index of each line's first segment.
  */
 export function displayBands(
   segments: TimedSegment[],
   songDuration: number,
   options: KaraokeOptions,
+  placements: ReadonlyMap<number, LinePlacement> = new Map(),
 ): DisplayBand[] {
   const screens = createScreens(segments, songDuration, "", "", {
     ...options,
@@ -36,6 +42,7 @@ export function displayBands(
     countInMode: "none",
     useStoredDisplayPeriods: true,
   });
+  const placement = (line: LyricsLine) => placements.get(line.headIndex ?? 0);
   return screens
     .filter((screen) => screen.kind === "lyrics")
     .flatMap((screen) => screen.lines.map((line) => ({ screen, line })))
@@ -51,11 +58,13 @@ export function displayBands(
         start: segment.timestamp,
         end: segment.endTimestamp ?? segment.timestamp,
       })),
-      start: line.customDisplayStartTime ?? screen.startTimestamp ?? 0,
-      end: line.customDisplayEndTime ?? screen.endTimestamp,
+      start:
+        placement(line)?.startGaveWay ?? line.customDisplayStartTime ?? screen.startTimestamp ?? 0,
+      end: placement(line)?.endGaveWay ?? line.customDisplayEndTime ?? screen.endTimestamp,
       startStored: line.storedDisplayStart !== undefined,
       endStored: line.storedDisplayEnd !== undefined,
       latestStart: line.timestamp,
       earliestEnd: line.endTimestamp,
+      placement: placement(line),
     }));
 }

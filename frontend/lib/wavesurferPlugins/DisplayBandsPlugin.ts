@@ -18,6 +18,7 @@ const ROWS = 5;
 const ROW_INSET = 3;
 const HANDLE_WIDTH = 12;
 const FRAME_COLOR = "var(--region-label-on-waveform)";
+const OVERLAP_COLOR = "var(--bulma-danger)";
 
 class DisplayBandsPlugin extends BasePlugin<DisplayBandsPluginEvents, undefined> {
   private readonly container: HTMLElement;
@@ -75,6 +76,8 @@ class DisplayBandsPlugin extends BasePlugin<DisplayBandsPluginEvents, undefined>
 
   private createBand(band: DisplayBand, duration: number): HTMLElement {
     const percent = (time: number) => `${(time / duration) * 100}%`;
+    const overlaps = band.placement?.overlaps ?? false;
+    const color = overlaps ? OVERLAP_COLOR : FRAME_COLOR;
     const row = createElement("div", {
       style: {
         position: "absolute",
@@ -106,14 +109,14 @@ class DisplayBandsPlugin extends BasePlugin<DisplayBandsPluginEvents, undefined>
     createElement(
       "div",
       {
-        textContent: band.text,
+        textContent: overlaps ? `⚠ ${band.text}` : band.text,
         style: {
           position: "absolute",
           top: "1px",
           left: `calc(${percent(band.latestStart)} + 2px)`,
           whiteSpace: "nowrap",
           fontSize: "0.85em",
-          color: FRAME_COLOR,
+          color,
           textShadow: Array(3).fill("0 0 3px var(--bulma-scheme-main)").join(", "),
         },
       },
@@ -129,15 +132,16 @@ class DisplayBandsPlugin extends BasePlugin<DisplayBandsPluginEvents, undefined>
           top: "0",
           bottom: "0",
           boxSizing: "border-box",
-          borderTop: `1px solid ${FRAME_COLOR}`,
-          borderBottom: `1px solid ${FRAME_COLOR}`,
-          borderLeft: `2px ${band.startStored ? "solid" : "dashed"} ${FRAME_COLOR}`,
-          borderRight: `2px ${band.endStored ? "solid" : "dashed"} ${FRAME_COLOR}`,
+          borderTop: `1px solid ${color}`,
+          borderBottom: `1px solid ${color}`,
+          borderLeft: `2px ${band.startStored ? "solid" : "dashed"} ${color}`,
+          borderRight: `2px ${band.endStored ? "solid" : "dashed"} ${color}`,
           borderRadius: "3px",
         },
       },
       row,
     );
+    if (overlaps) frame.dataset.overlaps = "";
     let { start, end } = band;
     const place = () => {
       frame.style.left = percent(start);
@@ -181,10 +185,13 @@ class DisplayBandsPlugin extends BasePlugin<DisplayBandsPluginEvents, undefined>
           handle,
           (dx) => {
             const seconds = (dx / this.container.clientWidth) * duration;
+            // An edge stops at its own line's timings and at the fixed part of a line at its height.
             if (side === "start") {
-              start = Math.min(band.latestStart, Math.max(0, start + seconds));
+              const earliest = band.placement?.earliestStart ?? 0;
+              start = Math.min(band.latestStart, Math.max(earliest, start + seconds));
             } else {
-              end = Math.max(band.earliestEnd, Math.min(duration, end + seconds));
+              const latest = band.placement?.latestEnd ?? duration;
+              end = Math.max(band.earliestEnd, Math.min(latest, end + seconds));
             }
             place();
           },
