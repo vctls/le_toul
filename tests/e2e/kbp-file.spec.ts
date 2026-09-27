@@ -5,7 +5,7 @@ import { getFixturePath, navigateToTab, setupTestEnvironment, TabId } from "./ut
 
 const KBP_INPUT = '[name="kbp-file-upload"] input[type="file"]';
 const IMPORTED_LYRICS = [
-  "Pale_moon_ri/sing_slow",
+  "➣➣➣/Pale_moon_ri/sing_slow",
   "o/ver_the_qui/et_hill",
   "Lan/terns_glow",
   "",
@@ -29,14 +29,16 @@ test.describe("Karaoke Builder Studio files", () => {
   test("loading a KBP file fills in the lyrics, timings and song details", async ({ page }) => {
     await page.locator(KBP_INPUT).setInputFiles(getFixturePath("song.kbp"));
 
-    // The lead-in syllable is dropped, which the box lists.
+    // The project's own count-ins are kept, so the app's are turned off, which the box lists.
     await expect(page.locator(".toast")).toContainText("with a few changes");
     await expect(page.locator(".toast")).toContainText(
       "Its song is The Placeholders - Pale Moon.flac",
     );
     const warnings = page.locator(".kbp-files .import-warnings");
     await expect(warnings).toContainText("Some parts couldn't be carried over");
-    await expect(warnings).toContainText('A lead-in syllable "➣➣➣" was dropped');
+    await expect(warnings).toContainText(
+      "Count-ins and instrumental screens were turned off, since a KBS project has its own in the lyrics",
+    );
     await expect(page.locator('[name="kbp-file-upload"] .file-name')).toHaveText("song.kbp");
     await expect(page.locator('[name="title"]')).toHaveValue("Pale Moon");
     await expect(page.locator('[name="artist"]')).toHaveValue("The Placeholders");
