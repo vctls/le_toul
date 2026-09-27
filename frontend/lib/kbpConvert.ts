@@ -22,7 +22,7 @@ import {
   BRACKETS_REMOVED,
   DISPLAY_PERIOD_WIDENED,
   MARKUP_REMOVED,
-  SPACER_DROPPED,
+  SPACER_PAGE_DROPPED,
   Warnings,
 } from "./importWarnings";
 
@@ -156,6 +156,13 @@ function importSyllables(line: KbpLine, style: KbpStyle, warnings: Warnings): Im
     syllables[0].displayEnd = line.end;
   }
   return syllables;
+}
+
+/**
+ * A line whose syllables hold no text is a blank spacer line.
+ */
+function isSpacer(line: KbpLine): boolean {
+  return line.syllables.every((syllable) => syllable.text.replace(/[/_]/g, "").trim() === "");
 }
 
 function lineMarkup(syllables: ImportedSyllable[]): string {
@@ -310,10 +317,13 @@ export function kbpToProjectFiles(text: string, options: { fonts: string[] }): K
     warnings.add("Pitch and speed changes were dropped");
   }
 
-  // Styles in the order lines first use them.
+  // Styles in the order lines first use them. A spacer's style is ignored.
   const used: KbpStyle[] = [];
   const pages = document.pages.map((page) =>
     page.lines.map((line) => {
+      if (isSpacer(line)) {
+        return { line, style: null };
+      }
       const style = styleFor(document, line.style, warnings);
       if (!used.includes(style)) used.push(style);
       if (line.align !== "C" || line.right !== 0 || line.down !== 0 || line.rotation !== 0) {
@@ -331,30 +341,45 @@ export function kbpToProjectFiles(text: string, options: { fonts: string[] }): K
   const syllablesByVoice: Record<VoiceId, ImportedSyllable[]> = {};
   let previousVoice: VoiceId | null = null;
   for (const lines of pages) {
-    const lineTexts: string[] = [];
-    for (const { line, style } of lines) {
-      const syllables = importSyllables(line, style, warnings);
-      if (syllables.length === 0) {
-        warnings.add(SPACER_DROPPED);
-        continue;
+    const imported = lines.map(({ line, style }) => {
+      if (!style) {
+        return null;
       }
+      const syllables = importSyllables(line, style, warnings);
       let markup = lineMarkup(syllables);
       if (markup.startsWith("[")) {
         warnings.add(BRACKETS_REMOVED);
         markup = markup.replace(/[[\]]/g, "");
         syllables.forEach((s) => (s.word = s.word.replace(/[[\]]/g, "")));
       }
-      const voice = voiceOf(style);
+      return { voice: voiceOf(style), markup, syllables };
+    });
+    const voices = imported.flatMap((entry) => (entry ? [entry.voice] : []));
+    if (voices.length === 0) {
+      if (lines.length > 0) {
+        warnings.add(SPACER_PAGE_DROPPED);
+      }
+      continue;
+    }
+
+    const lineTexts: string[] = [];
+    imported.forEach((entry, i) => {
+      // A spacer pushes down the lines below it, so it joins the voice of the next one.
+      const voice =
+        entry?.voice ??
+        imported.slice(i).find((next) => next)?.voice ??
+        (voices[voices.length - 1] as VoiceId);
+      let markup = entry?.markup ?? "/";
       if (multiVoice && voice !== previousVoice) {
         markup = `[${voice}] ${markup}`;
       }
       previousVoice = voice;
       lineTexts.push(markup);
-      (syllablesByVoice[voice] ??= []).push(...syllables);
-    }
-    if (lineTexts.length > 0) {
-      pageTexts.push(lineTexts.join("\n"));
-    }
+      if (entry) {
+        (syllablesByVoice[voice] ??= []).push(...entry.syllables);
+      }
+    });
+    pageTexts.push(lineTexts.join("\n"));
   }
 
   const lyrics = document.unsyncedLyrics
@@ -421,6 +446,7 @@ interface ExportStyle {
 
 interface ExportLine {
   voiceIndex: number;
+  // A spacer has none.
   syllables: KbpSyllable[];
   displayStart?: number;
   displayEnd?: number;
@@ -515,7 +541,7 @@ class Palette {
 /**
  * A voice's timed segments grouped into pages of lines by their separators.
  * Untimed segments are left out, and an open end runs to 1 cs before the next start, as KBS writes it.
- * A line's display period comes from its first segment, timed or not.
+ * A line's display period and spacers come from its first segment, timed or not.
  */
 function voicePages(
   segments: TimedSegment[],
@@ -530,7 +556,13 @@ function voicePages(
   const cs = (seconds: number | undefined) =>
     seconds === undefined ? undefined : Math.round(seconds * 100);
 
-  const closeLine = () => {
+  const spacers = (count: number | undefined) => {
+    for (let i = 0; i < (count ?? 0); i++) {
+      lines.push({ voiceIndex, syllables: [] });
+    }
+  };
+  const closeLine = (endsPage: boolean) => {
+    spacers(head?.spacersBefore);
     if (syllables.length > 0) {
       const last = syllables[syllables.length - 1];
       last.text = last.text.trimEnd();
@@ -541,12 +573,15 @@ function voicePages(
         displayEnd: cs(head?.displayEnd),
       });
     }
+    if (endsPage) {
+      spacers(head?.spacersAfter);
+    }
     syllables = [];
     head = undefined;
   };
   const closePage = () => {
-    closeLine();
-    if (lines.length > 0) {
+    closeLine(true);
+    if (lines.some((line) => line.syllables.length > 0)) {
       pages.push({ lines, first: 0, last: 0 });
     }
     lines = [];
@@ -571,7 +606,7 @@ function voicePages(
     if (segment.text.endsWith("\n\n")) {
       closePage();
     } else if (segment.text.endsWith("\n")) {
-      closeLine();
+      closeLine(false);
     }
   }
   closePage();
@@ -610,10 +645,9 @@ function mergePages(pages: ExportPage[]): ExportPage[] {
       merged.push({ ...page, lines: [...page.lines] });
     }
   }
+  // The sort is stable, so each voice's lines, spacers included, keep their order.
   for (const page of merged) {
-    page.lines.sort(
-      (a, b) => a.voiceIndex - b.voiceIndex || a.syllables[0].start - b.syllables[0].start,
-    );
+    page.lines.sort((a, b) => a.voiceIndex - b.voiceIndex);
   }
   return merged;
 }
@@ -622,14 +656,33 @@ function mergePages(pages: ExportPage[]): ExportPage[] {
  * A line shows 3 s before its page starts, or once the line in its slot on the previous page has gone,
  * whichever is later, and never after its own first syllable.
  * A stored display period replaces those rules, widened to contain the line's syllables.
+ * A spacer is written as KBS writes one, with every time at zero.
  */
 function layOutLines(pages: ExportPage[]): KbpPage[] {
   let previous: KbpLine[] = [];
   return pages.map((page) => {
     const lines = page.lines.map((line, slot): KbpLine => {
+      const style = String.fromCharCode(
+        "A".charCodeAt(0) + Math.min(line.voiceIndex, MAX_STYLES - 1),
+      );
+      if (line.syllables.length === 0) {
+        return {
+          align: "C",
+          style,
+          start: 0,
+          end: 0,
+          right: 0,
+          down: 0,
+          rotation: 0,
+          syllables: [{ text: "", start: 0, end: 0, wipe: 0 }],
+        };
+      }
       const first = line.syllables[0].start;
       const last = line.syllables[line.syllables.length - 1].end;
-      const before = previous[Math.min(slot, previous.length - 1)];
+      // A slot the previous page leaves empty, or holds a spacer in, has gone when its last line has.
+      const shown = previous.filter((other) => !isSpacer(other));
+      const inSlot = previous[slot];
+      const before = inSlot && !isSpacer(inSlot) ? inSlot : shown[shown.length - 1];
       const start = Math.min(
         first,
         line.displayStart ?? Math.max(0, page.first - LINE_LEAD_CS, before ? before.end + 1 : 0),
@@ -638,7 +691,7 @@ function layOutLines(pages: ExportPage[]): KbpPage[] {
         line.displayEnd === undefined ? last + LINE_TAIL_CS : Math.max(line.displayEnd, last);
       return {
         align: "C",
-        style: String.fromCharCode("A".charCodeAt(0) + Math.min(line.voiceIndex, MAX_STYLES - 1)),
+        style,
         start,
         end,
         right: 0,

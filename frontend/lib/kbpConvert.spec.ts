@@ -5,12 +5,13 @@ import { KBP_DIVIDER, parseKbp } from "./kbp";
 import { COUNT_INS_OFF, kbpToProjectFiles, projectFilesToKbp, ProjectFiles } from "./kbpConvert";
 import { parseSettingsYaml } from "./settingsFile";
 import { TimedSegment } from "./timedSegments";
-import { DISPLAY_PERIOD_WIDENED } from "./importWarnings";
+import { DISPLAY_PERIOD_WIDENED, SPACER_PAGE_DROPPED } from "./importWarnings";
 import { VerticalAlignment } from "./timing";
 
 const FIXTURE = readFileSync(path.resolve(__dirname, "../../tests/fixtures/song.kbp"), "utf8");
 const HEADER = FIXTURE.slice(0, FIXTURE.indexOf(`${KBP_DIVIDER}\r\nPAGEV2`));
 const FONTS = ["Arial", "Georgia"];
+const SPACER = ["C/A/0/0/0/0/0", "/              0/0/0", ""];
 
 function withPages(header: string, ...pages: string[][]): string {
   return header + pages.map((lines) => [KBP_DIVIDER, "PAGEV2", ...lines, ""].join("\r\n")).join("");
@@ -163,10 +164,10 @@ describe("kbpToProjectFiles", () => {
     ]);
     const result = kbpToProjectFiles(text, { fonts: FONTS });
 
-    expect(result.lyrics).toBe("ASIDE\nFIXED_TEXT\nANDOR_SNAKECASE");
+    expect(result.lyrics).toBe("ASIDE\n/\nFIXED_TEXT\nANDOR_SNAKECASE");
     expect(result.timings["Voice 1"]).toEqual([
       { text: "ASIDE\n", start: 0.1, end: 0.2, displayStart: 0, displayEnd: 1 },
-      { text: "FIXED_" },
+      { text: "FIXED_", spacersBefore: 1 },
       { text: "TEXT\n" },
       { text: "ANDOR_", start: 0.3, displayStart: 0, displayEnd: 1 },
       { text: "SNAKECASE", start: 0.4, end: 0.5 },
@@ -176,11 +177,96 @@ describe("kbpToProjectFiles", () => {
       "Line positions were dropped, since the app lays out its own screens",
       "Lines in an undefined style Z use Style00",
       "Square brackets starting a line were removed, since they would read as a voice tag",
-      "A blank spacer line was dropped",
       "A fixed line was imported untimed, since the app has no text without a wipe",
       "A / or _ in the lyrics was removed, since the app uses both as markup (×2)",
       COUNT_INS_OFF,
     ]);
+  });
+
+  test("keeps spacers in their slots", () => {
+    const text = withPages(
+      HEADER,
+      [...SPACER, "C/A/0/300/0/0/0", "Pale /         10/20/0", "moon/          20/30/0", ""],
+      [...SPACER, ...SPACER, "C/A/0/300/0/0/0", "Solo/          40/250/0", ""],
+      [
+        "C/A/250/600/0/0/0",
+        "Wan/           300/320/0",
+        "der/           320/340/0",
+        "",
+        ...SPACER,
+        "C/A/250/600/0/0/0",
+        "home/          400/450/0",
+        "",
+        ...SPACER,
+      ],
+      [...SPACER, ...SPACER],
+    );
+    const result = kbpToProjectFiles(text, { fonts: FONTS });
+
+    expect(result.lyrics).toBe("/\nPale_moon\n\n/\n/\nSolo\n\nWan/der\n/\nhome\n/");
+    expect(
+      result.timings["Voice 1"].map(({ text, spacersBefore, spacersAfter }) => ({
+        text,
+        spacersBefore,
+        spacersAfter,
+      })),
+    ).toEqual([
+      { text: "Pale_", spacersBefore: 1 },
+      { text: "moon\n\n" },
+      { text: "Solo\n\n", spacersBefore: 2 },
+      { text: "Wan/" },
+      { text: "der\n" },
+      { text: "home", spacersBefore: 1, spacersAfter: 1 },
+    ]);
+    expect(result.warnings).toEqual([SPACER_PAGE_DROPPED, COUNT_INS_OFF]);
+  });
+
+  test("gives a spacer the voice of the line it pushes down, whatever its style", () => {
+    const text = withPages(HEADER, [
+      "C/D/0/0/0/0/0",
+      "/              0/0/0",
+      "",
+      "C/A/0/100/0/0/0",
+      "Hi/            10/20/0",
+      "",
+      "C/D/0/0/0/0/0",
+      "/              0/0/0",
+      "",
+      "C/B/0/100/0/0/0",
+      "Yo/            30/40/0",
+      "",
+      "C/D/0/0/0/0/0",
+      "/              0/0/0",
+      "",
+    ]);
+    const result = kbpToProjectFiles(text, { fonts: FONTS });
+
+    expect(result.lyrics).toBe("[Default] /\nHi\n[Male] /\nYo\n/");
+    expect(result.timings).toEqual({
+      Default: [
+        { text: "Hi", start: 0.1, end: 0.2, displayStart: 0, displayEnd: 1, spacersBefore: 1 },
+      ],
+      Male: [
+        {
+          text: "Yo",
+          start: 0.3,
+          end: 0.4,
+          displayStart: 0,
+          displayEnd: 1,
+          spacersBefore: 1,
+          spacersAfter: 1,
+        },
+      ],
+    });
+  });
+
+  test("keeps the spacers of an unsynced project", () => {
+    const text =
+      HEADER.replace("Status    1", "Status    0") +
+      [KBP_DIVIDER, "LYRICSV2", "/", "Pale moon", "", "/", "Wan/der"].join("\r\n");
+    const result = kbpToProjectFiles(text, { fonts: FONTS });
+
+    expect(result.lyrics).toBe("/\nPale_moon\n\n/\nWan/der");
   });
 
   test("widens a line's display period to contain its syllables, and says so", () => {
@@ -406,7 +492,97 @@ describe("projectFilesToKbp", () => {
   });
 });
 
+describe("projectFilesToKbp with spacers", () => {
+  test("writes them as KBS does, in their slots", () => {
+    const project: ProjectFiles = {
+      lyrics: "/\nPale_moon\n/\n\nri/sing\n/\nslow",
+      timings: {
+        "Voice 1": [
+          { text: "Pale_", start: 5, spacersBefore: 1, spacersAfter: 1 },
+          { text: "moon\n\n", start: 5.5, end: 6 },
+          { text: "ri/", start: 7 },
+          { text: "sing\n", start: 7.25, end: 8 },
+          { text: "slow", start: 9, spacersBefore: 1 },
+        ],
+      },
+      settings: settingsFile({ duration: 10 }),
+    };
+    const { kbp } = projectFilesToKbp({ ...project, audioName: null });
+    const pages = parseKbp(kbp).pages.map((page) =>
+      page.lines.map(({ start, end, syllables }) => ({
+        start,
+        end,
+        text: syllables.map((syllable) => syllable.text).join(""),
+      })),
+    );
+
+    expect(kbp).toContain(["C/A/0/0/0/0/0", "/              0/0/0"].join("\r\n"));
+    // A slot the previous page holds a spacer in has gone when that page's last line has.
+    expect(pages).toEqual([
+      [
+        { start: 0, end: 0, text: "" },
+        { start: 200, end: 650, text: "Pale moon" },
+        { start: 0, end: 0, text: "" },
+      ],
+      [
+        { start: 651, end: 850, text: "rising" },
+        { start: 0, end: 0, text: "" },
+        { start: 651, end: 1050, text: "slow" },
+      ],
+    ]);
+  });
+
+  test("writes them in their voice's style", () => {
+    const { kbp } = projectFilesToKbp({
+      lyrics: "[Anna] la\n[Ben] /\noh",
+      timings: {
+        Anna: [{ text: "la", start: 1 }],
+        Ben: [{ text: "oh", start: 1.5, spacersBefore: 1 }],
+      },
+      settings: settingsFile(),
+      audioName: null,
+    });
+    const lines = parseKbp(kbp).pages.flatMap((page) => page.lines);
+    expect(lines.map(({ style, syllables }) => [style, syllables[0].text])).toEqual([
+      ["A", "la"],
+      ["B", ""],
+      ["B", "oh"],
+    ]);
+  });
+
+  test("writes the lyrics' spacers when nothing is timed", () => {
+    const { kbp } = projectFilesToKbp({
+      lyrics: "/\nPale_moon",
+      timings: {},
+      settings: settingsFile(),
+      audioName: null,
+    });
+    expect(parseKbp(kbp).unsyncedLyrics).toEqual(["/", "Pale moon"]);
+  });
+});
+
 describe("round trip", () => {
+  test("a KBS project keeps its spacers", () => {
+    const text = withPages(
+      HEADER,
+      [...SPACER, "C/A/0/300/0/0/0", "Pale /         10/20/0", "moon/          20/30/0", ""],
+      [
+        ...SPACER,
+        ...SPACER,
+        "C/A/0/600/0/0/0",
+        "Wan/           300/320/0",
+        "der/           320/340/0",
+        "",
+      ],
+    );
+    const imported = kbpToProjectFiles(text, { fonts: FONTS });
+    const exported = projectFilesToKbp({ ...imported, audioName: null });
+    const back = kbpToProjectFiles(exported.kbp, { fonts: FONTS });
+
+    expect(back.lyrics).toBe(imported.lyrics);
+    expect(back.timings).toEqual(imported.timings);
+  });
+
   test("a KBS project comes back with the same lyrics and timings", () => {
     const imported = kbpToProjectFiles(FIXTURE, { fonts: FONTS });
     const exported = projectFilesToKbp({ ...imported, audioName: imported.audioName });
