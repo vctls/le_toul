@@ -1,9 +1,13 @@
 import { describe, expect, test } from "vitest";
-import { BRACKETS_REMOVED, MARKUP_REMOVED, SPACER_DROPPED } from "./importWarnings";
+import {
+  BRACKETS_REMOVED,
+  DISPLAY_PERIOD_WIDENED,
+  MARKUP_REMOVED,
+  SPACER_DROPPED,
+} from "./importWarnings";
 import { parseLyrics } from "./timing";
 import { TimedSegment } from "./timedSegments";
 import {
-  DISPLAY_PERIOD_WIDENED,
   TimingsTextError,
   formatTimecode,
   isTimingsText,

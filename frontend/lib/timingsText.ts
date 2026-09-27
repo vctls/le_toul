@@ -3,14 +3,18 @@
 // Times are read and written in centiseconds, which is the precision of ASS and KBP.
 
 import { findLastIndex } from "lodash-es";
-import { BRACKETS_REMOVED, MARKUP_REMOVED, SPACER_DROPPED, Warnings } from "./importWarnings";
+import {
+  BRACKETS_REMOVED,
+  DISPLAY_PERIOD_WIDENED,
+  MARKUP_REMOVED,
+  SPACER_DROPPED,
+  Warnings,
+} from "./importWarnings";
 import { TimedSegment, clampDisplayPeriods } from "./timedSegments";
 import { DEFAULT_VOICE_ID, VoiceId } from "./voices";
 
 export const TIMINGS_TEXT_VERSION = 1;
 const SIGNATURE = "Toul timings";
-
-export const DISPLAY_PERIOD_WIDENED = "A line's display period was widened to contain its timings";
 
 const TIME = String.raw`\d{1,3}:[0-5]\d\.\d{2}`;
 const VALUE = `(-|${TIME})`;
