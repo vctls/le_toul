@@ -109,7 +109,7 @@
       v-if="songFile && debouncedSubtitles"
       ref="subtitleDisplay"
       :subtitles="debouncedSubtitles"
-      :fonts="{}"
+      :fonts="previewFonts"
       :backgroundColor="previewColors.background.toString()"
     />
     <timing-adjuster
@@ -152,7 +152,8 @@ import { TimedSegment } from "@/lib/timedSegments";
 import { resolveThemeColor } from "@/lib/themeColor";
 import { onSchemeChange } from "@/lib/colorScheme";
 import { loadJsonFromStorage } from "@/lib/persistence";
-import { throttle } from "lodash-es";
+import { pick, throttle } from "lodash-es";
+import { BUNDLED_FONTS, CJK_FONT, SYMBOL_FONT } from "@/lib/fonts";
 import { default as BuefyColor } from "buefy/src/utils/color";
 
 // The arrow keys step by the playhead preroll,
@@ -161,10 +162,13 @@ import { default as BuefyColor } from "buefy/src/utils/color";
 const COARSE_STEP_MULTIPLIER = 5;
 
 // The preview here is a working view of the timings, not a proxy for the final video,
-// so it uses the app's own palette and a fixed size rather than the video settings.
+// so it uses the app's own palette, font and size rather than the video settings.
 // The size is in SUBTITLE_CANVAS units,
 // so it scales with the preview instead of being a pixel height.
 const PREVIEW_FONT_SIZE = 20;
+const PREVIEW_FONT = SYMBOL_FONT;
+// DejaVu Sans has no CJK glyphs, so CJK text is still tagged with the CJK font.
+const PREVIEW_FONTS = pick(BUNDLED_FONTS, [PREVIEW_FONT, CJK_FONT]);
 
 // Fallbacks are the light-theme values, applied only where the stylesheet is absent.
 const PREVIEW_PALETTE = {
@@ -277,6 +281,7 @@ export default defineComponent({
       debouncedSubtitles: "",
       _subtitleDebounceTimer: null as ReturnType<typeof setTimeout> | null,
       previewColors: resolvePreviewColors(),
+      previewFonts: PREVIEW_FONTS,
       _unsubscribeScheme: null as (() => void) | null,
     };
   },
@@ -316,7 +321,7 @@ export default defineComponent({
       return this.subtitles({
         addTitleScreen: false,
         countInMode: "none",
-        font: { size: PREVIEW_FONT_SIZE },
+        font: { name: PREVIEW_FONT, size: PREVIEW_FONT_SIZE },
         color: this.previewColors,
       });
     },
