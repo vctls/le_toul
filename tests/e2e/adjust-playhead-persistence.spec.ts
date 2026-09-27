@@ -9,6 +9,7 @@ import {
   uploadTimingsFile,
   regionLocator,
   scrollWaveformIntoView,
+  zoomWaveformIn,
 } from "./utils";
 
 const FIXTURE_TIMINGS = "timings-adjust-group.json";
@@ -16,7 +17,7 @@ const LYRICS = "One\nTwo\nThree\nFour";
 const PLAYER = ".timing-adjustment-tab audio[controls]";
 const WAVEFORM = ".timing-adjustment-tab .wavesurfer-container";
 // Enough that the waveform has to scroll to show the playhead.
-const ZOOM = 300;
+const ZOOM_NOTCHES = 5;
 const SEEK_SECONDS = 15;
 
 interface WaveformView {
@@ -71,11 +72,7 @@ test.describe("Adjust tab playhead", () => {
     await scrollWaveformIntoView(page);
     await expect(regionLocator(page, 0)).toBeVisible();
 
-    const zoom = page
-      .locator(".adjustment-form .field.is-horizontal", { hasText: "Waveform zoom" })
-      .locator("input");
-    await zoom.fill(String(ZOOM));
-    await zoom.blur();
+    await zoomWaveformIn(page, ZOOM_NOTCHES);
 
     await page.locator(PLAYER).evaluate((el: HTMLAudioElement, time) => {
       el.currentTime = time;
