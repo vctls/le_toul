@@ -38,9 +38,13 @@ function addSlashes(word: string, template: string): string {
   return result;
 }
 
+function normalizeWord(word: string): string {
+  return word.replace(/[/,!—]/g, "").toLowerCase();
+}
+
 function areWordsEquivalent(word1: string, word2: string): boolean {
   // Return true if word1 resembles word2 enough
-  return word1.toLowerCase().replace(/[/,!—]/g, "") == word2.replace(/[/,!—]/g, "").toLowerCase();
+  return normalizeWord(word1) == normalizeWord(word2);
 }
 
 export function slashifyAllOccurences(
@@ -51,6 +55,10 @@ export function slashifyAllOccurences(
   // Replace all instances of [word] in [text] with the current slashed version of the word.
   // For instance replace "alchemy" with "al/chem/y"
   // Preserve case and word separators.
+  // A slash on an empty line would otherwise match every empty word.
+  if (normalizeWord(word) == "") {
+    return lyrics;
+  }
   let result = "";
   let currentWord = "";
   let state = "INWORD";

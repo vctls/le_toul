@@ -18,4 +18,6 @@ test("slashifyAllOccurences", () => {
   expect(slashifyAllOccurences("Ggg ggg", "ggg", "ggg/")).toBe("Ggg/ ggg/");
   expect(slashifyAllOccurences("Ggg ggg,\nggg ggg!", "ggg", "gg/g")).toBe("Gg/g gg/g,\ngg/g gg/g!");
   expect(slashifyAllOccurences("Ggg end\nbegin ggg", "Ggg", "G/gg")).toBe("G/gg end\nbegin g/gg");
+  expect(slashifyAllOccurences("ggg\n/\n\nggg\n", "", "/")).toBe("ggg\n/\n\nggg\n");
+  expect(slashifyAllOccurences("ggg ,/\n\n", ",", ",/")).toBe("ggg ,/\n\n");
 });
