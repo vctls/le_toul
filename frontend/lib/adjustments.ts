@@ -21,8 +21,7 @@ const SCREEN_QUICK_START_THRESHOLD: Timestamp = 2.0;
 // One entry per mark, fading in towards the beat the singing starts on.
 const COUNT_IN_MARK_ALPHAS = [0x80, 0x40, 0x00];
 const COUNT_IN_MARKS_MAX = COUNT_IN_MARK_ALPHAS.length;
-const COUNT_IN_MARK_WIDTH_RATIO = 0.4;
-const COUNT_IN_MARK_HEIGHT_RATIO = 0.6;
+const COUNT_IN_MARK_SIZE_RATIO = 0.4;
 // Script units, so the marks stay the same distance apart in any font at any size.
 const COUNT_IN_MARK_GAP = 5;
 
@@ -33,13 +32,12 @@ function countInMark(fontSize: number, last: boolean): string {
   // so an offset path would overlap the text after it.
   // The gap is a second, empty contour widening that box, so it stays in script units
   // rather than taking the width of a space in the current font.
-  const width = Math.round(fontSize * COUNT_IN_MARK_WIDTH_RATIO);
-  const height = Math.round(fontSize * COUNT_IN_MARK_HEIGHT_RATIO);
-  const rect = `m 0 0 l ${width} 0 ${width} -${height} 0 -${height}`;
-  const pad = width + COUNT_IN_MARK_GAP;
+  const size = Math.round(fontSize * COUNT_IN_MARK_SIZE_RATIO);
+  const square = `m 0 0 l ${size} 0 ${size} -${size} 0 -${size}`;
+  const pad = size + COUNT_IN_MARK_GAP;
   // The last mark is followed by the lyrics, so an ordinary word space separates them.
   const gap = last ? "" : ` m ${pad} 0 l ${pad} 0`;
-  return `{\\p1\\pbo${height}}${rect}${gap}{\\p0}${last ? " " : ""}`;
+  return `{\\p1\\pbo${size}}${square}${gap}{\\p0}${last ? " " : ""}`;
 }
 
 /**
