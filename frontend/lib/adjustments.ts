@@ -334,12 +334,10 @@ export function displayQuickLinesEarly(
     }
     const lineAfterEarlyRemovals = screen.lines[earlyRemovalLines.length];
     // Remove earlyRemovalLines when the line after them is halfway done singing
-    const earlyRemovalTime =
-      lineAfterEarlyRemovals.timestamp +
-      (lineAfterEarlyRemovals.endTimestamp - lineAfterEarlyRemovals.timestamp) * 0.5;
-    const earlyDisplayTime =
-      lineAfterEarlyRemovals.timestamp +
-      (lineAfterEarlyRemovals.endTimestamp - lineAfterEarlyRemovals.timestamp) * 0.75;
+    const singStart = lineAfterEarlyRemovals.singTimestamp;
+    const singDuration = lineAfterEarlyRemovals.endTimestamp - singStart;
+    const earlyRemovalTime = singStart + singDuration * 0.5;
+    const earlyDisplayTime = singStart + singDuration * 0.75;
     earlyRemovalLines.forEach((line) => {
       line.customDisplayEndTime = earlyRemovalTime;
       line.fadeOutDuration = (earlyDisplayTime - earlyRemovalTime) / 2;
