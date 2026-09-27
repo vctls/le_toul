@@ -11,6 +11,7 @@ import { BasePlugin } from "wavesurfer.js/dist/base-plugin";
 import { BasePluginEvents } from "wavesurfer.js/dist/base-plugin";
 import EventEmitter from "wavesurfer.js/dist/event-emitter";
 import createElement from "wavesurfer.js/dist/dom";
+import { groupBy, sortBy } from "lodash-es";
 
 export function makeDraggable(
   element: HTMLElement,
@@ -130,6 +131,13 @@ const CONTENT_STYLE = {
   zIndex: "1",
 };
 
+/**
+ * Cut a label off at `maxWidth`. An empty width lets it run on.
+ */
+function clipLabel(label: HTMLElement, maxWidth: string) {
+  Object.assign(label.style, { maxWidth, overflow: maxWidth ? "hidden" : "visible" });
+}
+
 function pixelsToSeconds(dx: number, width: number, totalDuration: number): number {
   if (!width || !totalDuration) return 0;
   return (dx / width) * totalDuration;
@@ -177,6 +185,7 @@ class SingleRegion extends EventEmitter<RegionEvents> implements Region {
   public selected = false;
   public isAttached = false;
   public subscriptions: (() => void)[] = [];
+  private labelMaxWidth = "";
 
   private _explicitEnd?: number;
   private _nextRegion?: Region;
@@ -578,11 +587,14 @@ class SingleRegion extends EventEmitter<RegionEvents> implements Region {
       this.content = undefined;
       return;
     }
-    const label = (color: string, textShadow = "none") =>
-      createElement("div", {
+    const label = (color: string, textShadow = "none") => {
+      const element = createElement("div", {
         style: { ...CONTENT_STYLE, color, textShadow },
         textContent: content,
       });
+      clipLabel(element, this.labelMaxWidth);
+      return element;
+    };
     this.content = label(LABEL_ON_WAVEFORM, LABEL_HALO);
     if (this.contentEditable) {
       this.content.contentEditable = "true";
@@ -610,6 +622,17 @@ class SingleRegion extends EventEmitter<RegionEvents> implements Region {
     this.contentOverlayLabel = label(this.selected ? LABEL_ON_SELECTION : LABEL_ON_REGION);
     this.contentOverlay.appendChild(this.contentOverlayLabel);
     this.element.appendChild(this.contentOverlay);
+  }
+
+  /**
+   * Cut the label off where the next label in its row starts, so that one shows whole.
+   */
+  public setLabelMaxWidth(width: string) {
+    if (width === this.labelMaxWidth) return;
+    this.labelMaxWidth = width;
+    for (const label of [this.content, this.contentOverlayLabel]) {
+      if (label) clipLabel(label, width);
+    }
   }
 
   /** Update the region's options */
@@ -683,6 +706,7 @@ class RegionsPlugin extends BasePlugin<RegionsPluginEvents, RegionsPluginOptions
   private anchorId?: string;
   private groupDrag?: Region[];
   private visibilityFrame = 0;
+  private labelsFrame = 0;
 
   /** Create an instance of RegionsPlugin */
   constructor(options?: RegionsPluginOptions) {
@@ -748,8 +772,36 @@ class RegionsPlugin extends BasePlugin<RegionsPluginEvents, RegionsPluginOptions
         height: "100%",
         zIndex: "3",
         pointerEvents: "none",
+        // The labels measure the room they have in cqw, a share of the whole track.
+        containerType: "inline-size",
       },
     });
+  }
+
+  private scheduleLabelClip() {
+    if (this.labelsFrame) return;
+    this.labelsFrame = requestAnimationFrame(() => {
+      this.labelsFrame = 0;
+      this.clipLabels();
+    });
+  }
+
+  /**
+   * Cut each label off where the next one in its row starts.
+   * A region's element is only attached while it is in view, so the order of the elements can't
+   * decide which label covers which.
+   */
+  private clipLabels() {
+    const duration = this.wavesurfer?.getDuration();
+    if (!duration) return;
+    for (const row of Object.values(groupBy(this.regions, (region) => region.channelIdx))) {
+      const sorted = sortBy(row, (region) => region.start);
+      sorted.forEach((region, i) => {
+        const next = sorted[i + 1];
+        const room = next ? `${((next.start - region.start) / duration) * 100}cqw` : "";
+        region.setLabelMaxWidth(room);
+      });
+    }
   }
 
   private avoidOverlapping(newRegion: Region) {
@@ -884,6 +936,7 @@ class RegionsPlugin extends BasePlugin<RegionsPluginEvents, RegionsPluginOptions
       duration,
     );
     if (!delta) return;
+    this.scheduleLabelClip();
     selection.forEach((selectedRegion) => selectedRegion._shiftBy(delta));
     this.adjustScroll(region);
   }
@@ -949,6 +1002,7 @@ class RegionsPlugin extends BasePlugin<RegionsPluginEvents, RegionsPluginOptions
     this.avoidOverlapping(region);
     this.setNextRegion(region);
     this.regions.push(region);
+    this.scheduleLabelClip();
 
     const regionSubscriptions = [
       region.on("update", (side) => {
@@ -957,11 +1011,13 @@ class RegionsPlugin extends BasePlugin<RegionsPluginEvents, RegionsPluginOptions
         if (!side && !this.groupDrag) {
           this.adjustScroll(region);
         }
+        this.scheduleLabelClip();
         this.emit("region-update", region, side);
       }),
 
       region.on("update-end", () => {
         this.avoidOverlapping(region);
+        this.scheduleLabelClip();
         this.emit("region-updated", region);
       }),
 
@@ -989,6 +1045,7 @@ class RegionsPlugin extends BasePlugin<RegionsPluginEvents, RegionsPluginOptions
       region.once("remove", () => {
         regionSubscriptions.forEach((unsubscribe) => unsubscribe());
         this.regions = this.regions.filter((reg) => reg !== region);
+        this.scheduleLabelClip();
         this.emit("region-removed", region);
       }),
     ];
@@ -1032,6 +1089,7 @@ class RegionsPlugin extends BasePlugin<RegionsPluginEvents, RegionsPluginOptions
   /** Destroy the plugin and clean up */
   public destroy() {
     if (this.visibilityFrame) cancelAnimationFrame(this.visibilityFrame);
+    if (this.labelsFrame) cancelAnimationFrame(this.labelsFrame);
     this.clearRegions();
     super.destroy();
     this.regionsContainer.remove();
