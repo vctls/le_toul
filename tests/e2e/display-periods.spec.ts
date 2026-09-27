@@ -8,14 +8,24 @@ import {
   loadAndEnterLyrics,
   uploadTimingsFile,
   scrollWaveformIntoView,
-  fieldFor,
   waveformPixelsPerSecond,
+  adjustTiming,
 } from "./utils";
 import { DEFAULT_VOICE_ID } from "../../frontend/lib/voices";
 
 // One screen of four lines: One 1-2 s, Two 3-5 s, Three 5-6 s and Four 7-8 s.
 const FIXTURE_TIMINGS = "timings-adjust-group.json";
 const LYRICS = "One\nTwo\nThree\nFour";
+
+/**
+ * The Adjust tab's switch field.
+ * The Submit tab has a field with the same words once a bound is stored.
+ */
+function displayTimesField(page: Page) {
+  return page.locator(".timing-adjustment-tab .field.is-horizontal", {
+    hasText: "Line display times",
+  });
+}
 
 async function setupDisplayMode(page: Page) {
   await navigateToTab(page, TabId.SongInfo);
@@ -30,7 +40,7 @@ async function setupDisplayMode(page: Page) {
   await navigateToTab(page, TabId.SongInfo);
   await uploadTimingsFile(page, FIXTURE_TIMINGS);
   await navigateToTab(page, TabId.TimingAdjustment);
-  await fieldFor(page, "Line display times").locator(".switch").click();
+  await displayTimesField(page).locator(".switch").click();
   await scrollWaveformIntoView(page);
   await expect(page.locator('[part="display-band"]')).toHaveCount(4);
 }
@@ -105,7 +115,7 @@ test.describe("Adjust tab display mode", () => {
     page,
   }) => {
     await setupDisplayMode(page);
-    const resetAll = fieldFor(page, "Line display times").getByRole("button", {
+    const resetAll = displayTimesField(page).getByRole("button", {
       name: "Reset all",
     });
     await expect(resetAll).toBeDisabled();
@@ -125,5 +135,33 @@ test.describe("Adjust tab display mode", () => {
       .poll(() => frame.evaluate((el) => getComputedStyle(el).borderRightStyle))
       .toBe("dashed");
     await expect(resetAll).toBeDisabled();
+  });
+
+  test("pushes a stored end along when a syllable is dragged past it", async ({ page }) => {
+    await setupDisplayMode(page);
+    await dragFirstEndEdgeBack(page);
+    await expect.poll(() => firstSegment(page)).toMatchObject({ displayEnd: 2 });
+
+    const displayTimes = displayTimesField(page).locator(".switch");
+    await displayTimes.click();
+    // The next line starts at 3 s, which leaves room to end the first one half a second later.
+    await adjustTiming(page, 0, 0, 0.5 * (await waveformPixelsPerSecond(page)));
+
+    await expect
+      .poll(() => firstSegment(page).then((segment) => segment.displayEnd))
+      .toBeGreaterThan(2.4);
+    const { end, displayEnd } = await firstSegment(page);
+    expect(displayEnd).toBeCloseTo(end, 5);
+
+    await displayTimes.click();
+    await scrollWaveformIntoView(page);
+    const frame = page.locator('[part="display-band"]').first();
+    const wrapper = page.locator('.timing-adjustment-tab .wavesurfer-container [part~="wrapper"]');
+    const pixelsPerSecond = await waveformPixelsPerSecond(page);
+    const frameBox = (await frame.boundingBox())!;
+    const wrapperBox = (await wrapper.boundingBox())!;
+    const frameEnd = (frameBox.x + frameBox.width - wrapperBox.x) / pixelsPerSecond;
+    expect(frameEnd).toBeCloseTo(displayEnd, 1);
+    expect(await frame.evaluate((el) => getComputedStyle(el).borderRightStyle)).toBe("solid");
   });
 });
