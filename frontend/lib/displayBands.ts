@@ -1,3 +1,4 @@
+import { minBy } from "lodash-es";
 import { createScreens, KaraokeOptions, LyricsLine } from "./timing";
 import { TimedSegment } from "./timedSegments";
 import { LinePlacement } from "./linePlacements";
@@ -67,4 +68,34 @@ export function displayBands(
       earliestEnd: line.endTimestamp,
       placement: placement(line),
     }));
+}
+
+/**
+ * The times a dragged edge of `band` snaps to: the edges of the lines in other rows,
+ * and the first syllable of the next line.
+ */
+export function snapTargets(bands: DisplayBand[], band: DisplayBand): number[] {
+  const next = bands[bands.indexOf(band) + 1];
+  return [
+    // Two edges at the same time in one row can't be told apart, so the band's own row is left out.
+    ...bands.filter((other) => other.row !== band.row).flatMap((other) => [other.start, other.end]),
+    ...(next ? [next.latestStart] : []),
+  ];
+}
+
+/**
+ * The target nearest `time`, if one is within `tolerance` of it and between `min` and `max`.
+ */
+export function nearestTarget(
+  time: number,
+  targets: number[],
+  tolerance: number,
+  min: number,
+  max: number,
+): number | undefined {
+  const distance = (target: number) => Math.abs(target - time);
+  return minBy(
+    targets.filter((target) => target >= min && target <= max && distance(target) <= tolerance),
+    distance,
+  );
 }

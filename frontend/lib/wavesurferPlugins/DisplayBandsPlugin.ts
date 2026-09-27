@@ -2,12 +2,13 @@
 // The frame's left and right edges can be dragged. The syllables inside are for reference only.
 // Hovering or dragging a frame tints it and lifts it over the others, and more lightly tints
 // the frames of lines drawn at the same height in the video.
+// A dragged edge snaps to the edges of lines in other rows, unless Ctrl or Cmd is held.
 // Frames can overlap, so the handles are drawn over every frame, even the lifted one.
 
 import { BasePlugin, BasePluginEvents } from "wavesurfer.js/dist/base-plugin";
 import createElement from "wavesurfer.js/dist/dom";
 import { groupBy, sortBy } from "lodash-es";
-import { DisplayBand } from "@/lib/displayBands";
+import { DisplayBand, nearestTarget, snapTargets } from "@/lib/displayBands";
 import { sameHeight } from "@/lib/linePlacements";
 import { makeDraggable } from "./OpenEndedRegionPlugin";
 
@@ -27,6 +28,9 @@ const OVERLAP_COLOR = "var(--bulma-danger)";
 const ACTIVE_FILL = "color-mix(in srgb, var(--bulma-primary) 45%, transparent)";
 const SAME_HEIGHT_FILL = "color-mix(in srgb, var(--bulma-primary) 20%, transparent)";
 const LIMIT_COLOR = "var(--bulma-primary)";
+const SNAP_COLOR = `color-mix(in srgb, ${FRAME_COLOR} 45%, transparent)`;
+// In pixels, so snapping feels the same at every zoom.
+const SNAP_DISTANCE = 7;
 // The fills are translucent, so the more frames overlap, the darker the area they share.
 const restFill = (color: string) => `color-mix(in srgb, ${color} 7%, transparent)`;
 // The z-indexes of the lifted frame, and of the halves of each handle outside and inside its frame.
@@ -55,6 +59,7 @@ class DisplayBandsPlugin extends BasePlugin<DisplayBandsPluginEvents, undefined>
   private cleanups: (() => void)[] = [];
   private frames: { band: DisplayBand; row: HTMLElement; frame: HTMLElement }[] = [];
   private limits: Record<"start" | "end", HTMLElement> | undefined;
+  private snapLine: HTMLElement | undefined;
   private hovered?: DisplayBand;
   private dragged?: DisplayBand;
 
@@ -124,6 +129,28 @@ class DisplayBandsPlugin extends BasePlugin<DisplayBandsPluginEvents, undefined>
         this.container,
       );
     this.limits = { start: limit("start"), end: limit("end") };
+    this.snapLine = createElement(
+      "div",
+      {
+        part: "display-band-snap",
+        style: {
+          position: "absolute",
+          top: "0",
+          height: "100%",
+          borderLeft: `1px solid ${SNAP_COLOR}`,
+          display: "none",
+        },
+      },
+      this.container,
+    );
+  }
+
+  private showSnap(time: number | undefined, duration: number) {
+    if (!this.snapLine) return;
+    Object.assign(this.snapLine.style, {
+      display: time === undefined ? "none" : "",
+      left: time === undefined ? "" : `${(time / duration) * 100}%`,
+    });
   }
 
   private createBand(band: DisplayBand, duration: number, labelEnd: number | undefined) {
@@ -264,23 +291,57 @@ class DisplayBandsPlugin extends BasePlugin<DisplayBandsPluginEvents, undefined>
         handle.removeEventListener("dblclick", reset);
       });
 
+      // The pointer's time, before the edge is stopped or snapped.
+      let pointer = 0;
+      let targets: number[] = [];
+      let snapping = true;
+      const move = () => {
+        // An edge stops at its own line's timings and at the fixed part of a line at its height.
+        const [min, max] =
+          side === "start"
+            ? [band.placement?.earliestStart ?? 0, band.latestStart]
+            : [band.earliestEnd, band.placement?.latestEnd ?? duration];
+        const tolerance = (SNAP_DISTANCE / this.container.clientWidth) * duration;
+        const target = snapping ? nearestTarget(pointer, targets, tolerance, min, max) : undefined;
+        // The line's own timings win when a line at its height leaves no room.
+        const stopped =
+          side === "start"
+            ? Math.min(max, Math.max(min, pointer))
+            : Math.max(min, Math.min(max, pointer));
+        if (side === "start") start = target ?? stopped;
+        else end = target ?? stopped;
+        place();
+        this.showSnap(target, duration);
+      };
+      const watchModifier = (event: KeyboardEvent | PointerEvent) => {
+        // Ctrl or Cmd held turns snapping off.
+        const on = !(event.ctrlKey || event.metaKey);
+        if (on === snapping) return;
+        snapping = on;
+        move();
+      };
+      const modifierEvents = ["keydown", "keyup", "pointermove"] as const;
+      const unwatchModifier = () =>
+        modifierEvents.forEach((type) => window.removeEventListener(type, watchModifier));
+      this.cleanups.push(unwatchModifier);
+
       this.cleanups.push(
         makeDraggable(
           handle,
           (dx) => {
-            const seconds = (dx / this.container.clientWidth) * duration;
-            // An edge stops at its own line's timings and at the fixed part of a line at its height.
-            if (side === "start") {
-              const earliest = band.placement?.earliestStart ?? 0;
-              start = Math.min(band.latestStart, Math.max(earliest, start + seconds));
-            } else {
-              const latest = band.placement?.latestEnd ?? duration;
-              end = Math.max(band.earliestEnd, Math.min(latest, end + seconds));
-            }
-            place();
+            pointer += (dx / this.container.clientWidth) * duration;
+            move();
           },
-          () => this.setDragged(band),
           () => {
+            pointer = side === "start" ? start : end;
+            targets = snapTargets(this.bands, band);
+            snapping = true;
+            modifierEvents.forEach((type) => window.addEventListener(type, watchModifier));
+            this.setDragged(band);
+          },
+          () => {
+            unwatchModifier();
+            this.showSnap(undefined, duration);
             this.setDragged(undefined);
             this.emit("band-updated", band.segmentIndex, side, side === "start" ? start : end);
           },
