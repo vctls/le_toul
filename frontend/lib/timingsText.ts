@@ -76,24 +76,43 @@ export function isTimingsText(text: string): boolean {
  * Anything the app can't hold but can recover from is dropped or changed, with a warning.
  */
 export function parseTimingsText(input: string): ParsedTimingsText {
-  const sections = parseSections(input);
   const warnings = new Warnings();
   const voices: Record<VoiceId, TimedSegment[]> = {};
-  for (const [voice, pages] of sections) {
-    validateTimes(pages);
-    const clamped = clampDisplayPeriods(toSegments(pages, warnings));
-    for (let i = 0; i < clamped.widened; i++) {
-      warnings.add(DISPLAY_PERIOD_WIDENED);
-    }
-    voices[voice] = clamped.segments;
+  for (const [voice, pages] of parseSections(input, true)) {
+    voices[voice] = voiceSegments(pages, warnings);
   }
   return { voices, warnings: warnings.list() };
 }
 
-function parseSections(input: string): Map<VoiceId, ParsedPage[]> {
+export interface ParsedVoiceTimingsText {
+  segments: TimedSegment[];
+  warnings: string[];
+}
+
+/**
+ * Parse one voice's section of a `timings.txt`, as the Edit tab shows it.
+ * A section has no signature or `voice` row, so either one is an error.
+ */
+export function parseVoiceTimingsText(input: string): ParsedVoiceTimingsText {
+  const warnings = new Warnings();
+  const pages = parseSections(input, false).get(DEFAULT_VOICE_ID);
+  const segments = pages ? voiceSegments(pages, warnings) : [];
+  return { segments, warnings: warnings.list() };
+}
+
+function voiceSegments(pages: ParsedPage[], warnings: Warnings): TimedSegment[] {
+  validateTimes(pages);
+  const clamped = clampDisplayPeriods(toSegments(pages, warnings));
+  for (let i = 0; i < clamped.widened; i++) {
+    warnings.add(DISPLAY_PERIOD_WIDENED);
+  }
+  return clamped.segments;
+}
+
+function parseSections(input: string, wholeFile: boolean): Map<VoiceId, ParsedPage[]> {
   const rows = input.replace(/^\uFEFF/, "").split(/\r?\n/);
   const sections = new Map<VoiceId, ParsedPage[]>();
-  let signed = false;
+  let signed = !wholeFile;
   let pages: ParsedPage[] | undefined;
   let line: ParsedLine | undefined;
   let afterFooter = false;
@@ -137,6 +156,13 @@ function parseSections(input: string): Map<VoiceId, ParsedPage[]> {
       }
       signed = true;
       continue;
+    }
+
+    if (!wholeFile && (SIGNATURE_ROW.test(content) || VOICE_ROW.test(content))) {
+      throw new TimingsTextError(
+        row,
+        "This row belongs to the whole timings file, not to one voice's section.",
+      );
     }
 
     let match: RegExpMatchArray | null;
@@ -184,7 +210,10 @@ function parseSections(input: string): Map<VoiceId, ParsedPage[]> {
         row,
       });
     } else {
-      throw new TimingsTextError(row, "This row isn't a voice, a page, a time or a syllable.");
+      const kinds = wholeFile
+        ? "a voice, a page, a time or a syllable"
+        : "a page, a time or a syllable";
+      throw new TimingsTextError(row, `This row isn't ${kinds}.`);
     }
   }
 
@@ -356,15 +385,25 @@ export function writeTimingsText(
 
   const rows = [`${SIGNATURE} ${TIMINGS_TEXT_VERSION}`];
   for (const voice of voices) {
-    rows.push("", `voice ${quote(voice)}`);
-    for (const page of toPages(byVoice[voice])) {
-      rows.push("", "page");
-      for (const line of page) {
-        rows.push("", ...lineRows(line));
-      }
-    }
+    rows.push("", `voice ${quote(voice)}`, "", ...sectionRows(byVoice[voice]));
   }
   return rows.join("\n") + "\n";
+}
+
+/**
+ * Write one voice's section of a `timings.txt`, without the signature and the `voice` row.
+ */
+export function writeVoiceTimingsText(segments: TimedSegment[]): string {
+  const rows = sectionRows(segments);
+  return rows.length > 0 ? rows.join("\n") + "\n" : "";
+}
+
+function sectionRows(segments: TimedSegment[]): string[] {
+  return toPages(segments).flatMap((page, p) => [
+    ...(p > 0 ? [""] : []),
+    "page",
+    ...page.flatMap((line) => ["", ...lineRows(line)]),
+  ]);
 }
 
 type Break = "page" | "line" | "word" | "split" | "none";
