@@ -11,6 +11,13 @@ vi.mock("@/lib/audio", () => ({
   resumeSeparation: vi.fn(),
 }));
 
+vi.mock("@/jsmediatags.min.js", () => ({
+  default: {
+    read: (_file: File, { onSuccess }: { onSuccess: (tag: unknown) => void }) =>
+      onSuccess({ tags: {} }),
+  },
+}));
+
 vi.mock("@/lib/persistence", () => ({
   persistJsonRef: vi.fn(),
   persistBlobRef: vi.fn().mockResolvedValue(undefined),
@@ -19,6 +26,11 @@ vi.mock("@/lib/persistence", () => ({
 
 const SONG = new File(["audio data"], "test.mp3", { type: "audio/mp3" });
 const TRACK = { backing: new Blob(["backing"]), vocals: new Blob(["vocals"]) };
+
+// Resolves once the store has read its saved files back, after which a new song counts as a change.
+function hydrated() {
+  return new Promise((resolve) => setTimeout(resolve));
+}
 
 // Resolves once the separation has been asked for, so a test can act on the signal the store handed it.
 function pendingSeparation() {
@@ -103,6 +115,43 @@ describe("Media Store separation", () => {
     expect(store.backingTrackFile).toBeNull();
     expect(store.vocalTrackFile).toBeNull();
     expect(store.hasSeparatedTrack).toBe(false);
+  });
+
+  it("discards the tracks and video of the previous song when the song changes", async () => {
+    vi.stubGlobal(
+      "AudioContext",
+      class {
+        async decodeAudioData(_data: ArrayBuffer, onSuccess: (buffer: AudioBuffer) => void) {
+          onSuccess({ duration: 1 } as AudioBuffer);
+        }
+      },
+    );
+    const store = useMediaStore();
+    await hydrated();
+    const started = pendingSeparation();
+    store.startSeparation(SONG, BACKING_VOCALS_SEPARATOR_MODEL);
+    const signal = await started;
+    store.separatedTrack = TRACK;
+    store.backingTrackFile = new File(["backing"], "accompaniment.wav");
+    store.backgroundVideo = new Blob(["video"]);
+
+    store.songFile = new File(["other audio"], "other.mp3");
+
+    expect(signal.aborted).toBe(true);
+    expect(store.separatedTrack).toBeNull();
+    expect(store.backingTrackFile).toBeNull();
+    expect(store.backgroundVideo).toBeNull();
+    await store.metadataSettled();
+    vi.unstubAllGlobals();
+  });
+
+  it("keeps the tracks that are restored along with the song", () => {
+    const store = useMediaStore();
+    store.separatedTrack = TRACK;
+
+    store.songFile = SONG;
+
+    expect(store.separatedTrack).toBe(TRACK);
   });
 
   it("reports an uploaded track alone as a separated track", async () => {

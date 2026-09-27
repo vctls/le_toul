@@ -377,7 +377,6 @@ function formatDuration(seconds: number): string {
 interface FolderLosses {
   labels: string[];
   files: {
-    song?: File;
     lyrics?: string;
     timings?: string;
     settings?: string;
@@ -812,7 +811,6 @@ export default defineComponent({
       const track = this.mediaStore.separatedTrack;
       if (project.song && this.mediaStore.songFile) {
         losses.labels.push("song");
-        losses.files.song = this.mediaStore.songFile;
       }
       if (project.lyrics && this.lyricsStore.lyricText.trim() !== "") {
         losses.labels.push("lyrics");
@@ -822,11 +820,12 @@ export default defineComponent({
         losses.labels.push("timings");
         losses.files.timings = this.timingsStore.timingsText;
       }
-      if (project.backing && track && track.backing.size > 0) {
+      // A new song discards the tracks separated from the old one, even when the folder has none.
+      if ((project.backing || project.song) && track && track.backing.size > 0) {
         losses.labels.push("backing track");
         losses.files.accompaniment = track.backing;
       }
-      if (project.vocals && track && track.vocals.size > 0) {
+      if ((project.vocals || project.song) && track && track.vocals.size > 0) {
         losses.labels.push("vocal track");
         losses.files.vocals = track.vocals;
       }
