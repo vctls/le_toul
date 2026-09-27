@@ -5,7 +5,6 @@
 import { findLastIndex } from "lodash-es";
 import { BRACKETS_REMOVED, MARKUP_REMOVED, SPACER_DROPPED, Warnings } from "./importWarnings";
 import { TimedSegment, clampDisplayPeriods } from "./timedSegments";
-import { formatTimecode } from "./timingFormat";
 import { DEFAULT_VOICE_ID, VoiceId } from "./voices";
 
 export const TIMINGS_TEXT_VERSION = 1;
@@ -490,6 +489,16 @@ function lineRows(line: WrittenLine): string[] {
     return quoted[i] + " ".repeat(column - width(quoted[i])) + values.join("  ");
   });
   return [boundText(line.displayStart), ...syllableRows, boundText(line.displayEnd)];
+}
+
+export function formatTimecode(seconds: number): string {
+  const totalCs = Math.max(0, Math.round(seconds * 100));
+  const cc = totalCs % 100;
+  const totalSec = (totalCs - cc) / 100;
+  const ss = totalSec % 60;
+  const mm = (totalSec - ss) / 60;
+  const pad = (n: number) => n.toString().padStart(2, "0");
+  return `${pad(mm)}:${pad(ss)}.${pad(cc)}`;
 }
 
 function boundText(time: number | undefined): string {

@@ -5,10 +5,6 @@
 import { LYRIC_MARKERS } from "@/constants";
 import { LyricEvent, resolveStarts } from "@/lib/timing";
 import { TimedSegment } from "@/lib/timedSegments";
-import { formatTimecode } from "@/lib/timingFormat";
-
-// Tolerance for floating-point comparisons (a hair under a centisecond).
-const EPSILON = 0.005;
 
 // Clamp any SEGMENT_END whose time exceeds the following event's time down to that time,
 // so a segment can't overlap the next one. Used when committing adjusted timings, where
@@ -21,25 +17,6 @@ export function clampTimingOverlaps(timings: LyricEvent[]): LyricEvent[] {
     }
   }
   return result;
-}
-
-export interface TimingValidationResult {
-  valid: boolean;
-  message?: string;
-}
-
-// Validate that event times never go backwards. A backwards step means either a segment
-// ends after the next one starts (an overlap) or timestamps are simply out of order.
-export function validateTimings(timings: LyricEvent[]): TimingValidationResult {
-  for (let i = 1; i < timings.length; i++) {
-    if (timings[i][0] < timings[i - 1][0] - EPSILON) {
-      return {
-        valid: false,
-        message: `Timecodes must not go backwards: ${formatTimecode(timings[i - 1][0])} is followed by ${formatTimecode(timings[i][0])}.`,
-      };
-    }
-  }
-  return { valid: true };
 }
 
 /**

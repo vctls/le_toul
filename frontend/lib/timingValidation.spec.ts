@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { clampTimingOverlaps, clampSegmentOverlaps, validateTimings } from "./timingValidation";
+import { clampTimingOverlaps, clampSegmentOverlaps } from "./timingValidation";
 import { LyricEvent } from "./timing";
 import { LYRIC_MARKERS } from "../constants";
 
@@ -28,33 +28,6 @@ describe("clampTimingOverlaps", () => {
     const copy = timings.map((e) => [...e] as LyricEvent);
     expect(clampTimingOverlaps(timings)).toEqual(copy);
     expect(timings).toEqual(copy); // input untouched
-  });
-});
-
-describe("validateTimings", () => {
-  it("accepts non-decreasing timecodes", () => {
-    const timings: LyricEvent[] = [
-      [1.0, SEGMENT_START],
-      [2.0, SEGMENT_END],
-      [2.0, SEGMENT_START],
-      [4.0, SEGMENT_END],
-    ];
-    expect(validateTimings(timings)).toEqual({ valid: true });
-  });
-
-  it("rejects timecodes that go backwards (an overlap or out-of-order edit)", () => {
-    const timings: LyricEvent[] = [
-      [1.0, SEGMENT_START],
-      [3.0, SEGMENT_END],
-      [2.0, SEGMENT_START], // backwards
-    ];
-    const result = validateTimings(timings);
-    expect(result.valid).toBe(false);
-    expect(result.message).toContain("backwards");
-  });
-
-  it("accepts empty timings", () => {
-    expect(validateTimings([])).toEqual({ valid: true });
   });
 });
 
