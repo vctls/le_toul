@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { displayBands } from "./displayBands";
+import { DisplayBand, displayBands, nearestTarget, snapTargets } from "./displayBands";
 import { DEFAULT_KARAOKE_OPTIONS, KaraokeOptions } from "./timing";
 
 const options: KaraokeOptions = {
@@ -102,5 +102,48 @@ describe("displayBands", () => {
     });
 
     expect(band.start).toBe(1);
+  });
+});
+
+describe("snapTargets", () => {
+  const band = (row: number, start: number, end: number, latestStart: number): DisplayBand => ({
+    segmentIndex: 0,
+    row,
+    text: "",
+    syllables: [],
+    start,
+    end,
+    startStored: false,
+    endStored: false,
+    latestStart,
+    earliestEnd: latestStart + 1,
+  });
+  const bands = [band(0, 1, 5, 2), band(1, 3, 8, 4), band(2, 6, 11, 7), band(0, 9, 14, 10)];
+
+  it("takes the edges of the lines in other rows, and the next line's first syllable", () => {
+    expect(snapTargets(bands, bands[1])).toEqual([1, 5, 6, 11, 9, 14, 7]);
+  });
+
+  it("leaves out the lines in the band's own row", () => {
+    expect(snapTargets(bands, bands[0])).toEqual([3, 8, 6, 11, 4]);
+  });
+
+  it("has no next line after the last one", () => {
+    expect(snapTargets(bands, bands[3])).toEqual([3, 8, 6, 11]);
+  });
+});
+
+describe("nearestTarget", () => {
+  it("picks the nearest target within the tolerance", () => {
+    expect(nearestTarget(10, [9.7, 10.2, 12], 0.5, 0, 30)).toBe(10.2);
+  });
+
+  it("finds none beyond the tolerance", () => {
+    expect(nearestTarget(10, [9, 11], 0.5, 0, 30)).toBeUndefined();
+  });
+
+  it("skips a target the edge can't reach", () => {
+    expect(nearestTarget(10, [10.1, 9.8], 0.5, 0, 10)).toBe(9.8);
+    expect(nearestTarget(10, [10.1], 0.5, 0, 10)).toBeUndefined();
   });
 });
