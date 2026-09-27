@@ -199,11 +199,7 @@ export function clampDisplayPeriods(segments: TimedSegment[]): {
   return { segments: result, widened };
 }
 
-// The `timings.json` the Submit tab exports.
-// The event form cannot express an untimed segment, so saving a partly-timed project
-// that way drops the holes and misattributes every segment after the first one on reload.
-export const TIMINGS_FILE_VERSION = 2;
-
+// The versioned `timings.json` that older versions of the app wrote, which still loads.
 export interface TimingsFile {
   version: number;
   voices: Record<string, TimedSegment[]>;

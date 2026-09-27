@@ -725,7 +725,7 @@ export default defineComponent({
     async applyKbpFile(file: File): Promise<KbpImport> {
       const converted = kbpToProjectFiles(await file.text(), { fonts: Object.keys(BUNDLED_FONTS) });
       this.lyricsStore.setLyrics(converted.lyrics);
-      await this.applyTimingsFile(new File([JSON.stringify(converted.timings)], "timings.json"));
+      this.timingsStore.setAllSegments(converted.timings);
       const settingsWarnings = await this.applySettingsFile(
         new File([converted.settings], "settings.yaml"),
       );
