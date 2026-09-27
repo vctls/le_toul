@@ -18,7 +18,7 @@
       :bands="bands"
       :bandsEnabled="bandsEnabled"
       :mediaControls="false"
-      :minPxPerSec="zoom"
+      :zoom="zoom"
       :initialScroll="initialScroll"
       @region-updated="onRegionUpdated"
       @regions-updated="onRegionsUpdated"
@@ -85,7 +85,7 @@ export default defineComponent({
     initialPlayhead: { type: Number, default: 0 },
     // This is where the waveform was scrolled to, in seconds.
     initialScroll: { type: Number, default: 0 },
-    zoom: { type: Number, default: 50 },
+    zoom: { type: Number, default: 100 },
     playbackRate: { type: Number, default: 1 },
     preservePitch: { type: Boolean, default: false },
   },
