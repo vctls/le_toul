@@ -17,6 +17,7 @@ import { LinePlacement, placeLines } from "@/lib/linePlacements";
 import {
   TimedSegment,
   fromEvents,
+  fromLyric,
   hasDisplayPeriod,
   normalizeDisplayPeriods,
   reconcile,
@@ -396,9 +397,7 @@ export const useTimingsStore = defineStore("timings", {
     ensureActiveSegments(): TimedSegment[] {
       const voice = this.activeVoice;
       if (!this._segmentsByVoice[voice]) {
-        const seeded = useLyricsStore()
-          .segmentsForVoice(voice)
-          .map(({ text }) => ({ text }));
+        const seeded = useLyricsStore().segmentsForVoice(voice).map(fromLyric);
         this._segmentsByVoice = { ...this._segmentsByVoice, [voice]: seeded };
       }
       return this._segmentsByVoice[voice];

@@ -180,6 +180,63 @@ describe("parseLyrics", () => {
     expect(texts("foo /bar", false)).toEqual(["foo ", "bar"]);
   });
 
+  test("counts a spacer on the line below it", () => {
+    expect(parseLyrics("/\nfoo\nbar", true)).toEqual([
+      { text: "foo\n", spacersBefore: 1 },
+      { text: "bar" },
+    ]);
+    expect(parseLyrics("foo\n/\n/\nbar", true)).toEqual([
+      { text: "foo\n" },
+      { text: "bar", spacersBefore: 2 },
+    ]);
+  });
+
+  test("counts a spacer at the bottom of a page on the page's last line", () => {
+    expect(parseLyrics("foo\nbar\n/", true)).toEqual([
+      { text: "foo\n" },
+      { text: "bar", spacersAfter: 1 },
+    ]);
+    expect(parseLyrics("foo\n/\n\n/\nbar", true)).toEqual([
+      { text: "foo\n\n", spacersAfter: 1 },
+      { text: "bar", spacersBefore: 1 },
+    ]);
+  });
+
+  test("counts spacers on a line's first segment", () => {
+    expect(parseLyrics("fo/o\n/\nb_ar\n/\n\nbaz", true)).toEqual([
+      { text: "fo/" },
+      { text: "o\n" },
+      { text: "b_", spacersBefore: 1, spacersAfter: 1 },
+      { text: "ar\n\n" },
+      { text: "baz" },
+    ]);
+  });
+
+  test("ignores spacers on a page with no line", () => {
+    expect(parseLyrics("foo\n\n/\n/\n\nbar", true)).toEqual([{ text: "foo\n\n" }, { text: "bar" }]);
+    expect(parseLyrics("/\n\nfoo\n\n/", true)).toEqual([{ text: "foo" }]);
+  });
+
+  test("reads a line of slashes and whitespace as one spacer", () => {
+    for (const spacer of [" / ", "//", "/ /"]) {
+      expect(parseLyrics(`foo\n${spacer}\nbar`, true)).toEqual([
+        { text: "foo\n" },
+        { text: "bar", spacersBefore: 1 },
+      ]);
+    }
+  });
+
+  test("doesn't read a split at the edge of a line as a spacer", () => {
+    expect(parseLyrics("foo/\n/bar", true)).toEqual([{ text: "foo\n" }, { text: "bar" }]);
+  });
+
+  test("counts spacers without markup", () => {
+    expect(parseLyrics("foo\n/\nbar", false)).toEqual([
+      { text: "foo\n" },
+      { text: "bar", spacersBefore: 1 },
+    ]);
+  });
+
   test("applies the same rules without markup", () => {
     expect(texts("foo_\nbar", false)).toEqual(["foo\n", "bar"]);
     expect(texts("a__b", false)).toEqual(["a ", "b"]);

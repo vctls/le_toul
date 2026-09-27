@@ -16,6 +16,29 @@ export interface TimedSegment {
   // A missing bound is automatic.
   displayStart?: number;
   displayEnd?: number;
+  // A line's spacer counts, only read on its first segment.
+  // They come from the lyrics, like the text.
+  spacersBefore?: number;
+  spacersAfter?: number;
+}
+
+/**
+ * A lyric segment as an untimed segment, with its text and spacer counts.
+ */
+export function fromLyric({ text, spacersBefore, spacersAfter }: Segment): TimedSegment {
+  return {
+    text,
+    ...(spacersBefore ? { spacersBefore } : {}),
+    ...(spacersAfter ? { spacersAfter } : {}),
+  };
+}
+
+/**
+ * The stored segment with its text and spacer counts replaced by the lyric segment's.
+ */
+function relabel(stored: TimedSegment, lyric: Segment): TimedSegment {
+  const { spacersBefore: _before, spacersAfter: _after, ...timings } = stored;
+  return { ...timings, ...fromLyric(lyric) };
 }
 
 /**
@@ -23,7 +46,7 @@ export interface TimedSegment {
  * Timings are entered before lyrics exist, so losing one is worse than carrying an empty text.
  */
 export function fromEvents(lyricText: string, events: LyricEvent[]): TimedSegment[] {
-  const segments: TimedSegment[] = parseLyrics(lyricText, true).map(({ text }) => ({ text }));
+  const segments: TimedSegment[] = parseLyrics(lyricText, true).map(fromLyric);
 
   let index = -1;
   for (const [time, marker] of events) {
@@ -78,7 +101,7 @@ function segmentWord(text: string): string {
  */
 export function reconcile(stored: TimedSegment[], current: Segment[]): TimedSegment[] {
   if (stored.length === current.length) {
-    return current.map(({ text }, i) => ({ ...stored[i], text }));
+    return current.map((lyric, i) => relabel(stored[i], lyric));
   }
 
   const matches = (a: { text: string }, b: { text: string }) =>
@@ -100,22 +123,20 @@ export function reconcile(stored: TimedSegment[], current: Segment[]): TimedSegm
 
   // Outside the window, the timings are kept but the text comes from the lyrics,
   // since a matched segment may have gained or lost its separator.
-  const carry = (segment: TimedSegment, text: string) => ({ ...segment, text });
-
   return [
-    ...stored.slice(0, head).map((segment, i) => carry(segment, current[i].text)),
+    ...stored.slice(0, head).map((segment, i) => relabel(segment, current[i])),
     ...reconcileWindow(
       stored.slice(head, stored.length - tail),
       current.slice(head, current.length - tail),
     ),
     ...stored
       .slice(stored.length - tail)
-      .map((segment, i) => carry(segment, current[current.length - tail + i].text)),
+      .map((segment, i) => relabel(segment, current[current.length - tail + i])),
   ];
 }
 
 function reconcileWindow(stored: TimedSegment[], current: Segment[]): TimedSegment[] {
-  const segments: TimedSegment[] = current.map(({ text }) => ({ text }));
+  const segments: TimedSegment[] = current.map(fromLyric);
   if (segments.length === 0 || stored.length === 0) {
     return segments;
   }
