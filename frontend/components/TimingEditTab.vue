@@ -12,10 +12,18 @@
     </div>
     <help-section>
       <p>
-        Each <code>&lt;MM:SS.cc&gt;</code> tag marks when the following syllable starts. A bare tag
-        with nothing after it marks a release before a pause. Edit the numbers to fine-tune timing,
-        or copy a block of tags from one place and paste it elsewhere to reuse the exact same
-        timing.
+        This is the active voice's part of <code>timings.txt</code>. Each line of lyrics sits
+        between two time rows, and each row in between is a syllable: its text in quotes, when it
+        starts, then when it ends. A syllable with no end lasts until the next one starts. A space
+        at the end of a syllable ends its word, and <code>page</code> starts a new page.
+      </p>
+      <p>
+        The time rows around a line hold when it appears and disappears, and <code>-</code> leaves
+        that to the app. The video doesn't use them yet.
+      </p>
+      <p>
+        Edit the times to fine-tune them, or copy times from one place and paste them elsewhere to
+        reuse the exact same timing. Comments that start with <code>#</code> are dropped on Apply.
       </p>
       <p>
         Press <b>Apply</b> to use your edits, or <b>Reload</b> to discard them and show the current
@@ -39,6 +47,19 @@
       />
     </b-field>
     <p v-if="error" class="has-text-danger">{{ error }}</p>
+    <b-message
+      v-if="warnings.length"
+      class="apply-warnings"
+      type="is-warning"
+      size="is-small"
+      title="Some parts were changed on Apply"
+      closable
+      @close="warnings = []"
+    >
+      <ul>
+        <li v-for="warning in warnings" :key="warning">{{ warning }}</li>
+      </ul>
+    </b-message>
     <div class="buttons">
       <b-button type="is-primary" @click="apply" :disabled="!hasChanges">Apply</b-button>
       <b-button @click="reload" :disabled="!hasChanges">Reload</b-button>
@@ -48,14 +69,12 @@
 
 <script lang="ts">
 import { defineComponent } from "vue";
-import { BButton, BField, BInput } from "buefy";
+import { BButton, BField, BInput, BMessage } from "buefy";
 import HelpSection from "@/components/HelpSection.vue";
 import VoiceSelector from "@/components/VoiceSelector.vue";
 import { useTimingsStore } from "@/stores/timings";
 import { useLyricsStore } from "@/stores/lyrics";
-import { serializeTimings, parseTimings } from "@/lib/timingFormat";
-import { toEvents } from "@/lib/timedSegments";
-import { validateTimings } from "@/lib/timingValidation";
+import { parseVoiceTimingsText, writeVoiceTimingsText } from "@/lib/timingsText";
 import { VoiceId } from "@/lib/voices";
 
 /**
@@ -65,7 +84,7 @@ import { VoiceId } from "@/lib/voices";
 const join = (segments: { text: string }[]) => segments.map((segment) => segment.text).join("");
 
 export default defineComponent({
-  components: { BButton, BField, BInput, HelpSection, VoiceSelector },
+  components: { BButton, BField, BInput, BMessage, HelpSection, VoiceSelector },
   setup() {
     const timingsStore = useTimingsStore();
     const lyricsStore = useLyricsStore();
@@ -75,6 +94,7 @@ export default defineComponent({
     return {
       draft: "",
       error: "",
+      warnings: [] as string[],
     };
   },
   computed: {
@@ -84,18 +104,18 @@ export default defineComponent({
     isEnabled(): boolean {
       return this.timingsStore.length > 0;
     },
-    // The readable projection of the active voice's stored timings. Recomputes whenever the timings, lyrics,
-    // or active voice change. The watcher below reloads the draft, so switching voices shows that
-    // voice's timings.
     current(): string {
-      return serializeTimings(this.timingsStore.activeSegments);
+      return writeVoiceTimingsText(this.timingsStore.activeSegments);
     },
     hasChanges(): boolean {
       return this.draft !== this.current;
     },
   },
   watch: {
-    // Load (and reload) the editable buffer whenever the underlying timings change.
+    activeVoice() {
+      this.error = "";
+      this.warnings = [];
+    },
     current: {
       immediate: true,
       handler(value: string) {
@@ -105,14 +125,9 @@ export default defineComponent({
   },
   methods: {
     apply() {
+      this.warnings = [];
       try {
-        const parsed = parseTimings(this.draft);
-        const validation = validateTimings(toEvents(parsed));
-        if (!validation.valid) {
-          this.error = validation.message ?? "These timings are not valid.";
-          return;
-        }
-
+        const { segments: parsed, warnings } = parseVoiceTimingsText(this.draft);
         const edited = join(parsed);
         const wordsChanged = edited !== join(this.lyricsStore.segmentsForVoice(this.activeVoice));
         // Only a voice that owns the whole lyric blob can have words written back to it.
@@ -127,8 +142,10 @@ export default defineComponent({
         if (wordsChanged) {
           this.lyricsStore.setLyrics(edited);
         }
+        // A rewrite that only drops comments leaves `current` as it was, so its watcher won't fire.
+        this.draft = this.current;
         this.error = "";
-        // resetSegments updates `current`, whose watcher re-normalizes `draft`.
+        this.warnings = warnings;
       } catch (e) {
         this.error = "Could not apply timings: " + (e as Error).message;
       }
@@ -136,6 +153,7 @@ export default defineComponent({
     reload() {
       this.draft = this.current;
       this.error = "";
+      this.warnings = [];
     },
   },
 });
@@ -171,8 +189,13 @@ export default defineComponent({
   margin-bottom: 0;
 }
 
+.apply-warnings ul {
+  list-style: disc;
+  padding-left: 1.25em;
+}
+
 .timing-edit-tab :deep(.timing-editor-textarea) {
-  font-family: var(--bulma-family-primary), sans-serif;
+  font-family: var(--bulma-family-code), monospace;
   white-space: pre;
   line-height: 1.6;
   flex: 1;
