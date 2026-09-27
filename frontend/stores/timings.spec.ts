@@ -434,6 +434,23 @@ describe("Timings Store", () => {
       ]);
     });
 
+    test("clearing the periods drops every voice's bounds and keeps its timings", () => {
+      const timings = useTimingsStore();
+      useLyricsStore().setLyrics("[Anna] hello\n[Ben] world");
+      timings.setAllSegments({
+        Anna: [{ text: "hello", start: 1, end: 2, displayStart: 0.5, displayEnd: 3 }],
+        Ben: [{ text: "world", start: 5, displayEnd: 7 }],
+      });
+
+      timings.clearDisplayPeriods();
+
+      expect(timings.hasDisplayPeriods).toBe(false);
+      expect(timings.segmentsByVoice).toEqual({
+        Anna: [{ text: "hello", start: 1, end: 2 }],
+        Ben: [{ text: "world", start: 5 }],
+      });
+    });
+
     test("deleting a line drops its period with it", async () => {
       const { timings, lyrics } = withPeriods("one\ntwo\nthree", [
         { text: "one\n", start: 1, displayStart: 0.5 },
