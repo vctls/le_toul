@@ -742,7 +742,7 @@ export default defineComponent({
     downloadKbp() {
       const { kbp, warnings } = projectFilesToKbp({
         lyrics: this.lyricText,
-        timings: this.timingsStore.timingsFile,
+        timings: this.timingsStore.segmentsByVoice,
         settings: this.settingsYaml,
         audioName: this.mediaStore.songFile?.name ?? null,
       });

@@ -1,6 +1,6 @@
-// Conversion between a Karaoke Builder Studio project and the three files the app reads and writes:
-// lyrics.txt, timings.json and settings.yaml.
-// The app only ever sees those files, so nothing here touches a store.
+// Conversion between a Karaoke Builder Studio project and the app's project:
+// the lyrics.txt and settings.yaml text, and each voice's timed segments.
+// Nothing here touches a store.
 
 import yaml from "js-yaml";
 import { SUBTITLE_CANVAS } from "@/constants";
@@ -14,7 +14,7 @@ import {
   serializeKbp,
 } from "./kbp";
 import { parseLyrics } from "./timing";
-import { TimedSegment, TimingsFile, TIMINGS_FILE_VERSION } from "./timedSegments";
+import { TimedSegment } from "./timedSegments";
 import { DEFAULT_VOICE_ID, parseAnnotatedLyrics, TAG_PATTERN, VoiceId } from "./voices";
 import { ParsedSettingsFile, parseSettingsYaml } from "./settingsFile";
 import { convertSpacesToUnderscores } from "./lyrics";
@@ -44,7 +44,7 @@ const EXPORT_COMMENT = "Exported from The Tüül";
 
 export interface ProjectFiles {
   lyrics: string;
-  timings: TimingsFile;
+  timings: Record<VoiceId, TimedSegment[]>;
   settings: string;
 }
 
@@ -335,7 +335,7 @@ export function kbpToProjectFiles(text: string, options: { fonts: string[] }): K
     ? unsyncedLyrics(document.unsyncedLyrics)
     : pageTexts.join("\n\n");
 
-  const timings: TimingsFile = { version: TIMINGS_FILE_VERSION, voices: {} };
+  const timings: Record<VoiceId, TimedSegment[]> = {};
   const annotated = parseAnnotatedLyrics(lyrics);
   for (const [voice, syllables] of Object.entries(syllablesByVoice)) {
     toSegmentTimes(syllables);
@@ -346,7 +346,7 @@ export function kbpToProjectFiles(text: string, options: { fonts: string[] }): K
     if (mismatch) {
       throw new Error(`The converted timings for ${voice} don't line up with its lyrics.`);
     }
-    timings.voices[voice] = segments.map(({ text }, i): TimedSegment => {
+    timings[voice] = segments.map(({ text }, i): TimedSegment => {
       const { start, end } = syllables[i];
       return {
         text,
@@ -634,7 +634,7 @@ export function projectFilesToKbp(source: KbpExportSource): KbpExport {
 
   const durationCs = song.duration ? Math.round(song.duration * 100) : null;
   const pages = mergePages(
-    voices.flatMap((voice, i) => voicePages(source.timings.voices[voice] ?? [], i, durationCs)),
+    voices.flatMap((voice, i) => voicePages(source.timings[voice] ?? [], i, durationCs)),
   );
   if (pages.some((page) => page.lines.length > COMFORTABLE_LINES_PER_PAGE)) {
     warnings.add(

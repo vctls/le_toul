@@ -4,7 +4,6 @@ import yaml from "js-yaml";
 import { KBP_DIVIDER, parseKbp } from "./kbp";
 import { kbpToProjectFiles, projectFilesToKbp, ProjectFiles } from "./kbpConvert";
 import { parseSettingsYaml } from "./settingsFile";
-import { TimingsFile, TIMINGS_FILE_VERSION } from "./timedSegments";
 
 const FIXTURE = readFileSync(path.resolve(__dirname, "../../tests/fixtures/song.kbp"), "utf8");
 const HEADER = FIXTURE.slice(0, FIXTURE.indexOf(`${KBP_DIVIDER}\r\nPAGEV2`));
@@ -31,10 +30,6 @@ function settingsFile(
   });
 }
 
-function timingsFile(voices: TimingsFile["voices"]): TimingsFile {
-  return { version: TIMINGS_FILE_VERSION, voices };
-}
-
 describe("kbpToProjectFiles", () => {
   test("turns a single-style project into lyrics, timings and settings", () => {
     const result = kbpToProjectFiles(FIXTURE, { fonts: FONTS });
@@ -50,33 +45,31 @@ describe("kbpToProjectFiles", () => {
       ].join("\n"),
     );
     // An end at the next start, or 1 cs before it, is left open. Any other end is a release.
-    expect(result.timings).toEqual(
-      timingsFile({
-        "Voice 1": [
-          { text: "Pale_", start: 4.2 },
-          { text: "moon_", start: 4.39 },
-          { text: "ri/", start: 4.61 },
-          { text: "sing_", start: 4.99 },
-          { text: "slow\n", start: 5.25, end: 5.88 },
-          { text: "o/", start: 6.45 },
-          { text: "ver_", start: 6.69 },
-          { text: "the_", start: 6.81 },
-          { text: "qui/", start: 7.07 },
-          { text: "et_", start: 7.27 },
-          { text: "hill\n", start: 7.71, end: 8.34 },
-          { text: "Lan/", start: 9.23 },
-          { text: "terns_", start: 9.45, end: 9.65 },
-          { text: "glow\n\n", start: 10.37, end: 10.65 },
-          { text: "Wan/", start: 19.13 },
-          { text: "der_", start: 19.27 },
-          { text: "a/", start: 19.45 },
-          { text: "way\n", start: 19.64, end: 20.32 },
-          { text: "Home_", start: 20.83 },
-          { text: "a/", start: 21.13 },
-          { text: "gain", start: 21.33, end: 21.55 },
-        ],
-      }),
-    );
+    expect(result.timings).toEqual({
+      "Voice 1": [
+        { text: "Pale_", start: 4.2 },
+        { text: "moon_", start: 4.39 },
+        { text: "ri/", start: 4.61 },
+        { text: "sing_", start: 4.99 },
+        { text: "slow\n", start: 5.25, end: 5.88 },
+        { text: "o/", start: 6.45 },
+        { text: "ver_", start: 6.69 },
+        { text: "the_", start: 6.81 },
+        { text: "qui/", start: 7.07 },
+        { text: "et_", start: 7.27 },
+        { text: "hill\n", start: 7.71, end: 8.34 },
+        { text: "Lan/", start: 9.23 },
+        { text: "terns_", start: 9.45, end: 9.65 },
+        { text: "glow\n\n", start: 10.37, end: 10.65 },
+        { text: "Wan/", start: 19.13 },
+        { text: "der_", start: 19.27 },
+        { text: "a/", start: 19.45 },
+        { text: "way\n", start: 19.64, end: 20.32 },
+        { text: "Home_", start: 20.83 },
+        { text: "a/", start: 21.13 },
+        { text: "gain", start: 21.33, end: 21.55 },
+      ],
+    });
     expect(result.audioName).toBe("The Placeholders - Pale Moon.flac");
     expect(result.warnings).toEqual([
       'A lead-in syllable "➣➣➣" was dropped, since the app draws its own count-ins',
@@ -118,7 +111,7 @@ describe("kbpToProjectFiles", () => {
     const result = kbpToProjectFiles(text, { fonts: FONTS });
 
     expect(result.lyrics).toBe("[Lead Harmony] Hi\n[Lead Harmony 2] Yo\n\n[Lead Harmony] Hey");
-    expect(result.timings.voices).toEqual({
+    expect(result.timings).toEqual({
       "Lead Harmony": [
         { text: "Hi\n\n", start: 0.1, end: 0.2 },
         { text: "Hey", start: 1.5, end: 1.6 },
@@ -162,7 +155,7 @@ describe("kbpToProjectFiles", () => {
     const result = kbpToProjectFiles(text, { fonts: FONTS });
 
     expect(result.lyrics).toBe("ASIDE\nFIXED_TEXT\nANDOR_SNAKECASE");
-    expect(result.timings.voices["Voice 1"]).toEqual([
+    expect(result.timings["Voice 1"]).toEqual([
       { text: "ASIDE\n", start: 0.1, end: 0.2 },
       { text: "FIXED_" },
       { text: "TEXT\n" },
@@ -202,14 +195,14 @@ describe("kbpToProjectFiles", () => {
     const result = kbpToProjectFiles(text, { fonts: FONTS });
 
     expect(result.lyrics).toBe("Pale_moon_ri/sing\no/ver_the_hill\n\nWan/der_a/way");
-    expect(result.timings).toEqual(timingsFile({}));
+    expect(result.timings).toEqual({});
   });
 });
 
 describe("projectFilesToKbp", () => {
   const single: ProjectFiles = {
     lyrics: "Pale_moon\nri/sing\n\nslow",
-    timings: timingsFile({
+    timings: {
       "Voice 1": [
         { text: "Pale_", start: 5 },
         { text: "moon\n", start: 5.5, end: 6 },
@@ -217,7 +210,7 @@ describe("projectFilesToKbp", () => {
         { text: "sing\n\n", start: 7.25 },
         { text: "slow", start: 30 },
       ],
-    }),
+    },
     settings: settingsFile({ duration: 31.5 }),
   };
 
@@ -255,12 +248,12 @@ describe("projectFilesToKbp", () => {
   test("never shows a line after its own first syllable", () => {
     const result = projectFilesToKbp({
       lyrics: "a\n\nb",
-      timings: timingsFile({
+      timings: {
         "Voice 1": [
           { text: "a\n\n", start: 1, end: 2 },
           { text: "b", start: 2.2 },
         ],
-      }),
+      },
       settings: settingsFile(),
       audioName: null,
     });
@@ -273,7 +266,7 @@ describe("projectFilesToKbp", () => {
   test("writes the base font's bold and italic, which voices inherit", () => {
     const result = projectFilesToKbp({
       lyrics: "[Anna] la\n[Ben] hm",
-      timings: timingsFile({ Anna: [{ text: "la", start: 1 }], Ben: [{ text: "hm", start: 2 }] }),
+      timings: { Anna: [{ text: "la", start: 1 }], Ben: [{ text: "hm", start: 2 }] },
       settings: settingsFile({
         font: { bold: false, italic: true },
         voiceStyles: { Ben: { bold: true } },
@@ -287,7 +280,7 @@ describe("projectFilesToKbp", () => {
   test("writes the lyrics alone when nothing is timed", () => {
     const result = projectFilesToKbp({
       lyrics: "[Anna] Pale_moon\n[Ben] ri/sing",
-      timings: timingsFile({}),
+      timings: {},
       settings: settingsFile(),
       audioName: null,
     });
@@ -300,7 +293,7 @@ describe("projectFilesToKbp", () => {
   test("gives each voice a style, and merges voices' pages that overlap", () => {
     const result = projectFilesToKbp({
       lyrics: "[Anna] la_la\n[Anna+Ben] oh\n[Ben] hm",
-      timings: timingsFile({
+      timings: {
         Anna: [
           { text: "la_", start: 1 },
           { text: "la\n", start: 1.5 },
@@ -310,7 +303,7 @@ describe("projectFilesToKbp", () => {
           { text: "oh\n", start: 2.1 },
           { text: "hm", start: 3, end: 4 },
         ],
-      }),
+      },
       settings: settingsFile({ voiceStyles: { Ben: { primary: "#00FF00", fontName: "Arial" } } }),
       audioName: null,
     });
@@ -345,9 +338,7 @@ describe("projectFilesToKbp", () => {
     const hex = (i: number) => `#${(i * 17).toString(16).padStart(2, "0")}0000`;
     const result = projectFilesToKbp({
       lyrics: voices.map((voice) => `[${voice}] la`).join("\n"),
-      timings: timingsFile(
-        Object.fromEntries(voices.map((voice, i) => [voice, [{ text: "la", start: i }]])),
-      ),
+      timings: Object.fromEntries(voices.map((voice, i) => [voice, [{ text: "la", start: i }]])),
       settings: settingsFile({
         voiceStyles: Object.fromEntries(
           voices.map((voice, i) => [voice, { primary: hex(i), secondary: hex(i + 10) }]),
@@ -377,7 +368,7 @@ describe("round trip", () => {
   test("each voice of the app's project comes back with the same segments", () => {
     const project: ProjectFiles = {
       lyrics: "[Anna] la_la\n[Anna+Ben] oh\n[Ben] hm",
-      timings: timingsFile({
+      timings: {
         Anna: [
           { text: "la_", start: 1 },
           { text: "la\n", start: 1.5, end: 1.7 },
@@ -387,7 +378,7 @@ describe("round trip", () => {
           { text: "oh\n", start: 2.1 },
           { text: "hm", start: 3, end: 4 },
         ],
-      }),
+      },
       settings: settingsFile(),
     };
     const back = kbpToProjectFiles(projectFilesToKbp({ ...project, audioName: null }).kbp, {

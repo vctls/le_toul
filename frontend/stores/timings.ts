@@ -12,14 +12,7 @@ import {
   resolveStarts,
   DEFAULT_KARAOKE_OPTIONS,
 } from "@/lib/timing";
-import {
-  TimedSegment,
-  TimingsFile,
-  TIMINGS_FILE_VERSION,
-  fromEvents,
-  toEvents,
-  reconcile,
-} from "@/lib/timedSegments";
+import { TimedSegment, fromEvents, toEvents, reconcile } from "@/lib/timedSegments";
 import { applyVoiceStyle } from "@/lib/voiceStyle";
 import { VideoSettings } from "./settings";
 import { VoiceId, DEFAULT_VOICE_ID, parseAnnotatedLyrics } from "@/lib/voices";
@@ -259,11 +252,11 @@ export const useTimingsStore = defineStore("timings", {
     },
 
     /**
-     * What the KBP export reads, until it works from `timingsText`'s model.
-     * Unlike `allTimings` this keeps untimed segments.
+     * Every voice's segments, which the KBP export reads.
+     * Unlike `allTimings` this keeps untimed segments and display periods.
      */
-    timingsFile(state): TimingsFile {
-      return { version: TIMINGS_FILE_VERSION, voices: state._segmentsByVoice };
+    segmentsByVoice(state): SegmentsByVoice {
+      return state._segmentsByVoice;
     },
 
     /**
