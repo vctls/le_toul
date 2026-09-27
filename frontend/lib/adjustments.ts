@@ -280,11 +280,13 @@ export function displayQuickLinesEarly(
     if (nextScreen.singStart - screen.singEnd > SCREEN_QUICK_START_THRESHOLD) {
       continue;
     }
-    if (screen.lines.length < 2) {
+    // The first two slots leave early, or fewer so that a line stays below them.
+    // The next screen's lines in those slots take their place.
+    const leavingSlots = Math.min(2, screen.slotOf(screen.lines.length - 1));
+    const earlyRemovalLines = screen.lines.filter((_, j) => screen.slotOf(j) < leavingSlots);
+    if (earlyRemovalLines.length === 0) {
       continue;
     }
-
-    const earlyRemovalLines = screen.lines.slice(0, Math.min(2, screen.lines.length - 1));
     const lineAfterEarlyRemovals = screen.lines[earlyRemovalLines.length];
     // Remove earlyRemovalLines when the line after them is halfway done singing
     const earlyRemovalTime =
@@ -299,7 +301,9 @@ export function displayQuickLinesEarly(
     });
 
     // TODO what if nextScreen.length == 2 and screen.length == 3?
-    const earlyDisplayLines = nextScreen.lines.slice(0, earlyRemovalLines.length);
+    const earlyDisplayLines = nextScreen.lines.filter(
+      (_, j) => nextScreen.slotOf(j) < leavingSlots,
+    );
     nextScreen.staggered = true;
     placeStaggeredScreen(screen, nextScreen, displayOptions);
 
@@ -312,8 +316,8 @@ export function displayQuickLinesEarly(
 }
 
 /**
- * Lay a staggered screen out as if it had the previous screen's line count
- * when its own would put its first line below the previous screen's first line.
+ * Lay a staggered screen out as if it had the previous screen's slot count
+ * when its own would put its first slot below the previous screen's first slot.
  * That puts its early lines in the slots the previous screen's first lines leave.
  */
 function placeStaggeredScreen(
@@ -323,11 +327,11 @@ function placeStaggeredScreen(
 ): void {
   const { size } = options.font;
   const alignment = options.verticalAlignment;
-  screen.positionAsLineCount = undefined;
+  screen.positionAsSlotCount = undefined;
   if (
     previous.getLineY(0, size, alignment, options) < screen.getLineY(0, size, alignment, options)
   ) {
-    screen.positionAsLineCount = previous.positionAsLineCount ?? previous.lines.length;
+    screen.positionAsSlotCount = previous.positionAsSlotCount ?? previous.slots;
   }
 }
 

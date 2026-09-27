@@ -39,6 +39,19 @@ function withPeriod(segments: TimedSegment[], index: number, period: Partial<Tim
 }
 
 describe("placeLines", () => {
+  it("puts lines below a spacer half a slot lower", () => {
+    const top = (segments: TimedSegment[]) => [...place(segments).values()].map((line) => line.top);
+    const plain = top([
+      { text: "a\n", start: 1, end: 2 },
+      { text: "b", start: 3, end: 4 },
+    ]);
+    const spaced = top([
+      { text: "a\n", start: 1, end: 2, spacersBefore: 1 },
+      { text: "b", start: 3, end: 4 },
+    ]);
+    expect(spaced.map((y, i) => y - plain[i])).toEqual([15, 15]);
+  });
+
   it("puts a screen's lines at the heights of the previous screen's lines", () => {
     const lines = place(twoScreens);
     const [a, b, c, d] = [0, 1, 2, 3].map((index) => lines.get(index)!);

@@ -305,7 +305,7 @@ test("LyricScreen handles custom Y offset", () => {
   expect(screen.getLineY(0, DEFAULT_FONT_SIZE)).toBe(115);
 
   // Laid out as a 4-line block instead of its own 2, so it starts a line higher
-  screen.positionAsLineCount = 4;
+  screen.positionAsSlotCount = 4;
   expect(screen.getLineY(0, DEFAULT_FONT_SIZE)).toBe(82);
   expect(screen.getLineY(1, DEFAULT_FONT_SIZE)).toBe(115);
 });
@@ -323,6 +323,78 @@ test("LyricScreen respects vertical alignment", () => {
   expect(screen.getLineY(1, DEFAULT_FONT_SIZE)).toBe(115 + 33);
   expect(screen.getLineY(1, DEFAULT_FONT_SIZE, VerticalAlignment.Top)).toBe(33 * 2);
   expect(screen.getLineY(1, DEFAULT_FONT_SIZE, VerticalAlignment.Bottom)).toBe(288 - 33 * 2);
+});
+
+describe("spacers", () => {
+  const slots = (screen: LyricsScreen) => screen.lines.map((_, i) => screen.slotOf(i));
+
+  test("take a slot on their page", () => {
+    const screens = compileLyricTimings([
+      { text: "a\n", start: 1, spacersBefore: 1 },
+      { text: "b\n\n", start: 2, spacersAfter: 1 },
+      { text: "c", start: 3 },
+    ]);
+    expect(screens.map(slots)).toEqual([[1, 2], [0]]);
+    expect(screens.map((screen) => screen.slots)).toEqual([4, 1]);
+  });
+
+  test("keep their slot next to a line that draws nothing", () => {
+    const [screen] = compileLyricTimings([
+      { text: "a\n", start: 1 },
+      { text: "b\n", spacersBefore: 1 },
+      { text: "c", start: 3 },
+    ]);
+    expect(slots(screen)).toEqual([0, 2]);
+    expect(screen.slots).toBe(3);
+  });
+
+  test("on a page that draws nothing add no slots to the screen that continues", () => {
+    const [screen] = compileLyricTimings([
+      { text: "a\n\n", spacersBefore: 2 },
+      { text: "b", start: 1 },
+    ]);
+    expect(slots(screen)).toEqual([0]);
+    expect(screen.slots).toBe(1);
+  });
+
+  test("move the lines by half a slot in the middle, and by a slot from the edge they're on", () => {
+    const [screen] = compileLyricTimings([
+      { text: "a\n", start: 1, spacersBefore: 1 },
+      { text: "b", start: 2 },
+    ]);
+    const tops = (alignment: VerticalAlignment) =>
+      screen.lines.map((_, i) => screen.getLineY(screen.slotOf(i), DEFAULT_FONT_SIZE, alignment));
+    // Without the spacer, the lines sit at 115 and 148.
+    expect(tops(VerticalAlignment.Middle)).toEqual([132, 165]);
+    expect(tops(VerticalAlignment.Top)).toEqual([66, 99]);
+    expect(tops(VerticalAlignment.Bottom)).toEqual([189, 222]);
+  });
+
+  test("move the lines in the video", () => {
+    const options: KaraokeOptions = {
+      ...DEFAULT_OPTIONS,
+      addTitleScreen: false,
+      countInMode: "none",
+      addInstrumentalScreens: false,
+      addStaggeredLines: false,
+      verticalAlignment: VerticalAlignment.Top,
+    };
+    const ass = createAssFile(
+      [
+        { text: "a\n", start: 1, spacersBefore: 1 },
+        { text: "b", start: 2 },
+      ],
+      10,
+      "",
+      "",
+      options,
+    );
+    const marginVs = ass
+      .split("\n")
+      .filter((line) => line.startsWith("Dialogue:"))
+      .map((line) => Number(line.split(",")[7]));
+    expect(marginVs).toEqual([60, 90]);
+  });
 });
 
 test("LyricScreen follows the line spacing and top margin", () => {
@@ -703,8 +775,18 @@ describe("multi-voice vertical lanes", () => {
     // Lane middle 72. As its own 1-line block, fontSize 20 => half a glyph block above it
     expect(screen.getLineY(0, 20)).toBe(61);
     // Laid out as the 2-line block it displaces => the lane's top slot
-    screen.positionAsLineCount = 2;
+    screen.positionAsSlotCount = 2;
     expect(screen.getLineY(0, 20)).toBe(46);
+  });
+
+  it("keeps a screen's spacers inside a lane", () => {
+    const line = new LyricsLine([new LyricSegment("a", 1, 2)]);
+    line.slot = 1;
+    const screen = new LyricsScreen([line]);
+    screen.slotCount = 2;
+    screen.verticalZone = { top: 0, height: 144 };
+    // The 2-slot block of the test above, with the line in its bottom slot
+    expect(screen.getLineY(screen.slotOf(0), 20)).toBe(46 + 30);
   });
 
   it("puts a staggered line in the lane's top slot, not between the lines it replaces", () => {
