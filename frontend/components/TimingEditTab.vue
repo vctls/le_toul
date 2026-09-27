@@ -19,7 +19,8 @@
       </p>
       <p v-if="advancedStore.isAdvanced">
         The time rows around a line hold when it appears and disappears, and <code>-</code> leaves
-        that to the app. The video doesn't use them yet.
+        that to the app. A time that cuts into the line's syllables is moved back to them on Apply,
+        and the Submit tab's <b>Use Line Display Times</b> turns them off in the video.
       </p>
       <p>
         Edit the times to fine-tune them, or copy times from one place and paste them elsewhere to
