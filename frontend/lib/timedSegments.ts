@@ -151,6 +151,35 @@ export function clampDisplayPeriods(segments: TimedSegment[]): {
   segments: TimedSegment[];
   widened: number;
 } {
+  return widenDisplayPeriods(segments, true);
+}
+
+/**
+ * Keep the stored display periods valid after a timing write.
+ * Bounds on a segment that no longer starts a line are cleared.
+ * A period that a syllable has crossed is widened, and never narrowed back afterwards.
+ * Unlike the load clamp, a line that draws nothing keeps its bounds, since it may be timed again.
+ */
+export function normalizeDisplayPeriods(segments: TimedSegment[]): TimedSegment[] {
+  const cleared = segments.map((segment, i) => {
+    const startsLine = i === 0 || segments[i - 1].text.endsWith("\n");
+    if (startsLine || !hasDisplayPeriod(segment)) {
+      return segment;
+    }
+    const { displayStart: _start, displayEnd: _end, ...rest } = segment;
+    return rest;
+  });
+  return widenDisplayPeriods(cleared, false).segments;
+}
+
+export function hasDisplayPeriod(segment: TimedSegment): boolean {
+  return segment.displayStart !== undefined || segment.displayEnd !== undefined;
+}
+
+function widenDisplayPeriods(
+  segments: TimedSegment[],
+  dropUndrawn: boolean,
+): { segments: TimedSegment[]; widened: number } {
   const resolved = resolveStarts(segments);
   const drawnStart = (i: number) => (resolved[i].text === "" ? undefined : resolved[i].start);
   const result = segments.map((segment) => ({ ...segment }));
@@ -164,12 +193,14 @@ export function clampDisplayPeriods(segments: TimedSegment[]): {
     const head = result[first];
     const drawn = range(first, i + 1).filter((j) => drawnStart(j) !== undefined);
     first = i + 1;
-    if (head.displayStart === undefined && head.displayEnd === undefined) {
+    if (!hasDisplayPeriod(head)) {
       continue;
     }
     if (drawn.length === 0) {
-      delete head.displayStart;
-      delete head.displayEnd;
+      if (dropUndrawn) {
+        delete head.displayStart;
+        delete head.displayEnd;
+      }
       continue;
     }
 

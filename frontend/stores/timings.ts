@@ -12,7 +12,14 @@ import {
   resolveStarts,
   DEFAULT_KARAOKE_OPTIONS,
 } from "@/lib/timing";
-import { TimedSegment, fromEvents, toEvents, reconcile } from "@/lib/timedSegments";
+import {
+  TimedSegment,
+  fromEvents,
+  hasDisplayPeriod,
+  normalizeDisplayPeriods,
+  reconcile,
+  toEvents,
+} from "@/lib/timedSegments";
 import { applyVoiceStyle } from "@/lib/voiceStyle";
 import { VideoSettings } from "./settings";
 import { VoiceId, DEFAULT_VOICE_ID, parseAnnotatedLyrics } from "@/lib/voices";
@@ -311,6 +318,23 @@ export const useTimingsStore = defineStore("timings", {
       this._baselineByVoice = copySegmentsByVoice(this._segmentsByVoice);
     },
 
+    /**
+     * Keep every voice's stored display periods valid after a timing write.
+     * Voices without any are left as they are, so timing a song that uses none costs nothing.
+     */
+    normalizeDisplayPeriods() {
+      const hasPeriods = (segments: TimedSegment[]) => segments.some(hasDisplayPeriod);
+      if (!Object.values(this._segmentsByVoice).some(hasPeriods)) {
+        return;
+      }
+      this._segmentsByVoice = Object.fromEntries(
+        Object.entries(this._segmentsByVoice).map(([voice, segments]) => [
+          voice,
+          hasPeriods(segments) ? normalizeDisplayPeriods(segments) : segments,
+        ]),
+      );
+    },
+
     setActiveVoice(voice: VoiceId) {
       this._activeVoice = voice;
     },
@@ -344,6 +368,7 @@ export const useTimingsStore = defineStore("timings", {
       if (marker == LYRIC_MARKERS.SEGMENT_START) {
         this.handleConflictWithPreviousSegment(timestamp);
         segments[currentSegmentNum].start = timestamp;
+        this.normalizeDisplayPeriods();
         this.commitBaseline();
         return;
       }
@@ -358,6 +383,7 @@ export const useTimingsStore = defineStore("timings", {
       if (started >= 0) {
         segments[started].end = timestamp;
       }
+      this.normalizeDisplayPeriods();
       this.commitBaseline();
     },
 
@@ -394,6 +420,7 @@ export const useTimingsStore = defineStore("timings", {
         segment.start = undefined;
         segment.end = undefined;
       }
+      this.normalizeDisplayPeriods();
       this.commitBaseline();
     },
 
@@ -402,6 +429,7 @@ export const useTimingsStore = defineStore("timings", {
         ...this._segmentsByVoice,
         [this.activeVoice]: segments.map((segment) => ({ ...segment })),
       };
+      this.normalizeDisplayPeriods();
       this.commitBaseline();
     },
 
@@ -419,6 +447,7 @@ export const useTimingsStore = defineStore("timings", {
      */
     setAllSegments(byVoice: SegmentsByVoice) {
       this._segmentsByVoice = copySegmentsByVoice(byVoice);
+      this.normalizeDisplayPeriods();
       this.commitBaseline();
       this.reconcileVoices();
     },
@@ -521,6 +550,7 @@ export const useTimingsStore = defineStore("timings", {
           : segments;
       }
       this._segmentsByVoice = updated;
+      this.normalizeDisplayPeriods();
     },
 
     /**
