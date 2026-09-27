@@ -591,7 +591,7 @@ describe("stored display periods", () => {
     expect(lines(screens)[0].customDisplayEndTime).toBe(13 + shift);
   });
 
-  it("replace what the staggered-lines pass set, fades included", () => {
+  it("replace what the staggered-lines pass set", () => {
     const segments = [
       { text: "a\n", start: 10, end: 11, displayEnd: 20 },
       { text: "b\n", start: 11, end: 12 },
@@ -602,8 +602,7 @@ describe("stored display periods", () => {
     const options: KaraokeOptions = { ...plain, addTitleScreen: true, addStaggeredLines: true };
     const [a, b] = lines(createScreens(segments, 30, "T", "A", options));
 
-    expect([a.customDisplayEndTime, a.fadeOutDuration]).toEqual([20, 0]);
-    expect(b.fadeOutDuration).toBeGreaterThan(0);
+    expect([a.customDisplayEndTime, b.customDisplayEndTime]).toEqual([20, 12.5]);
   });
 
   it("end the title screen at the earliest stored start", () => {

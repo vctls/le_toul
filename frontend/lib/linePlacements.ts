@@ -1,5 +1,5 @@
 import { layOutVoices, VoiceTrack } from "./timing";
-import { separableNeighbours, slotLines } from "./screenSlots";
+import { separableNeighbours, slotLines, songOffset } from "./screenSlots";
 
 export { sameHeight } from "./screenSlots";
 
@@ -13,7 +13,7 @@ export interface LinePlacement {
   // of a line at the same height.
   earliestStart: number;
   latestEnd: number;
-  // Set when an automatic bound moved to make way for another line.
+  // Set when an automatic bound moved to make way for another line, or for a fade.
   startMoved?: number;
   endMoved?: number;
 }
@@ -31,10 +31,7 @@ export function placeLines(
   artist: string,
 ): Record<string, Map<number, LinePlacement>> {
   const renders = layOutVoices(tracks, songDuration, title, artist);
-  // The title screen and a quick-start count-in delay the audio, and the voice's lines with it.
-  const offsets = renders.map((render) =>
-    render.screens.reduce((sum, screen) => sum + screen.audioDelay, 0),
-  );
+  const offsets = renders.map(songOffset);
   const lines = slotLines(renders);
   const shown = lines.map(({ line, screen }) => ({
     start: centiseconds(line.customDisplayStartTime ?? screen.startTimestamp ?? 0),

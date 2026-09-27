@@ -24,7 +24,7 @@ import {
   placeStaggeredScreens,
   unstagger,
 } from "./adjustments";
-import { giveWayToStoredPeriods } from "./screenSlots";
+import { fadeLines, giveWayToStoredPeriods } from "./screenSlots";
 import { BUNDLED_SYMBOLS, FALLBACK_FONTS } from "./fonts";
 import { map, method, isNumber } from "lodash-es";
 import { default as BuefyColor } from "buefy/src/utils/color";
@@ -621,7 +621,7 @@ export class LyricsLine {
   headIndex?: number;
   // The line's position on its page, counting spacers. Without it, the line sits at its index.
   slot?: number;
-  // An automatic bound moved to make way for another line at the same height (see giveWayToStoredPeriods).
+  // An automatic bound moved to make way for another line at the same height, or for a fade.
   startMoved = false;
   endMoved = false;
 
@@ -1214,7 +1214,7 @@ export function layOutVoices(
   for (const render of renders) {
     placeStaggeredScreens(render.screens, render.options);
     if (render.options.useStoredDisplayPeriods) {
-      render.screens = fitInstrumentalScreens(applyStoredDisplayPeriods(render.screens));
+      render.screens = applyStoredDisplayPeriods(render.screens);
     }
   }
   // The title screen is global, so it gives way to every voice's stored periods.
@@ -1226,6 +1226,10 @@ export function layOutVoices(
     endTitleScreenBy(renders[0].screens, Math.min(...storedStarts));
   }
   giveWayToStoredPeriods(renders);
+  fadeLines(renders, songDuration);
+  for (const render of renders) {
+    render.screens = fitInstrumentalScreens(render.screens);
+  }
   return renders;
 }
 
