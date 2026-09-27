@@ -99,6 +99,16 @@ async def add_sharedarraybuffer_headers(request: Request, call_next):
     return response
 
 
+@app.middleware("http")
+async def cache_fonts(request: Request, call_next):
+    """Let browsers reuse the bundled fonts for a week without asking again."""
+    response = await call_next(request)
+    # Browsers keep a replaced font file for up to a week, so give a new version a new name.
+    if request.url.path.startswith("/static/fonts/") and response.status_code < 400:
+        response.headers["Cache-Control"] = "public, max-age=604800"
+    return response
+
+
 # Only the local job store queues. A GCS-backed deployment runs on Cloud Run,
 # which caps concurrency per instance itself.
 local_separations = separation_queue.SeparationQueue(settings.SEPARATION_CONCURRENCY)
