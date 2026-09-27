@@ -152,6 +152,18 @@ export async function scrollWaveformIntoView(page: Page): Promise<void> {
 }
 
 /**
+ * Zooms the Adjust tab's waveform in by scrolling up over it, one wheel notch at a time.
+ */
+export async function zoomWaveformIn(page: Page, notches: number): Promise<void> {
+  await scrollWaveformIntoView(page);
+  const box = (await page.locator(".timing-adjustment-tab .wavesurfer-container").boundingBox())!;
+  await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
+  for (let i = 0; i < notches; i++) {
+    await page.mouse.wheel(0, -100);
+  }
+}
+
+/**
  * Measures how many pixels the Adjust tab's waveform gives one second at its current zoom.
  */
 export async function waveformPixelsPerSecond(page: Page): Promise<number> {

@@ -8,6 +8,7 @@ import {
   loadAndEnterLyrics,
   mockSeparateTrackApi,
   enterTimings,
+  zoomWaveformIn,
 } from "./utils";
 
 // The Adjust view is where the slow work happens, so a reload has to put you back where you were
@@ -49,11 +50,7 @@ test.describe("Adjust tab persistence", () => {
     });
 
     // Zoom in far enough that the waveform overflows its viewport.
-    const zoomInput = page
-      .locator(".timing-adjustment-tab .field", { hasText: "Waveform zoom" })
-      .locator('input[type="number"]');
-    await zoomInput.fill("300");
-    await zoomInput.blur();
+    await zoomWaveformIn(page, 5);
 
     const scroller = page
       .locator(".timing-adjustment-tab .wavesurfer-container div.scroll")

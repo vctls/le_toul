@@ -74,17 +74,6 @@
           </template>
           <b-switch v-model="showDisplayBands"></b-switch>
         </b-field>
-        <b-field label="Waveform zoom (%)" horizontal>
-          <b-numberinput
-            expanded
-            :model-value="zoom"
-            @update:model-value="(v: number | null | undefined) => (zoom = Number(v ?? zoom))"
-            :min="MIN_ZOOM"
-            :max="MAX_ZOOM"
-            :step="50"
-            controls-position="compact"
-          />
-        </b-field>
         <b-field label="Shift all timings (ms)" horizontal>
           <b-numberinput
             expanded
@@ -269,8 +258,6 @@ export default defineComponent({
       settingsStore,
       fallbackFontsStore,
       subtitles,
-      MIN_ZOOM,
-      MAX_ZOOM,
     };
   },
   data() {
