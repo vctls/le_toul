@@ -340,7 +340,6 @@ export function displayQuickLinesEarly(
     const earlyDisplayTime = singStart + singDuration * 0.75;
     earlyRemovalLines.forEach((line) => {
       line.customDisplayEndTime = earlyRemovalTime;
-      line.fadeOutDuration = (earlyDisplayTime - earlyRemovalTime) / 2;
     });
 
     // TODO what if nextScreen.length == 2 and screen.length == 3?
@@ -350,9 +349,8 @@ export function displayQuickLinesEarly(
     nextScreen.earlySlots = leavingSlots;
     placeStaggeredScreen(screen, nextScreen, displayOptions);
 
-    earlyDisplayLines.forEach((line, i) => {
+    earlyDisplayLines.forEach((line) => {
       line.customDisplayStartTime = earlyDisplayTime;
-      line.fadeInDuration = (earlyDisplayTime - earlyRemovalTime) / 2;
     });
   }
   return screens;
@@ -386,11 +384,9 @@ export function unstagger(previous: LyricsScreen, screen: LyricsScreen): void {
   const early = (s: LyricsScreen) => s.lines.filter((_, i) => s.slotOf(i) < screen.earlySlots);
   for (const line of early(previous)) {
     line.customDisplayEndTime = undefined;
-    line.fadeOutDuration = 0;
   }
   for (const line of early(screen)) {
     line.customDisplayStartTime = undefined;
-    line.fadeInDuration = 0;
   }
   screen.earlySlots = 0;
   screen.positionAsSlotCount = undefined;
@@ -412,17 +408,14 @@ export function placeStaggeredScreens(screens: LyricsScreen[], options: KaraokeO
  * A line's stored display period replaces the automatic one, widened to contain what the line draws,
  * count-in included.
  * This runs last, so it sees every count-in and replaces what the staggered-lines pass set.
- * A stored side has no fade, since the user chose when the line appears or disappears.
  */
 export function applyStoredDisplayPeriods(screens: LyricsScreen[]): LyricsScreen[] {
   for (const line of screens.flatMap((screen) => screen.lines)) {
     if (line.storedDisplayStart !== undefined) {
       line.customDisplayStartTime = Math.min(line.storedDisplayStart, line.timestamp);
-      line.fadeInDuration = 0;
     }
     if (line.storedDisplayEnd !== undefined) {
       line.customDisplayEndTime = Math.max(line.storedDisplayEnd, line.endTimestamp);
-      line.fadeOutDuration = 0;
     }
   }
   return screens;

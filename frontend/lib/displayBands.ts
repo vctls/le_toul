@@ -19,7 +19,8 @@ export interface DisplayBand {
   latestStart: number;
   earliestEnd: number;
   // Where and when the video draws the line, when it is known.
-  // It also moves a bound that gives way to another line, which this layout alone can't tell.
+  // It also holds the automatic bounds the video moves for another line or for a fade,
+  // which this layout alone can't tell.
   placement?: LinePlacement;
 }
 

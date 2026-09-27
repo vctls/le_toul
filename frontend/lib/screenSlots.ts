@@ -110,3 +110,70 @@ export function giveWayToStoredPeriods(renders: VoiceTrackRender[]): void {
     }
   }
 }
+
+// The longest a line takes to fade in or out.
+export const LINE_FADE: Timestamp = 0.25;
+
+/**
+ * How far the title screen and a quick-start count-in delay a voice's song in the render.
+ */
+export function songOffset(render: VoiceTrackRender): Timestamp {
+  return render.screens.reduce((sum, screen) => sum + screen.audioDelay, 0);
+}
+
+/**
+ * Fade every lyrics line in before it animates and out after it has been sung.
+ * A fade never overlaps the line's own animation, so it may be shorter than LINE_FADE, or absent.
+ */
+export function fadeLines(renders: VoiceTrackRender[], songDuration: Timestamp): void {
+  const lines = slotLines(renders);
+  const songEnds = renders.map((render) => songDuration + songOffset(render));
+  for (const slotted of lines) {
+    makeRoomToFadeOut(slotted, lines, songEnds[slotted.voice]);
+  }
+  const fade = (room: Timestamp) => Math.min(LINE_FADE, Math.max(0, room));
+  for (const { line, screen } of lines) {
+    line.fadeInDuration = fade(line.timestamp - displayStartOf(line, screen));
+    line.fadeOutDuration = fade(displayEndOf(line, screen) - line.endTimestamp);
+  }
+}
+
+/**
+ * Keep a line whose automatic end comes right after its singing shown long enough to fade out.
+ * The line at its height that appears next gives way, but only to the midpoint of the time
+ * between the two lines' animations, so that it keeps as much room to fade in.
+ */
+function makeRoomToFadeOut(slotted: SlottedLine, lines: SlottedLine[], songEnd: Timestamp): void {
+  const { line, screen } = slotted;
+  const end = displayEndOf(line, screen);
+  const wanted = Math.min(line.endTimestamp + LINE_FADE, songEnd);
+  if (slotted.endStored || end >= wanted) {
+    return;
+  }
+  const inTheWay = lines
+    .filter((other) => other !== slotted && sameHeight(slotted, other))
+    .map((other) => ({
+      other,
+      start: displayStartOf(other.line, other.screen),
+      end: displayEndOf(other.line, other.screen),
+    }))
+    .filter((shown) => shown.start < wanted && shown.end > end);
+  // A line already shown with this one, or with a stored start, stays where it is.
+  const limits = inTheWay.map(({ other, start }) =>
+    start < end || other.startStored
+      ? start
+      : Math.max(start, (line.endTimestamp + other.line.timestamp) / 2),
+  );
+  const newEnd = Math.min(wanted, ...limits);
+  if (newEnd <= end) {
+    return;
+  }
+  line.customDisplayEndTime = newEnd;
+  line.endMoved = true;
+  for (const { other, start } of inTheWay) {
+    if (start < newEnd) {
+      other.line.customDisplayStartTime = newEnd;
+      other.line.startMoved = true;
+    }
+  }
+}

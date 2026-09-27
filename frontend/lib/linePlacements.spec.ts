@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import { LinePlacement, placeLines, sameHeight } from "./linePlacements";
 import { DEFAULT_KARAOKE_OPTIONS, KaraokeOptions, VerticalAlignment, VoiceTrack } from "./timing";
 import { TimedSegment } from "./timedSegments";
+import { LINE_FADE } from "./screenSlots";
 
 const options: KaraokeOptions = {
   ...DEFAULT_KARAOKE_OPTIONS,
@@ -72,7 +73,8 @@ describe("placeLines", () => {
       const lines = place(withPeriod(twoScreens, 0, { displayEnd: 5 }));
 
       expect(lines.get(2)).toMatchObject({ startMoved: 5, overlaps: false });
-      expect(lines.get(3)?.startMoved).toBeUndefined();
+      // d only makes way for b to fade out.
+      expect(lines.get(3)?.startMoved).toBe(4 + LINE_FADE);
     });
 
     it("ends when a stored start shows the line at its height", () => {
@@ -80,7 +82,8 @@ describe("placeLines", () => {
 
       // a is shown until its screen ends at 4 unless it gives way.
       expect(lines.get(0)).toMatchObject({ endMoved: 3.5, overlaps: false });
-      expect(lines.get(1)?.endMoved).toBeUndefined();
+      // b only stays to fade out.
+      expect(lines.get(1)?.endMoved).toBe(4 + LINE_FADE);
     });
 
     it("gives way to a line of another voice", () => {
