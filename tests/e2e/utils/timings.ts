@@ -151,6 +151,20 @@ export async function scrollWaveformIntoView(page: Page): Promise<void> {
     .toBe(true);
 }
 
+/**
+ * Measures how many pixels the Adjust tab's waveform gives one second at its current zoom.
+ */
+export async function waveformPixelsPerSecond(page: Page): Promise<number> {
+  await scrollWaveformIntoView(page);
+  const width = await page
+    .locator('.timing-adjustment-tab .wavesurfer-container [part~="wrapper"]')
+    .evaluate((wrapper) => wrapper.clientWidth);
+  const duration = await page
+    .locator(".timing-adjustment-tab audio[controls]")
+    .evaluate((el: HTMLAudioElement) => el.duration);
+  return width / duration;
+}
+
 /** The Adjust tab's rectangle for one lyric segment. */
 export function regionLocator(page: Page, segmentIndex: number): Locator {
   return page.locator(`[part="region segment_${segmentIndex}"]`);
@@ -190,7 +204,7 @@ export async function expectRegionSelected(
 
 /**
  * Drags a rectangle by its body, which moves the whole selection it belongs to.
- * The offset is in pixels; the Adjust tab renders one second as `zoom` pixels.
+ * The offset is in pixels. `waveformPixelsPerSecond` converts from seconds.
  */
 export async function dragRegionBody(
   page: Page,
@@ -209,8 +223,7 @@ export async function dragRegionBody(
 
 /**
  * Adjusts timing for a specific segment by dragging its region handles.
- * Offsets are in pixels: the Adjust tab renders one second as `zoom` pixels
- * (50 by default), so -25 moves a start a half second earlier.
+ * Offsets are in pixels. `waveformPixelsPerSecond` converts from seconds.
  */
 export async function adjustTiming(
   page: Page,

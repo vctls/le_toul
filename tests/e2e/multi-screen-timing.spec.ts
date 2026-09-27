@@ -14,6 +14,7 @@ import {
   expectSegmentTimingsToBe,
   expectTimingsToMatch,
   TimingEntry,
+  waveformPixelsPerSecond,
 } from "./utils";
 
 test.describe("Multi-screen Timing and Adjustment", () => {
@@ -63,10 +64,8 @@ test.describe("Multi-screen Timing and Adjustment", () => {
     // 3. Navigate to Adjustment tab and adjust the first segment
     await navigateToTab(page, TabId.TimingAdjustment);
 
-    // -25px is half a second: the waveform renders one second as `zoom` pixels,
-    // 50 by default.
     const firstSegmentIndex = 0;
-    const startTimeAdjustment = -25;
+    const startTimeAdjustment = -0.5 * (await waveformPixelsPerSecond(page));
     await adjustTiming(page, firstSegmentIndex, startTimeAdjustment, 0);
 
     // 4. Navigate back to Timing tab to do timings for second screen

@@ -9,6 +9,7 @@ import {
   uploadTimingsFile,
   clickRegion,
   dragRegionBody,
+  waveformPixelsPerSecond,
   expectRegionSelected,
   regionLocator,
   scrollWaveformIntoView,
@@ -20,9 +21,6 @@ import {
 // it runs up to segment 2's start and has to stretch when segment 2 moves.
 const FIXTURE_TIMINGS = "timings-adjust-group.json";
 const LYRICS = "One\nTwo\nThree\nFour";
-
-// The waveform renders one second as `zoom` pixels, 50 by default.
-const PIXELS_PER_SECOND = 50;
 
 async function setupAdjustTab(page: import("@playwright/test").Page) {
   await navigateToTab(page, TabId.SongInfo);
@@ -60,7 +58,7 @@ test.describe("Adjust tab region selection", () => {
     await expectRegionSelected(page, 3);
     await expectRegionSelected(page, 0, false);
 
-    await dragRegionBody(page, 2, -0.5 * PIXELS_PER_SECOND);
+    await dragRegionBody(page, 2, -0.5 * (await waveformPixelsPerSecond(page)));
 
     // Segment 1 is open-ended, so it grows to meet segment 2 where it landed.
     const openEnded = await regionLocator(page, 1).boundingBox();
@@ -89,7 +87,7 @@ test.describe("Adjust tab region selection", () => {
     await expectRegionSelected(page, 2);
 
     // Far more room than the one second of gap before segment 3.
-    await dragRegionBody(page, 2, 5 * PIXELS_PER_SECOND);
+    await dragRegionBody(page, 2, 5 * (await waveformPixelsPerSecond(page)));
 
     await expectTimingsToMatch(
       await getCurrentTimings(page),
