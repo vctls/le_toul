@@ -15,7 +15,8 @@
         This is the active voice's part of <code>timings.txt</code>. Each line of lyrics sits
         between two time rows, and each row in between is a syllable: its text in quotes, when it
         starts, then when it ends. A syllable with no end lasts until the next one starts. A space
-        at the end of a syllable ends its word, and <code>page</code> starts a new page.
+        at the end of a syllable ends its word, and <code>page</code> starts a new page. A time row
+        followed directly by another one is a blank line that keeps its place on the page.
       </p>
       <p v-if="advancedStore.isAdvanced">
         The time rows around a line hold when it appears and disappears, and <code>-</code> leaves
@@ -77,13 +78,8 @@ import { useTimingsStore } from "@/stores/timings";
 import { useAdvancedStore } from "@/stores/advanced";
 import { useLyricsStore } from "@/stores/lyrics";
 import { parseVoiceTimingsText, writeVoiceTimingsText } from "@/lib/timingsText";
+import { joinLyrics } from "@/lib/timing";
 import { VoiceId } from "@/lib/voices";
-
-/**
- * This is the lyric text a list of segments spells out.
- * It is used to compare an edit against the current lyrics.
- */
-const join = (segments: { text: string }[]) => segments.map((segment) => segment.text).join("");
 
 export default defineComponent({
   components: { BButton, BField, BInput, BMessage, HelpSection, VoiceSelector },
@@ -130,18 +126,20 @@ export default defineComponent({
       this.warnings = [];
       try {
         const { segments: parsed, warnings } = parseVoiceTimingsText(this.draft);
-        const edited = join(parsed);
-        const wordsChanged = edited !== join(this.lyricsStore.segmentsForVoice(this.activeVoice));
+        const edited = joinLyrics(parsed);
+        // A spacer lives in the lyrics like a word, so changing one changes the lyrics too.
+        const lyricsChanged =
+          edited !== joinLyrics(this.lyricsStore.segmentsForVoice(this.activeVoice));
         // Only a voice that owns the whole lyric blob can have words written back to it.
         // Putting an edit back through the `[tag]` lines of a multi-voice blob is not implemented.
-        if (wordsChanged && this.lyricsStore.voices.length > 1) {
+        if (lyricsChanged && this.lyricsStore.voices.length > 1) {
           this.error =
-            "This tab can only change timings while the song has more than one voice. Edit the words in the Lyrics tab.";
+            "This tab can only change timings while the song has more than one voice. Edit the words and blank lines in the Lyrics tab.";
           return;
         }
 
         this.timingsStore.resetSegments(parsed);
-        if (wordsChanged) {
+        if (lyricsChanged) {
           this.lyricsStore.setLyrics(edited);
         }
         // A rewrite that only drops comments leaves `current` as it was, so its watcher won't fire.

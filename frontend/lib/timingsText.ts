@@ -7,7 +7,8 @@ import {
   BRACKETS_REMOVED,
   DISPLAY_PERIOD_WIDENED,
   MARKUP_REMOVED,
-  SPACER_DROPPED,
+  SPACER_BOUNDS_DROPPED,
+  SPACER_PAGE_DROPPED,
   Warnings,
 } from "./importWarnings";
 import { TimedSegment, clampDisplayPeriods } from "./timedSegments";
@@ -51,6 +52,9 @@ interface ParsedLine {
   displayStart?: number;
   displayEnd?: number;
   syllables: ParsedSyllable[];
+  // A line with no syllables is a spacer, and its neighbours count it.
+  spacersBefore?: number;
+  spacersAfter?: number;
 }
 
 type ParsedPage = ParsedLine[];
@@ -275,14 +279,7 @@ interface Syllable {
 function toSegments(pages: ParsedPage[], warnings: Warnings): TimedSegment[] {
   const syllables: Syllable[] = [];
   for (const page of pages) {
-    // Spacers have no segment to live on until the layout supports them.
-    const lines = page.filter((line) => {
-      if (line.syllables.length === 0) {
-        warnings.add(SPACER_DROPPED);
-        return false;
-      }
-      return true;
-    });
+    const lines = countSpacers(page, warnings);
 
     lines.forEach((line, l) => {
       let texts = line.syllables.map(({ text }) => {
@@ -339,16 +336,48 @@ function toSegments(pages: ParsedPage[], warnings: Warnings): TimedSegment[] {
       segment.end = syllable.end / 100;
     }
     if (syllable.firstOfLine) {
-      const { displayStart, displayEnd } = syllable.line;
+      const { displayStart, displayEnd, spacersBefore, spacersAfter } = syllable.line;
       if (displayStart !== undefined) {
         segment.displayStart = displayStart / 100;
       }
       if (displayEnd !== undefined) {
         segment.displayEnd = displayEnd / 100;
       }
+      if (spacersBefore) {
+        segment.spacersBefore = spacersBefore;
+      }
+      if (spacersAfter) {
+        segment.spacersAfter = spacersAfter;
+      }
     }
     return segment;
   });
+}
+
+/**
+ * The page's lines without its spacers, each counted on the line below it,
+ * or on the page's last line when it's at the bottom.
+ */
+function countSpacers(page: ParsedPage, warnings: Warnings): ParsedLine[] {
+  const lines = page.filter((line) => line.syllables.length > 0);
+  if (lines.length === 0) {
+    warnings.add(SPACER_PAGE_DROPPED);
+    return [];
+  }
+  let spacers = 0;
+  for (const line of page) {
+    if (line.syllables.length > 0) {
+      line.spacersBefore = spacers;
+      spacers = 0;
+      continue;
+    }
+    if (line.displayStart !== undefined || line.displayEnd !== undefined) {
+      warnings.add(SPACER_BOUNDS_DROPPED);
+    }
+    spacers++;
+  }
+  lines[lines.length - 1].spacersAfter = spacers;
+  return lines;
 }
 
 function separatorOf(syllable: Syllable, isLast: boolean): string {
@@ -367,6 +396,8 @@ function separatorOf(syllable: Syllable, isLast: boolean): string {
 interface WrittenLine {
   displayStart?: number;
   displayEnd?: number;
+  spacersBefore?: number;
+  spacersAfter?: number;
   syllables: { text: string; start?: number; end?: number }[];
 }
 
@@ -405,8 +436,20 @@ function sectionRows(segments: TimedSegment[]): string[] {
   return toPages(segments).flatMap((page, p) => [
     ...(p > 0 ? [""] : []),
     "page",
-    ...page.flatMap((line) => ["", ...lineRows(line)]),
+    ...page.flatMap((line, l) => [
+      ...spacerRows(line.spacersBefore),
+      "",
+      ...lineRows(line),
+      ...(l === page.length - 1 ? spacerRows(line.spacersAfter) : []),
+    ]),
   ]);
+}
+
+/**
+ * A spacer is a header followed directly by its footer, and it has no display period.
+ */
+function spacerRows(count: number | undefined): string[] {
+  return Array.from({ length: count ?? 0 }, () => ["", "-", "-"]).flat();
 }
 
 type Break = "page" | "line" | "word" | "split" | "none";
@@ -452,7 +495,8 @@ function toPages(segments: TimedSegment[]): WrittenLine[][] {
   let line: WrittenLine | undefined;
   kept.forEach(({ segment, word, separators }, i) => {
     if (!line) {
-      line = { displayStart: segment.displayStart, displayEnd: segment.displayEnd, syllables: [] };
+      const { displayStart, displayEnd, spacersBefore, spacersAfter } = segment;
+      line = { displayStart, displayEnd, spacersBefore, spacersAfter, syllables: [] };
     }
     const kind: Break = i >= lastKeptText ? "none" : breakOf(separators);
     line.syllables.push({

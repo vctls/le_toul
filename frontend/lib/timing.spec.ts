@@ -15,6 +15,7 @@ import {
   VerticalAlignment,
   resolveStarts,
   parseLyrics,
+  joinLyrics,
   withFallbackFonts,
 } from "./timing";
 import { LYRIC_MARKERS, DEFAULT_COUNT_IN_THRESHOLD, DEFAULT_COUNT_IN_DURATION } from "@/constants";
@@ -228,6 +229,14 @@ describe("parseLyrics", () => {
 
   test("doesn't read a split at the edge of a line as a spacer", () => {
     expect(parseLyrics("foo/\n/bar", true)).toEqual([{ text: "foo\n" }, { text: "bar" }]);
+  });
+
+  test("reads back the lyrics joinLyrics writes", () => {
+    for (const lyrics of ["/\nfoo_bar\n/\nba/z\n/\n\n/\n/\nqux\n/", "fo/o\n\nbar", "foo\n/\n/"]) {
+      const segments = parseLyrics(lyrics, true);
+      expect(joinLyrics(segments)).toBe(lyrics);
+      expect(parseLyrics(joinLyrics(segments), true)).toEqual(segments);
+    }
   });
 
   test("counts spacers without markup", () => {

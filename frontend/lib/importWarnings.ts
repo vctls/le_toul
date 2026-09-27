@@ -5,6 +5,9 @@ export const MARKUP_REMOVED =
 export const BRACKETS_REMOVED =
   "Square brackets starting a line were removed, since they would read as a voice tag";
 export const SPACER_DROPPED = "A blank spacer line was dropped";
+export const SPACER_PAGE_DROPPED = "A page holding only blank spacer lines was dropped";
+export const SPACER_BOUNDS_DROPPED =
+  "A blank spacer line's display times were dropped, since it shows nothing";
 export const DISPLAY_PERIOD_WIDENED = "A line's display period was widened to contain its timings";
 
 /**
