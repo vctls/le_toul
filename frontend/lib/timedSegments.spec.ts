@@ -4,6 +4,7 @@ import {
   toEvents,
   reconcile,
   clampDisplayPeriods,
+  normalizeDisplayPeriods,
   TimedSegment,
 } from "./timedSegments";
 import { parseLyrics } from "./timing";
@@ -283,5 +284,38 @@ describe("clampDisplayPeriods", () => {
       { text: "b", start: 3 },
     ];
     expect(clampDisplayPeriods(stored)).toEqual({ segments: stored, widened: 0 });
+  });
+});
+
+describe("normalizeDisplayPeriods", () => {
+  it("pushes a bound that a syllable has crossed, and never pulls it back", () => {
+    const pushed = normalizeDisplayPeriods([
+      { text: "a\n", start: 1, end: 4, displayStart: 2, displayEnd: 3 },
+      { text: "b", start: 5 },
+    ]);
+    expect(pushed[0]).toMatchObject({ displayStart: 1, displayEnd: 4 });
+
+    const movedBack = normalizeDisplayPeriods([{ ...pushed[0], start: 1.5, end: 2 }, pushed[1]]);
+    expect(movedBack[0]).toMatchObject({ displayStart: 1, displayEnd: 4 });
+  });
+
+  it("clears the bounds of a segment that no longer starts a line", () => {
+    expect(
+      normalizeDisplayPeriods([
+        { text: "a_", start: 1, displayStart: 0 },
+        { text: "b", start: 2, displayStart: 1, displayEnd: 3 },
+      ]),
+    ).toEqual([
+      { text: "a_", start: 1, displayStart: 0 },
+      { text: "b", start: 2 },
+    ]);
+  });
+
+  it("keeps the bounds of a line that isn't timed yet", () => {
+    const untimed: TimedSegment[] = [
+      { text: "a\n", displayStart: 1, displayEnd: 2 },
+      { text: "b" },
+    ];
+    expect(normalizeDisplayPeriods(untimed)).toEqual(untimed);
   });
 });

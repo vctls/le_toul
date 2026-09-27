@@ -10,6 +10,7 @@ import { beforeEach, describe, expect, test, vi } from "vitest";
 import { LYRIC_MARKERS } from "@/constants";
 import { createAssFile } from "@/lib/timing";
 import { DEFAULT_VOICE_ID } from "@/lib/voices";
+import { TimedSegment } from "@/lib/timedSegments";
 import { parseTimingsText } from "@/lib/timingsText";
 
 // Mock the createAssFile function
@@ -367,6 +368,88 @@ describe("Timings Store", () => {
   // A timings.json exported by any earlier version has to keep loading,
   // and what we export has to keep loading into those versions.
   // Both directions are the [time, marker] event form.
+  describe("display periods", () => {
+    const periodsOf = (timings: ReturnType<typeof useTimingsStore>) =>
+      timings.activeSegments.map(({ text, displayStart, displayEnd }) => [
+        text,
+        displayStart,
+        displayEnd,
+      ]);
+
+    test("a tap before a line's stored start pushes it", () => {
+      const timings = useTimingsStore();
+      useLyricsStore().setLyrics("one_two");
+      timings.setAllSegments({
+        [DEFAULT_VOICE_ID]: [{ text: "one_", start: 2, displayStart: 1.5 }, { text: "two" }],
+      });
+
+      timings.add(0, LYRIC_MARKERS.SEGMENT_START, 1);
+
+      expect(timings.activeSegments[0].displayStart).toBe(1);
+    });
+
+    const withPeriods = (lyricText: string, segments: TimedSegment[]) => {
+      const timings = useTimingsStore();
+      const lyrics = useLyricsStore();
+      lyrics.setLyrics(lyricText);
+      timings.setAllSegments({ [DEFAULT_VOICE_ID]: segments });
+      timings.setupSegmentReconciliation();
+      return { timings, lyrics };
+    };
+
+    test("joining two lines keeps the first line's period, until the join is undone", async () => {
+      const { timings, lyrics } = withPeriods("one\ntwo\nthree", [
+        { text: "one\n", start: 1, displayStart: 0.5 },
+        { text: "two\n", start: 2, displayStart: 1.5 },
+        { text: "three", start: 3, displayStart: 2.5 },
+      ]);
+
+      lyrics.setLyrics("one_two\nthree");
+      await nextTick();
+      expect(periodsOf(timings)).toEqual([
+        ["one_", 0.5, undefined],
+        ["two\n", undefined, undefined],
+        ["three", 2.5, undefined],
+      ]);
+
+      // Edits reconcile from the last timing write, as timings do, so the period comes back.
+      lyrics.setLyrics("one\ntwo\nthree");
+      await nextTick();
+      expect(periodsOf(timings)[1]).toEqual(["two\n", 1.5, undefined]);
+    });
+
+    test("splitting a line leaves its period on the first half", async () => {
+      const { timings, lyrics } = withPeriods("one_two\nthree", [
+        { text: "one_", start: 1, displayStart: 0.5 },
+        { text: "two\n", start: 2 },
+        { text: "three", start: 3, displayStart: 2.5 },
+      ]);
+
+      lyrics.setLyrics("one\ntwo\nthree");
+      await nextTick();
+      expect(periodsOf(timings)).toEqual([
+        ["one\n", 0.5, undefined],
+        ["two\n", undefined, undefined],
+        ["three", 2.5, undefined],
+      ]);
+    });
+
+    test("deleting a line drops its period with it", async () => {
+      const { timings, lyrics } = withPeriods("one\ntwo\nthree", [
+        { text: "one\n", start: 1, displayStart: 0.5 },
+        { text: "two\n", start: 2, displayStart: 1.5 },
+        { text: "three", start: 3, displayStart: 2.5 },
+      ]);
+
+      lyrics.setLyrics("one\nthree");
+      await nextTick();
+      expect(periodsOf(timings)).toEqual([
+        ["one\n", 0.5, undefined],
+        ["three", 2.5, undefined],
+      ]);
+    });
+  });
+
   describe("existing projects", () => {
     test("a legacy single-voice timings.json still loads", () => {
       const timings = useTimingsStore();
