@@ -247,6 +247,12 @@ export const useTimingsStore = defineStore("timings", {
      * Unlike `voicesWithTimings` this counts voices the lyrics no longer name,
      * which loading a timings file also replaces.
      */
+    hasDisplayPeriods(state): boolean {
+      return Object.values(state._segmentsByVoice).some((segments) =>
+        segments.some(hasDisplayPeriod),
+      );
+    },
+
     hasAnyTimings(state): boolean {
       return Object.values(state._segmentsByVoice).some(isTimed);
     },
