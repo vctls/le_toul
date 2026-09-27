@@ -448,6 +448,25 @@ describe("withFallbackFonts", () => {
     );
   });
 
+  test("switches a run of symbols to the symbol font", () => {
+    expect(withFallbackFonts("{\\kf50}➤➤➤➤{\\kf20}May", "Arial")).toBe(
+      "{\\kf50}{\\fnDejaVu Sans}➤➤➤➤{\\fn}{\\kf20}May",
+    );
+  });
+
+  test("keeps the symbols the style's font draws itself", () => {
+    const heart = new Set(["♥".codePointAt(0)!]);
+    expect(withFallbackFonts("♥♥♥ ➤", "Arial", heart)).toBe("♥♥♥ {\\fnDejaVu Sans}➤{\\fn}");
+  });
+
+  test("leaves the text alone in the fallback font it would switch to", () => {
+    expect(withFallbackFonts("➤➤ 坂本", "DejaVu Sans")).toBe("➤➤ {\\fnNoto Sans CJK JP}坂本{\\fn}");
+  });
+
+  test("switches a whole run when none of its words can be drawn", () => {
+    expect(withFallbackFonts("➤➤ ➣➣", "Arial")).toBe("{\\fnDejaVu Sans}➤➤ ➣➣{\\fn}");
+  });
+
   test("leaves Latin text and override blocks alone", () => {
     const line = "{\\fad(100,100)}{\\kf50}Crème brûlée · naïve";
     expect(withFallbackFonts(line, "Arial")).toBe(line);
@@ -495,6 +514,34 @@ describe("CJK lyrics in the ASS file", () => {
     const ass = createAssFile(segments, 10, "Title", "坂本 真綾", uploaded, coverage);
     expect(ass).toContain("{\\fnNoto Sans CJK JP}残酷な天使{\\fn}");
     expect(ass).not.toContain("{\\fnNoto Sans CJK JP}坂本 真綾{\\fn}");
+  });
+});
+
+describe("symbols in the ASS file", () => {
+  const options: KaraokeOptions = {
+    ...DEFAULT_OPTIONS,
+    addTitleScreen: false,
+    countInMode: "none",
+    addInstrumentalScreens: false,
+    addStaggeredLines: false,
+    font: { ...DEFAULT_OPTIONS.font, name: "Arial" },
+  };
+  const segments = fromEvents("♥♥♥_➤➤➤\n", [
+    [5.0, LYRIC_MARKERS.SEGMENT_START],
+    [6.0, LYRIC_MARKERS.SEGMENT_START],
+  ]);
+
+  test("keeps a bundled font's own symbols and switches the rest", () => {
+    const ass = createAssFile(segments, 10, "T", "A", options);
+    expect(ass).toContain("{\\kf100}♥♥♥ {\\kf400}{\\fnDejaVu Sans}➤➤➤{\\fn}");
+  });
+
+  test("switches every symbol for an uploaded font that draws none", () => {
+    const uploaded = { ...options, font: { ...options.font, name: "Asmath Free" } };
+    const ass = createAssFile(segments, 10, "T", "A", uploaded, { "Asmath Free": new Set() });
+    expect(ass).toContain(
+      "{\\kf100}{\\fnDejaVu Sans}♥♥♥{\\fn} {\\kf400}{\\fnDejaVu Sans}➤➤➤{\\fn}",
+    );
   });
 });
 

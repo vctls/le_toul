@@ -20,7 +20,7 @@ import {
   endTitleScreenBy,
   fitInstrumentalScreens,
 } from "./adjustments";
-import { FALLBACK_FONTS } from "./fonts";
+import { BUNDLED_SYMBOLS, FALLBACK_FONTS } from "./fonts";
 import { map, method, isNumber } from "lodash-es";
 import { default as BuefyColor } from "buefy/src/utils/color";
 // This import must stay type-only,
@@ -738,11 +738,11 @@ const FALLBACK_RUN = new RegExp(
 );
 
 // Which of the characters the fallback fonts stand in for each uploaded font can draw, by family name.
-// Any other font counts as drawing none.
+// A bundled font draws what BUNDLED_SYMBOLS lists. Any other font counts as drawing none.
 export type GlyphCoverage = Readonly<Record<string, ReadonlySet<number>>>;
 
 /**
- * Switch every run of CJK text outside override blocks to the fallback font for it,
+ * Switch every run of CJK text or symbols outside override blocks to the fallback font for it,
  * unless the style's font can draw the whole run.
  * FFmpeg.wasm's libass has no fontconfig, so it can't fall back to another font on its own.
  */
@@ -806,7 +806,7 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
 `;
   for (const track of tracks) {
     const fontName = track.displayParams.Fontname as string;
-    const covered = glyphCoverage[fontName];
+    const covered = glyphCoverage[fontName] ?? BUNDLED_SYMBOLS[fontName];
     for (const screen of track.screens) {
       const events = screen.toAssEvents(track.displayParams, track.options, track.styleName);
       assText += withFallbackFonts(events, fontName, covered);

@@ -148,6 +148,13 @@ describe("parseCoverage", () => {
     expect(covered.has(codePoint("A"))).toBe(false);
   });
 
+  test("finds the symbols a font draws", () => {
+    const covered = parseCoverage(bundledFont("Arial.ttf"));
+
+    expect(covered.has(codePoint("♥"))).toBe(true);
+    expect(covered.has(codePoint("➤"))).toBe(false);
+  });
+
   test("finds no CJK characters in a Latin font", () => {
     const covered = parseCoverage(bundledFont("Impact.ttf"));
 

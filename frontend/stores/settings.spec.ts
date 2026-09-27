@@ -364,6 +364,7 @@ describe("Settings Store", () => {
 
       expect(store.glyphCoverage["Noto Sans CJK JP"].has("坂".codePointAt(0)!)).toBe(true);
       expect(store.glyphCoverage["Impact"].has("坂".codePointAt(0)!)).toBe(false);
+      expect(store.glyphCoverage["Impact"].has("♥".codePointAt(0)!)).toBe(true);
 
       await store.setCustomFont(null);
       expect(store.glyphCoverage).not.toHaveProperty("Noto Sans CJK JP");
