@@ -324,7 +324,9 @@ function placeStaggeredScreen(
   const { size } = options.font;
   const alignment = options.verticalAlignment;
   screen.positionAsLineCount = undefined;
-  if (previous.getLineY(0, size, alignment) < screen.getLineY(0, size, alignment)) {
+  if (
+    previous.getLineY(0, size, alignment, options) < screen.getLineY(0, size, alignment, options)
+  ) {
     screen.positionAsLineCount = previous.positionAsLineCount ?? previous.lines.length;
   }
 }

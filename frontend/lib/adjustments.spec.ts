@@ -45,6 +45,8 @@ const DEFAULT_OPTIONS: KaraokeOptions = {
   useBackgroundVideo: false,
   outputFormat: "mp4",
   verticalAlignment: VerticalAlignment.Middle,
+  lineSpacing: 1.5,
+  topMargin: 1.5,
   font: {
     size: 22,
     name: "Arial Narrow",

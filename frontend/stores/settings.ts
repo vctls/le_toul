@@ -15,6 +15,8 @@ import {
   DEFAULT_COUNT_IN_TEXT,
   DEFAULT_COUNT_IN_THRESHOLD,
   DEFAULT_COUNT_IN_DURATION,
+  DEFAULT_LINE_SPACING,
+  DEFAULT_TOP_MARGIN,
   DEFAULT_DYNAMIC_COUNT_INS,
 } from "@/constants";
 
@@ -66,6 +68,8 @@ export type VideoSettings = {
   useBackgroundVideo: boolean;
   outputFormat: OutputFormat;
   verticalAlignment: VerticalAlignment;
+  lineSpacing: number;
+  topMargin: number;
   font: {
     size: number;
     name: string;
@@ -102,6 +106,8 @@ const DEFAULT_SETTINGS: VideoSettings = {
   useBackgroundVideo: false,
   outputFormat: "mp4",
   verticalAlignment: VerticalAlignment.Middle,
+  lineSpacing: DEFAULT_LINE_SPACING,
+  topMargin: DEFAULT_TOP_MARGIN,
   vocalSeparationModel: BACKING_VOCALS_SEPARATOR_MODEL,
   font: {
     size: 20,

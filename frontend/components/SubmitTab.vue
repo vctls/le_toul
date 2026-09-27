@@ -302,6 +302,61 @@
               Bottom
             </b-radio-button>
           </b-field>
+          <b-field v-if="advancedStore.isAdvanced" horizontal>
+            <template #label>
+              Line Spacing
+              <b-tooltip
+                append-to-body
+                content-class="wide-tooltip"
+                multilined
+                label="From the top of one line to the top of the next, as a multiple of the font size. A KBP file sets it from its own margins."
+              >
+                <b-icon size="is-small" icon="circle-question"></b-icon>
+              </b-tooltip>
+            </template>
+            <b-numberinput
+              expanded
+              :model-value="videoOptions.lineSpacing"
+              :min="0.5"
+              :step="0.1"
+              :min-step="0.001"
+              @update:model-value="
+                (v: number | null | undefined) =>
+                  (videoOptions.lineSpacing = Number(v ?? videoOptions.lineSpacing))
+              "
+              controls-position="compact"
+            ></b-numberinput>
+          </b-field>
+          <b-field
+            v-if="
+              advancedStore.isAdvanced && videoOptions.verticalAlignment === VerticalAlignment.Top
+            "
+            horizontal
+          >
+            <template #label>
+              Top Margin
+              <b-tooltip
+                append-to-body
+                content-class="wide-tooltip"
+                multilined
+                label="The space above the first line, as a multiple of the font size. A KBP file sets it from its own margins."
+              >
+                <b-icon size="is-small" icon="circle-question"></b-icon>
+              </b-tooltip>
+            </template>
+            <b-numberinput
+              expanded
+              :model-value="videoOptions.topMargin"
+              :min="0"
+              :step="0.1"
+              :min-step="0.001"
+              @update:model-value="
+                (v: number | null | undefined) =>
+                  (videoOptions.topMargin = Number(v ?? videoOptions.topMargin))
+              "
+              controls-position="compact"
+            ></b-numberinput>
+          </b-field>
           <voice-style-settings v-if="voices.length > 1" :fonts="fonts" />
         </b-collapse>
       </div>

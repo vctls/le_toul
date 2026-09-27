@@ -7,6 +7,8 @@ import {
   DEFAULT_COUNT_IN_THRESHOLD,
   DEFAULT_COUNT_IN_DURATION,
   DEFAULT_DYNAMIC_COUNT_INS,
+  DEFAULT_LINE_SPACING,
+  DEFAULT_TOP_MARGIN,
 } from "@/constants";
 import {
   addQuickStartCountIn,
@@ -55,6 +57,10 @@ export interface KaraokeOptions {
   useBackgroundVideo: boolean;
   outputFormat: OutputFormat;
   verticalAlignment: VerticalAlignment;
+  // From one line's top to the next, as a multiple of the font size.
+  lineSpacing: number;
+  // Above the first line when the lyrics are aligned to the top, as a multiple of the font size.
+  topMargin: number;
   font: {
     size: number;
     name: string;
@@ -87,6 +93,8 @@ export const DEFAULT_KARAOKE_OPTIONS: KaraokeOptions = {
   useBackgroundVideo: false,
   outputFormat: "mp4",
   verticalAlignment: VerticalAlignment.Middle,
+  lineSpacing: DEFAULT_LINE_SPACING,
+  topMargin: DEFAULT_TOP_MARGIN,
   font: {
     size: 20,
     name: "Arial Narrow",
@@ -334,6 +342,13 @@ export class LyricSegment {
 
 export type ScreenKind = "lyrics" | "title" | "instrumental";
 
+export type LineSpacing = Pick<KaraokeOptions, "lineSpacing" | "topMargin">;
+
+const DEFAULT_SPACING: LineSpacing = {
+  lineSpacing: DEFAULT_LINE_SPACING,
+  topMargin: DEFAULT_TOP_MARGIN,
+};
+
 export class LyricsScreen {
   lines: LyricsLine[];
   kind: ScreenKind = "lyrics";
@@ -375,19 +390,21 @@ export class LyricsScreen {
     return this.lines.flatMap((l) => l.segments);
   }
 
+  /**
+   * The Y coordinate of the top of the given line in the screen.
+   */
   getLineY(
     lineInScreen: number,
     fontSize: number,
     alignment: VerticalAlignment = VerticalAlignment.Middle,
+    spacing: LineSpacing = DEFAULT_SPACING,
   ): number {
-    // Get the Y coordinate of the top of the given line in the screen
-    // Pad screen with 1 line height
-    const lineHeight = fontSize * 1.5;
+    const lineHeight = fontSize * spacing.lineSpacing;
     // The block is normally as tall as this screen's own lines, but a staggered screen is
     // positioned as if it had the previous screen's line count (see positionAsLineCount).
     const lineCount = this.positionAsLineCount ?? this.lines.length;
     // libass draws each line from the top of its slot,
-    // so the slack between the glyphs and the 1.5x slot all ends up below the last line.
+    // so the slack between the glyphs and the slot all ends up below the last line.
     // Centre on the glyphs rather than the slots, or the block sits half that slack too high.
     // Lanes use the same block as the screen,
     // so a voice doesn't jump when its screens start or stop overlapping another voice.
@@ -401,7 +418,7 @@ export class LyricsScreen {
     } else {
       switch (alignment) {
         case VerticalAlignment.Top:
-          firstLineTopMargin = lineHeight;
+          firstLineTopMargin = fontSize * spacing.topMargin;
           break;
         case VerticalAlignment.Middle:
           const screenMiddle = SUBTITLE_CANVAS.height / 2;
@@ -428,7 +445,12 @@ export class LyricsScreen {
             self.startTimestamp ?? 0,
             self.endTimestamp,
             styleName,
-            self.getLineY(i, formatParams["Fontsize"] as number, videoOptions.verticalAlignment),
+            self.getLineY(
+              i,
+              formatParams["Fontsize"] as number,
+              videoOptions.verticalAlignment,
+              videoOptions,
+            ),
           ),
         )
         .join("\n") + "\n"

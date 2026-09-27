@@ -32,8 +32,12 @@ export const SUBTITLE_CANVAS = {
 
 // How much of the font size a line actually covers, capitals to descenders.
 // Measured between 1.07 and 1.16 across the bundled fonts.
-// Lines sit in 1.5x slots, so centring a block of them goes by this, not the slot height.
+// Lines sit in taller slots, so centring a block of them goes by this, not the slot height.
 export const GLYPH_BLOCK_RATIO = 1.12;
+
+// Both are multiples of the font size.
+export const DEFAULT_LINE_SPACING = 1.5;
+export const DEFAULT_TOP_MARGIN = 1.5;
 
 export const TITLE_SCREEN_DURATION = 4.0;
 export const INSTRUMENTAL_SCREEN_THRESHOLD = 8.0;
