@@ -15,7 +15,9 @@ def test_fonts_are_cacheable_for_a_week():
 
 
 def test_range_requests_for_fonts_are_cacheable_too():
-    response = client.get("/static/fonts/DejaVuSans.ttf", headers={"Range": "bytes=0-99"})
+    response = client.get(
+        "/static/fonts/DejaVuSans.ttf", headers={"Range": "bytes=0-99"}
+    )
 
     assert response.status_code == 206
     assert response.headers["cache-control"] == "public, max-age=604800"
