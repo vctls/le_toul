@@ -62,9 +62,11 @@ function countInTextMarks(text: string): string[] {
     marks.push(units.slice(start, start + size).join(""));
     start += size;
   }
-  // The text's own leading and trailing spaces stay, as in a fixed count-in.
+  // The text's own leading and trailing spaces stay.
+  // Without trailing ones, the last mark takes a half-width space,
+  // so it doesn't run into the lyrics.
   marks[0] = text.slice(0, text.indexOf(body)) + marks[0];
-  marks[markCount - 1] += text.slice(text.indexOf(body) + body.length);
+  marks[markCount - 1] += text.slice(text.indexOf(body) + body.length) || "{\\fscx50} {\\fscx}";
   return marks;
 }
 

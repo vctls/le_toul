@@ -212,6 +212,8 @@ function dynamicCountInMarks(countInText: string, countInThreshold = 3.0): Lyric
   return screen.lines[1].segments.slice(0, -1);
 }
 
+const HALF_SPACE = "{\\fscx50} {\\fscx}";
+
 const markTexts = (segments: LyricSegment[]) =>
   segments.map((segment) => segment.text.replace(/^\{\\alpha&H..&\}/, ""));
 
@@ -228,8 +230,8 @@ test("dynamic count-ins split the text by word when it has spaces", () => {
 });
 
 test("dynamic count-ins split the text by character when it has no spaces", () => {
-  expect(markTexts(dynamicCountInMarks("♪♪♪"))).toEqual(["♪", "♪", "♪"]);
-  expect(markTexts(dynamicCountInMarks("Hello"))).toEqual(["He", "ll", "o"]);
+  expect(markTexts(dynamicCountInMarks("♪♪♪"))).toEqual(["♪", "♪", `♪${HALF_SPACE}`]);
+  expect(markTexts(dynamicCountInMarks("Hello"))).toEqual(["He", "ll", `o${HALF_SPACE}`]);
 });
 
 test("extra words go to the first marks", () => {
@@ -237,7 +239,12 @@ test("extra words go to the first marks", () => {
 });
 
 test("the text's own leading and trailing spaces stay", () => {
-  expect(markTexts(dynamicCountInMarks("  ••• "))).toEqual(["  •", "•", "• "]);
+  expect(markTexts(dynamicCountInMarks("  •••  "))).toEqual(["  •", "•", "•  "]);
+});
+
+test("the last mark gets a half-width space when the text has none", () => {
+  expect(markTexts(dynamicCountInMarks("3 2 1"))).toEqual(["3 ", "2 ", `1${HALF_SPACE}`]);
+  expect(markTexts(dynamicCountInMarks("•••"))).toEqual(["•", "•", `•${HALF_SPACE}`]);
 });
 
 test("a text too short for three marks spreads the fewer marks over the whole count-in", () => {
