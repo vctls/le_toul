@@ -73,6 +73,13 @@
             </b-tooltip>
           </template>
           <b-switch v-model="showDisplayBands"></b-switch>
+          <b-button
+            v-if="showDisplayBands"
+            class="reset-display-periods"
+            label="Reset all"
+            :disabled="!timingsStore.hasDisplayPeriods"
+            @click="isConfirmingReset = true"
+          />
         </b-field>
         <b-field label="Shift all timings (ms)" horizontal>
           <b-numberinput
@@ -137,11 +144,24 @@
       @timeupdate="onPlayheadUpdate"
       @seeking="onSeek"
     />
+    <confirm-modal
+      v-model="isConfirmingReset"
+      title="Reset all display times?"
+      type="is-danger"
+      icon="circle-exclamation"
+      confirm-label="Reset all"
+      @confirm="timingsStore.clearDisplayPeriods()"
+    >
+      <p>
+        Every line of every voice will go back to the automatic display times. This can't be undone.
+      </p>
+    </confirm-modal>
   </b-tab-item>
 </template>
 
 <script lang="ts">
 import { defineComponent } from "vue";
+import ConfirmModal from "@/components/ConfirmModal.vue";
 import HelpSection from "@/components/HelpSection.vue";
 import TimingAdjuster from "@/components/TimingAdjuster.vue";
 import SubtitleDisplay from "./SubtitleDisplay.vue";
@@ -239,6 +259,7 @@ export default defineComponent({
     BNumberinput,
     BSelect,
     BSwitch,
+    ConfirmModal,
     HelpSection,
     TimingAdjuster,
     SubtitleDisplay,
@@ -280,6 +301,7 @@ export default defineComponent({
       preservePitch: restored?.preservePitch ?? false,
       // Off by default, since most users never set display times.
       showDisplayBands: restored?.showDisplayBands ?? false,
+      isConfirmingReset: false,
       // Which track to play back. The waveform always stays on the vocals.
       playbackTrackChoice: "full" as "full" | "vocals",
       // Per-voice control state.

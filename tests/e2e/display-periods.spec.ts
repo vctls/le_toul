@@ -42,6 +42,26 @@ function firstSegment(page: Page) {
   );
 }
 
+/**
+ * Drag the first line's end edge ten seconds back.
+ */
+async function dragFirstEndEdgeBack(page: Page) {
+  // The first line shows until its screen ends at 8 s. Far more than the six seconds back to its
+  // own end at 2 s.
+  const endEdge = page
+    .locator('[part="display-band"]')
+    .first()
+    .locator('[part~="display-band-end"]');
+  const pixelsPerSecond = await waveformPixelsPerSecond(page);
+  const box = (await endEdge.boundingBox())!;
+  const y = box.y + box.height / 2;
+  const x = box.x + box.width / 2;
+  await page.mouse.move(x, y);
+  await page.mouse.down();
+  await page.mouse.move(x - 10 * pixelsPerSecond, y, { steps: 10 });
+  await page.mouse.up();
+}
+
 function playhead(page: Page) {
   return page.locator(".timing-adjustment-tab audio[controls]").evaluate((audio) => {
     return (audio as HTMLAudioElement).currentTime;
@@ -66,16 +86,7 @@ test.describe("Adjust tab display mode", () => {
     const borderRight = () => frame.evaluate((el) => getComputedStyle(el).borderRightStyle);
     await expect.poll(borderRight).toBe("dashed");
 
-    // The first line shows until its screen ends at 8 s. Far more than the six seconds back to its
-    // own end at 2 s.
-    const pixelsPerSecond = await waveformPixelsPerSecond(page);
-    const box = (await endEdge.boundingBox())!;
-    const y = box.y + box.height / 2;
-    const x = box.x + box.width / 2;
-    await page.mouse.move(x, y);
-    await page.mouse.down();
-    await page.mouse.move(x - 10 * pixelsPerSecond, y, { steps: 10 });
-    await page.mouse.up();
+    await dragFirstEndEdgeBack(page);
 
     await expect.poll(() => firstSegment(page)).toMatchObject({ displayEnd: 2 });
     await expect.poll(borderRight).toBe("solid");
@@ -88,5 +99,31 @@ test.describe("Adjust tab display mode", () => {
       .toBe(undefined);
     await expect.poll(borderRight).toBe("dashed");
     expect(await playhead(page)).toBe(before);
+  });
+
+  test("puts every line back on the automatic times once Reset all is confirmed", async ({
+    page,
+  }) => {
+    await setupDisplayMode(page);
+    const resetAll = fieldFor(page, "Line display times").getByRole("button", {
+      name: "Reset all",
+    });
+    await expect(resetAll).toBeDisabled();
+
+    await dragFirstEndEdgeBack(page);
+    await expect.poll(() => firstSegment(page)).toMatchObject({ displayEnd: 2 });
+
+    await resetAll.click();
+    const dialog = page.getByRole("dialog");
+    await dialog.getByRole("button", { name: "Reset all" }).click();
+
+    await expect
+      .poll(() => firstSegment(page).then((segment) => segment.displayEnd))
+      .toBe(undefined);
+    const frame = page.locator('[part="display-band"]').first();
+    await expect
+      .poll(() => frame.evaluate((el) => getComputedStyle(el).borderRightStyle))
+      .toBe("dashed");
+    await expect(resetAll).toBeDisabled();
   });
 });
