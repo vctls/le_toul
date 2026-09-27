@@ -130,6 +130,8 @@ const KNOWN_VIDEO_OPTIONS = [
   "countInText",
   "outputFormat",
   "verticalAlignment",
+  "lineSpacing",
+  "topMargin",
   "font",
   "color",
   "vocalSeparationModel",
@@ -165,6 +167,24 @@ function readPositiveNumber(value: unknown, path: string, warnings: string[]): n
   if (parsed <= 0) {
     warnings.push(
       `${path}: expected a number of seconds above zero, ignoring ${JSON.stringify(value)}`,
+    );
+    return undefined;
+  }
+  return parsed;
+}
+
+function readFontMultiple(
+  value: unknown,
+  path: string,
+  warnings: string[],
+  allowZero: boolean,
+): number | undefined {
+  const parsed = readNumber(value, path, warnings);
+  if (parsed === undefined) return undefined;
+  if (parsed < 0 || (parsed === 0 && !allowZero)) {
+    const range = allowZero ? "of zero or more" : "above zero";
+    warnings.push(
+      `${path}: expected a multiple of the font size ${range}, ignoring ${JSON.stringify(value)}`,
     );
     return undefined;
   }
@@ -338,6 +358,16 @@ function parseVideoOptions(raw: unknown, warnings: string[]): Partial<VideoSetti
     warnings,
   );
   if (alignment !== undefined) options.verticalAlignment = alignment;
+
+  const lineSpacing = readFontMultiple(
+    raw.lineSpacing,
+    "videoOptions.lineSpacing",
+    warnings,
+    false,
+  );
+  if (lineSpacing !== undefined) options.lineSpacing = lineSpacing;
+  const topMargin = readFontMultiple(raw.topMargin, "videoOptions.topMargin", warnings, true);
+  if (topMargin !== undefined) options.topMargin = topMargin;
 
   const outputFormat = readOutputFormat(raw.outputFormat, "videoOptions.outputFormat", warnings);
   if (outputFormat !== undefined) options.outputFormat = outputFormat;

@@ -37,6 +37,8 @@ const DEFAULT_OPTIONS: KaraokeOptions = {
   useBackgroundVideo: false,
   outputFormat: "mp4",
   verticalAlignment: VerticalAlignment.Middle,
+  lineSpacing: 1.5,
+  topMargin: 1.5,
   font: {
     size: 20,
     name: "Arial Narrow",
@@ -264,6 +266,17 @@ test("LyricScreen respects vertical alignment", () => {
   expect(screen.getLineY(1, DEFAULT_FONT_SIZE)).toBe(115 + 33);
   expect(screen.getLineY(1, DEFAULT_FONT_SIZE, VerticalAlignment.Top)).toBe(33 * 2);
   expect(screen.getLineY(1, DEFAULT_FONT_SIZE, VerticalAlignment.Bottom)).toBe(288 - 33 * 2);
+});
+
+test("LyricScreen follows the line spacing and top margin", () => {
+  const screen = new LyricsScreen(
+    [1, 2, 3, 4].map((t) => new LyricsLine([new LyricSegment("line", t)])),
+  );
+  // Gravity.kbp as kbp2video draws it at 1080p: slots at 60, 205, 350 and 495.
+  const tops = [0, 1, 2, 3].map((slot) =>
+    screen.getLineY(slot, 28, VerticalAlignment.Top, { lineSpacing: 1.381, topMargin: 0.571 }),
+  );
+  expect(tops).toEqual([60, 205, 350, 495].map((y) => Math.round((y * 288) / 1080)));
 });
 
 test("setScreenStartTimes", () => {

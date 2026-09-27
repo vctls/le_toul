@@ -27,6 +27,8 @@ const EXPORTED_FILE = yaml.dump({
     useBackgroundVideo: true,
     outputFormat: "mkv",
     verticalAlignment: VerticalAlignment.Top,
+    lineSpacing: 1.381,
+    topMargin: 0,
     font: { size: 30, name: "Impact" },
     color: { background: "#111111", primary: "#222222", secondary: "#333333" },
   },
@@ -59,6 +61,8 @@ describe("parseSettingsYaml", () => {
     expect(parsed.videoOptions.useBackgroundVideo).toBe(true);
     expect(parsed.videoOptions.outputFormat).toBe("mkv");
     expect(parsed.videoOptions.verticalAlignment).toBe(VerticalAlignment.Top);
+    expect(parsed.videoOptions.lineSpacing).toBe(1.381);
+    expect(parsed.videoOptions.topMargin).toBe(0);
     expect(parsed.videoOptions.font).toEqual({ size: 30, name: "Impact" });
     expect(parsed.videoOptions.color?.background).toBeInstanceOf(Color);
     expect(parsed.videoOptions.color?.background.toString()).toBe("#111111");
@@ -111,6 +115,16 @@ describe("parseSettingsYaml", () => {
     expect(
       parseSettingsYaml("videoOptions:\n  verticalAlignment: Top\n").videoOptions.verticalAlignment,
     ).toBe(VerticalAlignment.Top);
+  });
+
+  test("ignores a line spacing or top margin out of range", () => {
+    const parsed = parseSettingsYaml("videoOptions:\n  lineSpacing: 0\n  topMargin: -1\n");
+    expect(parsed.videoOptions.lineSpacing).toBeUndefined();
+    expect(parsed.videoOptions.topMargin).toBeUndefined();
+    expect(parsed.warnings).toEqual([
+      "videoOptions.lineSpacing: expected a multiple of the font size above zero, ignoring 0",
+      "videoOptions.topMargin: expected a multiple of the font size of zero or more, ignoring -1",
+    ]);
   });
 
   test("accepts the separation model under the store field name too", () => {

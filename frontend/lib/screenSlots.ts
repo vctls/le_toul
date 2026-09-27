@@ -38,7 +38,12 @@ export function slotLines(renders: VoiceTrackRender[]): SlottedLine[] {
       .filter((screen) => screen.kind === "lyrics")
       .flatMap((screen) =>
         screen.lines.map((line, lineInScreen) => {
-          const top = screen.getLineY(lineInScreen, size, render.options.verticalAlignment);
+          const top = screen.getLineY(
+            lineInScreen,
+            size,
+            render.options.verticalAlignment,
+            render.options,
+          );
           const startStored = stored && line.storedDisplayStart !== undefined;
           const endStored = stored && line.storedDisplayEnd !== undefined;
           return {
