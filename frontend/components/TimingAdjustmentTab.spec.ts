@@ -320,7 +320,7 @@ describe("TimingAdjustmentTab shortcuts", () => {
     const resetButton = (wrapper: ReturnType<typeof mountTab>) =>
       wrapper.find(".reset-display-periods");
 
-    it("offers Reset all in display mode only, once a bound is stored", async () => {
+    it("offers Reset in display mode only, once a bound is stored", async () => {
       const wrapper = mountTab();
       expect(resetButton(wrapper).exists()).toBe(false);
 
@@ -333,7 +333,7 @@ describe("TimingAdjustmentTab shortcuts", () => {
       expect(resetButton(wrapper).attributes("disabled")).toBe("false");
     });
 
-    it("clears every stored bound once Reset all is confirmed", async () => {
+    it("clears every stored bound once Reset is confirmed", async () => {
       const wrapper = mountTab();
       wrapper.vm.showDisplayBands = true;
       adjuster(wrapper).vm.$emit("band-updated", 0, "start", 0.25);

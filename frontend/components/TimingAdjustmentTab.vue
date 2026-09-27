@@ -38,8 +38,8 @@
         With <strong>Line display times</strong> on, each line is drawn in a frame that spans the
         time it's on screen. Drag a frame's left or right edge to set when the line appears or
         disappears, and double-click an edge to go back to the automatic time. A dashed edge follows
-        the automatic rules, and a solid one has been set. <strong>Reset all</strong> puts every
-        line of every voice back on the automatic times.
+        the automatic rules, and a solid one has been set. <strong>Reset</strong> puts every line of
+        every voice back on the automatic times.
       </p>
     </help-section>
     <div class="adjust-top">
@@ -70,37 +70,6 @@
             </template>
             <b-switch v-model="preservePitch"></b-switch>
           </b-field>
-          <b-field v-if="advancedStore.isAdvanced" horizontal>
-            <template #label>
-              Line display times
-              <b-tooltip
-                multilined
-                label="Edit when each line is on screen, instead of its timings."
-              >
-                <b-icon size="is-small" icon="circle-question"></b-icon>
-              </b-tooltip>
-            </template>
-            <b-switch v-model="showDisplayBands"></b-switch>
-            <b-button
-              v-if="displayMode"
-              class="reset-display-periods"
-              label="Reset all"
-              :disabled="!timingsStore.hasDisplayPeriods"
-              @click="isConfirmingReset = true"
-            />
-          </b-field>
-          <b-field label="Shift all timings (ms)" horizontal>
-            <b-numberinput
-              expanded
-              :model-value="shiftMs"
-              @update:model-value="
-                (v: number | null | undefined) => (shiftMs = Number(v ?? shiftMs))
-              "
-              :step="1"
-              controls-position="compact"
-            />
-            <b-button label="Apply" @click="applyShift" />
-          </b-field>
           <b-field label="Playhead preroll (seconds)" horizontal>
             <b-numberinput
               expanded
@@ -119,6 +88,37 @@
               <option value="full">Full track</option>
               <option value="vocals">Vocals only</option>
             </b-select>
+          </b-field>
+          <b-field label="Shift all timings (ms)" horizontal>
+            <b-numberinput
+              expanded
+              :model-value="shiftMs"
+              @update:model-value="
+                (v: number | null | undefined) => (shiftMs = Number(v ?? shiftMs))
+              "
+              :step="1"
+              controls-position="compact"
+            />
+            <b-button class="field-action" label="Apply" @click="applyShift" />
+          </b-field>
+          <b-field v-if="advancedStore.isAdvanced" horizontal>
+            <template #label>
+              Line display times
+              <b-tooltip
+                multilined
+                label="Edit when each line is on screen, instead of its timings."
+              >
+                <b-icon size="is-small" icon="circle-question"></b-icon>
+              </b-tooltip>
+            </template>
+            <b-switch v-model="showDisplayBands"></b-switch>
+            <b-button
+              v-if="displayMode"
+              class="reset-display-periods field-action"
+              label="Reset"
+              :disabled="!timingsStore.hasDisplayPeriods"
+              @click="isConfirmingReset = true"
+            />
           </b-field>
         </div>
       </div>
@@ -655,6 +655,7 @@ This tab switches on the container, not the viewport. */
 .adjustment-fields :deep(.field-body) {
   display: flex;
   flex-wrap: wrap;
+  align-items: center;
   gap: 0.75rem;
 }
 
@@ -720,8 +721,27 @@ The Apply button wraps under its control until there is room for it too. */
 }
 
 .adjustment-fields :deep(.b-numberinput),
-.adjustment-fields :deep(.select) {
+.adjustment-fields :deep(.select),
+.adjustment-fields :deep(.switch) {
   width: 10em;
+}
+
+/* A switch takes the room of the other controls, so its row is as tall as theirs,
+and sits in the middle of it, as on the Submit tab.
+Buefy's margin after it, and the padding of its empty label, would push it off that middle. */
+.adjustment-fields :deep(.switch) {
+  min-height: var(--bulma-control-height);
+  justify-content: center;
+  margin-inline-end: 0;
+}
+
+.adjustment-fields :deep(.switch .control-label:empty) {
+  display: none;
+}
+
+/* The buttons beside a control are the same width, whatever their label. */
+.adjustment-fields :deep(.field-action) {
+  min-width: 4.75em;
 }
 
 /* Bulma's input padding alone is wider than the value at the narrowest column. */

@@ -117,19 +117,18 @@ test.describe("Adjust tab display mode", () => {
     expect(await playhead(page)).toBe(before);
   });
 
-  test("puts every line back on the automatic times once Reset all is confirmed", async ({
-    page,
-  }) => {
+  test("puts every line back on the automatic times once Reset is confirmed", async ({ page }) => {
     await setupDisplayMode(page);
-    const resetAll = displayTimesField(page).getByRole("button", {
-      name: "Reset all",
+    const reset = displayTimesField(page).getByRole("button", {
+      name: "Reset",
+      exact: true,
     });
-    await expect(resetAll).toBeDisabled();
+    await expect(reset).toBeDisabled();
 
     await dragFirstEndEdgeBack(page);
     await expect.poll(() => firstSegment(page)).toMatchObject({ displayEnd: 2 });
 
-    await resetAll.click();
+    await reset.click();
     const dialog = page.getByRole("dialog");
     await dialog.getByRole("button", { name: "Reset all" }).click();
 
@@ -140,7 +139,7 @@ test.describe("Adjust tab display mode", () => {
     await expect
       .poll(() => frame.evaluate((el) => getComputedStyle(el).borderRightStyle))
       .toBe("dashed");
-    await expect(resetAll).toBeDisabled();
+    await expect(reset).toBeDisabled();
   });
 
   test("pushes a stored end along when a syllable is dragged past it", async ({ page }) => {
