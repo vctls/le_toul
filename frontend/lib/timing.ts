@@ -422,10 +422,12 @@ export class LyricsScreen {
   startTimestamp?: Timestamp;
   // Seconds to delay the start of the audio. Only valid on the title screen and first lyrics screen.
   audioDelay: number = 0.0;
+  // A lyrics screen's slots, spacers included. Without it, each line takes one slot.
+  slotCount?: number;
   // For staggered timings, this screen's first lines are displayed early, in the slots the previous
-  // screen's first lines leave, so the block may be laid out as if it had that screen's line count
+  // screen's first lines leave, so the block may be laid out as if it had that screen's slot count
   // instead of its own (see placeStaggeredScreens).
-  positionAsLineCount?: number;
+  positionAsSlotCount?: number;
   // Staggered lines show this screen's first lines while the previous screen is still displayed.
   staggered = false;
   // Multi-voice only: when this screen overlaps another voice in time, it is confined to a
@@ -457,25 +459,33 @@ export class LyricsScreen {
     return this.lines.flatMap((l) => l.segments);
   }
 
+  get slots(): number {
+    return this.slotCount ?? this.lines.length;
+  }
+
+  slotOf(lineInScreen: number): number {
+    return this.lines[lineInScreen].slot ?? lineInScreen;
+  }
+
   /**
-   * The Y coordinate of the top of the given line in the screen.
+   * The Y coordinate of the top of the line in the given slot.
    */
   getLineY(
-    lineInScreen: number,
+    slot: number,
     fontSize: number,
     alignment: VerticalAlignment = VerticalAlignment.Middle,
     spacing: LineSpacing = DEFAULT_SPACING,
   ): number {
     const lineHeight = fontSize * spacing.lineSpacing;
-    // The block is normally as tall as this screen's own lines, but a staggered screen is
-    // positioned as if it had the previous screen's line count (see positionAsLineCount).
-    const lineCount = this.positionAsLineCount ?? this.lines.length;
+    // The block is normally as tall as this screen's own slots, but a staggered screen is
+    // positioned as if it had the previous screen's slot count (see positionAsSlotCount).
+    const slotCount = this.positionAsSlotCount ?? this.slots;
     // libass draws each line from the top of its slot,
     // so the slack between the glyphs and the slot all ends up below the last line.
     // Centre on the glyphs rather than the slots, or the block sits half that slack too high.
     // Lanes use the same block as the screen,
     // so a voice doesn't jump when its screens start or stop overlapping another voice.
-    const blockHeight = (lineCount - 1) * lineHeight + fontSize * GLYPH_BLOCK_RATIO;
+    const blockHeight = (slotCount - 1) * lineHeight + fontSize * GLYPH_BLOCK_RATIO;
     let firstLineTopMargin: number;
     // When confined to a lane (overlapping another voice), center the lines within the
     // lane regardless of the global alignment, so each voice stays a contiguous block.
@@ -492,11 +502,11 @@ export class LyricsScreen {
           firstLineTopMargin = screenMiddle - blockHeight / 2;
           break;
         case VerticalAlignment.Bottom:
-          firstLineTopMargin = SUBTITLE_CANVAS.height - (lineCount + 1) * lineHeight;
+          firstLineTopMargin = SUBTITLE_CANVAS.height - (slotCount + 1) * lineHeight;
           break;
       }
     }
-    return Math.round(firstLineTopMargin + lineInScreen * lineHeight);
+    return Math.round(firstLineTopMargin + slot * lineHeight);
   }
 
   toAssEvents(
@@ -515,7 +525,12 @@ export class LyricsScreen {
             self.startTimestamp ?? 0,
             self.endTimestamp,
             styleName,
-            self.getLineY(i, formatParams["Fontsize"] as number, alignment, videoOptions),
+            self.getLineY(
+              self.slotOf(i),
+              formatParams["Fontsize"] as number,
+              alignment,
+              videoOptions,
+            ),
           ),
         )
         .join("\n") + "\n"
@@ -526,6 +541,7 @@ export class LyricsScreen {
     const lines = map(this.lines, method("adjustTimestamps", adjustment));
     const screen = new LyricsScreen(lines, this.audioDelay);
     screen.kind = this.kind;
+    screen.slotCount = this.slotCount;
     screen.startTimestamp = this.startTimestamp;
     if (isNumber(this.startTimestamp)) {
       screen.startTimestamp = this.startTimestamp + adjustment;
@@ -546,6 +562,7 @@ export class LyricsScreen {
     }
     const trimmedScreen = new LyricsScreen(this.lines, this.audioDelay);
     trimmedScreen.kind = this.kind;
+    trimmedScreen.slotCount = this.slotCount;
     trimmedScreen.startTimestamp = newStartTime;
     return trimmedScreen;
   }
@@ -566,6 +583,8 @@ export class LyricsLine {
   storedDisplayEnd?: Timestamp;
   // The index of the segment that starts this line and holds its stored period.
   headIndex?: number;
+  // The line's position on its page, counting spacers. Without it, the line sits at its index.
+  slot?: number;
   // An automatic bound moved to make way for another line at the same height (see giveWayToStoredPeriods).
   startGaveWay = false;
   endGaveWay = false;
@@ -698,6 +717,7 @@ export class LyricsLine {
     line.fadeInDuration = this.fadeInDuration;
     line.fadeOutDuration = this.fadeOutDuration;
     line.headIndex = this.headIndex;
+    line.slot = this.slot;
     return line;
   }
 }
@@ -713,18 +733,35 @@ export function compileLyricTimings(segments: TimedSegment[]): LyricsScreen[] {
   const screens: LyricsScreen[] = [];
   let screen = new LyricsScreen();
   let line = new LyricsLine();
-  // A line's display period lives on its first segment, which may be untimed.
+  // A line's display period and spacer counts live on its first segment, which may be untimed.
   let head: TimedSegment | undefined;
   let headIndex = 0;
-  const closeLine = () => {
+  // The next free slot on the current page.
+  let slot = 0;
+  // A line that draws nothing takes no slot, but its spacers still do.
+  const closeLine = (endsPage: boolean) => {
+    slot += head?.spacersBefore ?? 0;
     if (line.segments.length > 0) {
       line.storedDisplayStart = head?.displayStart;
       line.storedDisplayEnd = head?.displayEnd;
       line.headIndex = headIndex;
+      line.slot = slot++;
       screen.lines.push(line);
       line = new LyricsLine();
     }
+    if (endsPage) {
+      slot += head?.spacersAfter ?? 0;
+    }
     head = undefined;
+  };
+  const closeScreen = () => {
+    if (screen.lines.length > 0) {
+      screen.slotCount = slot;
+      screens.push(screen);
+      screen = new LyricsScreen();
+    }
+    // A page that draws nothing adds no slots to the screen that continues past it.
+    slot = 0;
   };
 
   for (const [index, segment] of segments.entries()) {
@@ -740,18 +777,15 @@ export function compileLyricTimings(segments: TimedSegment[]): LyricsScreen[] {
       line.segments.push(new LyricSegment(displayText(text), start, end));
     }
     if (text.endsWith("\n")) {
-      closeLine();
+      closeLine(text.endsWith("\n\n"));
     }
-    if (text.endsWith("\n\n") && screen.lines.length > 0) {
-      screens.push(screen);
-      screen = new LyricsScreen();
+    if (text.endsWith("\n\n")) {
+      closeScreen();
     }
   }
 
-  closeLine();
-  if (screen.lines.length > 0) {
-    screens.push(screen);
-  }
+  closeLine(true);
+  closeScreen();
   return screens;
 }
 

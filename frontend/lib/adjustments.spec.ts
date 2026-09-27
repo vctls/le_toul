@@ -353,6 +353,38 @@ test("fast lines display early", () => {
   expect(adjustedScreens[2].lines[0].customDisplayStartTime).toBe(2.75);
 });
 
+describe("fast lines display early by slot", () => {
+  const stagger = (segments: TimedSegment[]) => {
+    const screens = denormalizeTimestamps(
+      [new LyricsScreen(), ...compileLyricTimings(segments)],
+      6,
+    );
+    return displayQuickLinesEarly(screens, DEFAULT_OPTIONS);
+  };
+
+  it("counts a spacer among the slots that leave early", () => {
+    const [, first, second] = stagger([
+      { text: "one\n", start: 1, spacersBefore: 1 },
+      { text: "two\n\n", start: 2 },
+      { text: "three\n", start: 3, spacersBefore: 1 },
+      { text: "four", start: 4 },
+    ]);
+    expect(first.lines.map((line) => line.customDisplayEndTime)).toEqual([2.5, undefined]);
+    expect(second.lines.map((line) => line.customDisplayStartTime)).toEqual([2.75, undefined]);
+  });
+
+  it("leaves a screen alone when only spacers are in those slots", () => {
+    const [, first, second] = stagger([
+      { text: "one\n", start: 1, spacersBefore: 2 },
+      { text: "two\n\n", start: 2 },
+      { text: "three\n", start: 3 },
+      { text: "four", start: 4 },
+    ]);
+    expect(first.lines.map((line) => line.customDisplayEndTime)).toEqual([undefined, undefined]);
+    expect(second.staggered).toBe(false);
+  });
+});
+
 describe("deferScreenStarts", () => {
   function screenStartingAt(displayStart: number, firstLineTime: number): LyricsScreen {
     const screen = new LyricsScreen([
