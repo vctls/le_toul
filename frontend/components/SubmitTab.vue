@@ -162,6 +162,19 @@
             </b-tooltip> </template
           ><b-switch v-model="videoOptions.addStaggeredLines"></b-switch
         ></b-field>
+        <b-field v-if="timingsStore.hasDisplayPeriods" horizontal>
+          <template #label>
+            Use Line Display Times
+            <b-tooltip
+              append-to-body
+              content-class="wide-tooltip"
+              multilined
+              label="Show each line when its display times say, as set in the Edit tab or imported from a KBP file. When off, the automatic rules apply. The times are kept either way, and the KBP export still writes them."
+            >
+              <b-icon size="is-small" icon="circle-question"></b-icon>
+            </b-tooltip> </template
+          ><b-switch v-model="videoOptions.useStoredDisplayPeriods"></b-switch
+        ></b-field>
         <b-field v-if="videoBlob" horizontal label="Use Background Video">
           <b-switch v-model="videoOptions.useBackgroundVideo"></b-switch
         ></b-field>
