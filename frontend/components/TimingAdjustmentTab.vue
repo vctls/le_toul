@@ -34,7 +34,7 @@
         a timing. Scroll up and down on the waveform to zoom in and out on the area under the
         cursor.
       </p>
-      <p>
+      <p v-if="advancedStore.isAdvanced">
         With <strong>Line display times</strong> on, each line is drawn in a frame that spans the
         time it's on screen. Drag a frame's left or right edge to set when the line appears or
         disappears, and double-click an edge to go back to the automatic time. A dashed edge follows
@@ -69,7 +69,7 @@
           </template>
           <b-switch v-model="preservePitch"></b-switch>
         </b-field>
-        <b-field horizontal>
+        <b-field v-if="advancedStore.isAdvanced" horizontal>
           <template #label>
             Line display times
             <b-tooltip multilined label="Edit when each line is on screen, instead of its timings.">
@@ -78,7 +78,7 @@
           </template>
           <b-switch v-model="showDisplayBands"></b-switch>
           <b-button
-            v-if="showDisplayBands"
+            v-if="displayMode"
             class="reset-display-periods"
             label="Reset all"
             :disabled="!timingsStore.hasDisplayPeriods"
@@ -128,7 +128,7 @@
       v-if="songFile && adjustmentSubtitles"
       ref="timing-adjuster"
       :segments="timingsStore.activeSegments"
-      :displayMode="showDisplayBands"
+      :displayMode="displayMode"
       :bands="displayBands"
       :bandsEnabled="settingsStore.videoOptions.useStoredDisplayPeriods"
       :audioData="songFile ?? undefined"
@@ -172,6 +172,7 @@ import SubtitleDisplay from "./SubtitleDisplay.vue";
 import VoiceSelector from "@/components/VoiceSelector.vue";
 import { useMediaStore } from "@/stores/media";
 import { useTimingsStore } from "@/stores/timings";
+import { useAdvancedStore } from "@/stores/advanced";
 import { useLyricsStore } from "@/stores/lyrics";
 import { useSettingsStore } from "@/stores/settings";
 import { storeToRefs } from "pinia";
@@ -277,6 +278,7 @@ export default defineComponent({
     const fallbackFontsStore = useFallbackFontsStore();
     const { subtitles } = storeToRefs(timingsStore);
     return {
+      advancedStore: useAdvancedStore(),
       mediaStore,
       timingsStore,
       lyricsStore,
@@ -363,8 +365,12 @@ export default defineComponent({
     isEnabled(): boolean {
       return this.timingsStore.length > 0;
     },
+    // The switch keeps its position while advanced mode is off, so it comes back as it was.
+    displayMode(): boolean {
+      return this.advancedStore.isAdvanced && this.showDisplayBands;
+    },
     displayBands(): DisplayBand[] {
-      if (!this.showDisplayBands) return [];
+      if (!this.displayMode) return [];
       return displayBands(
         this.timingsStore.activeSegments,
         this.mediaStore.songDuration ?? 0,

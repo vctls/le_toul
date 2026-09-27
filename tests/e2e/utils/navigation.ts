@@ -67,3 +67,13 @@ export async function waitForTabToBeDisabled(
 ): Promise<void> {
   await expect(page.locator(`.${tabId}`)).toHaveClass(/is-disabled/, { timeout: timeoutMs });
 }
+
+/**
+ * Turns on advanced mode with the navbar button, which shows the Karaoke Builder Studio files and
+ * line display times.
+ */
+export async function enableAdvancedMode(page: Page): Promise<void> {
+  const toggle = page.locator(".navbar .advanced-toggle");
+  await toggle.click();
+  await expect(toggle).toHaveClass(/is-primary/);
+}
