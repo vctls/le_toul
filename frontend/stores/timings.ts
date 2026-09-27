@@ -343,6 +343,19 @@ export const useTimingsStore = defineStore("timings", {
       );
     },
 
+    /**
+     * Put every line of every voice back on the automatic display rules.
+     */
+    clearDisplayPeriods() {
+      this._segmentsByVoice = Object.fromEntries(
+        Object.entries(this._segmentsByVoice).map(([voice, segments]) => [
+          voice,
+          segments.map(({ displayStart: _start, displayEnd: _end, ...segment }) => segment),
+        ]),
+      );
+      this.commitBaseline();
+    },
+
     setActiveVoice(voice: VoiceId) {
       this._activeVoice = voice;
     },
