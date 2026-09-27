@@ -1,7 +1,12 @@
 import { readFileSync } from "node:fs";
 import path from "node:path";
 import { describe, expect, test } from "vitest";
-import { parseFontFamilyName, readFontFamilyName, UnreadableFontError } from "./fontFile";
+import {
+  parseCjkCoverage,
+  parseFontFamilyName,
+  readFontFamilyName,
+  UnreadableFontError,
+} from "./fontFile";
 
 const FONT_DIR = path.resolve(__dirname, "../../api/assets/fonts");
 
@@ -128,5 +133,34 @@ describe("readFontFamilyName", () => {
     const file = new File([bundledFont("Georgia.ttf")], "whatever-the-user-called-it.ttf");
 
     await expect(readFontFamilyName(file)).resolves.toBe("Georgia");
+  });
+});
+
+describe("parseCjkCoverage", () => {
+  const codePoint = (c: string) => c.codePointAt(0)!;
+
+  test("finds kanji, kana and Hangul in a CJK font", () => {
+    const covered = parseCjkCoverage(bundledFont("NotoSansCJKjp-Regular.otf"));
+
+    for (const c of "坂本真綾なテー한") {
+      expect(covered.has(codePoint(c))).toBe(true);
+    }
+    expect(covered.has(codePoint("A"))).toBe(false);
+  });
+
+  test("finds none in a Latin font", () => {
+    const covered = parseCjkCoverage(bundledFont("Impact.ttf"));
+
+    expect([...covered].filter((c) => c >= 0x4e00 && c <= 0x9fff)).toEqual([]);
+  });
+
+  test("finds none in a font without a cmap", () => {
+    expect(
+      parseCjkCoverage(fontWithNames([{ platformId: 3, nameId: 1, text: "Nameless" }])).size,
+    ).toBe(0);
+  });
+
+  test("finds none in a truncated file", () => {
+    expect(parseCjkCoverage(bundledFont("NotoSansCJKjp-Regular.otf").slice(0, 2048)).size).toBe(0);
   });
 });

@@ -18,3 +18,6 @@ export const BUNDLED_FONTS = {
 // The only bundled font with Chinese, Japanese and Korean glyphs.
 // It draws the characters those languages share in their Japanese forms.
 export const CJK_FONT = "Noto Sans CJK JP";
+
+// U+3000–U+33FF holds CJK punctuation, kana and CJK symbols. U+FF00–U+FFEF holds full-width forms.
+export const CJK_CHAR = String.raw`[\p{sc=Han}\p{sc=Hangul}\p{sc=Bopomofo}\u3000-\u33ff\uff00-\uffef]`;
