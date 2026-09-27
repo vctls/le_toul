@@ -9,15 +9,13 @@ import {
   uploadTimingsFile,
   scrollWaveformIntoView,
   fieldFor,
+  waveformPixelsPerSecond,
 } from "./utils";
 import { DEFAULT_VOICE_ID } from "../../frontend/lib/voices";
 
 // One screen of four lines: One 1-2 s, Two 3-5 s, Three 5-6 s and Four 7-8 s.
 const FIXTURE_TIMINGS = "timings-adjust-group.json";
 const LYRICS = "One\nTwo\nThree\nFour";
-
-// The waveform renders one second as `zoom` pixels, 50 by default.
-const PIXELS_PER_SECOND = 50;
 
 async function setupDisplayMode(page: Page) {
   await navigateToTab(page, TabId.SongInfo);
@@ -70,12 +68,13 @@ test.describe("Adjust tab display mode", () => {
 
     // The first line shows until its screen ends at 8 s. Far more than the six seconds back to its
     // own end at 2 s.
+    const pixelsPerSecond = await waveformPixelsPerSecond(page);
     const box = (await endEdge.boundingBox())!;
     const y = box.y + box.height / 2;
     const x = box.x + box.width / 2;
     await page.mouse.move(x, y);
     await page.mouse.down();
-    await page.mouse.move(x - 10 * PIXELS_PER_SECOND, y, { steps: 10 });
+    await page.mouse.move(x - 10 * pixelsPerSecond, y, { steps: 10 });
     await page.mouse.up();
 
     await expect.poll(() => firstSegment(page)).toMatchObject({ displayEnd: 2 });
