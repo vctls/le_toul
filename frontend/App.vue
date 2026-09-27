@@ -100,6 +100,7 @@ import { useTimingsStore } from "@/stores/timings";
 import { useSettingsStore } from "@/stores/settings";
 import { useHelpStore } from "@/stores/help";
 import { useThemeStore } from "@/stores/theme";
+import { useFallbackFontsStore } from "@/stores/fallbackFonts";
 import { ThemePreference } from "@/lib/colorScheme";
 import { useTabRoute } from "@/lib/tabRoute";
 
@@ -129,6 +130,7 @@ export default defineComponent({
       settingsStore: useSettingsStore(),
       helpStore: useHelpStore(),
       themeStore: useThemeStore(),
+      fallbackFontsStore: useFallbackFontsStore(),
       ...useTabRoute(),
     };
   },

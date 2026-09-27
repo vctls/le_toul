@@ -436,6 +436,7 @@ import { useMediaStore } from "@/stores/media";
 import { useSettingsStore, VideoSettings } from "@/stores/settings";
 import { useTimingsStore } from "@/stores/timings";
 import { useLyricsStore } from "@/stores/lyrics";
+import { useFallbackFontsStore } from "@/stores/fallbackFonts";
 import { abortable } from "@/lib/util";
 import { projectSongEntryName } from "@/lib/projectFolder";
 import { BUNDLED_FONTS as fonts } from "@/lib/fonts";
@@ -465,6 +466,7 @@ export default defineComponent({
     const settingsStore = useSettingsStore();
     const timingsStore = useTimingsStore();
     const lyricsStore = useLyricsStore();
+    const fallbackFontsStore = useFallbackFontsStore();
     const { lyricText, voices } = storeToRefs(lyricsStore);
     const { allVoicesSubtitles } = storeToRefs(timingsStore);
     return {
@@ -472,6 +474,7 @@ export default defineComponent({
       settingsStore,
       timingsStore,
       lyricsStore,
+      fallbackFontsStore,
       lyricText,
       voices,
       allVoicesSubtitles,
@@ -560,7 +563,7 @@ export default defineComponent({
     // Keyed by the family name an ASS style row references, not by file name.
     fontMap(): Record<string, string> {
       const { customFontFamily, customFontUrl } = this.settingsStore;
-      const map: Record<string, string> = { ...fonts };
+      const map: Record<string, string> = { ...this.fallbackFontsStore.fontUrls };
       if (customFontFamily && customFontUrl) {
         map[customFontFamily] = customFontUrl;
       }

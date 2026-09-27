@@ -153,7 +153,8 @@ import { resolveThemeColor } from "@/lib/themeColor";
 import { onSchemeChange } from "@/lib/colorScheme";
 import { loadJsonFromStorage } from "@/lib/persistence";
 import { pick, throttle } from "lodash-es";
-import { BUNDLED_FONTS, CJK_FONT, SYMBOL_FONT } from "@/lib/fonts";
+import { CJK_FONT, SYMBOL_FONT } from "@/lib/fonts";
+import { useFallbackFontsStore } from "@/stores/fallbackFonts";
 import { default as BuefyColor } from "buefy/src/utils/color";
 
 // The arrow keys step by the playhead preroll,
@@ -167,8 +168,6 @@ const COARSE_STEP_MULTIPLIER = 5;
 // so it scales with the preview instead of being a pixel height.
 const PREVIEW_FONT_SIZE = 20;
 const PREVIEW_FONT = SYMBOL_FONT;
-// DejaVu Sans has no CJK glyphs, so CJK text is still tagged with the CJK font.
-const PREVIEW_FONTS = pick(BUNDLED_FONTS, [PREVIEW_FONT, CJK_FONT]);
 
 // Fallbacks are the light-theme values, applied only where the stylesheet is absent.
 const PREVIEW_PALETTE = {
@@ -237,12 +236,14 @@ export default defineComponent({
     const timingsStore = useTimingsStore();
     const lyricsStore = useLyricsStore();
     const settingsStore = useSettingsStore();
+    const fallbackFontsStore = useFallbackFontsStore();
     const { subtitles } = storeToRefs(timingsStore);
     return {
       mediaStore,
       timingsStore,
       lyricsStore,
       settingsStore,
+      fallbackFontsStore,
       subtitles,
     };
   },
@@ -281,7 +282,6 @@ export default defineComponent({
       debouncedSubtitles: "",
       _subtitleDebounceTimer: null as ReturnType<typeof setTimeout> | null,
       previewColors: resolvePreviewColors(),
-      previewFonts: PREVIEW_FONTS,
       _unsubscribeScheme: null as (() => void) | null,
     };
   },
@@ -313,6 +313,10 @@ export default defineComponent({
         return this.vocalTrack;
       }
       return this.songFile;
+    },
+    // DejaVu Sans has no CJK glyphs, so CJK text is still tagged with the CJK font.
+    previewFonts(): Record<string, string> {
+      return pick(this.fallbackFontsStore.fontUrls, [PREVIEW_FONT, CJK_FONT]);
     },
     isEnabled(): boolean {
       return this.timingsStore.length > 0;
