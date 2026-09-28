@@ -175,7 +175,7 @@
             expanded
             label="Project Folder"
             tooltip="A folder of files downloaded from the Submit tab and extracted. Loads whichever of the song, lyrics, timings, settings, tracks and fonts are present."
-            :folder-name="projectFolderName"
+            :folder-name="mediaStore.projectFolderName"
             @select="onProjectFolderSelect"
           />
           <file-upload
@@ -448,7 +448,6 @@ export default defineComponent({
       isConfirmingFolder: false,
       // Kept after the prompt closes, like `pendingReplacement`.
       pendingFolder: null as { project: ProjectFolder; name: string | null } | null,
-      projectFolderName: null as string | null,
       kbpWarnings: [] as string[],
       timingsWarnings: [] as string[],
     };
@@ -867,7 +866,7 @@ export default defineComponent({
     },
     async loadProjectFolder(project: ProjectFolder, name: string | null) {
       return this.lyricsLookupStore.whileLoading(async () => {
-        this.projectFolderName = name;
+        this.mediaStore.projectFolderName = name;
         const loaded: string[] = [];
         const failed: string[] = [];
         const apply = async (label: string, file: File, run: () => Promise<void> | void) => {
