@@ -1,7 +1,7 @@
 import { defineRailway, preserve, project, service, volume } from "railway/iac";
 
-// This repository manages only its own resources in the environment. Other
-// repositories export their own partial name.
+// This repository manages only its own resources in the environment.
+// Other repositories export their own partial name.
 // See https://docs.railway.com/infrastructure-as-code#multi-repo-projects
 export const partial = "le_toul";
 
@@ -35,6 +35,7 @@ export default defineRailway(() => {
       // Keep equal to MAX_GPU_CONTAINERS in api/modal_app.py.
       SEPARATION_CONCURRENCY: "3",
       INSTALL_SEPARATION: "false",
+      LYRICS_PROVIDER: "lrclib",
       // The Intro tab's custom Markdown, set with `railway variable set` to keep it out of git.
       INTRO_MARKDOWN: preserve(),
     },
