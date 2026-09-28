@@ -8,12 +8,22 @@
   >
     <h2 class="title">Song Lyrics</h2>
     <help-section>
+      <p v-if="provider">
+        When you load a song and this box is empty, {{ appName }} tries to fetch the lyrics from
+        <a :href="provider.url" target="_blank" rel="noopener">{{ provider.name }}</a
+        >.
+      </p>
       <div class="columns is-variable is-5">
         <div class="column">
           <p>
-            Paste 'em from the Internet! A blank line indicates a new screen. By default, you'll
-            enter the timing of each line. Use <kbd>_</kbd> to enter a timing of a word or
-            <kbd>/</kbd> to enter a timing of a syllable. Example:
+            {{
+              provider
+                ? "If that finds nothing, paste them from the Internet."
+                : "Paste 'em from the Internet!"
+            }}
+            A blank line indicates a new screen. By default, you'll enter the timing of each line.
+            Use <kbd>_</kbd> to enter a timing of a word or <kbd>/</kbd> to enter a timing of a
+            syllable. Example:
           </p>
           <pre>{{ singleVoiceExample }}</pre>
         </div>
@@ -25,12 +35,6 @@
           <pre>{{ multiVoiceExample }}</pre>
         </div>
       </div>
-      <p v-if="provider">
-        {{ appName }} looks up the lyrics on
-        <a :href="provider.url" target="_blank" rel="noopener">{{ provider.name }}</a> from the
-        song's title, artist and length. The request goes through our server, so
-        {{ provider.name }} never sees your address.
-      </p>
     </help-section>
     <p v-if="statusMessage" class="lyrics-lookup-status" role="status">
       {{ statusMessage.text }}
