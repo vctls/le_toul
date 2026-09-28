@@ -9,10 +9,7 @@
     <div class="columns is-variable is-5">
       <div
         class="column is-4 settings-column"
-        :class="{
-          'has-more-above': scrollHints.above,
-          'has-more-below': scrollHints.below,
-        }"
+        :class="{ 'has-more-above': scrollHints.above }"
         ref="settingsColumn"
         @scroll="updateScrollHints"
         @transitionend="updateScrollHints"
@@ -640,7 +637,7 @@ export default defineComponent({
       // Vue would proxy the controller, whose methods need the instance itself.
       creation: markRaw({ abort: null as AbortController | null }),
       // Whether the settings column has content past its top and bottom edges. See the fade in the styles.
-      scrollHints: { above: false, below: false },
+      scrollHints: { above: false },
       // Nothing rendered here, so keep Vue out of it.
       hintObserver: markRaw({ observer: null as ResizeObserver | null }),
     };
@@ -803,7 +800,6 @@ export default defineComponent({
       const el = this.$refs.settingsColumn as HTMLElement | undefined;
       // Sub-pixel leftovers are rounding, not content.
       this.scrollHints.above = !!el && el.scrollTop > 1;
-      this.scrollHints.below = !!el && el.scrollHeight - el.scrollTop - el.clientHeight > 1;
     },
     async onCustomFontChange(file: File | null) {
       try {
@@ -1120,26 +1116,23 @@ Below the breakpoint the columns are stacked blocks and the tab scrolls as one. 
 
   /* Fading the content out at an edge reads as "there is more this way" in every browser,
   scrollbar or no scrollbar.
-  Each class contributes its own stop, so a column scrolled to the middle fades both ends.
-  An edge with nothing past it keeps its stop at zero and stays crisp,
-  rather than sitting there permanently dimmed. */
-  .submit-tab > .columns > .column.has-more-above,
-  .submit-tab > .columns > .column.has-more-below {
+  The bottom fade is always on, so it doesn't pop in when a section grows past the edge.
+  The padding of the same height lets the last setting scroll clear of it.
+  The top fade only shows once the column is scrolled, so the heading stays crisp at rest. */
+  .settings-column {
+    --fade-below: 2.5rem;
+    padding-bottom: var(--fade-below);
     mask-image: linear-gradient(
       to bottom,
       transparent 0,
       #000 var(--fade-above, 0px),
-      #000 calc(100% - var(--fade-below, 0px)),
+      #000 calc(100% - var(--fade-below)),
       transparent 100%
     );
   }
 
-  .submit-tab > .columns > .column.has-more-above {
+  .settings-column.has-more-above {
     --fade-above: 2.5rem;
-  }
-
-  .submit-tab > .columns > .column.has-more-below {
-    --fade-below: 2.5rem;
   }
 
   .submit-button-container {
