@@ -21,6 +21,7 @@ declare module "vue" {
     "aria-label"?: string;
     "aria-controls"?: string;
     "aria-expanded"?: boolean | string;
+    "aria-pressed"?: boolean | string;
 
     onClick?: (e: MouseEvent) => void;
     onKeydown?: (e: KeyboardEvent) => void;
