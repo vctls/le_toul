@@ -1,58 +1,29 @@
 <template>
   <b-tab-item value="help" label="Intro" icon="circle-info" class="scroll-wrapper">
     <div class="content">
+      <p>Make a karaoke video from any song, right in your browser.</p>
+      <ol>
+        <li>
+          <strong>Files:</strong> Load a song, and click <em>Separate Track</em> to strip out the
+          vocals. While this runs in the background, move on to the lyrics.
+        </li>
+        <li>
+          <strong>Lyrics:</strong> Paste the lyrics and format them so they display nicely for
+          karaoke. Listen through once to check them. Changing lyrics later means timing them again.
+        </li>
+        <li>
+          <strong>Timing:</strong> Play the song and tap <em>start</em> as each highlighted word
+          begins, and <em>end</em> to mark pauses. If it's too fast, slow the song down. Don't worry
+          if you can't get everything perfectly, you can adjust timings in the next step.
+        </li>
+        <li><strong>Adjust:</strong> Play it back and drag the edges of any timing that's off.</li>
+        <li>
+          <strong>Submit:</strong> Pick fonts and colors, check the preview, and click
+          <em>Create Video</em>. You get a zip with the video and the files to redo it later.
+        </li>
+      </ol>
       <p>
-        <strong>Step 1: Choose a music file.</strong> Click the <code>Files</code> tab and pick your
-        song via a YouTube URL or local file. Easy. Click `Start Separation` to start the process of
-        creating the instrumental track while you work on the rest of it.
-      </p>
-      <p>
-        <strong>Step 2: Prepare the lyrics.</strong> Paste song lyrics into the
-        <code>Lyrics</code> box. Next, divide them up into screens by adding a blank line between
-        the last line of one screen and the first line of the next. A line holding only a slash
-        leaves an empty line on its screen. Add underscores to separate words, and slashes to
-        separate syllables. How precisely you want to split up your timings is up to you. Following
-        the rhythm in the next screen may be easier when syllables are correctly defined.
-        <strong>Pro tip:</strong> listen to the song once while reading the lyrics, to make sure all
-        the lyrics are there. Sometimes the Internet is wrong, and changing the lyrics after
-        entering the timings might mess up your data, forcing you to redo the whole timing input
-        process.
-      </p>
-      <p>
-        <strong>Step 3: Add Timing Information.</strong> You're gonna tell The Tüül when all those
-        lyrics appear in the song. When you hit the Play button, the song will start playing, and
-        the first lyric-bit that you chopped up will be highlighted in pink.
-        <strong>Hit the spacebar</strong> when that lyric comes up, and then the next lyric will
-        turn pink and await your spacebar-press.
-      </p>
-      <p>
-        If you hit the <strong>Enter</strong> key while the song is playing, that will mark the end
-        of the <strong>previous</strong> lyric. Do that when there's a gap between lines or words.
-        It can be tricky to handle both the spacebar and the enter key. If the song is going too
-        fast, slow it down by clicking a different playback speed.
-      </p>
-      <p>
-        If you need to take a break, hit the Pause button. Don't worry if you can't get the timings
-        exactly right. You can make finer adjustments in the next screen.
-      </p>
-      <p>
-        <strong>Step 5: Adjust timings.</strong> Head to the Adjust tab to preview your track. If
-        any of the timings seem off, drag the edges of that lyric until the timing is better.
-      </p>
-      <p>
-        If your song has multiple voices, you will have to do the whole timing process for each
-        voice. The voice to work on will be selectable from the upper right menu, next to the title
-        of the Timing, Adjust and Edit tabs. If you want to have perfectly matching unison, you can
-        copy-paste blocks of timings between voices using the Edit tab.
-      </p>
-      <p>
-        <strong>Step 6: Create The Video.</strong> After you've given an Enter press to the last
-        lyric in the song, you can watch the preview, fiddle with fonts and colors, and click the
-        <code>Submit</code> button. Wait 5-10 minutes. Eventually you'll be asked to download a zip
-        file. Inside that zip is an <code>.mp4</code> file which is your karaoke video! The zip file
-        also includes generated <code>subtitles.ass</code> and <code>timings.txt</code> files that
-        were used to make your video. You can upload them to the Song Info tab if you want to re-do
-        your video without re-doing the timings.
+        Click <b-icon icon="circle-question" size="is-small" /> at the top for help on each tab.
       </p>
     </div>
   </b-tab-item>
