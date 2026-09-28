@@ -28,3 +28,5 @@ google-application-credentials.json
 # Per-deployment files kept out of git, such as the custom intro.
 /local/*
 !/local/.gitkeep
+# Specs stay local.
+/docs/specs/
