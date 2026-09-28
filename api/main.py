@@ -49,6 +49,12 @@ from .vite_assets import vite_assets
 app_logging.setup()
 logger = structlog.get_logger(__name__)
 
+if settings.DEFAULT_SEPARATION_MODEL not in AVAILABLE_MODELS:
+    raise RuntimeError(
+        f"Unknown DEFAULT_SEPARATION_MODEL {settings.DEFAULT_SEPARATION_MODEL!r}. "
+        f"Available models: {AVAILABLE_MODELS}"
+    )
+
 
 @contextlib.asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -479,6 +485,7 @@ async def index(request: Request):
         "vite_hmr_client": Markup(vite_assets.render_hmr_client()),
         "vite_assets": Markup(vite_assets.render_tags("index.ts")),
         "max_upload_bytes": settings.MAX_UPLOAD_BYTES,
+        "default_separation_model": settings.DEFAULT_SEPARATION_MODEL,
         "app_name": settings.APP_NAME,
     }
     return templates.TemplateResponse("index.html", context)

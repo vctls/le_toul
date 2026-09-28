@@ -90,15 +90,20 @@ function moveSourcemapsPlugin(options: MoveSourcemapsOptions = {}): Plugin {
 }
 
 /**
- * Fill the page's app name meta tag from APP_NAME, as the server's template does.
+ * Fill the page's meta tags from APP_NAME and DEFAULT_SEPARATION_MODEL, as the server's template
+ * does.
  */
-function appNamePlugin(appName: string): Plugin {
-  const escaped = appName.replace(/&/g, "&amp;").replace(/"/g, "&quot;").replace(/</g, "&lt;");
+function pageMetaPlugin(env: Record<string, string>): Plugin {
+  const escape = (value = "") =>
+    value.replace(/&/g, "&amp;").replace(/"/g, "&quot;").replace(/</g, "&lt;");
   return {
-    name: "app-name",
+    name: "page-meta",
     transformIndexHtml: {
       order: "pre",
-      handler: (html) => html.replaceAll("%APP_NAME%", escaped),
+      handler: (html) =>
+        html
+          .replaceAll("%APP_NAME%", escape(env.APP_NAME))
+          .replaceAll("%DEFAULT_SEPARATION_MODEL%", escape(env.DEFAULT_SEPARATION_MODEL)),
     },
   };
 }
@@ -116,7 +121,7 @@ export default defineConfig(({ command, mode }) =>
       sourcemap: true,
     },
     plugins: [
-      appNamePlugin(loadEnv(mode, process.cwd(), "").APP_NAME ?? ""),
+      pageMetaPlugin(loadEnv(mode, process.cwd(), "")),
       moveSourcemapsPlugin({
         targetDir: "dist/sourceMaps", // Specify your target directory here
       }),

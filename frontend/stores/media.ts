@@ -57,6 +57,28 @@ export const BACKING_VOCALS_HQ_ALT_SEPARATOR_MODEL = "mel_band_roformer_karaoke_
 // Remove backing vocals, highest reported SDR. Heaviest model.
 export const NO_VOCALS_HQ_SEPARATOR_MODEL = "model_bs_roformer_ep_317_sdr_12.9755.ckpt";
 
+export const SEPARATION_MODELS: readonly string[] = [
+  BACKING_VOCALS_SEPARATOR_MODEL,
+  BACKING_VOCALS_HQ_SEPARATOR_MODEL,
+  BACKING_VOCALS_HQ_ALT_SEPARATOR_MODEL,
+  NO_VOCALS_SEPARATOR_MODEL,
+  NO_VOCALS_HQ_SEPARATOR_MODEL,
+];
+
+/**
+ * The model preselected until the user picks one, from the DEFAULT_SEPARATION_MODEL setting the
+ * server renders into the page.
+ */
+export function defaultSeparationModel(): SeparationModel {
+  const meta = document.querySelector<HTMLMetaElement>(
+    'meta[name="tuul-default-separation-model"]',
+  );
+  const name = meta?.content;
+  return name && SEPARATION_MODELS.includes(name)
+    ? (name as SeparationModel)
+    : BACKING_VOCALS_HQ_ALT_SEPARATOR_MODEL;
+}
+
 /**
  * Explains why a song is over the server's upload limit, or returns null if it is not.
  */
@@ -96,7 +118,7 @@ export const useMediaStore = defineStore("media", () => {
 
   // Track separation state
   const isProcessing = ref(false);
-  const separationModel = ref<SeparationModel>(BACKING_VOCALS_SEPARATOR_MODEL);
+  const separationModel = ref<SeparationModel>(defaultSeparationModel());
   const separatedTrack = shallowRef<SeparatedTrack | null>(null);
   const error = ref<string | null>(null);
   const separationStartTime = shallowRef<Date | null>(null);
