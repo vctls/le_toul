@@ -126,6 +126,7 @@ import SourceFileDownloadLinks from "@/components/SourceFileDownloadLinks.vue";
 import ViewportTooltip from "@/components/ViewportTooltip.vue";
 import { useMediaStore } from "@/stores/media";
 import { useLyricsStore } from "@/stores/lyrics";
+import { useLyricsLookupStore } from "@/stores/lyricsLookup";
 import { useTimingsStore } from "@/stores/timings";
 import { useSettingsStore } from "@/stores/settings";
 import { useHelpStore } from "@/stores/help";
@@ -158,6 +159,7 @@ export default defineComponent({
     return {
       mediaStore: useMediaStore(),
       lyricsStore: useLyricsStore(),
+      lyricsLookupStore: useLyricsLookupStore(),
       timingsStore: useTimingsStore(),
       settingsStore: useSettingsStore(),
       helpStore: useHelpStore(),
@@ -209,6 +211,7 @@ export default defineComponent({
     async startOver() {
       this.timingsStore.clear();
       this.lyricsStore.clear();
+      this.lyricsLookupStore.reset();
       await this.mediaStore.clearSession();
       await this.settingsStore.clearCustomFonts();
     },

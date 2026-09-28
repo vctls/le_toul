@@ -49,6 +49,7 @@
             <b-input
               class="metadata-input"
               name="artist"
+              @blur="lyricsLookupStore.lookUp()"
               :model-value="mediaStore.songArtist ?? ''"
               @update:model-value="
                 (v: string | number | undefined) => {
@@ -61,6 +62,7 @@
             <b-input
               class="metadata-input"
               name="title"
+              @blur="lyricsLookupStore.lookUp()"
               :model-value="mediaStore.songTitle ?? ''"
               @update:model-value="
                 (v: string | number | undefined) => {
@@ -346,6 +348,7 @@ import {
 import { useTimingsStore } from "@/stores/timings";
 import { useAdvancedStore } from "@/stores/advanced";
 import { useLyricsStore } from "@/stores/lyrics";
+import { useLyricsLookupStore } from "@/stores/lyricsLookup";
 import { useSettingsStore } from "@/stores/settings";
 import { parseSettingsYaml } from "@/lib/settingsFile";
 import { classifyProjectFolder, ProjectFolder } from "@/lib/projectFolder";
@@ -424,6 +427,7 @@ export default defineComponent({
       timingsStore,
       settingsStore,
       lyricsStore,
+      lyricsLookupStore: useLyricsLookupStore(),
       advancedStore: useAdvancedStore(),
     };
   },
@@ -544,40 +548,42 @@ export default defineComponent({
   },
   methods: {
     async loadYouTubeUrl() {
-      this.isLoadingYouTube = true;
-      this.youtubeError = null;
-      try {
-        const [audioBlob, videoBlob, metadata] = await fetchYouTubeVideo(
-          this.mediaStore.youtubeUrl ?? "",
-        );
-        this.mediaStore.songFile = new File([audioBlob], "audio.mp4", {
-          type: "audio/mp4",
-        });
-        const parsedMetadata = parseYouTubeTitle(metadata);
-        this.mediaStore.songArtist = parsedMetadata[0];
-        this.mediaStore.songTitle = parsedMetadata[1];
-
-        // Update the media store
-        this.mediaStore.backgroundVideo = videoBlob;
-      } catch (e) {
-        console.error(e);
-        let errorMessage = e instanceof Error ? e.message : String(e);
-
-        // Try to extract the detail from JSON error responses
+      return this.lyricsLookupStore.whileLoading(async () => {
+        this.isLoadingYouTube = true;
+        this.youtubeError = null;
         try {
-          const errorObj = JSON.parse(errorMessage);
-          if (errorObj.detail) {
-            errorMessage = errorObj.detail;
-          }
-        } catch (parseError) {
-          // If it's not JSON, use the original message
-        }
+          const [audioBlob, videoBlob, metadata] = await fetchYouTubeVideo(
+            this.mediaStore.youtubeUrl ?? "",
+          );
+          this.mediaStore.songFile = new File([audioBlob], "audio.mp4", {
+            type: "audio/mp4",
+          });
+          const parsedMetadata = parseYouTubeTitle(metadata);
+          this.mediaStore.songArtist = parsedMetadata[0];
+          this.mediaStore.songTitle = parsedMetadata[1];
 
-        this.youtubeError =
-          `There was a problem downloading that video: ${errorMessage}.` +
-          `Please try again, or use an external service or program to get the audio and add it above.`;
-      }
-      this.isLoadingYouTube = false;
+          // Update the media store
+          this.mediaStore.backgroundVideo = videoBlob;
+        } catch (e) {
+          console.error(e);
+          let errorMessage = e instanceof Error ? e.message : String(e);
+
+          // Try to extract the detail from JSON error responses
+          try {
+            const errorObj = JSON.parse(errorMessage);
+            if (errorObj.detail) {
+              errorMessage = errorObj.detail;
+            }
+          } catch (parseError) {
+            // If it's not JSON, use the original message
+          }
+
+          this.youtubeError =
+            `There was a problem downloading that video: ${errorMessage}.` +
+            `Please try again, or use an external service or program to get the audio and add it above.`;
+        }
+        this.isLoadingYouTube = false;
+      });
     },
     // Load a settings.yaml (as exported from the Submit tab) back into the app: video options, per-voice styles,
     // the separation model and the song metadata. Returns the entries the file had that couldn't be
@@ -613,27 +619,29 @@ export default defineComponent({
       return settings.warnings;
     },
     async onSettingsFileChange(file: File | null) {
-      if (!file) {
-        return;
-      }
-      try {
-        const warnings = await this.applySettingsFile(file);
-        this.$buefy.toast.open({
-          message: warnings.length
-            ? `Settings loaded, but ${warnings.length} entr${warnings.length === 1 ? "y was" : "ies were"} skipped (see the console).`
-            : "Settings loaded!",
-          type: warnings.length ? "is-warning" : "is-success",
-          duration: warnings.length ? 5000 : 2000,
-        });
-      } catch (e) {
-        console.error(e);
-        this.mediaStore.settingsFile = null;
-        this.$buefy.toast.open({
-          message: (e as Error).message,
-          type: "is-danger",
-          duration: 5000,
-        });
-      }
+      return this.lyricsLookupStore.whileLoading(async () => {
+        if (!file) {
+          return;
+        }
+        try {
+          const warnings = await this.applySettingsFile(file);
+          this.$buefy.toast.open({
+            message: warnings.length
+              ? `Settings loaded, but ${warnings.length} entr${warnings.length === 1 ? "y was" : "ies were"} skipped (see the console).`
+              : "Settings loaded!",
+            type: warnings.length ? "is-warning" : "is-success",
+            duration: warnings.length ? 5000 : 2000,
+          });
+        } catch (e) {
+          console.error(e);
+          this.mediaStore.settingsFile = null;
+          this.$buefy.toast.open({
+            message: (e as Error).message,
+            type: "is-danger",
+            duration: 5000,
+          });
+        }
+      });
     },
     /**
      * Loads a timings.txt, or a timings.json in any of its older shapes.
@@ -737,27 +745,29 @@ export default defineComponent({
       return { ...converted, warnings: [...converted.warnings, ...settingsWarnings] };
     },
     async onKbpFileChange(file: File) {
-      try {
-        const { warnings, audioName } = await this.applyKbpFile(file);
-        this.kbpWarnings = warnings;
-        const song = audioName && !this.mediaStore.songFile ? ` Its song is ${audioName}.` : "";
-        this.$buefy.toast.open({
-          message: warnings.length
-            ? `Project loaded, with a few changes listed under the KBP File input.${song}`
-            : `Project loaded!${song}`,
-          type: warnings.length ? "is-warning" : "is-success",
-          duration: warnings.length || song ? 6000 : 2000,
-        });
-      } catch (e) {
-        console.error(e);
-        this.mediaStore.kbpFile = null;
-        this.kbpWarnings = [];
-        this.$buefy.toast.open({
-          message: `Couldn't read that KBP file: ${(e as Error).message}`,
-          type: "is-danger",
-          duration: 5000,
-        });
-      }
+      return this.lyricsLookupStore.whileLoading(async () => {
+        try {
+          const { warnings, audioName } = await this.applyKbpFile(file);
+          this.kbpWarnings = warnings;
+          const song = audioName && !this.mediaStore.songFile ? ` Its song is ${audioName}.` : "";
+          this.$buefy.toast.open({
+            message: warnings.length
+              ? `Project loaded, with a few changes listed under the KBP File input.${song}`
+              : `Project loaded!${song}`,
+            type: warnings.length ? "is-warning" : "is-success",
+            duration: warnings.length || song ? 6000 : 2000,
+          });
+        } catch (e) {
+          console.error(e);
+          this.mediaStore.kbpFile = null;
+          this.kbpWarnings = [];
+          this.$buefy.toast.open({
+            message: `Couldn't read that KBP file: ${(e as Error).message}`,
+            type: "is-danger",
+            duration: 5000,
+          });
+        }
+      });
     },
     async onTimingsFileChange(file: File | null) {
       if (!file) {
@@ -856,88 +866,90 @@ export default defineComponent({
       }
     },
     async loadProjectFolder(project: ProjectFolder, name: string | null) {
-      this.projectFolderName = name;
-      const loaded: string[] = [];
-      const failed: string[] = [];
-      const apply = async (label: string, file: File, run: () => Promise<void> | void) => {
-        try {
-          await run();
-          loaded.push(label);
-        } catch (e) {
-          console.error(e);
-          failed.push(file.name);
+      return this.lyricsLookupStore.whileLoading(async () => {
+        this.projectFolderName = name;
+        const loaded: string[] = [];
+        const failed: string[] = [];
+        const apply = async (label: string, file: File, run: () => Promise<void> | void) => {
+          try {
+            await run();
+            loaded.push(label);
+          } catch (e) {
+            console.error(e);
+            failed.push(file.name);
+          }
+        };
+
+        if (project.song) {
+          const song = project.song;
+          await apply("the song", song, async () => {
+            this.mediaStore.songFile = song;
+            // The song's own tags land on the title and artist a moment later. Let them,
+            // before the settings file puts the project's own values back.
+            await this.mediaStore.metadataSettled();
+          });
         }
-      };
+        if (project.settings) {
+          const settings = project.settings;
+          await apply("settings", settings, async () => {
+            await this.applySettingsFile(settings);
+            this.mediaStore.settingsFile = settings;
+          });
+        }
+        if (project.lyrics) {
+          const lyrics = project.lyrics;
+          await apply("lyrics", lyrics, async () => {
+            this.lyricsStore.setLyrics(await this.readLyricsFile(lyrics));
+            this.mediaStore.lyricsFile = lyrics;
+          });
+        }
+        if (project.timings) {
+          const timings = project.timings;
+          await apply("timings", timings, async () => {
+            const warnings = await this.applyTimingsFile(timings);
+            this.mediaStore.timingsFile = timings;
+            this.timingsWarnings = warnings;
+          });
+        }
+        if (project.backing) {
+          const backing = project.backing;
+          await apply("the backing track", backing, async () => {
+            await this.mediaStore.setBackingTrack(backing);
+            this.mediaStore.backingTrackFile = backing;
+          });
+        }
+        if (project.vocals) {
+          const vocals = project.vocals;
+          await apply("the vocal track", vocals, async () => {
+            await this.mediaStore.setVocalTrack(vocals);
+            this.mediaStore.vocalTrackFile = vocals;
+          });
+        }
+        if (project.font) {
+          const font = project.font;
+          await apply("the font", font, () => this.settingsStore.setCustomFont(font));
+        }
 
-      if (project.song) {
-        const song = project.song;
-        await apply("the song", song, async () => {
-          this.mediaStore.songFile = song;
-          // The song's own tags land on the title and artist a moment later. Let them,
-          // before the settings file puts the project's own values back.
-          await this.mediaStore.metadataSettled();
-        });
-      }
-      if (project.settings) {
-        const settings = project.settings;
-        await apply("settings", settings, async () => {
-          await this.applySettingsFile(settings);
-          this.mediaStore.settingsFile = settings;
-        });
-      }
-      if (project.lyrics) {
-        const lyrics = project.lyrics;
-        await apply("lyrics", lyrics, async () => {
-          this.lyricsStore.setLyrics(await this.readLyricsFile(lyrics));
-          this.mediaStore.lyricsFile = lyrics;
-        });
-      }
-      if (project.timings) {
-        const timings = project.timings;
-        await apply("timings", timings, async () => {
-          const warnings = await this.applyTimingsFile(timings);
-          this.mediaStore.timingsFile = timings;
-          this.timingsWarnings = warnings;
-        });
-      }
-      if (project.backing) {
-        const backing = project.backing;
-        await apply("the backing track", backing, async () => {
-          await this.mediaStore.setBackingTrack(backing);
-          this.mediaStore.backingTrackFile = backing;
-        });
-      }
-      if (project.vocals) {
-        const vocals = project.vocals;
-        await apply("the vocal track", vocals, async () => {
-          await this.mediaStore.setVocalTrack(vocals);
-          this.mediaStore.vocalTrackFile = vocals;
-        });
-      }
-      if (project.font) {
-        const font = project.font;
-        await apply("the font", font, () => this.settingsStore.setCustomFont(font));
-      }
-
-      if (project.ignored.length) {
-        console.warn(`Not loaded from the project folder: ${project.ignored.join(", ")}`);
-      }
-      if (failed.length) {
+        if (project.ignored.length) {
+          console.warn(`Not loaded from the project folder: ${project.ignored.join(", ")}`);
+        }
+        if (failed.length) {
+          this.$buefy.toast.open({
+            message: loaded.length
+              ? `Loaded ${formatList(loaded)}, but couldn't read ${formatList(failed)}.`
+              : `Couldn't read ${formatList(failed)}.`,
+            type: "is-danger",
+            duration: 5000,
+          });
+          return;
+        }
         this.$buefy.toast.open({
           message: loaded.length
-            ? `Loaded ${formatList(loaded)}, but couldn't read ${formatList(failed)}.`
-            : `Couldn't read ${formatList(failed)}.`,
-          type: "is-danger",
-          duration: 5000,
+            ? `Loaded ${formatList(loaded)}.`
+            : "Nothing to load in that folder.",
+          type: loaded.length ? "is-success" : "is-warning",
+          duration: loaded.length ? 3000 : 5000,
         });
-        return;
-      }
-      this.$buefy.toast.open({
-        message: loaded.length
-          ? `Loaded ${formatList(loaded)}.`
-          : "Nothing to load in that folder.",
-        type: loaded.length ? "is-success" : "is-warning",
-        duration: loaded.length ? 3000 : 5000,
       });
     },
     onSeparationModelChange(model: SeparationModel) {
