@@ -28,8 +28,8 @@ Both take a while the first time.
 ### Voice separation
 
 - **Three additional separation models**, grouped by what they do to the backing vocals:
-  - _Keep them:_ MDX-Net (fast), Mel-Band Roformer (aufr33/viperx), Mel-Band Roformer (becruily).
-  - _Remove them:_ MDX-Net Inst HQ (fast), BS-Roformer (highest SDR, slowest on CPU).
+  - _Keep them:_ MDX-Net (fastest), Mel-Band Roformer (aufr33/viperx), Mel-Band Roformer (becruily).
+  - _Remove them:_ MDX-Net Inst HQ (fastest), BS-Roformer (highest quality, slowest).
 - Mel-Band Roformer (becruily) is preselected. `DEFAULT_SEPARATION_MODEL` picks another, by model
   file name, such as `UVR_MDXNET_KARA_2.onnx` for a server without a GPU.
 - The separation process shows an actual progress indicator as soon as possible.
