@@ -117,7 +117,7 @@ test.describe("Adjust tab display mode", () => {
     expect(await playhead(page)).toBe(before);
   });
 
-  test("puts every line back on the automatic times once Reset is confirmed", async ({ page }) => {
+  test("puts every line back on the automatic times on Reset", async ({ page }) => {
     await setupDisplayMode(page);
     const reset = displayTimesField(page).getByRole("button", {
       name: "Reset",
@@ -129,8 +129,6 @@ test.describe("Adjust tab display mode", () => {
     await expect.poll(() => firstSegment(page)).toMatchObject({ displayEnd: 2 });
 
     await reset.click();
-    const dialog = page.getByRole("dialog");
-    await dialog.getByRole("button", { name: "Reset all" }).click();
 
     await expect
       .poll(() => firstSegment(page).then((segment) => segment.displayEnd))
