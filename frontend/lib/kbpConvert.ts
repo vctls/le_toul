@@ -261,6 +261,7 @@ function styleSettings(
       background: color(0),
       primary: color(base.colors[2]),
       secondary: color(base.colors[0]),
+      outline: color(base.colors[1]),
     };
   }
 
@@ -470,7 +471,11 @@ function exportStyles(
     italic: videoOptions.font?.italic ?? false,
     text: videoOptions.color?.secondary?.toString() ?? "#00FFFF",
     wipe: videoOptions.color?.primary?.toString() ?? "#FF00FF",
-    outline: videoOptions.color?.background?.toString() ?? "#000000",
+    // Files written before the outline had its own color drew it in the background color.
+    outline:
+      videoOptions.color?.outline?.toString() ??
+      videoOptions.color?.background?.toString() ??
+      "#000000",
   };
   const styles = voices.map((voice): ExportStyle => {
     const o = voiceStyles[voice] ?? {};
@@ -488,7 +493,7 @@ function exportStyles(
 }
 
 /**
- * Entry 0 is the screen background, which the app draws in its outline colour.
+ * Entry 0 is the screen background.
  */
 class Palette {
   colors: string[];
@@ -717,7 +722,10 @@ export function projectFilesToKbp(source: KbpExportSource): KbpExport {
     );
   }
 
-  const palette = new Palette(styles[0].outline, warnings);
+  const palette = new Palette(
+    settings.videoOptions.color?.background?.toString() ?? "#000000",
+    warnings,
+  );
   const kbpStyles: KbpStyle[] = styles.slice(0, MAX_STYLES).map((style, number) => {
     const outline = palette.indexOf(style.outline);
     return {
