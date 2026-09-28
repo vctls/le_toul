@@ -110,6 +110,8 @@ export const useMediaStore = defineStore("media", () => {
   const vocalTrackFile = shallowRef<File | null>(null);
   const settingsFile = shallowRef<File | null>(null);
 
+  const projectFolderName = ref<string | null>(null);
+
   // Song metadata
   const songTitle = ref<string | null>(null);
   const songDuration = ref<number | null>(null);
@@ -428,6 +430,7 @@ export const useMediaStore = defineStore("media", () => {
     vocalTrackFile.value = null;
     settingsFile.value = null;
     kbpFile.value = null;
+    projectFolderName.value = null;
     songTitle.value = null;
     songArtist.value = null;
     songDuration.value = null;
@@ -451,6 +454,7 @@ export const useMediaStore = defineStore("media", () => {
     backingTrackFile,
     vocalTrackFile,
     settingsFile,
+    projectFolderName,
 
     songTitle,
     songArtist,
