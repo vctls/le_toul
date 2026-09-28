@@ -38,7 +38,7 @@ test.describe("Lyrics Tab Functionality", () => {
 
     // Add a slash in the word "Look" in the first occurrence
     await textAreaLocator.focus();
-    await page.keyboard.press("Home");
+    await page.keyboard.press("Control+Home");
     await page.keyboard.press("ArrowRight"); // Move to between 'L' and 'o'
     await page.keyboard.press("ArrowRight"); // Move to between 'o' and 'o'
     await page.keyboard.press("ArrowRight"); // Move to between 'o' and 'k'
@@ -52,7 +52,7 @@ test.describe("Lyrics Tab Functionality", () => {
 
     // 5. Test adding a second slash to the same word
     await textAreaLocator.focus();
-    await page.keyboard.press("Home");
+    await page.keyboard.press("Control+Home");
     await page.keyboard.press("ArrowRight"); // Move to between 'L' and 'o'
     await page.keyboard.press("ArrowRight"); // Move to between 'o' and 'o'
     await page.keyboard.type("/");
