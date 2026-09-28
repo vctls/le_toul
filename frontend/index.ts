@@ -5,6 +5,7 @@ import { setupErrorHandling } from "@/lib/util";
 import App from "@/App.vue";
 import "@/main.scss";
 import { useTimingsStore } from "@/stores/timings";
+import { useLyricsLookupStore } from "@/stores/lyricsLookup";
 import { applyThemePreference, loadThemePreference } from "@/lib/colorScheme";
 import { appName } from "@/constants";
 
@@ -36,6 +37,8 @@ window.addEventListener("load", function () {
   // Same for the watchers that carry timings across voice renames and lyric edits.
   useTimingsStore().setupVoiceReconciliation();
   useTimingsStore().setupSegmentReconciliation();
+
+  void useLyricsLookupStore().loadProvider();
 
   app.mount("#app");
 });

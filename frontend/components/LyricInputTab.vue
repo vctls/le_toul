@@ -25,7 +25,19 @@
           <pre>{{ multiVoiceExample }}</pre>
         </div>
       </div>
+      <p v-if="provider">
+        {{ appName }} looks up the lyrics on
+        <a :href="provider.url" target="_blank" rel="noopener">{{ provider.name }}</a> from the
+        song's title, artist and length. The request goes through our server, so
+        {{ provider.name }} never sees your address.
+      </p>
     </help-section>
+    <p v-if="statusMessage" class="lyrics-lookup-status" role="status">
+      {{ statusMessage.text }}
+      <a v-if="statusMessage.url" :href="statusMessage.url" target="_blank" rel="noopener"
+        >See it on {{ provider.name }}</a
+      >
+    </p>
     <div class="level is-mobile">
       <div class="level-item">
         <b-tooltip position="is-right" label="Convert all spaces to underscores">
@@ -62,6 +74,19 @@ import LyricEditor from "@/components/LyricEditor.vue";
 import HelpSection from "@/components/HelpSection.vue";
 import SongPlayer from "@/components/SongPlayer.vue";
 import { useMediaStore } from "@/stores/media";
+import { useLyricsLookupStore } from "@/stores/lyricsLookup";
+import { formatDuration } from "@/lib/lyricsLookup";
+import { appName } from "@/constants";
+
+/**
+ * Describes a match as "Artist – Title (Album, 3:52)".
+ */
+function describeMatch(match) {
+  const details = [match.album, match.duration ? formatDuration(match.duration) : null]
+    .filter(Boolean)
+    .join(", ");
+  return `${match.artist} – ${match.title}${details ? ` (${details})` : ""}`;
+}
 
 export default defineComponent({
   components: {
@@ -73,9 +98,13 @@ export default defineComponent({
     const lyricStore = useLyricsStore();
     const { lyricText } = storeToRefs(lyricStore);
     const { songFile } = storeToRefs(useMediaStore());
+    const { provider, status } = storeToRefs(useLyricsLookupStore());
     return {
       lyricText,
       songFile,
+      provider,
+      status,
+      appName: appName(),
     };
   },
   data() {
@@ -85,6 +114,28 @@ export default defineComponent({
       multiVoiceExample:
         "[Bob]Hell/o_from_the_oth/er_side\n[Alice]I_must_have_called_a_thou/sand_times\n[Alice+Bob]To_tell_you_I'm so/rry_for_e/very/thing_that_I've_done",
     };
+  },
+  computed: {
+    statusMessage() {
+      const name = this.provider?.name;
+      const status = this.status;
+      if (!name || !status) return null;
+      switch (status.kind) {
+        case "looking":
+          return { text: `Looking up lyrics on ${name}…` };
+        case "found":
+          return {
+            text: `Lyrics from ${name}: ${describeMatch(status.match)}. Check them against the song.`,
+            url: status.match.url,
+          };
+        case "instrumental":
+          return { text: `${name} lists this song as instrumental.`, url: status.match.url };
+        case "notFound":
+          return { text: `No lyrics found on ${name}.` };
+        default:
+          return { text: `Couldn't reach ${name}.` };
+      }
+    },
   },
   methods: {
     onLyricInput(newValue) {
@@ -102,5 +153,11 @@ export default defineComponent({
   display: flex;
   flex-direction: column;
   height: 100%;
+}
+
+.lyrics-lookup-status {
+  margin-bottom: 0.75rem;
+  font-size: 0.875rem;
+  opacity: 0.8;
 }
 </style>

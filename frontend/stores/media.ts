@@ -6,6 +6,7 @@ import { maxUploadBytes } from "@/constants";
 import { SeparationModel } from "@/types";
 import jsmediatags from "@/jsmediatags.min.js";
 import { clearPersistence, persistBlobRef, persistJsonRef } from "@/lib/persistence";
+import { useLyricsLookupStore } from "@/stores/lyricsLookup";
 
 const MEDIA_LOCALSTORAGE_KEYS = [
   "media.youtubeUrl",
@@ -365,6 +366,7 @@ export const useMediaStore = defineStore("media", () => {
       songTitle.value = metadata.title || songTitle.value;
       songArtist.value = metadata.artist || songArtist.value;
       songDuration.value = durationValue;
+      void useLyricsLookupStore().lookUp();
     },
     { flush: "sync" },
   );
