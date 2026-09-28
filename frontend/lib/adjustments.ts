@@ -131,27 +131,48 @@ function countInLength(options: KaraokeOptions): Timestamp {
   return options.dynamicCountIns ? options.countInThreshold : options.countInDuration;
 }
 
+/**
+ * Move every timing later by `delay`, and record it on the first screen as audio delay.
+ */
+export function delaySong(screens: LyricsScreen[], delay: Timestamp): LyricsScreen[] {
+  if (delay === 0 || screens.length === 0) {
+    return screens;
+  }
+  const delayed = adjustScreenTimestamps(screens, delay);
+  delayed[0].audioDelay += delay;
+  return delayed;
+}
+
+/**
+ * How far a quick-start count-in delays the song, given when each voice starts.
+ * The earliest voice decides, since all of them play over the same audio.
+ */
+export function quickStartDelay(firstStarts: Timestamp[], options: KaraokeOptions): Timestamp {
+  const first = Math.min(...firstStarts);
+  if (options.countInMode === "none" || !(first <= FIRST_SCREEN_QUICK_START_THRESHOLD)) {
+    return 0;
+  }
+  return countInLength(options) - first;
+}
+
+/**
+ * Delay the song to make room for a count-in when the lyrics start right away.
+ * Another voice may have set `addedTime`, in which case these lyrics move by it
+ * and only get the count-in if they start right away too.
+ */
 export function addQuickStartCountIn(
   screens: LyricsScreen[],
   options: KaraokeOptions,
+  addedTime?: Timestamp,
 ): LyricsScreen[] {
   const firstSegment = screens[0].lines[0].segments[0];
-  if (firstSegment.timestamp > FIRST_SCREEN_QUICK_START_THRESHOLD) {
-    return screens;
-  }
-  /*
-    This is the first screen and the lyrics start right away.
-    Add a count-in and adjust all other timings accordingly
-    */
-
-  // This is how much time we need to add to the beginning:
-  const addedTime: Timestamp = countInLength(options) - firstSegment.timestamp;
-  // Move every timestamp forward by that much
-  const adjustedScreens = adjustScreenTimestamps(screens, addedTime);
-  // Reset the first screen start time to the non-adjusted value
+  addedTime ??= quickStartDelay([firstSegment.timestamp], options);
+  const adjustedScreens = delaySong(screens, addedTime);
+  // The first screen still displays from the start, which leaves the count-in its room.
   adjustedScreens[0].startTimestamp = screens[0].startTimestamp;
-  // Delay the audio on the first screen by the amount we moved forward.
-  adjustedScreens[0].audioDelay += addedTime;
+  if (firstSegment.timestamp > FIRST_SCREEN_QUICK_START_THRESHOLD) {
+    return adjustedScreens;
+  }
   // The song was moved to make room for a whole count-in, so this one is never cut short.
   const newFirstSegment = adjustedScreens[0].lines[0].segments[0];
   const marks = countInMarkTexts(options);
@@ -282,23 +303,29 @@ export function addInstrumentalScreens(
   }
 }
 
+/**
+ * How far the title screen delays the song: not at all when the intro is long enough to show it,
+ * and its whole length otherwise.
+ */
+export function titleScreenDelay(introLength: Timestamp): Timestamp {
+  return introLength > TITLE_SCREEN_DURATION ? 0 : TITLE_SCREEN_DURATION;
+}
+
+/**
+ * Show the title and artist before the lyrics.
+ * With several voices, `introLength` is the time before any of them starts.
+ */
 export function addTitleScreen(
   screens: LyricsScreen[],
   title: string,
   artist: string,
+  introLength: Timestamp = getIntroLength(screens),
 ): LyricsScreen[] {
-  const introLength = getIntroLength(screens);
-  // If the vocals start right at the beginning of the song, don't start the audio until the title screen is over.
-  let audioDelay = 0.0;
-  let adjustedLyricScreens;
-  if (introLength > TITLE_SCREEN_DURATION) {
-    // Long intro, start audio during title screen
-    adjustedLyricScreens = trimStart(screens, TITLE_SCREEN_DURATION);
-  } else {
-    // Short intro, delay audio until after title screen
-    audioDelay = TITLE_SCREEN_DURATION;
-    adjustedLyricScreens = adjustScreenTimestamps(screens, TITLE_SCREEN_DURATION);
-  }
+  const audioDelay = titleScreenDelay(introLength);
+  const adjustedLyricScreens =
+    audioDelay === 0
+      ? trimStart(screens, TITLE_SCREEN_DURATION)
+      : adjustScreenTimestamps(screens, audioDelay);
   const titleScreen = new LyricsScreen(
     [
       new LyricsLine([new LyricSegment(title, 0.0, TITLE_SCREEN_DURATION / 2)]),

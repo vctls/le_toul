@@ -9,11 +9,13 @@ import { useSettingsStore } from "./settings";
 import {
   createAssFile,
   createMultiVoiceAssFile,
+  layOutVoices,
   resolveStarts,
   DEFAULT_KARAOKE_OPTIONS,
   VoiceTrack,
 } from "@/lib/timing";
 import { LinePlacement, placeLines } from "@/lib/linePlacements";
+import { songOffset } from "@/lib/screenSlots";
 import {
   TimedSegment,
   fromEvents,
@@ -367,6 +369,29 @@ export const useTimingsStore = defineStore("timings", {
           return "";
         }
       };
+    },
+
+    /**
+     * How long the video holds the song back for the title screen and a quick-start count-in.
+     */
+    audioDelay(): number {
+      const mediaStore = useMediaStore();
+      const tracks = this.voiceTracks();
+      if (tracks.length === 0) {
+        return 0;
+      }
+      try {
+        const [primary] = layOutVoices(
+          tracks,
+          mediaStore.songDuration ?? 0,
+          mediaStore.songTitle ?? "",
+          mediaStore.songArtist ?? "",
+        );
+        return songOffset(primary);
+      } catch (e) {
+        console.error("Failed to compute the audio delay", e);
+        return 0;
+      }
     },
 
     /**

@@ -558,10 +558,9 @@
 </template>
 
 <script lang="ts">
-import { map, sum } from "lodash-es";
 import { defineComponent, markRaw } from "vue";
 import { storeToRefs } from "pinia";
-import { createScreens, OutputFormat, VerticalAlignment } from "@/lib/timing";
+import { OutputFormat, VerticalAlignment } from "@/lib/timing";
 import VideoPreview from "@/components/VideoPreview.vue";
 import SourceFileDownloadLinks from "@/components/SourceFileDownloadLinks.vue";
 import VideoCreationProgressIndicator from "@/components/VideoCreationProgressIndicator.vue";
@@ -758,23 +757,7 @@ export default defineComponent({
       return this.mediaStore.backgroundVideo as Blob | null;
     },
     audioDelay(): number {
-      // The shared title/count-in screens (which delay the audio) come from the primary voice,
-      // the first voice with timings.
-      // Falls back to the active voice's timings.
-      const primaryVoice = this.timingsStore.voicesWithTimings[0];
-      const segments = primaryVoice
-        ? this.timingsStore.timedSegmentsForVoice(primaryVoice)
-        : this.timingsStore.activeSegments;
-      // createScreens tolerates partial or missing timings,
-      // so this works even before the timing step is finished.
-      const screens = createScreens(
-        segments,
-        this.mediaStore.songDuration ?? 0,
-        this.mediaStore.songTitle ?? "",
-        this.mediaStore.songArtist ?? "",
-        this.videoOptions,
-      );
-      return sum(map(screens, "audioDelay"));
+      return this.timingsStore.audioDelay;
     },
     kbpFileName(): string {
       const song = this.mediaStore.songFile?.name;
