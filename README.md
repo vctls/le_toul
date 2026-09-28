@@ -44,6 +44,11 @@ There's a player on the Lyrics tab now, so you can listen while you check the ly
 Only one player runs at a time across the app, and the media keys follow whichever one you last
 started.
 
+When a song is loaded and the lyrics are empty, they are looked up on [LRCLIB](https://lrclib.net)
+from the song's title, artist and length. The request goes through the server, so LRCLIB never
+sees the user's address. `LYRICS_PROVIDER=lrclib` turns the lookup on. It is on in the dev stack
+and off by default elsewhere.
+
 ### Multiple voices
 
 Prefix a line with a tag in square brackets and the lyrics split into independent voices, each with its own timings,
@@ -217,6 +222,8 @@ To build the Docker image:
 ## Credits
 
 Original project https://github.com/incidentist/the_tuul by [Dan Kurtz](https://github.com/incidentist)
+
+Lyrics lookup uses [LRCLIB](https://lrclib.net), a free, open lyrics database.
 
 Vocal/instrumental separation is performed by [python-audio-separator](https://github.com/nomadkaraoke/python-audio-separator), which wraps a number of pretrained models
 from the [Ultimate Vocal Remover](https://github.com/Anjok07/ultimatevocalremovergui) (UVR) community.
