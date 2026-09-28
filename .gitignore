@@ -25,3 +25,6 @@ playwright-report/
 google-application-credentials.json
 # Intermediate frames for scripts/capture-gifs.mjs
 .gif-frames/
+# Per-deployment files kept out of git, such as the custom intro.
+/local/*
+!/local/.gitkeep
