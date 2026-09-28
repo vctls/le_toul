@@ -1,6 +1,5 @@
 // This is the stored form of one voice's timings.
 // Every segment carries its own text, so lyrics and timings cannot drift apart.
-// See docs/timed-segments-spec.md.
 
 import { range } from "lodash-es";
 import { LYRIC_MARKERS } from "@/constants";
