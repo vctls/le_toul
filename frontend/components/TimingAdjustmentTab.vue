@@ -9,7 +9,23 @@
   >
     <div class="title-row">
       <h2 class="title">Adjust Timings</h2>
-      <voice-selector />
+      <div class="title-actions">
+        <b-button
+          icon-left="arrow-rotate-left"
+          aria-label="Undo"
+          :title="`Undo (${undoShortcut})`"
+          :disabled="!timingsStore.canUndo"
+          @click="timingsStore.undo()"
+        />
+        <b-button
+          icon-left="arrow-rotate-right"
+          aria-label="Redo"
+          :title="`Redo (${redoShortcut})`"
+          :disabled="!timingsStore.canRedo"
+          @click="timingsStore.redo()"
+        />
+        <voice-selector />
+      </div>
     </div>
     <help-section>
       <p>
@@ -34,12 +50,17 @@
         a timing. Scroll up and down on the waveform to zoom in and out on the area under the
         cursor.
       </p>
+      <p>
+        Press <kbd>{{ undoShortcut }}</kbd> to undo an edit, and <kbd>{{ redoShortcut }}</kbd> to
+        redo it. Each voice has its own history, which is lost once its timings change in another
+        tab.
+      </p>
       <p v-if="advancedStore.isAdvanced">
         With <strong>Line display times</strong> on, each line is drawn in a frame that spans the
         time it's on screen. Drag a frame's left or right edge to set when the line appears or
         disappears, and double-click an edge to go back to the automatic time. A dashed edge follows
         the automatic rules, and a solid one has been set. <strong>Reset</strong> puts every line of
-        every voice back on the automatic times.
+        every voice back on the automatic times. Undoing it restores the voice you're looking at.
       </p>
     </help-section>
     <div class="adjust-top">
@@ -117,7 +138,7 @@
               class="reset-display-periods field-action"
               label="Reset"
               :disabled="!timingsStore.hasDisplayPeriods"
-              @click="isConfirmingReset = true"
+              @click="timingsStore.clearDisplayPeriods()"
             />
           </b-field>
         </div>
@@ -155,24 +176,11 @@
       @timeupdate="onPlayheadUpdate"
       @seeking="onSeek"
     />
-    <confirm-modal
-      v-model="isConfirmingReset"
-      title="Reset all display times?"
-      type="is-danger"
-      icon="circle-exclamation"
-      confirm-label="Reset all"
-      @confirm="timingsStore.clearDisplayPeriods()"
-    >
-      <p>
-        Every line of every voice will go back to the automatic display times. This can't be undone.
-      </p>
-    </confirm-modal>
   </b-tab-item>
 </template>
 
 <script lang="ts">
 import { defineComponent } from "vue";
-import ConfirmModal from "@/components/ConfirmModal.vue";
 import HelpSection from "@/components/HelpSection.vue";
 import TimingAdjuster from "@/components/TimingAdjuster.vue";
 import SubtitleDisplay from "./SubtitleDisplay.vue";
@@ -186,6 +194,7 @@ import { storeToRefs } from "pinia";
 import { BButton, BField, BNumberinput, BSelect, BSwitch } from "buefy";
 import { VoiceId } from "@/lib/voices";
 import { clampSegmentOverlaps } from "@/lib/timingValidation";
+import { isDragging } from "@/lib/wavesurferPlugins/OpenEndedRegionPlugin";
 import { TimedSegment } from "@/lib/timedSegments";
 import { DisplayBand, displayBands } from "@/lib/displayBands";
 import { resolveThemeColor } from "@/lib/themeColor";
@@ -201,6 +210,22 @@ import { DEFAULT_OUTLINE_WIDTH } from "@/constants";
 // so stepping and the preview jump after a drag agree on what one step is worth.
 // Shift takes five of them.
 const COARSE_STEP_MULTIPLIER = 5;
+
+const IS_MAC = /Mac|iPhone|iPad/.test(navigator.platform);
+const SHORTCUT_MODIFIER = IS_MAC ? "Cmd" : "Ctrl";
+
+/**
+ * The history step a shortcut asks for.
+ * Ctrl+Z undoes, and Ctrl+Shift+Z or Ctrl+Y redo, with Cmd in place of Ctrl on macOS.
+ */
+function historyStepFor(event: KeyboardEvent): "undo" | "redo" | null {
+  if (!(IS_MAC ? event.metaKey : event.ctrlKey) || event.altKey) return null;
+  // The key is read by its character rather than its position, so that Z follows the layout.
+  const key = event.key.toLowerCase();
+  if (key === "z") return event.shiftKey ? "redo" : "undo";
+  if (key === "y" && !event.shiftKey) return "redo";
+  return null;
+}
 
 // The preview here is a working view of the timings, not a proxy for the final video,
 // so it uses the app's own palette, font and size rather than the video settings.
@@ -272,7 +297,6 @@ export default defineComponent({
     BNumberinput,
     BSelect,
     BSwitch,
-    ConfirmModal,
     HelpSection,
     TimingAdjuster,
     SubtitleDisplay,
@@ -315,7 +339,6 @@ export default defineComponent({
       preservePitch: restored?.preservePitch ?? false,
       // Off by default, since most users never set display times.
       showDisplayBands: restored?.showDisplayBands ?? false,
-      isConfirmingReset: false,
       // Which track to play back. The waveform always stays on the vocals.
       playbackTrackChoice: "full" as "full" | "vocals",
       // Per-voice control state.
@@ -337,6 +360,12 @@ export default defineComponent({
     };
   },
   computed: {
+    undoShortcut(): string {
+      return `${SHORTCUT_MODIFIER}+Z`;
+    },
+    redoShortcut(): string {
+      return `${SHORTCUT_MODIFIER}+Shift+Z`;
+    },
     /**
      * The active voice's live values live in the flat fields,
      * so they are folded back in here rather than waiting for the voice switch that would otherwise save them.
@@ -513,7 +542,17 @@ export default defineComponent({
       const isArrow = event.code === "ArrowLeft" || event.code === "ArrowRight";
       const isEscape = event.code === "Escape";
       const isViewEdge = event.code === "Home" || event.code === "End";
-      if (event.code !== "Space" && !isEnter && !isArrow && !isEscape && !isViewEdge) return;
+      const historyStep = historyStepFor(event);
+      if (
+        event.code !== "Space" &&
+        !isEnter &&
+        !isArrow &&
+        !isEscape &&
+        !isViewEdge &&
+        !historyStep
+      ) {
+        return;
+      }
       const target = event.target as HTMLElement | null;
       // Form controls need these keys for themselves.
       if (target && ["INPUT", "TEXTAREA", "SELECT"].includes(target.tagName)) return;
@@ -522,7 +561,11 @@ export default defineComponent({
       if (isEnter && target?.closest?.("button, a")) return;
       if (this.$el.offsetParent === null) return;
       event.preventDefault();
-      if (isEscape) {
+      if (historyStep) {
+        if (!isDragging()) {
+          this.timingsStore[historyStep]();
+        }
+      } else if (isEscape) {
         this.timingAdjusterRef()?.clearSelection();
       } else if (isViewEdge) {
         const edge = event.code === "Home" ? "start" : "end";
@@ -553,22 +596,22 @@ export default defineComponent({
         start: shift(segment.start),
         end: shift(segment.end),
       }));
-      this.timingsStore.resetSegments(clampSegmentOverlaps(shifted));
+      this.timingsStore.applyAdjustEdit(clampSegmentOverlaps(shifted));
     },
     onBandUpdated(segmentIndex: number, side: "start" | "end", time: number) {
       const segments = this.timingsStore.activeSegments.map((segment) => ({ ...segment }));
       const bound = side === "start" ? "displayStart" : "displayEnd";
       segments[segmentIndex] = { ...segments[segmentIndex], [bound]: time };
-      this.timingsStore.resetSegments(segments);
+      this.timingsStore.applyAdjustEdit(segments);
     },
     onBandReset(segmentIndex: number, side: "start" | "end") {
       const segments = this.timingsStore.activeSegments.map((segment) => ({ ...segment }));
       delete segments[segmentIndex][side === "start" ? "displayStart" : "displayEnd"];
-      this.timingsStore.resetSegments(segments);
+      this.timingsStore.applyAdjustEdit(segments);
     },
     onSegmentsChange(newSegments: Array<TimedSegment>) {
       // Guard against a committed overlap (an end past the next segment's start).
-      this.timingsStore.resetSegments(clampSegmentOverlaps(newSegments));
+      this.timingsStore.applyAdjustEdit(clampSegmentOverlaps(newSegments));
     },
     onPlayheadUpdate(newPlayhead: number) {
       if (newPlayhead !== this.playhead) {
@@ -620,6 +663,12 @@ and the voice selector beside it is v-if'd away for single-voice songs.
 The row owns the spacing instead. */
 .title-row .title {
   margin-bottom: 0;
+}
+
+.title-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
 }
 
 /* Two columns for as long as they fit,

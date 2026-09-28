@@ -13,6 +13,16 @@ import EventEmitter from "wavesurfer.js/dist/event-emitter";
 import createElement from "wavesurfer.js/dist/dom";
 import { groupBy, sortBy } from "lodash-es";
 
+// Every drag in progress, in any plugin instance.
+const activeDrags = new Set<object>();
+
+/**
+ * Whether a region or a display band is being dragged.
+ */
+export function isDragging(): boolean {
+  return activeDrags.size > 0;
+}
+
 export function makeDraggable(
   element: HTMLElement,
   onDrag: (dx: number, dy: number, x: number, y: number) => void,
@@ -20,14 +30,23 @@ export function makeDraggable(
   onEnd?: (x: number, y: number) => void,
   threshold?: number,
 ): () => void {
+  const drag = {};
   const { signal, cleanup } = createDragStream(element, { threshold });
-  const unsubscribe = signal.subscribe((drag) => {
-    if (!drag) return;
-    if (drag.type === "start") onStart?.(drag.x, drag.y);
-    else if (drag.type === "move") onDrag(drag.deltaX ?? 0, drag.deltaY ?? 0, drag.x, drag.y);
-    else onEnd?.(drag.x, drag.y);
+  const unsubscribe = signal.subscribe((event) => {
+    if (!event) return;
+    if (event.type === "start") {
+      activeDrags.add(drag);
+      onStart?.(event.x, event.y);
+    } else if (event.type === "move") {
+      onDrag(event.deltaX ?? 0, event.deltaY ?? 0, event.x, event.y);
+    } else {
+      activeDrags.delete(drag);
+      onEnd?.(event.x, event.y);
+    }
   });
   return () => {
+    // A drag cut short by removing its element never sends its end.
+    activeDrags.delete(drag);
     unsubscribe();
     cleanup();
   };

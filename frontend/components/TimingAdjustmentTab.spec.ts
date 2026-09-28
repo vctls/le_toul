@@ -9,6 +9,12 @@ import { useTimingsStore } from "@/stores/timings";
 import { useAdvancedStore } from "@/stores/advanced";
 import { LYRIC_MARKERS } from "@/constants";
 import { DEFAULT_VOICE_ID } from "@/lib/voices";
+import { isDragging } from "@/lib/wavesurferPlugins/OpenEndedRegionPlugin";
+
+vi.mock("@/lib/wavesurferPlugins/OpenEndedRegionPlugin", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/lib/wavesurferPlugins/OpenEndedRegionPlugin")>()),
+  isDragging: vi.fn(() => false),
+}));
 
 const togglePlayPause = vi.fn();
 const restartAt = vi.fn();
@@ -70,9 +76,11 @@ function mountTab() {
 
 function pressKey(
   code: string,
-  { target = document.body as HTMLElement, shiftKey = false, ctrlKey = false } = {},
+  { target = document.body as HTMLElement, shiftKey = false, ctrlKey = false, key = "" } = {},
 ) {
-  target.dispatchEvent(new KeyboardEvent("keydown", { code, shiftKey, ctrlKey, bubbles: true }));
+  target.dispatchEvent(
+    new KeyboardEvent("keydown", { code, key, shiftKey, ctrlKey, bubbles: true }),
+  );
 }
 
 describe("TimingAdjustmentTab shortcuts", () => {
@@ -235,6 +243,81 @@ describe("TimingAdjustmentTab shortcuts", () => {
     expect(restartAt).toHaveBeenLastCalledWith(12.5);
   });
 
+  describe("undo and redo", () => {
+    const dragStart = (wrapper: ReturnType<typeof mountTab>) => {
+      const segments = useTimingsStore().activeSegments.map((segment) => ({ ...segment }));
+      segments[0] = { ...segments[0], start: 0.8 };
+      wrapper.findComponent({ name: "TimingAdjuster" }).vm.$emit("segmentschange", segments);
+    };
+
+    beforeEach(() => {
+      vi.mocked(isDragging).mockReturnValue(false);
+    });
+
+    it("undoes with ctrl+Z and redoes with ctrl+shift+Z or ctrl+Y", () => {
+      const wrapper = mountTab();
+      dragStart(wrapper);
+
+      pressKey("KeyZ", { key: "z", ctrlKey: true });
+      expect(useTimingsStore().activeSegments[0].start).toBe(0.5);
+
+      pressKey("KeyZ", { key: "Z", ctrlKey: true, shiftKey: true });
+      expect(useTimingsStore().activeSegments[0].start).toBe(0.8);
+
+      pressKey("KeyZ", { key: "z", ctrlKey: true });
+      pressKey("KeyY", { key: "y", ctrlKey: true });
+      expect(useTimingsStore().activeSegments[0].start).toBe(0.8);
+    });
+
+    it("follows the keyboard layout rather than the key's position", () => {
+      const wrapper = mountTab();
+      dragStart(wrapper);
+
+      // On AZERTY, Z sits where QWERTY has W.
+      pressKey("KeyW", { key: "z", ctrlKey: true });
+
+      expect(useTimingsStore().activeSegments[0].start).toBe(0.5);
+    });
+
+    it("leaves ctrl+Z to form controls", () => {
+      const wrapper = mountTab();
+      dragStart(wrapper);
+      const input = document.createElement("input");
+      document.body.appendChild(input);
+
+      pressKey("KeyZ", { key: "z", ctrlKey: true, target: input });
+
+      expect(useTimingsStore().activeSegments[0].start).toBe(0.8);
+      input.remove();
+    });
+
+    it("ignores the shortcuts during a drag", () => {
+      const wrapper = mountTab();
+      dragStart(wrapper);
+      vi.mocked(isDragging).mockReturnValue(true);
+
+      pressKey("KeyZ", { key: "z", ctrlKey: true });
+
+      expect(useTimingsStore().activeSegments[0].start).toBe(0.8);
+    });
+
+    it("enables each button while there is something to undo or redo", async () => {
+      const wrapper = mountTab();
+      const [undoButton, redoButton] = wrapper.findAll(".title-actions b-button-stub");
+      expect(undoButton.attributes("disabled")).toBe("true");
+
+      dragStart(wrapper);
+      await nextTick();
+      expect(undoButton.attributes("disabled")).toBe("false");
+      expect(redoButton.attributes("disabled")).toBe("true");
+
+      undoButton.trigger("click");
+      await nextTick();
+      expect(undoButton.attributes("disabled")).toBe("true");
+      expect(redoButton.attributes("disabled")).toBe("false");
+    });
+  });
+
   describe("display mode", () => {
     const adjuster = (wrapper: ReturnType<typeof mountTab>) =>
       wrapper.findComponent({ name: "TimingAdjuster" });
@@ -333,7 +416,7 @@ describe("TimingAdjustmentTab shortcuts", () => {
       expect(resetButton(wrapper).attributes("disabled")).toBe("false");
     });
 
-    it("clears every stored bound once Reset is confirmed", async () => {
+    it("clears every stored bound on Reset, which can be undone", async () => {
       const wrapper = mountTab();
       wrapper.vm.showDisplayBands = true;
       adjuster(wrapper).vm.$emit("band-updated", 0, "start", 0.25);
@@ -341,13 +424,13 @@ describe("TimingAdjustmentTab shortcuts", () => {
       await nextTick();
 
       await resetButton(wrapper).trigger("click");
-      await nextTick();
-      const modal = wrapper.findComponent({ name: "ConfirmModal" });
-      expect(modal.props("modelValue")).toBe(true);
-      expect(useTimingsStore().hasDisplayPeriods).toBe(true);
-
-      modal.vm.$emit("confirm");
       expect(useTimingsStore().hasDisplayPeriods).toBe(false);
+
+      pressKey("KeyZ", { key: "z", ctrlKey: true });
+      expect(useTimingsStore().activeSegments[0]).toMatchObject({
+        displayStart: 0.25,
+        displayEnd: 3,
+      });
     });
   });
 });
