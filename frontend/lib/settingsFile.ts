@@ -22,13 +22,7 @@ import {
 } from "@/lib/voiceStyle";
 import { VoiceId } from "@/lib/voices";
 import { SeparationModel } from "@/types";
-import {
-  BACKING_VOCALS_SEPARATOR_MODEL,
-  BACKING_VOCALS_HQ_SEPARATOR_MODEL,
-  BACKING_VOCALS_HQ_ALT_SEPARATOR_MODEL,
-  NO_VOCALS_SEPARATOR_MODEL,
-  NO_VOCALS_HQ_SEPARATOR_MODEL,
-} from "@/stores/media";
+import { SEPARATION_MODELS } from "@/stores/media";
 import type { VideoSettings } from "@/stores/settings";
 
 export interface SettingsFileSong {
@@ -89,14 +83,6 @@ export function serializeSettingsYaml({
   }
   return yaml.dump(document);
 }
-
-const SEPARATION_MODELS: readonly string[] = [
-  BACKING_VOCALS_SEPARATOR_MODEL,
-  BACKING_VOCALS_HQ_SEPARATOR_MODEL,
-  BACKING_VOCALS_HQ_ALT_SEPARATOR_MODEL,
-  NO_VOCALS_SEPARATOR_MODEL,
-  NO_VOCALS_HQ_SEPARATOR_MODEL,
-];
 
 const BOOLEAN_OPTIONS = [
   "addTitleScreen",

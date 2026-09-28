@@ -88,6 +88,13 @@ LRCLIB_URL = os.getenv("LRCLIB_URL", "https://lrclib.net/api")
 # Only a proxy that overwrites the header makes it trustworthy.
 CLIENT_IP_HEADER = os.getenv("CLIENT_IP_HEADER", "")
 
+# The model preselected for a visitor who has not picked one. One of AVAILABLE_MODELS
+# in karaoke/music_separation.py.
+DEFAULT_SEPARATION_MODEL = (
+    os.getenv("DEFAULT_SEPARATION_MODEL", "").strip()
+    or "mel_band_roformer_karaoke_becruily.ckpt"
+)
+
 # Where separation runs. One of the names in karaoke/separation_backends.py.
 SEPARATION_BACKEND = os.getenv("SEPARATION_BACKEND", "in_process")
 
