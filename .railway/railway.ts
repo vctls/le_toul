@@ -35,6 +35,8 @@ export default defineRailway(() => {
       // Keep equal to MAX_GPU_CONTAINERS in api/modal_app.py.
       SEPARATION_CONCURRENCY: "3",
       INSTALL_SEPARATION: "false",
+      // The Intro tab's custom Markdown, set with `railway variable set` to keep it out of git.
+      INTRO_MARKDOWN: preserve(),
     },
   });
 
