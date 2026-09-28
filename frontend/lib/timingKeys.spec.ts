@@ -3,7 +3,8 @@ import {
   KEY_NAMES,
   DEFAULT_TIMING_KEYS,
   isKeyName,
-  normalizeKeyName,
+  keyLabel,
+  keyLabelFromEvent,
   eventMatchesKey,
   formatKeyName,
 } from "./timingKeys";
@@ -35,16 +36,33 @@ describe("isKeyName", () => {
   });
 });
 
-describe("normalizeKeyName", () => {
-  it("is case- and space-insensitive", () => {
-    expect(normalizeKeyName("  space ")).toBe("Space");
-    expect(normalizeKeyName("keya")).toBe("KeyA");
-    expect(normalizeKeyName("ARROWUP")).toBe("ArrowUp");
+describe("keyLabelFromEvent", () => {
+  it("names a letter or punctuation key by what it types on an AZERTY layout", () => {
+    expect(keyLabelFromEvent({ code: "KeyQ", key: "a" })).toBe("A");
+    expect(keyLabelFromEvent({ code: "Semicolon", key: "m" })).toBe("M");
+    expect(keyLabelFromEvent({ code: "Quote", key: "ù" })).toBe("Ù");
+    expect(keyLabelFromEvent({ code: "Digit1", key: "&" })).toBe("&");
   });
 
-  it("returns undefined for a name no key has", () => {
-    expect(normalizeKeyName("Spacebar")).toBeUndefined();
-    expect(normalizeKeyName("")).toBeUndefined();
+  it("gives no label to a dead key", () => {
+    expect(keyLabelFromEvent({ code: "BracketLeft", key: "Dead" })).toBeUndefined();
+  });
+
+  it("gives no label to a key named the same on every layout", () => {
+    expect(keyLabelFromEvent({ code: "Space", key: " " })).toBeUndefined();
+    expect(keyLabelFromEvent({ code: "Numpad7", key: "7" })).toBeUndefined();
+    expect(keyLabelFromEvent({ code: "Enter", key: "Enter" })).toBeUndefined();
+  });
+});
+
+describe("keyLabel", () => {
+  it("prefers the recorded label", () => {
+    expect(keyLabel("KeyQ", { KeyQ: "A" })).toBe("A");
+  });
+
+  it("falls back to the readable code name", () => {
+    expect(keyLabel("KeyQ", { KeyW: "Z" })).toBe("Q");
+    expect(keyLabel("ArrowUp", {})).toBe("Arrow Up");
   });
 });
 

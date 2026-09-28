@@ -23,6 +23,7 @@ import {
 
 const VOICE_STYLES_STORAGE_KEY = "voiceStyles";
 const TIMING_KEYS_STORAGE_KEY = "timingKeys";
+const TIMING_KEY_LABELS_STORAGE_KEY = "timingKeyLabels";
 
 function loadVoiceStyles(): Record<VoiceId, VoiceStyleOverride> {
   try {
@@ -51,6 +52,20 @@ function loadTimingKeys(): TimingKeys {
   } catch (e) {
     console.error("Error loading timing keys:", e);
     return { ...DEFAULT_TIMING_KEYS };
+  }
+}
+
+function loadTimingKeyLabels(): Record<string, string> {
+  try {
+    const raw = JSON.parse(localStorage.getItem(TIMING_KEY_LABELS_STORAGE_KEY) || "{}");
+    return Object.fromEntries(
+      Object.entries(raw).filter(
+        (entry): entry is [string, string] => isKeyName(entry[0]) && typeof entry[1] === "string",
+      ),
+    );
+  } catch (e) {
+    console.error("Error loading timing key labels:", e);
+    return {};
   }
 }
 
@@ -153,6 +168,9 @@ export const useSettingsStore = defineStore("settings", () => {
   // Kept out of `videoOptions`, which is what the exported settings.yaml describes: these
   // are about how the tapping tab is driven, not about the video.
   const timingKeys = ref<TimingKeys>(loadTimingKeys());
+  // Each bound key's name on the layout it was bound with, keyed by code name.
+  // A label belongs to the key rather than the role, so a swap keeps it.
+  const timingKeyLabels = ref<Record<string, string>>(loadTimingKeyLabels());
 
   // Kept out of `videoOptions`, which is JSON-serialized to localStorage wholesale. The
   // file goes to IndexedDB instead.
@@ -208,6 +226,14 @@ export const useSettingsStore = defineStore("settings", () => {
     timingKeys,
     () => {
       localStorage.setItem(TIMING_KEYS_STORAGE_KEY, JSON.stringify(timingKeys.value));
+    },
+    { deep: true },
+  );
+
+  watch(
+    timingKeyLabels,
+    () => {
+      localStorage.setItem(TIMING_KEY_LABELS_STORAGE_KEY, JSON.stringify(timingKeyLabels.value));
     },
     { deep: true },
   );
@@ -338,7 +364,7 @@ export const useSettingsStore = defineStore("settings", () => {
 
   // Binding a key another role already holds swaps the two, so no two roles point at the same key,
   // which would make one of them unreachable.
-  function setTimingKey(role: keyof TimingKeys, name: string): void {
+  function setTimingKey(role: keyof TimingKeys, name: string, label?: string): void {
     const next: TimingKeys = { ...timingKeys.value };
     const clash = (Object.keys(next) as (keyof TimingKeys)[]).find(
       (other) => other !== role && next[other] === name,
@@ -348,6 +374,8 @@ export const useSettingsStore = defineStore("settings", () => {
     }
     next[role] = name;
     timingKeys.value = next;
+    const { [name]: _stale, ...labels } = timingKeyLabels.value;
+    timingKeyLabels.value = label === undefined ? labels : { ...labels, [name]: label };
   }
 
   function getVoiceStyle(voice: VoiceId): VoiceStyleOverride | undefined {
@@ -486,6 +514,7 @@ export const useSettingsStore = defineStore("settings", () => {
     Object.assign(videoOptions, defaultSettings());
     voiceStyles.value = {};
     timingKeys.value = { ...DEFAULT_TIMING_KEYS };
+    timingKeyLabels.value = {};
     void clearCustomFonts();
   }
 
@@ -495,6 +524,7 @@ export const useSettingsStore = defineStore("settings", () => {
     settingsYaml,
     voiceStyles,
     timingKeys,
+    timingKeyLabels,
     customFont,
     customFontFamily,
     customFontUrl,

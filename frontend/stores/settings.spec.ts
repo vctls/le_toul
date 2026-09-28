@@ -454,6 +454,7 @@ describe("Settings Store", () => {
   describe("timing keys", () => {
     beforeEach(() => {
       localStorage.removeItem("timingKeys");
+      localStorage.removeItem("timingKeyLabels");
       setActivePinia(createPinia());
     });
 
@@ -517,13 +518,53 @@ describe("Settings Store", () => {
       });
     });
 
+    test("stores the label a key was bound with", async () => {
+      const store = useSettingsStore();
+
+      store.setTimingKey("start", "KeyQ", "A");
+      await nextTick();
+
+      expect(store.timingKeyLabels).toEqual({ KeyQ: "A" });
+      expect(JSON.parse(localStorage.getItem("timingKeyLabels")!)).toEqual({ KeyQ: "A" });
+    });
+
+    test("a label follows its key through a swap", () => {
+      const store = useSettingsStore();
+      store.setTimingKey("start", "KeyQ", "A");
+
+      store.setTimingKey("end", "KeyQ", "A");
+
+      expect(store.timingKeys).toEqual({ start: "Enter", end: "KeyQ", redo: "Backspace" });
+      expect(store.timingKeyLabels).toEqual({ KeyQ: "A" });
+    });
+
+    test("rebinding a key without a label drops its old one", () => {
+      const store = useSettingsStore();
+      store.setTimingKey("start", "BracketLeft", "^");
+
+      store.setTimingKey("start", "BracketLeft");
+
+      expect(store.timingKeyLabels).toEqual({});
+    });
+
+    test("loads stored labels, skipping entries for no known key", () => {
+      localStorage.setItem(
+        "timingKeyLabels",
+        JSON.stringify({ KeyQ: "A", Spacebar: "S", KeyW: 3 }),
+      );
+      setActivePinia(createPinia());
+
+      expect(useSettingsStore().timingKeyLabels).toEqual({ KeyQ: "A" });
+    });
+
     test("resetSettings restores the defaults", () => {
       const store = useSettingsStore();
-      store.setTimingKey("end", "KeyB");
+      store.setTimingKey("end", "KeyB", "B");
 
       store.resetSettings();
 
       expect(store.timingKeys).toEqual({ start: "Space", end: "Enter", redo: "Backspace" });
+      expect(store.timingKeyLabels).toEqual({});
     });
   });
 });
