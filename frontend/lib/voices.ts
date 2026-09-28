@@ -7,7 +7,7 @@
 // There is no combined "Anna+Ben" voice.
 //
 // The result is, per voice, an ordinary lyric string (with the usual `_`, `/`, `\n`, `\n\n` markup)
-// that feeds the existing single-voice pipeline unchanged. See docs/multi-voice-spec.md.
+// that feeds the existing single-voice pipeline unchanged.
 //
 // Design choice: voices are kept COMPLETELY INDEPENDENT — each has its own lyric subset, its own timings,
 // its own per-tab control state, and its own style. Nothing is shared except the audio. The reason is overlap:
