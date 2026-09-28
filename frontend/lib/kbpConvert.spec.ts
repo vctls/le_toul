@@ -22,13 +22,19 @@ function settingsFile(
     duration?: number;
     voiceStyles?: Record<string, unknown>;
     font?: Record<string, unknown>;
+    color?: Record<string, string>;
   } = {},
 ): string {
   return yaml.dump({
     song: { title: "Pale Moon", artist: "The Placeholders", duration: extra.duration ?? 60 },
     videoOptions: {
       font: { name: "Georgia", size: 28, ...extra.font },
-      color: { background: "#123456", primary: "#FF00FF", secondary: "#00FFFF" },
+      color: {
+        background: "#123456",
+        primary: "#FF00FF",
+        secondary: "#00FFFF",
+        ...extra.color,
+      },
     },
     ...(extra.voiceStyles ? { voiceStyles: extra.voiceStyles } : {}),
   });
@@ -97,6 +103,7 @@ describe("kbpToProjectFiles", () => {
     expect(settings.videoOptions.color?.background.toString()).toBe("#005555");
     expect(settings.videoOptions.color?.primary.toString()).toBe("#ee7700");
     expect(settings.videoOptions.color?.secondary.toString()).toBe("#ffffff");
+    expect(settings.videoOptions.color?.outline.toString()).toBe("#000000");
     // Present though empty, so loading it drops the overrides already there.
     expect(settings.voiceStyles).toEqual({});
   });
@@ -432,6 +439,19 @@ describe("projectFilesToKbp", () => {
     expect(document.unsyncedLyrics).toEqual(["Pale moon", "ri/sing"]);
   });
 
+  test("outlines the text in the outline color, not the background", () => {
+    const result = projectFilesToKbp({
+      lyrics: "[Anna] la",
+      timings: { Anna: [{ text: "la", start: 1, end: 2 }] },
+      settings: settingsFile({ color: { outline: "#FF0000" } }),
+      audioName: null,
+    });
+    const document = parseKbp(result.kbp);
+
+    expect(document.palette.slice(0, 4)).toEqual(["135", "F00", "0FF", "F0F"]);
+    expect(document.styles[0].colors).toEqual([2, 1, 3, 1]);
+  });
+
   test("gives each voice a style, and merges voices' pages that overlap", () => {
     const result = projectFilesToKbp({
       lyrics: "[Anna] la_la\n[Anna+Ben] oh\n[Ben] hm",
@@ -455,7 +475,7 @@ describe("projectFilesToKbp", () => {
       ["Anna", "Georgia", 15, "B"],
       ["Ben", "Arial", 15, "B"],
     ]);
-    // Entry 0 is the background, which is also every outline.
+    // Entry 0 is the background, which also outlines the text when the file names no outline color.
     expect(document.palette.slice(0, 4)).toEqual(["135", "0FF", "F0F", "0F0"]);
     expect(document.styles.map((s) => s.colors)).toEqual([
       [1, 0, 2, 0],
