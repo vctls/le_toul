@@ -11,6 +11,14 @@ export function maxUploadBytes(): number {
   return Number(meta?.content) || Infinity;
 }
 
+/**
+ * The app's name, from the APP_NAME setting the server renders into the page.
+ */
+export function appName(): string {
+  const meta = document.querySelector<HTMLMetaElement>('meta[name="tuul-app-name"]');
+  return meta?.content || "Le Toul";
+}
+
 export const LYRIC_MARKERS = {
   SEGMENT_START: 1,
   SEGMENT_END: 2,

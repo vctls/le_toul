@@ -1,7 +1,7 @@
 // vite.config.dev.ts
 import fs from "fs";
 import path from "path";
-import { defineConfig, mergeConfig, Plugin } from "vite";
+import { defineConfig, loadEnv, mergeConfig, Plugin } from "vite";
 import type { Rollup } from "vite";
 
 import commonConfig from "./vite.config.common";
@@ -89,7 +89,21 @@ function moveSourcemapsPlugin(options: MoveSourcemapsOptions = {}): Plugin {
   };
 }
 
-export default defineConfig(({ command }) =>
+/**
+ * Fill the page's app name meta tag from APP_NAME, as the server's template does.
+ */
+function appNamePlugin(appName: string): Plugin {
+  const escaped = appName.replace(/&/g, "&amp;").replace(/"/g, "&quot;").replace(/</g, "&lt;");
+  return {
+    name: "app-name",
+    transformIndexHtml: {
+      order: "pre",
+      handler: (html) => html.replaceAll("%APP_NAME%", escaped),
+    },
+  };
+}
+
+export default defineConfig(({ command, mode }) =>
   mergeConfig(commonConfig, {
     // The dev server hosts the app at the root so http://localhost:5173/
     // works directly. Builds keep the common '/bundles/' base, since
@@ -102,6 +116,7 @@ export default defineConfig(({ command }) =>
       sourcemap: true,
     },
     plugins: [
+      appNamePlugin(loadEnv(mode, process.cwd(), "").APP_NAME ?? ""),
       moveSourcemapsPlugin({
         targetDir: "dist/sourceMaps", // Specify your target directory here
       }),

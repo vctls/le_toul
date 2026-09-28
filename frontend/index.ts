@@ -6,6 +6,7 @@ import App from "@/App.vue";
 import "@/main.scss";
 import { useTimingsStore } from "@/stores/timings";
 import { applyThemePreference, loadThemePreference } from "@/lib/colorScheme";
+import { appName } from "@/constants";
 
 // Import our optimized FontAwesome configuration
 import FontAwesomeIcon from "./plugins/fontawesome";
@@ -16,6 +17,7 @@ const logError = setupErrorHandling();
 // Ahead of the `load` handler below:
 // a forced theme has to reach the root element before the first paint, not once the app mounts.
 applyThemePreference(loadThemePreference());
+document.title = appName();
 
 window.addEventListener("load", function () {
   const pinia = createPinia();

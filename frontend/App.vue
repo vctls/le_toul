@@ -3,7 +3,7 @@
     <b-navbar shadow :mobile-burger="false">
       <template #brand>
         <b-navbar-item tag="span">
-          <span class="title">Le Toul</span>
+          <span class="title">{{ appName }}</span>
         </b-navbar-item>
       </template>
       <template #end>
@@ -114,7 +114,7 @@
 <script lang="ts">
 import { defineComponent } from "vue";
 import { isMobile } from "@/lib/device";
-import { DONATE_URL } from "@/constants";
+import { DONATE_URL, appName } from "@/constants";
 import HelpTab from "@/components/HelpTab.vue";
 import SongInfoTab from "@/components/SongInfoTab.vue";
 import LyricInputTab from "@/components/LyricInputTab.vue";
@@ -169,6 +169,7 @@ export default defineComponent({
   data() {
     return {
       DONATE_URL,
+      appName: appName(),
       isSubmitting: false,
       isConfirmingStartOver: false,
     };

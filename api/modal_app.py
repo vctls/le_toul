@@ -165,7 +165,7 @@ def web():
     from api.separation_tasks import create_router
 
     runner = ModalTaskRunner(records, _VolumeFiles(files_volume), _SeparateCalls())
-    service = FastAPI(title="The Tüül separation")
+    service = FastAPI(title="Separation service")
     service.include_router(create_router(runner))
 
     @service.get("/health")
