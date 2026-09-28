@@ -4,6 +4,7 @@
     icon="pen-to-square"
     label="Edit"
     :disabled="!isEnabled"
+    :visible="advancedStore.isAdvanced"
     class="timing-edit-tab"
   >
     <div class="title-row">
@@ -18,7 +19,7 @@
         at the end of a syllable ends its word, and <code>page</code> starts a new page. A time row
         followed directly by another one is a blank line that keeps its place on the page.
       </p>
-      <p v-if="advancedStore.isAdvanced">
+      <p>
         The time rows around a line hold when it appears and disappears, and <code>-</code> leaves
         that to the app. A time that cuts into the line's syllables is moved back to them on Apply,
         and the Submit tab's <b>Use Line Display Times</b> turns them off in the video.

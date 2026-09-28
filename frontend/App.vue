@@ -23,7 +23,7 @@
               @click="advancedStore.toggleAdvanced()"
               aria-label="Advanced"
               :aria-pressed="advancedStore.isAdvanced"
-              title="Show or hide the advanced features: Karaoke Builder Studio files and line display times"
+              title="Show or hide the advanced features: the Edit tab, Karaoke Builder Studio files and line display times"
               class="advanced-toggle"
             >
               <b-icon icon="sliders" size="is-large" title="Advanced"></b-icon>
@@ -187,6 +187,18 @@ export default defineComponent({
     },
     themeTitle(): string {
       return `${this.themeButton.label} — click to change`;
+    },
+    isOnHiddenEditTab(): boolean {
+      return this.activeTab === "edit" && !this.advancedStore.isAdvanced;
+    },
+  },
+  watch: {
+    // Buefy shows a blank page for a hidden tab that is still active.
+    isOnHiddenEditTab: {
+      handler(isHidden: boolean) {
+        if (isHidden) this.setActiveTab("adjust");
+      },
+      immediate: true,
     },
   },
   methods: {

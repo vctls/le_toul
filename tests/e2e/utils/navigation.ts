@@ -69,8 +69,8 @@ export async function waitForTabToBeDisabled(
 }
 
 /**
- * Turns on advanced mode with the navbar button, which shows the Karaoke Builder Studio files and
- * line display times.
+ * Turns on advanced mode with the navbar button, which shows the Edit tab, the Karaoke Builder
+ * Studio files and line display times.
  */
 export async function enableAdvancedMode(page: Page): Promise<void> {
   const toggle = page.locator(".navbar .advanced-toggle");

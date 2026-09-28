@@ -4,6 +4,7 @@ import { createPinia, setActivePinia } from "pinia";
 import TimingEditTab from "@/components/TimingEditTab.vue";
 import { useLyricsStore } from "@/stores/lyrics";
 import { useTimingsStore } from "@/stores/timings";
+import { useAdvancedStore } from "@/stores/advanced";
 import { LYRIC_MARKERS } from "@/constants";
 import { DISPLAY_PERIOD_WIDENED } from "@/lib/importWarnings";
 
@@ -131,5 +132,14 @@ describe("TimingEditTab", () => {
 
     expect(wrapper.vm.error).toContain("blank lines");
     expect(useTimingsStore().activeSegments[0].spacersBefore).toBeUndefined();
+  });
+
+  it("is only visible in advanced mode", async () => {
+    const wrapper = mountTab();
+    expect(wrapper.attributes("visible")).toBe("false");
+
+    useAdvancedStore().isAdvanced = true;
+    await wrapper.vm.$nextTick();
+    expect(wrapper.attributes("visible")).toBe("true");
   });
 });
