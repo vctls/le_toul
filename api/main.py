@@ -3,9 +3,10 @@ import contextlib
 import ipaddress
 import math
 import tempfile
+import time
 from collections.abc import Callable
 from pathlib import Path, PurePosixPath
-from typing import Literal
+from typing import Annotated, Literal
 
 import structlog
 from fastapi import (
@@ -28,9 +29,9 @@ from fastapi.responses import FileResponse, JSONResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from markupsafe import Markup
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, Field, StringConstraints
 
-from . import app_logging, settings
+from . import app_logging, lyrics, settings
 from .helpers import (
     cloud_storage,
     job_store,
@@ -121,6 +122,11 @@ separation_starts = RateLimiter(
 )
 
 
+lyrics_provider = lyrics.get_provider()
+
+lyrics_lookups = RateLimiter([(settings.LYRICS_LOOKUPS_PER_HOUR, 60 * 60)])
+
+
 def client_address(request: Request) -> str:
     if settings.CLIENT_IP_HEADER:
         forwarded = request.headers.get(settings.CLIENT_IP_HEADER, "").strip()
@@ -182,6 +188,15 @@ class LogErrorRequest(BaseModel):
     url: str | None = None
     line: int | None = None
     column: int | None = None
+
+
+NonBlank = Annotated[str, StringConstraints(strip_whitespace=True, min_length=1)]
+
+
+class LyricsRequest(BaseModel):
+    title: NonBlank
+    artist: NonBlank
+    duration: float = Field(gt=0)
 
 
 class SeparationPollResponse(BaseModel):
@@ -683,6 +698,85 @@ async def download_youtube_video(
             return streamed_response(zip_path)
     except YouTubeException as e:
         raise HTTPException(status_code=400, detail=str(e)) from e
+
+
+@app.get("/lyrics/provider")
+async def lyrics_provider_info():
+    """Say which lyrics provider the server looks lyrics up with, if any."""
+    if lyrics_provider is None:
+        return {"provider": None}
+    return {
+        "provider": {
+            "id": lyrics_provider.id,
+            "name": lyrics_provider.name,
+            "url": lyrics_provider.url,
+        }
+    }
+
+
+# A POST keeps the song's title and artist out of the URL, which the access log records.
+@app.post("/lyrics")
+async def find_lyrics(request: Request, body: LyricsRequest):
+    """Look up a song's lyrics with the configured provider."""
+    if lyrics_provider is None:
+        raise HTTPException(
+            status_code=404, detail="Lyrics lookup is off on this server."
+        )
+    wait = lyrics_lookups.acquire(rate_limit_key(client_address(request)))
+    if wait is not None:
+        logger.warning("lyrics_rate_limited", retry_after=wait)
+        raise HTTPException(
+            status_code=429,
+            detail=(
+                "You have looked up as many lyrics as this server allows for now. "
+                f"Try again in {_describe_wait(wait)}."
+            ),
+            headers={"Retry-After": str(math.ceil(wait))},
+        )
+
+    started = time.monotonic()
+    query = lyrics.LyricsQuery(
+        title=body.title, artist=body.artist, duration=body.duration
+    )
+    try:
+        match = await lyrics_provider.find(query)
+    except lyrics.LyricsProviderError as e:
+        logger.warning(
+            "lyrics_lookup",
+            provider=lyrics_provider.id,
+            outcome="provider_error",
+            error=str(e),
+            elapsed=round(time.monotonic() - started, 2),
+        )
+        raise HTTPException(
+            status_code=502, detail=f"{lyrics_provider.name} couldn't be reached."
+        ) from e
+
+    if match is None:
+        outcome = "not_found"
+    elif match.instrumental:
+        outcome = "instrumental"
+    else:
+        outcome = "found"
+    logger.info(
+        "lyrics_lookup",
+        provider=lyrics_provider.id,
+        outcome=outcome,
+        elapsed=round(time.monotonic() - started, 2),
+    )
+    if match is None:
+        raise HTTPException(status_code=404, detail="No lyrics found.")
+    return {
+        "lyrics": match.lyrics,
+        "instrumental": match.instrumental,
+        "match": {
+            "title": match.title,
+            "artist": match.artist,
+            "album": match.album,
+            "duration": match.duration,
+            "url": match.url,
+        },
+    }
 
 
 @app.post("/log_error")
