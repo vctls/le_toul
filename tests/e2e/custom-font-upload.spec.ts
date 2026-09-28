@@ -39,7 +39,7 @@ function isCanvasBlank(page: Page): Promise<boolean> {
 // The panel starts open, so clicking the trigger unconditionally would close it.
 async function openFontSettings(page: Page): Promise<void> {
   await navigateToTab(page, TabId.Submit);
-  const trigger = page.locator(".collapse-trigger a", { hasText: "Fonts and Colors" });
+  const trigger = page.getByRole("button", { name: "Fonts and Colors" });
   if ((await trigger.getAttribute("aria-expanded")) !== "true") {
     await trigger.click();
   }
@@ -153,11 +153,11 @@ test.describe("Custom Font Upload", () => {
     await navigateToTab(page, TabId.Submit);
     await expect(ben.locator(".voice-font-help")).toContainText("Metal Mania");
 
-    await page.click('button[title="Discard the saved session and start fresh"]');
+    await page.getByRole("navigation").getByRole("button", { name: "Start Over" }).click();
     await expect(page.locator(".modal-card-body .source-file-links")).toContainText(
       "MetalMania.ttf",
     );
-    await page.click('.modal-card-foot button:has-text("Start over")');
+    await page.getByRole("dialog").getByRole("button", { name: "Start over" }).click();
 
     await navigateToTab(page, TabId.SongInfo);
     await page.locator('[name="lyrics-file-upload"] input[type="file"]').setInputFiles({

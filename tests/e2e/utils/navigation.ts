@@ -73,7 +73,9 @@ export async function waitForTabToBeDisabled(
  * Studio files and line display times.
  */
 export async function enableAdvancedMode(page: Page): Promise<void> {
-  const toggle = page.locator(".navbar .advanced-toggle");
+  const toggle = page
+    .getByRole("navigation")
+    .getByRole("button", { name: "Advanced", exact: true });
   await toggle.click();
-  await expect(toggle).toHaveClass(/is-primary/);
+  await expect(toggle).toHaveAttribute("aria-pressed", "true");
 }
