@@ -42,7 +42,15 @@ const EXPORTED_FILE = yaml.dump({
     },
   },
   voiceStyles: {
-    Anna: { fontName: "Georgia", fontSize: 26, bold: true, primary: "#abcdef" },
+    Anna: {
+      fontName: "Georgia",
+      fontSize: 26,
+      bold: true,
+      primary: "#abcdef",
+      outlineWidth: 0,
+      shadowY: -3,
+      shadow: "#fedcba",
+    },
   },
 });
 
@@ -89,13 +97,23 @@ describe("parseSettingsYaml", () => {
     expect(anna?.bold).toBe(true);
     expect(anna?.primary).toBeInstanceOf(Color);
     expect(anna?.primary?.toString()).toBe("#abcdef");
+    expect(anna?.outlineWidth).toBe(0);
+    expect(anna?.shadowY).toBe(-3);
+    expect(anna?.shadow?.toString()).toBe("#fedcba");
   });
 
   test("skips a negative outline width", () => {
-    const parsed = parseSettingsYaml(yaml.dump({ videoOptions: { outlineWidth: -1 } }));
+    const parsed = parseSettingsYaml(
+      yaml.dump({
+        videoOptions: { outlineWidth: -1 },
+        voiceStyles: { Anna: { outlineWidth: -2 } },
+      }),
+    );
 
     expect(parsed.videoOptions.outlineWidth).toBeUndefined();
+    expect(parsed.voiceStyles?.Anna.outlineWidth).toBeUndefined();
     expect(parsed.warnings.join("\n")).toContain("videoOptions.outlineWidth");
+    expect(parsed.warnings.join("\n")).toContain("voiceStyles.Anna.outlineWidth");
   });
 
   test("only reports the settings the file mentions", () => {

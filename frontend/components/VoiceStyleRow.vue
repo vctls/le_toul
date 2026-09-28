@@ -46,6 +46,42 @@
       <b-field horizontal label="Outline Color">
         <color-field v-model="outline" :label="`${voice} outline color`" />
       </b-field>
+      <b-field horizontal label="Outline Width">
+        <b-numberinput
+          expanded
+          :model-value="outlineWidth"
+          :min="0"
+          :step="0.5"
+          :min-step="0.1"
+          @update:model-value="
+            (v: number | null | undefined) => (outlineWidth = Number(v ?? outlineWidth))
+          "
+          controls-position="compact"
+        />
+      </b-field>
+      <b-field horizontal label="Shadow Color">
+        <color-field v-model="shadow" :label="`${voice} shadow color`" />
+      </b-field>
+      <b-field horizontal label="Shadow Offset X">
+        <b-numberinput
+          expanded
+          :model-value="shadowX"
+          :step="0.5"
+          :min-step="0.1"
+          @update:model-value="(v: number | null | undefined) => (shadowX = Number(v ?? shadowX))"
+          controls-position="compact"
+        />
+      </b-field>
+      <b-field horizontal label="Shadow Offset Y">
+        <b-numberinput
+          expanded
+          :model-value="shadowY"
+          :step="0.5"
+          :min-step="0.1"
+          @update:model-value="(v: number | null | undefined) => (shadowY = Number(v ?? shadowY))"
+          controls-position="compact"
+        />
+      </b-field>
     </div>
   </div>
 </template>
@@ -153,6 +189,38 @@ export default defineComponent({
       },
       set(value: BuefyColor) {
         this.settingsStore.setVoiceStyleField(this.voice, "outline", value);
+      },
+    },
+    outlineWidth: {
+      get(): number {
+        return this.override.outlineWidth ?? this.base.outlineWidth;
+      },
+      set(value: number) {
+        this.settingsStore.setVoiceStyleField(this.voice, "outlineWidth", value);
+      },
+    },
+    shadow: {
+      get(): BuefyColor {
+        return this.override.shadow ?? this.base.color.shadow;
+      },
+      set(value: BuefyColor) {
+        this.settingsStore.setVoiceStyleField(this.voice, "shadow", value);
+      },
+    },
+    shadowX: {
+      get(): number {
+        return this.override.shadowX ?? this.base.shadowX;
+      },
+      set(value: number) {
+        this.settingsStore.setVoiceStyleField(this.voice, "shadowX", value);
+      },
+    },
+    shadowY: {
+      get(): number {
+        return this.override.shadowY ?? this.base.shadowY;
+      },
+      set(value: number) {
+        this.settingsStore.setVoiceStyleField(this.voice, "shadowY", value);
       },
     },
   },

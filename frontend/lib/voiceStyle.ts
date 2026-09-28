@@ -15,10 +15,14 @@ export interface VoiceStyleOverride {
   primary?: BuefyColor;
   secondary?: BuefyColor;
   outline?: BuefyColor;
+  shadow?: BuefyColor;
+  outlineWidth?: number;
+  shadowX?: number;
+  shadowY?: number;
 }
 
 // The override fields holding colors, which serialize to hex strings.
-export const VOICE_STYLE_COLOR_FIELDS = ["primary", "secondary", "outline"] as const;
+export const VOICE_STYLE_COLOR_FIELDS = ["primary", "secondary", "outline", "shadow"] as const;
 
 // Voice style overrides serialize colors as hex strings, like the base video options.
 // Used both for localStorage persistence and for the exported settings.yaml.
@@ -60,6 +64,9 @@ export function applyVoiceStyle(
   const o = override as VoiceStyleOverride;
   return {
     ...base,
+    outlineWidth: o.outlineWidth ?? base.outlineWidth,
+    shadowX: o.shadowX ?? base.shadowX,
+    shadowY: o.shadowY ?? base.shadowY,
     font: {
       ...base.font,
       name: o.fontName ?? base.font.name,
@@ -72,6 +79,7 @@ export function applyVoiceStyle(
       primary: o.primary ?? base.color.primary,
       secondary: o.secondary ?? base.color.secondary,
       outline: o.outline ?? base.color.outline,
+      shadow: o.shadow ?? base.color.shadow,
     },
   };
 }

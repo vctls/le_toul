@@ -444,7 +444,15 @@ function parseVoiceStyle(
   const style: VoiceStyleOverride = {};
   warnUnknownKeys(
     raw,
-    ["fontName", "fontSize", "bold", "italic", ...VOICE_STYLE_COLOR_FIELDS],
+    [
+      "fontName",
+      "fontSize",
+      "bold",
+      "italic",
+      "outlineWidth",
+      ...SHADOW_OFFSET_OPTIONS,
+      ...VOICE_STYLE_COLOR_FIELDS,
+    ],
     path,
     warnings,
   );
@@ -458,6 +466,13 @@ function parseVoiceStyle(
   if (fontSize !== undefined) style.fontSize = fontSize;
   if (bold !== undefined) style.bold = bold;
   if (italic !== undefined) style.italic = italic;
+
+  const outlineWidth = readOutlineWidth(raw.outlineWidth, `${path}.outlineWidth`, warnings);
+  if (outlineWidth !== undefined) style.outlineWidth = outlineWidth;
+  for (const key of SHADOW_OFFSET_OPTIONS) {
+    const value = readNumber(raw[key], `${path}.${key}`, warnings);
+    if (value !== undefined) style[key] = value;
+  }
 
   for (const field of VOICE_STYLE_COLOR_FIELDS) {
     const parsed = readColor(raw[field], `${path}.${field}`, warnings);
