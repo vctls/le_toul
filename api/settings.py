@@ -4,10 +4,22 @@ FastAPI application settings.
 
 import os
 import tempfile
+import tomllib
 from pathlib import Path
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent
+
+
+def _app_version() -> str:
+    try:
+        with open(BASE_DIR.parent / "pyproject.toml", "rb") as f:
+            return tomllib.load(f)["tool"]["poetry"]["version"]
+    except (OSError, KeyError, tomllib.TOMLDecodeError):
+        return "unknown"
+
+
+APP_VERSION = _app_version()
 
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = os.getenv("DEBUG", "True") != "False"
@@ -61,6 +73,15 @@ MAX_UPLOAD_BYTES = MAX_UPLOAD_MB * 1_000_000
 # A song already separated or already running does not count.
 SEPARATIONS_PER_HOUR = int(os.getenv("SEPARATIONS_PER_HOUR", "10"))
 SEPARATIONS_PER_DAY = int(os.getenv("SEPARATIONS_PER_DAY", "30"))
+
+# The lyrics provider that fills empty lyrics: lrclib, or empty to turn the lookup off.
+LYRICS_PROVIDER = os.getenv("LYRICS_PROVIDER", "").strip()
+
+# How many lyrics lookups one client can make per hour, 0 for no limit.
+LYRICS_LOOKUPS_PER_HOUR = int(os.getenv("LYRICS_LOOKUPS_PER_HOUR", "60"))
+
+# LRCLIB's API base, which a self-hosted mirror can replace.
+LRCLIB_URL = os.getenv("LRCLIB_URL", "https://lrclib.net/api")
 
 # The request header that holds the client's address, set by a proxy in front of
 # the app, such as X-Real-IP on Railway. Empty uses the connection's address.
