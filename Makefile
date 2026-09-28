@@ -4,7 +4,7 @@ dev:
 	trap 'printf "\n↪ shutting down…\n"; kill 0; exit 0' INT TERM; \
 	npm run dev & \
 	NPM_PID=$$!; \
-	DEBUG=true poetry run gunicorn --config gunicorn.conf.py api.main:app & \
+	DEBUG=true LYRICS_PROVIDER=$${LYRICS_PROVIDER-lrclib} poetry run gunicorn --config gunicorn.conf.py api.main:app & \
 	GUNICORN_PID=$$!; \
 	wait $$NPM_PID $$GUNICORN_PID || { kill $$NPM_PID $$GUNICORN_PID 2>/dev/null || true; }
 
