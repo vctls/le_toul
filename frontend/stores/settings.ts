@@ -17,6 +17,7 @@ import {
   DEFAULT_COUNT_IN_DURATION,
   DEFAULT_LINE_SPACING,
   DEFAULT_TOP_MARGIN,
+  DEFAULT_OUTLINE_WIDTH,
   DEFAULT_DYNAMIC_COUNT_INS,
 } from "@/constants";
 
@@ -70,6 +71,9 @@ export type VideoSettings = {
   verticalAlignment: VerticalAlignment;
   lineSpacing: number;
   topMargin: number;
+  outlineWidth: number;
+  shadowX: number;
+  shadowY: number;
   font: {
     size: number;
     name: string;
@@ -80,16 +84,14 @@ export type VideoSettings = {
     background: Color;
     primary: Color;
     secondary: Color;
+    outline: Color;
+    shadow: Color;
   };
 };
 
 // Define StoredSettings by overriding the color fields in VideoSettings
 type StoredSettings = Omit<VideoSettings, "color"> & {
-  color: {
-    background: string;
-    primary: string;
-    secondary: string;
-  };
+  color: Record<keyof VideoSettings["color"], string>;
 };
 
 // Default settings with simple hex strings
@@ -108,6 +110,9 @@ const DEFAULT_SETTINGS: VideoSettings = {
   verticalAlignment: VerticalAlignment.Middle,
   lineSpacing: DEFAULT_LINE_SPACING,
   topMargin: DEFAULT_TOP_MARGIN,
+  outlineWidth: DEFAULT_OUTLINE_WIDTH,
+  shadowX: 0,
+  shadowY: 0,
   vocalSeparationModel: BACKING_VOCALS_SEPARATOR_MODEL,
   font: {
     size: 20,
@@ -117,6 +122,8 @@ const DEFAULT_SETTINGS: VideoSettings = {
     background: Color.parse("#000000"), // black
     primary: Color.parse("#FF00FF"), // magenta
     secondary: Color.parse("#00FFFF"), // cyan
+    outline: Color.parse("#000000"),
+    shadow: Color.parse("#000000"),
   },
 };
 
@@ -423,13 +430,18 @@ export const useSettingsStore = defineStore("settings", () => {
 
     try {
       const options = JSON.parse(optionsStr) as StoredSettings;
-      // Convert string colors back to Color objects
+      // Settings saved before the outline had its own color drew it in the background color.
+      const storedColors = {
+        ...options.color,
+        outline: options.color.outline ?? options.color.background,
+      };
       const newVideoOptions = {
         ...options,
         color: {
-          background: Color.parse(options.color.background),
-          primary: Color.parse(options.color.primary),
-          secondary: Color.parse(options.color.secondary),
+          ...defaultSettings().color,
+          ...Object.fromEntries(
+            Object.entries(storedColors).map(([field, hex]) => [field, Color.parse(hex)]),
+          ),
         },
       } as VideoSettings;
 
@@ -459,11 +471,9 @@ export const useSettingsStore = defineStore("settings", () => {
     try {
       const storageOptions = {
         ...videoOptions,
-        color: {
-          background: videoOptions.color.background.toString(),
-          primary: videoOptions.color.primary.toString(),
-          secondary: videoOptions.color.secondary.toString(),
-        },
+        color: Object.fromEntries(
+          Object.entries(videoOptions.color).map(([field, color]) => [field, color.toString()]),
+        ),
       } as StoredSettings;
 
       localStorage.videoOptions = JSON.stringify(storageOptions);

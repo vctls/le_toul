@@ -41,6 +41,9 @@ const DEFAULT_OPTIONS: KaraokeOptions = {
   verticalAlignment: VerticalAlignment.Middle,
   lineSpacing: 1.5,
   topMargin: 1.5,
+  outlineWidth: 1,
+  shadowX: 0,
+  shadowY: 0,
   font: {
     size: 20,
     name: "Arial Narrow",
@@ -49,6 +52,8 @@ const DEFAULT_OPTIONS: KaraokeOptions = {
     background: BuefyColor.parse("#FFFF00"),
     primary: BuefyColor.parse("#FF00FF"),
     secondary: BuefyColor.parse("#00FFFF"),
+    outline: BuefyColor.parse("#FFFF00"),
+    shadow: BuefyColor.parse("black"),
   },
 };
 
@@ -761,6 +766,49 @@ describe("createMultiVoiceAssFile", () => {
     expect(ass).toContain("World");
     // A single shared document (one [Events] section)
     expect(ass.match(/\[Events\]/g)?.length).toBe(1);
+  });
+
+  it("gives each voice its own outline and shadow", () => {
+    const styled: KaraokeOptions = {
+      ...noAuxOptions,
+      outlineWidth: 2.5,
+      shadowX: -2,
+      shadowY: 3,
+      color: {
+        ...noAuxOptions.color,
+        outline: BuefyColor.parse("#0000FF"),
+        shadow: BuefyColor.parse("#808080"),
+      },
+    };
+    const tracks = [
+      {
+        voice: "Anna",
+        segments: fromEvents("Hello\n", [[1.0, LYRIC_MARKERS.SEGMENT_START]]),
+        options: noAuxOptions,
+      },
+      {
+        voice: "Ben",
+        segments: fromEvents("World\n", [[2.0, LYRIC_MARKERS.SEGMENT_START]]),
+        options: styled,
+      },
+    ];
+    const lines = createMultiVoiceAssFile(tracks, 10, "T", "A").split("\n");
+    // OutlineColour, BackColour, Outline and Shadow.
+    const outlineAndShadow = (style: string) => {
+      const fields = lines.find((line) => line.startsWith(`Style: ${style},`))!.split(",");
+      return [fields[5], fields[6], fields[16], fields[17]];
+    };
+    const text = (style: string) =>
+      lines
+        .find((line) => line.startsWith("Dialogue:") && line.split(",")[3] === style)!
+        .split(",")
+        .slice(9)
+        .join(",");
+
+    expect(outlineAndShadow("V0")).toEqual(["&H0000FFFF", "&H00000000", "1", "0"]);
+    expect(outlineAndShadow("V1")).toEqual(["&H00FF0000", "&H00808080", "2.5", "0"]);
+    expect(text("V0")).not.toContain("shad");
+    expect(text("V1")).toMatch(/^\{\\xshad-2\\yshad3\}/);
   });
 });
 

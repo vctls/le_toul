@@ -9,6 +9,7 @@ import {
   DEFAULT_DYNAMIC_COUNT_INS,
   DEFAULT_LINE_SPACING,
   DEFAULT_TOP_MARGIN,
+  DEFAULT_OUTLINE_WIDTH,
 } from "@/constants";
 import {
   addQuickStartCountIn,
@@ -64,6 +65,10 @@ export interface KaraokeOptions {
   lineSpacing: number;
   // Above the first line when the lyrics are aligned to the top, as a multiple of the font size.
   topMargin: number;
+  outlineWidth: number;
+  // Negative offsets cast the shadow left or up.
+  shadowX: number;
+  shadowY: number;
   font: {
     size: number;
     name: string;
@@ -74,6 +79,8 @@ export interface KaraokeOptions {
     background: BuefyColor;
     primary: BuefyColor;
     secondary: BuefyColor;
+    outline: BuefyColor;
+    shadow: BuefyColor;
   };
 }
 
@@ -98,6 +105,9 @@ export const DEFAULT_KARAOKE_OPTIONS: KaraokeOptions = {
   verticalAlignment: VerticalAlignment.Middle,
   lineSpacing: DEFAULT_LINE_SPACING,
   topMargin: DEFAULT_TOP_MARGIN,
+  outlineWidth: DEFAULT_OUTLINE_WIDTH,
+  shadowX: 0,
+  shadowY: 0,
   font: {
     size: 20,
     name: "Arial Narrow",
@@ -106,6 +116,8 @@ export const DEFAULT_KARAOKE_OPTIONS: KaraokeOptions = {
     background: BuefyColor.parse("black"),
     primary: BuefyColor.parse("#FF00FF"),
     secondary: BuefyColor.parse("#00FFFF"),
+    outline: BuefyColor.parse("black"),
+    shadow: BuefyColor.parse("black"),
   },
 };
 
@@ -551,6 +563,7 @@ export class LyricsScreen {
     styleName: string = "Default",
   ) {
     const self = this;
+    const shadow = shadowTags(videoOptions);
     // The alignment lays out the lyrics. The title screen stays centred.
     const alignment =
       this.kind === "title" ? VerticalAlignment.Middle : videoOptions.verticalAlignment;
@@ -567,6 +580,7 @@ export class LyricsScreen {
               alignment,
               videoOptions,
             ),
+            shadow,
           ),
         )
         .join("\n") + "\n"
@@ -602,6 +616,14 @@ export class LyricsScreen {
     trimmedScreen.startTimestamp = newStartTime;
     return trimmedScreen;
   }
+}
+
+/**
+ * The shadow offset as override tags.
+ * A style's Shadow field only takes one distance, which casts down and to the right.
+ */
+function shadowTags({ shadowX, shadowY }: KaraokeOptions): string {
+  return shadowX || shadowY ? `{\\xshad${shadowX}\\yshad${shadowY}}` : "";
 }
 
 export class LyricsLine {
@@ -698,6 +720,7 @@ export class LyricsLine {
     screenEnd: Timestamp,
     style: string,
     topMargin: number,
+    tags: string = "",
   ): string {
     if (isNaN(this.timestamp) || isNaN(screenStart) || isNaN(screenEnd)) {
       console.error("NaN value for line", this.toString(), screenStart, screenEnd);
@@ -716,7 +739,7 @@ export class LyricsLine {
       MarginR: 0,
       MarginV: topMargin,
       Effect: "",
-      Text: this.decorateAssLine(this.segments, displayStart),
+      Text: tags + this.decorateAssLine(this.segments, displayStart),
     };
     return (
       `${e.type}: ` +
@@ -1075,7 +1098,8 @@ export function createScreens(
 function optionsToFormatParams(options: KaraokeOptions): Record<string, unknown> {
   const primaryColor = options.color.primary;
   const secondaryColor = options.color.secondary;
-  const outlineColor = options.color.background;
+  const outlineColor = options.color.outline;
+  const shadowColor = options.color.shadow;
 
   const formatParams: Record<string, unknown> = {
     Fontname: options.font.name,
@@ -1083,8 +1107,10 @@ function optionsToFormatParams(options: KaraokeOptions): Record<string, unknown>
     PrimaryColour: [primaryColor.red, primaryColor.green, primaryColor.blue, 0],
     SecondaryColour: [secondaryColor.red, secondaryColor.green, secondaryColor.blue, 0],
     OutlineColour: [outlineColor.red, outlineColor.green, outlineColor.blue, 0],
+    BackColour: [shadowColor.red, shadowColor.green, shadowColor.blue, 0],
     BorderStyle: 1,
-    Outline: 1,
+    Outline: options.outlineWidth,
+    // shadowTags sets the offset on each line.
     Shadow: 0,
   };
   // Only override Bold/Italic when explicitly set, so default output is unchanged.

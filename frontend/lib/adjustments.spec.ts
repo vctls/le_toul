@@ -47,6 +47,9 @@ const DEFAULT_OPTIONS: KaraokeOptions = {
   verticalAlignment: VerticalAlignment.Middle,
   lineSpacing: 1.5,
   topMargin: 1.5,
+  outlineWidth: 1,
+  shadowX: 0,
+  shadowY: 0,
   font: {
     size: 22,
     name: "Arial Narrow",
@@ -55,6 +58,8 @@ const DEFAULT_OPTIONS: KaraokeOptions = {
     background: BuefyColor.parse("black"),
     primary: BuefyColor.parse("#FF00FF"),
     secondary: BuefyColor.parse("#00FFFF"),
+    outline: BuefyColor.parse("black"),
+    shadow: BuefyColor.parse("black"),
   },
 };
 

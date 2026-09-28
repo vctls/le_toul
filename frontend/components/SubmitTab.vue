@@ -282,6 +282,72 @@
           <b-field horizontal label="Secondary Color"
             ><color-field v-model="videoOptions.color.secondary" label="secondary color"
           /></b-field>
+          <b-field horizontal label="Outline Color"
+            ><color-field v-model="videoOptions.color.outline" label="outline color"
+          /></b-field>
+          <b-field horizontal label="Outline Width"
+            ><b-numberinput
+              expanded
+              :model-value="videoOptions.outlineWidth"
+              :min="0"
+              :step="0.5"
+              :min-step="0.1"
+              @update:model-value="
+                (v: number | null | undefined) =>
+                  (videoOptions.outlineWidth = Number(v ?? videoOptions.outlineWidth))
+              "
+              controls-position="compact"
+            ></b-numberinput
+          ></b-field>
+          <b-field horizontal label="Shadow Color"
+            ><color-field v-model="videoOptions.color.shadow" label="shadow color"
+          /></b-field>
+          <b-field horizontal>
+            <template #label>
+              Shadow Offset X
+              <b-tooltip
+                append-to-body
+                content-class="wide-tooltip"
+                label="Positive values move the shadow right, negative values left. Zero on both axes turns it off."
+              >
+                <b-icon size="is-small" icon="circle-question"></b-icon>
+              </b-tooltip>
+            </template>
+            <b-numberinput
+              expanded
+              :model-value="videoOptions.shadowX"
+              :step="0.5"
+              :min-step="0.1"
+              @update:model-value="
+                (v: number | null | undefined) =>
+                  (videoOptions.shadowX = Number(v ?? videoOptions.shadowX))
+              "
+              controls-position="compact"
+            ></b-numberinput>
+          </b-field>
+          <b-field horizontal>
+            <template #label>
+              Shadow Offset Y
+              <b-tooltip
+                append-to-body
+                content-class="wide-tooltip"
+                label="Positive values move the shadow down, negative values up. Zero on both axes turns it off."
+              >
+                <b-icon size="is-small" icon="circle-question"></b-icon>
+              </b-tooltip>
+            </template>
+            <b-numberinput
+              expanded
+              :model-value="videoOptions.shadowY"
+              :step="0.5"
+              :min-step="0.1"
+              @update:model-value="
+                (v: number | null | undefined) =>
+                  (videoOptions.shadowY = Number(v ?? videoOptions.shadowY))
+              "
+              controls-position="compact"
+            ></b-numberinput>
+          </b-field>
           <b-field horizontal label="Lyric Vertical Alignment"
             ><b-radio-button
               v-model="videoOptions.verticalAlignment"

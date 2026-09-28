@@ -14,7 +14,7 @@ export interface VoiceStyleOverride {
   italic?: boolean;
   primary?: BuefyColor;
   secondary?: BuefyColor;
-  outline?: BuefyColor; // maps to the background/outline color
+  outline?: BuefyColor;
 }
 
 // The override fields holding colors, which serialize to hex strings.
@@ -68,9 +68,10 @@ export function applyVoiceStyle(
       italic: o.italic ?? base.font.italic,
     },
     color: {
-      background: o.outline ?? base.color.background,
+      ...base.color,
       primary: o.primary ?? base.color.primary,
       secondary: o.secondary ?? base.color.secondary,
+      outline: o.outline ?? base.color.outline,
     },
   };
 }
