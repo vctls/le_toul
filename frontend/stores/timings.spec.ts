@@ -199,6 +199,17 @@ describe("Timings Store", () => {
     ]);
   });
 
+  test("the audio waits out the title screen when a second voice starts during it", () => {
+    useLyricsStore().setLyrics("[Anna] hello\n[Ben] world");
+    const timingsStore = useTimingsStore();
+    timingsStore.setAllSegments({
+      Anna: [{ text: "hello", start: 10 }],
+      Ben: [{ text: "world", start: 2 }],
+    });
+
+    expect(timingsStore.audioDelay).toBe(4);
+  });
+
   // The point of the whole exercise: editing the words no longer costs the timing work around them.
   describe("lyric edits", () => {
     const timeThreeWords = () => {

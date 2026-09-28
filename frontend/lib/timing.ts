@@ -19,10 +19,13 @@ import {
   applyStoredDisplayPeriods,
   displayQuickLinesEarly,
   deferScreenStarts,
+  delaySong,
   earliestStoredStart,
   endTitleScreenBy,
   fitInstrumentalScreens,
   placeStaggeredScreens,
+  quickStartDelay,
+  titleScreenDelay,
   unstagger,
 } from "./adjustments";
 import { fadeLines, giveWayToStoredPeriods } from "./screenSlots";
@@ -1042,36 +1045,57 @@ function createSubtitles(
 }
 
 /**
- * One voice's screens as the automatic rules lay them out, before any stored display period applies.
+ * Each voice's screens as the automatic rules lay them out, before any stored display period applies.
+ * Only the first voice gets the title screen.
+ * The voices share one audio track, so when the title screen or a quick-start count-in delays it,
+ * every voice moves by the same amount.
  */
 function createAutomaticScreens(
-  segments: TimedSegment[],
+  tracks: VoiceTrack[],
   songDuration: number,
   title: string,
   artist: string,
-  options: KaraokeOptions,
-): LyricsScreen[] {
-  let screens = compileLyricTimings(resolveStarts(segments));
-  if (screens.length === 0) {
-    // No lyrics yet (e.g. a timings file was loaded before lyrics were entered). The decorators below
-    // index into screens[0], so bail early.
+): LyricsScreen[][] {
+  // A voice with no lyrics yet has no screens, and the decorators below index into screens[0].
+  const firstStarts = (screensByVoice: LyricsScreen[][]) =>
+    screensByVoice
+      .filter((screens) => screens.length > 0)
+      .map(([first]) => first.lines[0].timestamp);
+
+  const compiled = tracks.map(({ segments }) =>
+    denormalizeTimestamps(compileLyricTimings(resolveStarts(segments)), songDuration),
+  );
+  const primary = tracks[0].options;
+  const quickStart = quickStartDelay(firstStarts(compiled), primary);
+  const counted = compiled.map((screens, i) => {
+    const { options } = tracks[i];
+    if (screens.length === 0 || options.countInMode === "none") {
+      return screens;
+    }
+    return addGapCountIns(addQuickStartCountIn(screens, options, quickStart), options);
+  });
+
+  const introLength = Math.min(...firstStarts(counted));
+  const titled = primary.addTitleScreen && counted[0].length > 0;
+  return counted.map((screens, i) => {
+    const { options } = tracks[i];
+    if (screens.length === 0) {
+      return screens;
+    }
+    if (titled) {
+      screens =
+        i === 0
+          ? addTitleScreen(screens, title, artist, introLength)
+          : delaySong(screens, titleScreenDelay(introLength));
+    }
+    if (options.addStaggeredLines) {
+      screens = displayQuickLinesEarly(screens, options);
+    }
+    if (options.addInstrumentalScreens) {
+      screens = addInstrumentalScreens(screens, options);
+    }
     return screens;
-  }
-  screens = denormalizeTimestamps(screens, songDuration);
-  if (options.countInMode !== "none") {
-    screens = addQuickStartCountIn(screens, options);
-    screens = addGapCountIns(screens, options);
-  }
-  if (options.addTitleScreen) {
-    screens = addTitleScreen(screens, title, artist);
-  }
-  if (options.addStaggeredLines) {
-    screens = displayQuickLinesEarly(screens, options);
-  }
-  if (options.addInstrumentalScreens) {
-    screens = addInstrumentalScreens(screens, options);
-  }
-  return screens;
+  });
 }
 
 /**
@@ -1085,7 +1109,12 @@ export function createScreens(
   artist: string,
   options: KaraokeOptions,
 ): LyricsScreen[] {
-  let screens = createAutomaticScreens(segments, songDuration, title, artist, options);
+  let [screens] = createAutomaticScreens(
+    [{ voice: "", segments, options }],
+    songDuration,
+    title,
+    artist,
+  );
   if (options.useStoredDisplayPeriods) {
     screens = applyStoredDisplayPeriods(screens);
     endTitleScreenBy(screens, earliestStoredStart(screens));
@@ -1216,18 +1245,21 @@ export function layOutVoices(
   title: string,
   artist: string,
 ): VoiceTrackRender[] {
-  const renders: VoiceTrackRender[] = tracks.map((track, index) => {
-    const isPrimary = index === 0;
-    // The title and instrumental-break screens are global: only the primary voice contributes them.
-    // Count-ins stay per voice. Non-primary voices have no title/instrumental to fill long gaps,
+  // The title and instrumental-break screens are global: only the primary voice contributes them.
+  // Count-ins stay per voice.
+  const voiceTracks: VoiceTrack[] = tracks.map((track, index) => ({
+    ...track,
+    options:
+      index === 0
+        ? track.options
+        : { ...track.options, addTitleScreen: false, addInstrumentalScreens: false },
+  }));
+  const screensByVoice =
+    tracks.length > 0 ? createAutomaticScreens(voiceTracks, songDuration, title, artist) : [];
+  const renders: VoiceTrackRender[] = voiceTracks.map(({ options }, index) => {
+    // Non-primary voices have no title/instrumental to fill long gaps,
     // so cap how early their screens display.
-    const options: KaraokeOptions = isPrimary
-      ? track.options
-      : { ...track.options, addTitleScreen: false, addInstrumentalScreens: false };
-    let screens = createAutomaticScreens(track.segments, songDuration, title, artist, options);
-    if (!isPrimary) {
-      screens = deferScreenStarts(screens);
-    }
+    const screens = index === 0 ? screensByVoice[0] : deferScreenStarts(screensByVoice[index]);
     const styleName = styleNameForVoice(index);
     return {
       styleName,

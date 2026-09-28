@@ -21,6 +21,7 @@ import {
 } from "./timing";
 import { LYRIC_MARKERS, DEFAULT_COUNT_IN_THRESHOLD, DEFAULT_COUNT_IN_DURATION } from "@/constants";
 import { LyricSegment } from "./timing";
+import { songOffset } from "./screenSlots";
 import { default as BuefyColor } from "buefy/src/utils/color";
 
 // Pinned rather than taken from the default, which is now empty and draws marks instead.
@@ -944,6 +945,54 @@ describe("multi-voice vertical lanes", () => {
     const v1 = marginVsForStyle(ass, "V1");
     // V0's lane sits entirely above V1's lane.
     expect(Math.max(...v0)).toBeLessThan(Math.min(...v1));
+  });
+});
+
+describe("multi-voice audio delay", () => {
+  const plain: KaraokeOptions = {
+    ...DEFAULT_OPTIONS,
+    addTitleScreen: false,
+    countInMode: "none",
+    addInstrumentalScreens: false,
+    addStaggeredLines: false,
+  };
+  const titled: KaraokeOptions = { ...plain, addTitleScreen: true };
+  const counted: KaraokeOptions = { ...plain, countInMode: "screen" };
+  const voice = (name: string, start: number, options: KaraokeOptions) => ({
+    voice: name,
+    segments: fromEvents("la\n", [[start, LYRIC_MARKERS.SEGMENT_START]]),
+    options,
+  });
+
+  // When each voice's first syllable is sung in the video, and how far the video delays the song.
+  function firstSung(tracks: ReturnType<typeof voice>[]) {
+    return layOutVoices(tracks, 30, "T", "A").map((render) => ({
+      at: render.screens
+        .flatMap((screen) => (screen.kind === "lyrics" ? screen.segments : []))
+        .find((segment) => !segment.countIn)!.timestamp,
+      delay: songOffset(render),
+    }));
+  }
+
+  it("moves every voice past a title screen that delays the song", () => {
+    expect(firstSung([voice("A", 1, titled), voice("B", 2, titled)])).toEqual([
+      { at: 5, delay: 4 },
+      { at: 6, delay: 4 },
+    ]);
+  });
+
+  it("delays the song for the title screen when another voice starts during it", () => {
+    expect(firstSung([voice("A", 10, titled), voice("B", 1, titled)])).toEqual([
+      { at: 14, delay: 4 },
+      { at: 5, delay: 4 },
+    ]);
+  });
+
+  it("moves every voice for a quick-start count-in on another voice", () => {
+    expect(firstSung([voice("A", 5, counted), voice("B", 0.5, counted)])).toEqual([
+      { at: 6.5, delay: 1.5 },
+      { at: 2, delay: 1.5 },
+    ]);
   });
 });
 
