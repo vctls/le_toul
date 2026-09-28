@@ -198,6 +198,7 @@ export default defineComponent({
   display: flex;
   flex: 1;
   min-height: 0;
+  margin-bottom: 0.75rem;
 }
 
 .title-row {
@@ -247,13 +248,16 @@ export default defineComponent({
   font-weight: bold;
 }
 
-.timing-editor-textarea {
+/* The editor class outranks Bulma's `.textarea:not([rows])` height limits. */
+.editor .timing-editor-textarea {
   white-space: pre;
   flex: 1;
   min-width: 0;
   /* Bulma gives every control a fixed height, which blocks the flex stretch. */
   height: 100%;
+  min-height: 0;
   max-height: none;
+  resize: none;
   border-top-left-radius: 0;
   border-bottom-left-radius: 0;
 }
