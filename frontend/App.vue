@@ -29,7 +29,7 @@
               @click="confirmStartOver"
               title="Discard the saved session and start fresh"
             >
-              <b-icon icon="arrow-rotate-left" size="is-large" title="Start Over"></b-icon>
+              <b-icon icon="trash-can" size="is-large" title="Start Over"></b-icon>
             </b-button>
             <b-button type="is-text" @click="themeStore.cycle()" :title="themeTitle">
               <b-icon :icon="themeButton.icon" size="is-large" :title="themeButton.label"></b-icon>
