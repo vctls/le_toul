@@ -1,0 +1,62 @@
+name: E2E
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  playwright:
+    name: Playwright
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      BASE_URL: http://localhost:5173
+      # The specs mock every separation request, so the server needs no torch.
+      SEPARATION_BACKEND: passthrough
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      # Poetry must be on the PATH before setup-python for its cache to work.
+      - name: Install Poetry
+        run: pipx install poetry
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version-file: .python-version
+          cache: poetry
+
+      - name: Install dependencies
+        run: |
+          npm ci
+          poetry install
+
+      - name: Install browsers
+        run: npx playwright install --with-deps chromium firefox
+
+      - name: Run end-to-end tests
+        run: npx playwright test --reporter=github,html
+
+      - name: Upload report
+        if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report
+          path: |
+            playwright-report/
+            test-results/
+          retention-days: 14
