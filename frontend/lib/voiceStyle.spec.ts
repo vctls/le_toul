@@ -46,6 +46,19 @@ describe("applyVoiceStyle", () => {
     expect(result.color.background).toBe(DEFAULT_KARAOKE_OPTIONS.color.background);
   });
 
+  it("overrides the outline width and the shadow", () => {
+    const grey = BuefyColor.parse("#808080");
+    const result = applyVoiceStyle(DEFAULT_KARAOKE_OPTIONS, {
+      outlineWidth: 3,
+      shadowX: -2,
+      shadow: grey,
+    });
+    expect(result.outlineWidth).toBe(3);
+    expect(result.shadowX).toBe(-2);
+    expect(result.shadowY).toBe(DEFAULT_KARAOKE_OPTIONS.shadowY);
+    expect(result.color.shadow).toBe(grey);
+  });
+
   it("does not mutate the base options", () => {
     const originalName = DEFAULT_KARAOKE_OPTIONS.font.name;
     applyVoiceStyle(DEFAULT_KARAOKE_OPTIONS, { fontName: "Impact" });
