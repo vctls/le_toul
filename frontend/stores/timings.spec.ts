@@ -850,3 +850,200 @@ describe("Timings Store", () => {
     expect(options?.font.name).toBe("Metal Mania");
   });
 });
+
+describe("Adjust history", () => {
+  beforeEach(() => {
+    localStorage.clear();
+    setActivePinia(createPinia());
+  });
+
+  const twoLines = (): TimedSegment[] => [
+    { text: "one\n", start: 1, end: 2 },
+    { text: "two", start: 3, end: 4 },
+  ];
+
+  const loadTwoLines = () => {
+    const timings = useTimingsStore();
+    const lyrics = useLyricsStore();
+    lyrics.setLyrics("one\ntwo");
+    timings.setAllSegments({ [DEFAULT_VOICE_ID]: twoLines() });
+    return { timings, lyrics };
+  };
+
+  const moved = (segments: TimedSegment[], index: number, fields: Partial<TimedSegment>) =>
+    segments.map((segment, i) => (i === index ? { ...segment, ...fields } : { ...segment }));
+
+  test("undo and redo a syllable edit", () => {
+    const { timings } = loadTwoLines();
+
+    timings.applyAdjustEdit(moved(timings.activeSegments, 1, { start: 2.5 }));
+    expect(timings.canUndo).toBe(true);
+    expect(timings.canRedo).toBe(false);
+
+    timings.undo();
+    expect(timings.activeSegments).toEqual(twoLines());
+    expect(timings.canUndo).toBe(false);
+    expect(timings.canRedo).toBe(true);
+
+    timings.redo();
+    expect(timings.activeSegments[1].start).toBe(2.5);
+    expect(timings.canRedo).toBe(false);
+  });
+
+  test("undo and redo a display period edit", () => {
+    const { timings } = loadTwoLines();
+
+    timings.applyAdjustEdit(moved(timings.activeSegments, 0, { displayStart: 0.5 }));
+    timings.undo();
+    expect(timings.activeSegments[0].displayStart).toBeUndefined();
+
+    timings.redo();
+    expect(timings.activeSegments[0].displayStart).toBe(0.5);
+  });
+
+  test("undoing a syllable drag restores the display bound it pushed", () => {
+    const { timings } = loadTwoLines();
+    timings.applyAdjustEdit(moved(timings.activeSegments, 0, { displayStart: 0.8 }));
+
+    timings.applyAdjustEdit(moved(timings.activeSegments, 0, { start: 0.5 }));
+    expect(timings.activeSegments[0].displayStart).toBe(0.5);
+
+    timings.undo();
+    expect(timings.activeSegments[0]).toMatchObject({ start: 1, displayStart: 0.8 });
+  });
+
+  test("an edit that changes nothing is not recorded", () => {
+    const { timings } = loadTwoLines();
+
+    timings.applyAdjustEdit(timings.activeSegments);
+
+    expect(timings.canUndo).toBe(false);
+  });
+
+  test("a new edit clears the redo stack", () => {
+    const { timings } = loadTwoLines();
+    timings.applyAdjustEdit(moved(timings.activeSegments, 1, { start: 2.5 }));
+    timings.undo();
+
+    timings.applyAdjustEdit(moved(timings.activeSegments, 1, { start: 3.5 }));
+
+    expect(timings.canRedo).toBe(false);
+  });
+
+  test("each voice keeps its own history", () => {
+    const timings = useTimingsStore();
+    useLyricsStore().setLyrics("[Anna] hello\n[Ben] world");
+    timings.setAllSegments({
+      Anna: [{ text: "hello", start: 1 }],
+      Ben: [{ text: "world", start: 5 }],
+    });
+
+    timings.setActiveVoice("Anna");
+    timings.applyAdjustEdit([{ text: "hello", start: 1.5 }]);
+    timings.setActiveVoice("Ben");
+    expect(timings.canUndo).toBe(false);
+    timings.applyAdjustEdit([{ text: "world", start: 5.5 }]);
+
+    timings.undo();
+    expect(timings.segmentsByVoice.Anna[0].start).toBe(1.5);
+    expect(timings.segmentsByVoice.Ben[0].start).toBe(5);
+
+    timings.setActiveVoice("Anna");
+    timings.undo();
+    expect(timings.segmentsByVoice.Anna[0].start).toBe(1);
+  });
+
+  test("undoing Reset restores the active voice's periods only", () => {
+    const timings = useTimingsStore();
+    useLyricsStore().setLyrics("[Anna] hello\n[Ben] world");
+    timings.setAllSegments({
+      Anna: [{ text: "hello", start: 1, displayStart: 0.5 }],
+      Ben: [{ text: "world", start: 5, displayEnd: 7 }],
+    });
+    timings.setActiveVoice("Anna");
+
+    timings.clearDisplayPeriods();
+    timings.undo();
+
+    expect(timings.segmentsByVoice.Anna[0].displayStart).toBe(0.5);
+    expect(timings.segmentsByVoice.Ben[0].displayEnd).toBeUndefined();
+
+    timings.setActiveVoice("Ben");
+    timings.undo();
+    expect(timings.segmentsByVoice.Ben[0].displayEnd).toBe(7);
+  });
+
+  test("a lyric edit that changes the voice's segments drops its history", async () => {
+    const { timings, lyrics } = loadTwoLines();
+    timings.setupSegmentReconciliation();
+    timings.applyAdjustEdit(moved(timings.activeSegments, 1, { start: 2.5 }));
+
+    lyrics.setLyrics("one\ntwo_three");
+    await nextTick();
+
+    expect(timings.canUndo).toBe(false);
+    timings.undo();
+    expect(timings.activeSegments.map(({ text }) => text)).toEqual(["one\n", "two_", "three"]);
+  });
+
+  test("a lyric edit to another voice keeps the history", async () => {
+    const timings = useTimingsStore();
+    const lyrics = useLyricsStore();
+    lyrics.setLyrics("[Anna] hello\n[Ben] world");
+    timings.setAllSegments({
+      Anna: [{ text: "hello", start: 1 }],
+      Ben: [{ text: "world", start: 5 }],
+    });
+    timings.setupSegmentReconciliation();
+    timings.setActiveVoice("Anna");
+    timings.applyAdjustEdit([{ text: "hello", start: 1.5 }]);
+
+    lyrics.setLyrics("[Anna] hello\n[Ben] world_again");
+    await nextTick();
+
+    expect(timings.canUndo).toBe(true);
+  });
+
+  test("a tap in the Song Timing tab drops the history", () => {
+    const { timings } = loadTwoLines();
+    timings.applyAdjustEdit(moved(timings.activeSegments, 1, { start: 2.5 }));
+
+    timings.add(1, LYRIC_MARKERS.SEGMENT_END, 3.8);
+
+    expect(timings.canUndo).toBe(false);
+  });
+
+  test("an Edit tab parse drops the history", () => {
+    const { timings } = loadTwoLines();
+    timings.applyAdjustEdit(moved(timings.activeSegments, 1, { start: 2.5 }));
+
+    timings.resetSegments(moved(timings.activeSegments, 0, { start: 0.5 }));
+
+    expect(timings.canUndo).toBe(false);
+  });
+
+  test("loading a file drops the history", () => {
+    const { timings } = loadTwoLines();
+    timings.applyAdjustEdit(moved(timings.activeSegments, 1, { start: 2.5 }));
+
+    timings.setAllSegments({ [DEFAULT_VOICE_ID]: moved(twoLines(), 0, { start: 0.5 }) });
+
+    expect(timings.canUndo).toBe(false);
+  });
+
+  test("the undo stack stops growing at 100 entries", () => {
+    const { timings } = loadTwoLines();
+    for (let i = 1; i <= 105; i++) {
+      timings.applyAdjustEdit(moved(timings.activeSegments, 1, { start: 2.5 + i / 1000 }));
+    }
+
+    let undone = 0;
+    while (timings.canUndo) {
+      timings.undo();
+      undone++;
+    }
+
+    expect(undone).toBe(100);
+    expect(timings.activeSegments[1].start).toBeCloseTo(2.505);
+  });
+});
