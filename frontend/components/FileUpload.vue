@@ -23,7 +23,13 @@
       </span>
     </b-upload>
     <p class="control">
-      <b-button type="is-danger is-light" @click="file = null" v-if="file" icon-left="trash-can">
+      <b-button
+        type="is-danger is-light"
+        @click="file = null"
+        v-if="file"
+        icon-left="trash-can"
+        aria-label="Remove file"
+      >
       </b-button>
     </p>
   </b-field>

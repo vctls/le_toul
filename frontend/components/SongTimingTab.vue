@@ -70,6 +70,8 @@
               @click="showButtonKeyboard = !showButtonKeyboard"
               icon-right="keyboard"
               :type="showButtonKeyboard ? 'is-primary' : ''"
+              aria-label="Timing buttons"
+              :aria-pressed="showButtonKeyboard"
               title="Show or hide buttons for entering timings, if you don't have a keyboard"
             ></b-button>
           </div>

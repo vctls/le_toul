@@ -12,6 +12,8 @@
             <b-button
               :type="helpStore.isShowingHelp ? 'is-primary' : 'is-text'"
               @click="helpStore.toggleHelp()"
+              aria-label="Instructions"
+              :aria-pressed="helpStore.isShowingHelp"
               title="Show or hide the instructions on each tab"
             >
               <b-icon icon="circle-question" size="is-large" title="Instructions"></b-icon>
@@ -19,6 +21,8 @@
             <b-button
               :type="advancedStore.isAdvanced ? 'is-primary' : 'is-text'"
               @click="advancedStore.toggleAdvanced()"
+              aria-label="Advanced"
+              :aria-pressed="advancedStore.isAdvanced"
               title="Show or hide the advanced features: Karaoke Builder Studio files and line display times"
               class="advanced-toggle"
             >
@@ -27,18 +31,36 @@
             <b-button
               type="is-text"
               @click="confirmStartOver"
+              aria-label="Start Over"
               title="Discard the saved session and start fresh"
             >
               <b-icon icon="trash-can" size="is-large" title="Start Over"></b-icon>
             </b-button>
-            <b-button type="is-text" @click="themeStore.cycle()" :title="themeTitle">
+            <b-button
+              type="is-text"
+              @click="themeStore.cycle()"
+              :aria-label="themeButton.label"
+              :title="themeTitle"
+            >
               <b-icon :icon="themeButton.icon" size="is-large" :title="themeButton.label"></b-icon>
             </b-button>
-            <b-button v-if="DONATE_URL" tag="a" :href="DONATE_URL" type="is-text" target="_blank">
+            <b-button
+              v-if="DONATE_URL"
+              tag="a"
+              :href="DONATE_URL"
+              type="is-text"
+              target="_blank"
+              aria-label="Buy Me A Coffee"
+            >
               <b-icon icon="circle-dollar-to-slot" size="is-large" title="Buy Me A Coffee">
               </b-icon>
             </b-button>
-            <b-button tag="a" href="https://github.com/vctls/le_toul" type="is-text">
+            <b-button
+              tag="a"
+              href="https://github.com/vctls/le_toul"
+              type="is-text"
+              aria-label="GitHub"
+            >
               <b-icon pack="fab" icon="github" size="is-large" title="GitHub"> </b-icon>
             </b-button>
           </div>
