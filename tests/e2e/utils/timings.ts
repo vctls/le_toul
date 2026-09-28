@@ -266,7 +266,7 @@ export async function adjustTiming(
 export async function getCurrentTimings(page: Page): Promise<any> {
   await navigateToTab(page, TabId.Submit);
 
-  const timingsClipboardButton = page.locator('a[title="copy timings to clipboard"]');
+  const timingsClipboardButton = page.locator('button[title="copy timings to clipboard"]');
   await timingsClipboardButton.click();
   await page.locator(".toast.is-success").waitFor({ state: "visible" });
 

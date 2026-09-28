@@ -123,3 +123,8 @@
   position: relative;
   top: calc((1ex - 1cap) / 2);
 }
+
+// Bulma already strips a button's own styling, so only the link colour is missing.
+.link-button {
+  color: var(--bulma-link-text);
+}

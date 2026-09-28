@@ -36,7 +36,7 @@ describe("SourceFileDownloadLinks", () => {
     });
     const wrapper = mount(SourceFileDownloadLinks, { props: { font }, global: stubIcons });
 
-    await wrapper.find(".file-item a").trigger("click");
+    await wrapper.find(".file-item button").trigger("click");
 
     expect(createObjectURL).toHaveBeenCalledWith(font);
     expect(click).toHaveBeenCalledOnce();

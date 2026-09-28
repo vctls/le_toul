@@ -530,9 +530,14 @@
             <b-icon size="is-small" icon="circle-question"></b-icon>
           </b-tooltip>
           <span class="ml-1">{{ kbpFileName }}</span>
-          <a @click="downloadKbp" title="download Karaoke Builder Studio project"
-            ><b-icon icon="download"
-          /></a>
+          <button
+            type="button"
+            class="link-button"
+            @click="downloadKbp"
+            title="download Karaoke Builder Studio project"
+          >
+            <b-icon icon="download" />
+          </button>
         </div>
       </div>
       <b-message
