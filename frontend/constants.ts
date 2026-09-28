@@ -39,6 +39,9 @@ export const GLYPH_BLOCK_RATIO = 1.12;
 export const DEFAULT_LINE_SPACING = 1.5;
 export const DEFAULT_TOP_MARGIN = 1.5;
 
+// In pixels on the subtitle canvas.
+export const DEFAULT_OUTLINE_WIDTH = 1;
+
 export const TITLE_SCREEN_DURATION = 4.0;
 export const INSTRUMENTAL_SCREEN_THRESHOLD = 8.0;
 

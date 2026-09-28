@@ -39,10 +39,11 @@ describe("applyVoiceStyle", () => {
     expect(result.countInMode).toBe(DEFAULT_KARAOKE_OPTIONS.countInMode);
   });
 
-  it("maps `outline` to the background/outline color", () => {
+  it("overrides the outline color and leaves the background alone", () => {
     const blue = BuefyColor.parse("#0000ff");
     const result = applyVoiceStyle(DEFAULT_KARAOKE_OPTIONS, { outline: blue });
-    expect(result.color.background).toBe(blue);
+    expect(result.color.outline).toBe(blue);
+    expect(result.color.background).toBe(DEFAULT_KARAOKE_OPTIONS.color.background);
   });
 
   it("does not mutate the base options", () => {

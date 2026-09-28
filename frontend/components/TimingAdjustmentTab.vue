@@ -195,6 +195,7 @@ import { pick, throttle } from "lodash-es";
 import { CJK_FONT, SYMBOL_FONT } from "@/lib/fonts";
 import { useFallbackFontsStore } from "@/stores/fallbackFonts";
 import { default as BuefyColor } from "buefy/src/utils/color";
+import { DEFAULT_OUTLINE_WIDTH } from "@/constants";
 
 // The arrow keys step by the playhead preroll,
 // so stepping and the preview jump after a drag agree on what one step is worth.
@@ -390,7 +391,10 @@ export default defineComponent({
         addTitleScreen: false,
         countInMode: "none",
         font: { name: PREVIEW_FONT, size: PREVIEW_FONT_SIZE },
-        color: this.previewColors,
+        outlineWidth: DEFAULT_OUTLINE_WIDTH,
+        shadowX: 0,
+        shadowY: 0,
+        color: { ...this.previewColors, outline: this.previewColors.background },
       });
     },
   },

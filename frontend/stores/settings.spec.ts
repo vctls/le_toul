@@ -186,6 +186,17 @@ describe("Settings Store", () => {
     expect((settingsStore.videoOptions as any).addCountIns).toBeUndefined();
   });
 
+  test("outlines settings saved before the outline color in their background color", () => {
+    window.localStorage.videoOptions = JSON.stringify({
+      color: { background: "#123456", primary: "#ff00ff", secondary: "#00ffff" },
+    });
+
+    const settingsStore = useSettingsStore();
+
+    expect(settingsStore.videoOptions.color.outline.toString()).toBe("#123456");
+    expect(settingsStore.videoOptions.color.shadow.toString()).toBe("#000000");
+  });
+
   test("count-in duration is capped by the threshold", async () => {
     window.localStorage.clear();
     const settingsStore = useSettingsStore();

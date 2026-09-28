@@ -29,8 +29,17 @@ const EXPORTED_FILE = yaml.dump({
     verticalAlignment: VerticalAlignment.Top,
     lineSpacing: 1.381,
     topMargin: 0,
+    outlineWidth: 2.5,
+    shadowX: -1,
+    shadowY: 2,
     font: { size: 30, name: "Impact" },
-    color: { background: "#111111", primary: "#222222", secondary: "#333333" },
+    color: {
+      background: "#111111",
+      primary: "#222222",
+      secondary: "#333333",
+      outline: "#444444",
+      shadow: "#555555",
+    },
   },
   voiceStyles: {
     Anna: { fontName: "Georgia", fontSize: 26, bold: true, primary: "#abcdef" },
@@ -63,11 +72,16 @@ describe("parseSettingsYaml", () => {
     expect(parsed.videoOptions.verticalAlignment).toBe(VerticalAlignment.Top);
     expect(parsed.videoOptions.lineSpacing).toBe(1.381);
     expect(parsed.videoOptions.topMargin).toBe(0);
+    expect(parsed.videoOptions.outlineWidth).toBe(2.5);
+    expect(parsed.videoOptions.shadowX).toBe(-1);
+    expect(parsed.videoOptions.shadowY).toBe(2);
     expect(parsed.videoOptions.font).toEqual({ size: 30, name: "Impact" });
     expect(parsed.videoOptions.color?.background).toBeInstanceOf(Color);
     expect(parsed.videoOptions.color?.background.toString()).toBe("#111111");
     expect(parsed.videoOptions.color?.primary.toString()).toBe("#222222");
     expect(parsed.videoOptions.color?.secondary.toString()).toBe("#333333");
+    expect(parsed.videoOptions.color?.outline.toString()).toBe("#444444");
+    expect(parsed.videoOptions.color?.shadow.toString()).toBe("#555555");
 
     const anna = parsed.voiceStyles?.Anna;
     expect(anna?.fontName).toBe("Georgia");
@@ -75,6 +89,13 @@ describe("parseSettingsYaml", () => {
     expect(anna?.bold).toBe(true);
     expect(anna?.primary).toBeInstanceOf(Color);
     expect(anna?.primary?.toString()).toBe("#abcdef");
+  });
+
+  test("skips a negative outline width", () => {
+    const parsed = parseSettingsYaml(yaml.dump({ videoOptions: { outlineWidth: -1 } }));
+
+    expect(parsed.videoOptions.outlineWidth).toBeUndefined();
+    expect(parsed.warnings.join("\n")).toContain("videoOptions.outlineWidth");
   });
 
   test("only reports the settings the file mentions", () => {
@@ -224,7 +245,12 @@ describe("serializeSettingsYaml", () => {
         background: Color.parse("#111111"),
         primary: Color.parse("#222222"),
         secondary: Color.parse("#333333"),
+        outline: Color.parse("#444444"),
+        shadow: Color.parse("#555555"),
       },
+      outlineWidth: 2,
+      shadowX: 1,
+      shadowY: -1,
     } as VideoSettings,
     voiceStyles: { Anna: { fontSize: 26, primary: Color.parse("#abcdef") }, Ben: {} },
   };
@@ -243,6 +269,9 @@ describe("serializeSettingsYaml", () => {
       italic: true,
     });
     expect(parsed.videoOptions.color?.primary.toString()).toBe("#222222");
+    expect(parsed.videoOptions.color?.shadow.toString()).toBe("#555555");
+    expect(parsed.videoOptions.outlineWidth).toBe(2);
+    expect(parsed.videoOptions.shadowY).toBe(-1);
     expect(Object.keys(parsed.voiceStyles ?? {})).toEqual(["Anna"]);
     expect(parsed.voiceStyles?.Anna.primary?.toString()).toBe("#abcdef");
   });

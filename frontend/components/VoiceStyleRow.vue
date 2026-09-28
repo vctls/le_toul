@@ -149,7 +149,7 @@ export default defineComponent({
     },
     outline: {
       get(): BuefyColor {
-        return this.override.outline ?? this.base.color.background;
+        return this.override.outline ?? this.base.color.outline;
       },
       set(value: BuefyColor) {
         this.settingsStore.setVoiceStyleField(this.voice, "outline", value);
