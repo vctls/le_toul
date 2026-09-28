@@ -1,7 +1,7 @@
 /**
  * API mocking helpers for Playwright tests
  */
-import { BrowserContext } from "@playwright/test";
+import { BrowserContext, Page } from "@playwright/test";
 import { promises as fs } from "fs";
 import { getFixturePath } from "./setupHelpers";
 import JSZip from "jszip";
@@ -120,4 +120,32 @@ export async function mockYouTubeDownloadApi(context: BrowserContext): Promise<v
 
     console.log("Mocked YouTube download endpoint with fixture files");
   });
+}
+
+export interface LyricsProviderMock {
+  id: string;
+  name: string;
+  url: string;
+}
+
+/**
+ * Answers the lyrics lookup routes, so that no test reaches a real lyrics provider.
+ * With no provider, the app never looks lyrics up. Returns the bodies the app posted.
+ */
+export async function mockLyricsLookup(
+  page: Page,
+  {
+    provider = null,
+    result = null,
+  }: { provider?: LyricsProviderMock | null; result?: unknown } = {},
+): Promise<unknown[]> {
+  const lookups: unknown[] = [];
+  await page.route("**/lyrics/provider", (route) => route.fulfill({ json: { provider } }));
+  await page.route("**/lyrics", (route) => {
+    lookups.push(route.request().postDataJSON());
+    return result
+      ? route.fulfill({ json: result })
+      : route.fulfill({ status: 404, json: { detail: "No lyrics found." } });
+  });
+  return lookups;
 }
