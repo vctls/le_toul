@@ -21,6 +21,7 @@ services:
       SEPARATION_BACKEND: subprocess
       SEPARATION_OUTPUT_FORMAT: flac
       LOGGING_FORMAT: console
+      DEFAULT_SEPARATION_MODEL: mel_band_roformer_karaoke_becruily.ckpt
       # Empty selects the local job store, over anything .env says.
       SEPARATED_TRACKS_BUCKET: ""
     # Roformer models need at least the 8 GiB this caps at,

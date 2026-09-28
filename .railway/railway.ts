@@ -35,6 +35,7 @@ export default defineRailway(() => {
       // Keep equal to MAX_GPU_CONTAINERS in api/modal_app.py.
       SEPARATION_CONCURRENCY: "3",
       INSTALL_SEPARATION: "false",
+      DEFAULT_SEPARATION_MODEL: "mel_band_roformer_karaoke_becruily.ckpt",
       LYRICS_PROVIDER: "lrclib",
       // The Intro tab's custom Markdown, set with `railway variable set` to keep it out of git.
       INTRO_MARKDOWN: preserve(),
