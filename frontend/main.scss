@@ -117,3 +117,9 @@
 .icon {
   vertical-align: middle;
 }
+
+// `middle` centres on the x-height, which sits low beside the capitalised labels.
+.b-tooltip .icon:has(> .fa-circle-question) {
+  position: relative;
+  top: calc((1ex - 1cap) / 2);
+}
