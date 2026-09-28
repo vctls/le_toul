@@ -106,7 +106,7 @@ test.describe("Karaoke Builder Studio files", () => {
     await navigateToTab(page, TabId.Submit);
 
     const downloading = page.waitForEvent("download");
-    await page.click('a[title="download Karaoke Builder Studio project"]');
+    await page.click('button[title="download Karaoke Builder Studio project"]');
     const download = await downloading;
 
     expect(download.suggestedFilename()).toBe("project.kbp");

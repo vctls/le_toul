@@ -3,55 +3,119 @@
     <span>{{ label }}</span>
     <span v-if="song" class="file-item">
       {{ song.name }}
-      <a @click="download(song, song.name)" title="download song"><b-icon icon="download" /></a>
+      <button
+        type="button"
+        class="link-button"
+        @click="download(song, song.name)"
+        title="download song"
+      >
+        <b-icon icon="download" />
+      </button>
     </span>
     <span v-if="lyrics" class="file-item">
       lyrics.txt
-      <a @click="download(lyrics, 'lyrics.txt')" title="download lyrics"
-        ><b-icon icon="download" /></a
-      ><a @click="copyToClipboard(lyrics)" title="copy lyrics to clipboard"
-        ><b-icon icon="copy"
-      /></a>
+      <button
+        type="button"
+        class="link-button"
+        @click="download(lyrics, 'lyrics.txt')"
+        title="download lyrics"
+      >
+        <b-icon icon="download" /></button
+      ><button
+        type="button"
+        class="link-button"
+        @click="copyToClipboard(lyrics)"
+        title="copy lyrics to clipboard"
+      >
+        <b-icon icon="copy" />
+      </button>
     </span>
     <span v-if="timings" class="file-item">
       timings.txt
-      <a @click="download(timings, 'timings.txt')" title="download timings"
-        ><b-icon icon="download" /></a
-      ><a @click="copyToClipboard(timings)" title="copy timings to clipboard"
-        ><b-icon icon="copy"
-      /></a>
+      <button
+        type="button"
+        class="link-button"
+        @click="download(timings, 'timings.txt')"
+        title="download timings"
+      >
+        <b-icon icon="download" /></button
+      ><button
+        type="button"
+        class="link-button"
+        @click="copyToClipboard(timings)"
+        title="copy timings to clipboard"
+      >
+        <b-icon icon="copy" />
+      </button>
     </span>
     <span v-if="subtitles" class="file-item">
       subtitles.ass
-      <a @click="download(subtitles, 'subtitles.ass')" title="download subtitles"
-        ><b-icon icon="download" /></a
-      ><a @click="copyToClipboard(subtitles)" title="copy subtitles to clipboard"
-        ><b-icon icon="copy"
-      /></a>
+      <button
+        type="button"
+        class="link-button"
+        @click="download(subtitles, 'subtitles.ass')"
+        title="download subtitles"
+      >
+        <b-icon icon="download" /></button
+      ><button
+        type="button"
+        class="link-button"
+        @click="copyToClipboard(subtitles)"
+        title="copy subtitles to clipboard"
+      >
+        <b-icon icon="copy" />
+      </button>
     </span>
     <span v-if="settings" class="file-item">
       settings.yaml
-      <a @click="download(settings, 'settings.yaml')" title="download settings"
-        ><b-icon icon="download" /></a
-      ><a @click="copyToClipboard(settings)" title="copy settings to clipboard"
-        ><b-icon icon="copy"
-      /></a>
+      <button
+        type="button"
+        class="link-button"
+        @click="download(settings, 'settings.yaml')"
+        title="download settings"
+      >
+        <b-icon icon="download" /></button
+      ><button
+        type="button"
+        class="link-button"
+        @click="copyToClipboard(settings)"
+        title="copy settings to clipboard"
+      >
+        <b-icon icon="copy" />
+      </button>
     </span>
     <span v-for="(file, index) in allFonts" :key="index" class="file-item">
       {{ file.name }}
-      <a @click="download(file, file.name)" title="download font"><b-icon icon="download" /></a>
+      <button
+        type="button"
+        class="link-button"
+        @click="download(file, file.name)"
+        title="download font"
+      >
+        <b-icon icon="download" />
+      </button>
     </span>
     <span v-if="vocals && vocals.size > 0" class="file-item">
       {{ vocalsName }}
-      <a @click="download(vocals, vocalsName)" title="download vocals"
-        ><b-icon icon="download"
-      /></a>
+      <button
+        type="button"
+        class="link-button"
+        @click="download(vocals, vocalsName)"
+        title="download vocals"
+      >
+        <b-icon icon="download" />
+      </button>
     </span>
     <span v-if="accompaniment && accompaniment.size > 0" class="file-item">
       {{ accompanimentName }}
-      <a @click="download(accompaniment, accompanimentName)" title="download accompaniment"
-        ><b-icon icon="download"
-      /></a>
+      <button
+        type="button"
+        class="link-button"
+        @click="download(accompaniment, accompanimentName)"
+        title="download accompaniment"
+      >
+        <b-icon icon="download" />
+      </button>
     </span>
   </div>
 </template>
