@@ -50,7 +50,7 @@ interface RunningSeparation {
 
 export const BACKING_VOCALS_SEPARATOR_MODEL = "UVR_MDXNET_KARA_2.onnx";
 export const NO_VOCALS_SEPARATOR_MODEL = "UVR-MDX-NET-Inst_HQ_3.onnx";
-// Keep backing vocals, higher quality. Minutes per song on CPU, fast on GPU.
+// Keep backing vocals, higher quality. Much slower than MDX-Net without a GPU.
 export const BACKING_VOCALS_HQ_SEPARATOR_MODEL =
   "mel_band_roformer_karaoke_aufr33_viperx_sdr_10.1956.ckpt";
 export const BACKING_VOCALS_HQ_ALT_SEPARATOR_MODEL = "mel_band_roformer_karaoke_becruily.ckpt";

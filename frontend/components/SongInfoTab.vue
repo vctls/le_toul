@@ -78,35 +78,35 @@
                 v-model="mediaStore.separationModel"
                 :native-value="BACKING_VOCALS_SEPARATOR_MODEL"
               >
-                MDX-Net <span class="hint">(fast)</span>
+                MDX-Net <span class="hint">(fastest)</span>
               </b-radio>
               <b-radio
                 v-model="mediaStore.separationModel"
                 :native-value="BACKING_VOCALS_HQ_SEPARATOR_MODEL"
               >
                 Mel-Band Roformer (aufr33/viperx)
-                <span class="hint">(high quality · minutes per song on CPU)</span>
+                <span class="hint">(higher quality · slower)</span>
               </b-radio>
               <b-radio
                 v-model="mediaStore.separationModel"
                 :native-value="BACKING_VOCALS_HQ_ALT_SEPARATOR_MODEL"
               >
                 Mel-Band Roformer (becruily)
-                <span class="hint">(high quality, newer · minutes per song on CPU)</span>
+                <span class="hint">(higher quality, newer · slower)</span>
               </b-radio>
               <div class="model-group-label">Remove backing vocals</div>
               <b-radio
                 v-model="mediaStore.separationModel"
                 :native-value="NO_VOCALS_SEPARATOR_MODEL"
               >
-                MDX-Net Inst HQ <span class="hint">(fast)</span>
+                MDX-Net Inst HQ <span class="hint">(fastest)</span>
               </b-radio>
               <b-radio
                 v-model="mediaStore.separationModel"
                 :native-value="NO_VOCALS_HQ_SEPARATOR_MODEL"
               >
                 BS-Roformer
-                <span class="hint">(highest SDR · slowest on CPU)</span>
+                <span class="hint">(highest quality · slowest)</span>
               </b-radio>
             </div>
           </b-field>
