@@ -108,20 +108,20 @@
     </div>
 
     <div class="timing-keys">
-      <key-name-input
+      <key-capture-input
         label="Start key"
-        :model-value="timingKeys.start"
-        @update:model-value="(name: string) => settingsStore.setTimingKey('start', name)"
+        :key-label="startKeyLabel"
+        @bind="(name: string, label?: string) => settingsStore.setTimingKey('start', name, label)"
       />
-      <key-name-input
+      <key-capture-input
         label="End key"
-        :model-value="timingKeys.end"
-        @update:model-value="(name: string) => settingsStore.setTimingKey('end', name)"
+        :key-label="endKeyLabel"
+        @bind="(name: string, label?: string) => settingsStore.setTimingKey('end', name, label)"
       />
-      <key-name-input
+      <key-capture-input
         label="Redo key"
-        :model-value="timingKeys.redo"
-        @update:model-value="(name: string) => settingsStore.setTimingKey('redo', name)"
+        :key-label="redoKeyLabel"
+        @bind="(name: string, label?: string) => settingsStore.setTimingKey('redo', name, label)"
       />
     </div>
 
@@ -151,6 +151,8 @@
       v-if="showButtonKeyboard"
       :start-key="timingKeys.start"
       :end-key="timingKeys.end"
+      :start-label="startKeyLabel"
+      :end-label="endKeyLabel"
       @keydown="onKeyDown"
     />
   </b-tab-item>
@@ -163,7 +165,7 @@ import { LYRIC_MARKERS } from "@/constants";
 import { isMobile } from "@/lib/device";
 import { Segment } from "@/lib/timing";
 import HelpSection from "@/components/HelpSection.vue";
-import KeyNameInput from "@/components/KeyNameInput.vue";
+import KeyCaptureInput from "@/components/KeyCaptureInput.vue";
 import LyricDisplay from "@/components/LyricDisplay.vue";
 import TimingButtons from "@/components/TimingButtons.vue";
 import VoiceSelector from "@/components/VoiceSelector.vue";
@@ -171,7 +173,7 @@ import { useTimingsStore } from "@/stores/timings";
 import { useLyricsStore } from "@/stores/lyrics";
 import { useMediaStore } from "@/stores/media";
 import { useSettingsStore } from "@/stores/settings";
-import { TimingKeys, eventMatchesKey, formatKeyName } from "@/lib/timingKeys";
+import { TimingKeys, eventMatchesKey, keyLabel } from "@/lib/timingKeys";
 import { claimMediaKeys, registerPlayer } from "@/lib/exclusivePlayback";
 import { VoiceId } from "@/lib/voices";
 
@@ -186,7 +188,7 @@ function defaultVoiceState(): VoiceTimingState {
 }
 
 export default defineComponent({
-  components: { HelpSection, KeyNameInput, LyricDisplay, TimingButtons, VoiceSelector },
+  components: { HelpSection, KeyCaptureInput, LyricDisplay, TimingButtons, VoiceSelector },
   setup() {
     const timingsStore = useTimingsStore();
     const lyricsStore = useLyricsStore();
@@ -225,13 +227,13 @@ export default defineComponent({
       return this.settingsStore.timingKeys;
     },
     startKeyLabel(): string {
-      return formatKeyName(this.timingKeys.start);
+      return keyLabel(this.timingKeys.start, this.settingsStore.timingKeyLabels);
     },
     endKeyLabel(): string {
-      return formatKeyName(this.timingKeys.end);
+      return keyLabel(this.timingKeys.end, this.settingsStore.timingKeyLabels);
     },
     redoKeyLabel(): string {
-      return formatKeyName(this.timingKeys.redo);
+      return keyLabel(this.timingKeys.redo, this.settingsStore.timingKeyLabels);
     },
     activeVoice(): VoiceId {
       return this.timingsStore.activeVoice;
@@ -352,8 +354,7 @@ export default defineComponent({
       }
       return undefined;
     },
-    // The key bindings are edited on this tab, and timing keys are caught on `window`, so
-    // a key typed into a field must not also land as a timing.
+    // Timing keys are caught on `window`, so a key typed into a field must not also land as a timing.
     isTypingTarget(target: EventTarget | null): boolean {
       const element = target as HTMLElement | null;
       return (
