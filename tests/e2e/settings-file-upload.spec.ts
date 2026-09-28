@@ -41,7 +41,7 @@ test.describe("Settings File Upload", () => {
     await expect(switchFor(page, "Instrumental Breaks")).toBeChecked();
     await expect(fieldFor(page, "Video Format").locator("select")).toHaveValue("mkv");
 
-    await page.click("a:has-text('Fonts and Colors')");
+    await page.getByRole("button", { name: "Fonts and Colors" }).click();
     await expect(exactFieldFor(page, "Font").locator("select")).toHaveValue("Impact");
     await expect(fieldFor(page, "Font Size").locator('input[type="number"]')).toHaveValue("30");
     await expect(page.getByLabel("primary color hex code")).toHaveValue("#ff8800");
