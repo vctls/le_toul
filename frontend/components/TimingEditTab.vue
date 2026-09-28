@@ -32,22 +32,25 @@
         timings again.
       </p>
     </help-section>
-    <b-field class="editor-field">
-      <b-input
-        :model-value="draft ?? ''"
-        @update:model-value="
-          (v: string | number | undefined) => {
-            draft = v == null ? '' : String(v);
-          }
-        "
-        type="textarea"
-        custom-class="timing-editor-textarea"
+    <div class="editor">
+      <div class="gutter" aria-hidden="true">
+        <div class="gutter-rows" :style="{ transform: `translateY(${-scrollTop}px)` }">
+          <div v-for="row in rowCount" :key="row" :class="{ 'is-error': row === errorRow }">
+            {{ row }}
+          </div>
+        </div>
+      </div>
+      <textarea
+        ref="textarea"
+        v-model="draft"
+        class="textarea timing-editor-textarea"
         spellcheck="false"
         autocorrect="off"
         autocapitalize="off"
         autocomplete="off"
+        @scroll="scrollTop = ($event.target as HTMLTextAreaElement).scrollTop"
       />
-    </b-field>
+    </div>
     <p v-if="error" class="has-text-danger">{{ error }}</p>
     <b-message
       v-if="warnings.length"
@@ -70,19 +73,19 @@
 </template>
 
 <script lang="ts">
-import { defineComponent } from "vue";
-import { BButton, BField, BInput, BMessage } from "buefy";
+import { defineComponent, markRaw } from "vue";
+import { BButton, BMessage } from "buefy";
 import HelpSection from "@/components/HelpSection.vue";
 import VoiceSelector from "@/components/VoiceSelector.vue";
 import { useTimingsStore } from "@/stores/timings";
 import { useAdvancedStore } from "@/stores/advanced";
 import { useLyricsStore } from "@/stores/lyrics";
-import { parseVoiceTimingsText, writeVoiceTimingsText } from "@/lib/timingsText";
+import { TimingsTextError, parseVoiceTimingsText, writeVoiceTimingsText } from "@/lib/timingsText";
 import { joinLyrics } from "@/lib/timing";
 import { VoiceId } from "@/lib/voices";
 
 export default defineComponent({
-  components: { BButton, BField, BInput, BMessage, HelpSection, VoiceSelector },
+  components: { BButton, BMessage, HelpSection, VoiceSelector },
   setup() {
     const timingsStore = useTimingsStore();
     const lyricsStore = useLyricsStore();
@@ -92,8 +95,26 @@ export default defineComponent({
     return {
       draft: "",
       error: "",
+      errorRow: undefined as number | undefined,
       warnings: [] as string[],
+      scrollTop: 0,
+      resizeObserver: markRaw({ observer: null as ResizeObserver | null }),
     };
+  },
+  mounted() {
+    // Hiding the tab resets the textarea's scroll without a scroll event, which would leave the gutter behind.
+    // Showing it again resizes it, so the resize restores the gutter's position.
+    const textarea = this.$refs.textarea as HTMLTextAreaElement;
+    this.resizeObserver.observer = new ResizeObserver(() => {
+      if (textarea.clientHeight > 0) {
+        textarea.scrollTop = this.scrollTop;
+        this.scrollTop = textarea.scrollTop;
+      }
+    });
+    this.resizeObserver.observer.observe(textarea);
+  },
+  beforeUnmount() {
+    this.resizeObserver.observer?.disconnect();
   },
   computed: {
     activeVoice(): VoiceId {
@@ -108,10 +129,14 @@ export default defineComponent({
     hasChanges(): boolean {
       return this.draft !== this.current;
     },
+    rowCount(): number {
+      return this.draft.split("\n").length;
+    },
   },
   watch: {
     activeVoice() {
       this.error = "";
+      this.errorRow = undefined;
       this.warnings = [];
     },
     current: {
@@ -145,14 +170,17 @@ export default defineComponent({
         // A rewrite that only drops comments leaves `current` as it was, so its watcher won't fire.
         this.draft = this.current;
         this.error = "";
+        this.errorRow = undefined;
         this.warnings = warnings;
       } catch (e) {
         this.error = "Could not apply timings: " + (e as Error).message;
+        this.errorRow = e instanceof TimingsTextError ? e.row : undefined;
       }
     },
     reload() {
       this.draft = this.current;
       this.error = "";
+      this.errorRow = undefined;
       this.warnings = [];
     },
   },
@@ -166,8 +194,7 @@ export default defineComponent({
   height: 100%;
 }
 
-.timing-edit-tab :deep(.editor-field),
-.timing-edit-tab :deep(.editor-field .control) {
+.editor {
   display: flex;
   flex: 1;
   min-height: 0;
@@ -194,13 +221,40 @@ export default defineComponent({
   padding-left: 1.25em;
 }
 
-.timing-edit-tab :deep(.timing-editor-textarea) {
+/* The gutter's font, line height and top padding match the textarea's, so each number sits on
+   its row. The textarea doesn't wrap, so a row is always one line tall. */
+.gutter,
+.timing-editor-textarea {
   font-family: var(--bulma-family-code), monospace;
-  white-space: pre;
+  font-size: var(--bulma-size-normal);
   line-height: 1.6;
+}
+
+.gutter {
+  overflow: hidden;
+  padding: var(--bulma-control-padding-horizontal) 0.5em;
+  border: var(--bulma-control-border-width) solid var(--bulma-border);
+  border-right: none;
+  border-radius: var(--bulma-radius) 0 0 var(--bulma-radius);
+  background-color: var(--bulma-background);
+  color: var(--bulma-text-weak);
+  text-align: right;
+  user-select: none;
+}
+
+.gutter .is-error {
+  color: var(--bulma-danger);
+  font-weight: bold;
+}
+
+.timing-editor-textarea {
+  white-space: pre;
   flex: 1;
+  min-width: 0;
   /* Bulma gives every control a fixed height, which blocks the flex stretch. */
   height: 100%;
   max-height: none;
+  border-top-left-radius: 0;
+  border-bottom-left-radius: 0;
 }
 </style>

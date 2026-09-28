@@ -64,6 +64,17 @@ describe("TimingEditTab", () => {
     expect(useTimingsStore().activeSegments[1].start).toBe(1);
   });
 
+  it("numbers the rows, and marks the row of an error", async () => {
+    const wrapper = mountTab();
+    wrapper.vm.draft = wrapper.vm.draft.replace("00:01.00", "00:00.20");
+    wrapper.vm.apply();
+    await wrapper.vm.$nextTick();
+
+    const numbers = wrapper.findAll(".gutter-rows > div");
+    expect(numbers.map((n) => n.text())).toEqual(["1", "2", "3", "4", "5", "6", "7", "8"]);
+    expect(wrapper.findAll(".gutter .is-error").map((n) => n.text())).toEqual(["5"]);
+  });
+
   it("rejects the rows of a whole timings file", () => {
     const wrapper = mountTab();
     wrapper.vm.draft = 'voice "Voice 1"\n' + wrapper.vm.draft;
