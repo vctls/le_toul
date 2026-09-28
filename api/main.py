@@ -56,7 +56,7 @@ async def lifespan(app: FastAPI):
 
 
 # Create FastAPI app
-app = FastAPI(title="The Tuul API", debug=settings.DEBUG, lifespan=lifespan)
+app = FastAPI(title=f"{settings.APP_NAME} API", debug=settings.DEBUG, lifespan=lifespan)
 
 # CORS middleware
 app.add_middleware(
@@ -464,6 +464,7 @@ async def index(request: Request):
         "vite_hmr_client": Markup(vite_assets.render_hmr_client()),
         "vite_assets": Markup(vite_assets.render_tags("index.ts")),
         "max_upload_bytes": settings.MAX_UPLOAD_BYTES,
+        "app_name": settings.APP_NAME,
     }
     return templates.TemplateResponse("index.html", context)
 

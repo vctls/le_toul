@@ -3,7 +3,7 @@
 // Nothing here touches a store.
 
 import yaml from "js-yaml";
-import { SUBTITLE_CANVAS } from "@/constants";
+import { SUBTITLE_CANVAS, appName } from "@/constants";
 import {
   KbpDocument,
   KbpLine,
@@ -51,8 +51,6 @@ const DEFAULT_PALETTE = [
   "055", "FFF", "000", "E70", "940", "CFF", "033", "0DD",
   "077", "FCF", "303", "F3F", "818", "000", "FFF", "000",
 ];
-
-const EXPORT_COMMENT = "Exported from The Tüül";
 
 export const COUNT_INS_OFF =
   "Count-ins and instrumental screens were turned off, since a KBS project has its own in the lyrics";
@@ -767,7 +765,7 @@ export function projectFilesToKbp(source: KbpExportSource): KbpExport {
       BuildFile: "",
       Intro: "",
       Outro: "",
-      Comments: EXPORT_COMMENT,
+      Comments: `Exported from ${appName()}`,
     },
     pages: synced ? layOutLines(pages) : [],
     unsyncedLyrics: synced

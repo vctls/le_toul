@@ -12,6 +12,9 @@ BASE_DIR = Path(__file__).resolve().parent
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = os.getenv("DEBUG", "True") != "False"
 
+# The name shown in the page title and header.
+APP_NAME = os.getenv("APP_NAME", "Le Toul")
+
 # Google Cloud Storage bucket for caching separated tracks
 SEPARATED_TRACKS_BUCKET = os.getenv("SEPARATED_TRACKS_BUCKET", "")
 
