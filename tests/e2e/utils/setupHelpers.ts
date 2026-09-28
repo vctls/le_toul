@@ -4,6 +4,7 @@
 import { Page, expect, test } from "@playwright/test";
 import path from "path";
 import { promises as fs } from "fs";
+import { mockLyricsLookup } from "./apiMocks";
 
 /**
  * Configuration for test fixtures
@@ -88,6 +89,7 @@ export async function initAppSetup(page: Page): Promise<void> {
 export async function setupTestEnvironment(page: Page): Promise<void> {
   setupConsoleErrorListener(page);
   await installClipboardStub(page);
+  await mockLyricsLookup(page);
   await initAppSetup(page);
 }
 
