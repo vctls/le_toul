@@ -190,6 +190,28 @@ def test_an_error_status_raises(status):
         find(lambda request: httpx.Response(status))
 
 
+def test_a_503_from_get_falls_back_to_the_search():
+    search = FakeLrclib(search={"Glim Tovar": [record(7, 201.0)]})
+
+    def unavailable_get(request):
+        if request.url.path == "/api/get":
+            return httpx.Response(503)
+        return search(request)
+
+    match = find(unavailable_get)
+
+    assert match is not None and match.url.endswith("/7")
+
+
+def test_a_503_from_the_search_still_raises():
+    with pytest.raises(LyricsProviderError):
+        find(
+            lambda request: httpx.Response(
+                404 if request.url.path == "/api/get" else 503
+            )
+        )
+
+
 def test_a_timeout_raises_without_the_song_names():
     def time_out(request):
         raise httpx.ReadTimeout("timed out", request=request)

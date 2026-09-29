@@ -32,6 +32,10 @@ DEFAULT_RETRY_AFTER = 60.0
 Record = dict[str, Any]
 
 
+class _Unavailable(LyricsProviderError):
+    """LRCLIB answered 503."""
+
+
 class LrclibProvider:
     id = "lrclib"
     name = "LRCLIB"
@@ -90,9 +94,15 @@ class LrclibProvider:
     ) -> Record | None:
         params = {"track_name": title, "artist_name": artist}
         # /api/get matches the duration within 2 s by itself.
-        record = await self._get(
-            client, "/get", {**params, "duration": round(duration)}
-        )
+        try:
+            record = await self._get(
+                client, "/get", {**params, "duration": round(duration)}
+            )
+        except _Unavailable:
+            # /api/get looks up a song it doesn't hold in other sources, and answers 503
+            # now and then when that fails. The search reads only LRCLIB's own records.
+            logger.info("lrclib_get_unavailable", names=names)
+            record = None
         if isinstance(record, dict) and _usable(record):
             logger.info("lrclib_match", step="get", names=names)
             return record
@@ -151,6 +161,8 @@ class LrclibProvider:
                 raise LyricsProviderError("LRCLIB answered 429")
         if response.status_code == 404:
             return None
+        if response.status_code == 503:
+            raise _Unavailable("LRCLIB answered 503")
         if response.status_code != 200:
             raise LyricsProviderError(f"LRCLIB answered {response.status_code}")
         try:
