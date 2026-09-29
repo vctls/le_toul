@@ -76,8 +76,8 @@ def find(handler, title="Glim Tovar", duration=200.0):
     return asyncio.run(provider.find(LyricsQuery(title, "The Wendels", duration)))
 
 
-def test_an_exact_hit_is_taken_without_searching():
-    lrclib = FakeLrclib(get={"Glim Tovar": record(7, 201.0)})
+def test_an_exact_synced_hit_is_taken_without_searching():
+    lrclib = FakeLrclib(get={"Glim Tovar": record(7, 201.0, synced=True)})
 
     match = find(lrclib)
 
@@ -90,6 +90,35 @@ def test_an_exact_hit_is_taken_without_searching():
         201.0,
     )
     assert lrclib.paths == [("/api/get", "Glim Tovar")]
+
+
+def test_an_unsynced_exact_hit_gives_way_to_a_synced_record_of_the_song():
+    lrclib = FakeLrclib(
+        get={"Glim Tovar": record(7, 201.0)},
+        search={"Glim Tovar": [record(7, 201.0), record(8, 198.5, synced=True)]},
+    )
+
+    assert find(lrclib).url.endswith("/8")
+
+
+def test_an_unsynced_exact_hit_stands_without_a_synced_record_within_two_seconds():
+    lrclib = FakeLrclib(
+        get={"Glim Tovar": record(7, 201.0)},
+        search={"Glim Tovar": [record(8, 203.5, synced=True)]},
+    )
+
+    assert find(lrclib).url.endswith("/7")
+
+
+def test_an_unsynced_exact_hit_stands_when_the_search_fails():
+    hit = FakeLrclib(get={"Glim Tovar": record(7, 201.0)})
+
+    def search_fails(request):
+        if request.url.path == "/api/search":
+            return httpx.Response(503)
+        return hit(request)
+
+    assert find(search_fails).url.endswith("/7")
 
 
 def test_it_sends_the_rounded_duration_and_names_itself():

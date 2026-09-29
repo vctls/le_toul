@@ -21,6 +21,8 @@ USER_AGENT = f"LeToul/{settings.APP_VERSION} (https://github.com/vctls/le_toul)"
 
 # In seconds. A search tries each in turn, and takes the first that has a record.
 TOLERANCES = (2.0, 5.0, 10.0)
+# In seconds, how close /api/get matches the duration.
+GET_TOLERANCE = 2.0
 # A cleaned name is a looser match, so only a close duration vouches for it.
 CLEANED_TOLERANCES = (2.0,)
 
@@ -93,7 +95,6 @@ class LrclibProvider:
         names: str,
     ) -> Record | None:
         params = {"track_name": title, "artist_name": artist}
-        # /api/get matches the duration within 2 s by itself.
         try:
             record = await self._get(
                 client, "/get", {**params, "duration": round(duration)}
@@ -103,35 +104,45 @@ class LrclibProvider:
             # now and then when that fails. The search reads only LRCLIB's own records.
             logger.info("lrclib_get_unavailable", names=names)
             record = None
-        if isinstance(record, dict) and _usable(record):
+        hit = record if isinstance(record, dict) and _usable(record) else None
+        if hit is not None and hit.get("syncedLyrics"):
             logger.info("lrclib_match", step="get", names=names)
-            return record
+            return hit
 
+        try:
+            candidates = await self._candidates(client, params)
+        except LyricsProviderError:
+            if hit is None:
+                raise
+            candidates = []
+        if hit is not None:
+            # LRCLIB often holds the same song twice, and only one of them synced.
+            synced = [
+                r
+                for r in candidates
+                if r.get("syncedLyrics")
+                and abs(r["duration"] - duration) <= GET_TOLERANCE
+            ]
+            step = "search_synced" if synced else "get"
+            logger.info("lrclib_match", step=step, names=names)
+            if synced:
+                return min(synced, key=lambda r: abs(r["duration"] - duration))
+            return hit
+
+        return _closest(candidates, duration, tolerances, "search", names)
+
+    async def _candidates(
+        self, client: httpx.AsyncClient, params: dict[str, Any]
+    ) -> list[Record]:
+        """Return the searched records that have lyrics and a duration."""
         records = await self._get(client, "/search", params)
-        candidates = [
+        return [
             r
             for r in (records if isinstance(records, list) else [])
             if isinstance(r, dict)
             and _usable(r)
             and isinstance(r.get("duration"), int | float)
         ]
-        for tolerance in tolerances:
-            close = [
-                r for r in candidates if abs(r["duration"] - duration) <= tolerance
-            ]
-            if close:
-                logger.info(
-                    "lrclib_match", step="search", names=names, tolerance=tolerance
-                )
-                # Synced records have had more care, so their text is more often complete.
-                return min(
-                    close,
-                    key=lambda r: (
-                        not r.get("syncedLyrics"),
-                        abs(r["duration"] - duration),
-                    ),
-                )
-        return None
 
     async def _get(
         self, client: httpx.AsyncClient, path: str, params: dict[str, Any]
@@ -182,6 +193,29 @@ def _retry_after(response: httpx.Response) -> float:
         return max(0.0, parsedate_to_datetime(value).timestamp() - time.time())
     except (TypeError, ValueError):
         return DEFAULT_RETRY_AFTER
+
+
+def _closest(
+    candidates: list[Record],
+    duration: float,
+    tolerances: tuple[float, ...],
+    step: str,
+    names: str,
+) -> Record | None:
+    """Return the record closest to the duration, at the first tolerance that has one."""
+    for tolerance in tolerances:
+        close = [r for r in candidates if abs(r["duration"] - duration) <= tolerance]
+        if close:
+            logger.info("lrclib_match", step=step, names=names, tolerance=tolerance)
+            # Synced records have had more care, so their text is more often complete.
+            return min(
+                close,
+                key=lambda r: (
+                    not r.get("syncedLyrics"),
+                    abs(r["duration"] - duration),
+                ),
+            )
+    return None
 
 
 def _usable(record: Record) -> bool:
