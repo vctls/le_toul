@@ -1,33 +1,42 @@
 <template>
-  <div>
+  <div class="timing-adjuster">
     <smooth-audio-player
       ref="audioPlayer"
       controls
       :src="audioSource ?? undefined"
       @timeupdate="onAudioTimeUpdate"
       @seeking="onAudioSeeking"
+      @play="$emit('play')"
       @pause="onAudioPause"
       @error="onAudioError"
     />
-    <!-- Display only. It loads its own copy of the audio, so playing it would double up
+    <div class="waveform-stage">
+      <!-- Display only. It loads its own copy of the audio, so playing it would double up
          with the player above; the playhead is driven by setTime instead. -->
-    <wavesurfer
-      ref="wavesurfer"
-      :audioData="vocalTrack || audioData"
-      :regions="displayMode ? [] : regions"
-      :bands="bands"
-      :bandsEnabled="bandsEnabled"
-      :mediaControls="false"
-      :zoom="zoom"
-      :initialScroll="initialScroll"
-      @region-updated="onRegionUpdated"
-      @regions-updated="onRegionsUpdated"
-      @band-updated="(...args: unknown[]) => $emit('band-updated', ...args)"
-      @band-reset="(...args: unknown[]) => $emit('band-reset', ...args)"
-      @seeking="onWavesurferSeeking"
-      @zoom-change="$emit('zoom-change', $event)"
-      @scroll-change="$emit('scroll-change', $event)"
-    />
+      <wavesurfer
+        ref="wavesurfer"
+        :audioData="vocalTrack || audioData"
+        :regions="displayMode ? [] : regions"
+        :bands="bands"
+        :bandsEnabled="bandsEnabled"
+        :selectable="!tapMode"
+        :centered="tapMode"
+        :mediaControls="false"
+        :zoom="zoom"
+        :initialScroll="initialScroll"
+        @region-updated="onRegionUpdated"
+        @regions-updated="onRegionsUpdated"
+        @band-updated="(...args: unknown[]) => $emit('band-updated', ...args)"
+        @band-reset="(...args: unknown[]) => $emit('band-reset', ...args)"
+        @seeking="onWavesurferSeeking"
+        @region-clicked="onRegionClicked"
+        @scrub="seekBy"
+        @zoom-change="$emit('zoom-change', $event)"
+        @zoom-by="$emit('zoom-by', $event)"
+        @scroll-change="$emit('scroll-change', $event)"
+      />
+      <tap-queue v-if="tapMode" :items="queue" @pick="$emit('segment-picked', $event)" />
+    </div>
   </div>
 </template>
 
@@ -36,10 +45,19 @@ import { defineComponent, markRaw, PropType } from "vue";
 import { RegionParams, Region } from "@/lib/wavesurferPlugins/OpenEndedRegionPlugin";
 import Wavesurfer from "@/components/Wavesurfer.vue";
 import SmoothAudioPlayer from "./SmoothAudioPlayer.vue";
+import TapQueue, { QueueItem } from "./TapQueue.vue";
 
 import { displayText, resolveStarts } from "@/lib/timing";
 import { TimedSegment } from "@/lib/timedSegments";
 import { DisplayBand } from "@/lib/displayBands";
+
+// The Tap queue runs across the middle of the waveform.
+// An even number of channels leaves the middle between two of them.
+const TAP_CHANNELS = 4;
+const ADJUST_CHANNELS = 5;
+
+// A jump of the audio clock larger than this is a seek, which the smoothed time follows at once.
+const SEEK_JUMP = 0.25;
 
 function createLyricRegion(
   id: number,
@@ -48,8 +66,8 @@ function createLyricRegion(
   return {
     id: `segment_${id}`,
     // The region plugin uses "channels" to display regions on different lines
-    channelIdx: id % 5,
-    resize: true,
+    channelIdx: id % ADJUST_CHANNELS,
+    channelCount: ADJUST_CHANNELS,
     ...params,
   };
 }
@@ -61,17 +79,33 @@ export default defineComponent({
     "band-reset",
     "timeupdate",
     "seeking",
+    "play",
+    "pause",
+    "segment-picked",
     "zoom-change",
+    "zoom-by",
     "scroll-change",
   ],
   components: {
     Wavesurfer,
     SmoothAudioPlayer,
+    TapQueue,
   },
   props: {
     segments: Array<TimedSegment>,
     // Display mode draws each line's display period in place of the timing regions.
     displayMode: { type: Boolean, default: false },
+    // Tap mode draws the regions without handles, and a click on one doesn't select it.
+    tapMode: { type: Boolean, default: false },
+    // In Tap mode, the segment being tapped, whose region grows up to the playhead.
+    growing: { type: Number, required: false },
+    // In Tap mode, the next segment to tap, whose region is marked when it has one.
+    head: { type: Number, required: false },
+    // In Tap mode, the segments tapped in the pass under way. The others after the head are ghosts,
+    // drawn faded, since the next taps replace them.
+    tapped: { type: Array as PropType<number[]>, default: () => [] },
+    // In Tap mode, the segments still to tap, drawn in a row from the playhead.
+    queue: { type: Array as PropType<QueueItem[]>, default: () => [] },
     bands: { type: Array as PropType<DisplayBand[]>, default: () => [] },
     bandsEnabled: { type: Boolean, default: true },
     audioData: Blob,
@@ -98,6 +132,10 @@ export default defineComponent({
       // Nothing here is rendered, hence markRaw.
       trackUrls: markRaw(new Map<Blob, string>()),
       _playheadRestored: false,
+      clockFrame: 0,
+      // The audio clock only moves in steps, so the view extrapolates from its last change.
+      // Nothing here is rendered, hence markRaw.
+      clock: markRaw({ base: -1, at: 0, shown: -1 }),
     };
   },
   mounted() {
@@ -108,6 +146,7 @@ export default defineComponent({
     }
     this.applyPlaybackSettings();
     this.restorePlayhead();
+    if (this.tapMode) this.startClock();
   },
   watch: {
     segments: {
@@ -115,6 +154,20 @@ export default defineComponent({
         this.regions = this.createRegions(newSegments);
       },
       deep: true,
+    },
+    head() {
+      if (this.tapMode) this.regions = this.createRegions(this.segments ?? []);
+    },
+    tapped() {
+      if (this.tapMode) this.regions = this.createRegions(this.segments ?? []);
+    },
+    tapMode(tapMode: boolean) {
+      this.regions = this.createRegions(this.segments ?? []);
+      if (tapMode) {
+        this.startClock();
+      } else {
+        this.stopClock();
+      }
     },
     playbackRate() {
       this.applyPlaybackSettings();
@@ -187,6 +240,17 @@ export default defineComponent({
             start: segment.start,
             end: segment.end,
             content: displayText(segment.text),
+            resize: !this.tapMode,
+            highlighted: this.tapMode && index === this.head,
+            faded:
+              this.tapMode &&
+              this.head !== undefined &&
+              index > this.head &&
+              !this.tapped.includes(index),
+            ...(this.tapMode && {
+              channelIdx: index % TAP_CHANNELS,
+              channelCount: TAP_CHANNELS,
+            }),
             color:
               segments[index].start === undefined
                 ? "var(--region-fill-hole)"
@@ -277,6 +341,18 @@ export default defineComponent({
     clearSelection() {
       this.wavesurferRef()?.clearSelection();
     },
+    audioElement(): HTMLAudioElement | undefined {
+      return this.audioPlayerRef()?.audioPlayer as HTMLAudioElement | undefined;
+    },
+    currentTime(): number {
+      return this.audioElement()?.currentTime ?? 0;
+    },
+    isPaused(): boolean {
+      return this.audioElement()?.paused ?? true;
+    },
+    pause() {
+      this.audioElement()?.pause();
+    },
     togglePlayPause() {
       const audio = this.audioPlayerRef()?.audioPlayer as HTMLAudioElement | undefined;
       if (!audio) return;
@@ -309,13 +385,62 @@ export default defineComponent({
     },
     onAudioTimeUpdate(event: Event) {
       const time = (event.target as HTMLAudioElement).currentTime;
-      this.setAdjusterPlayhead(time);
+      // In Tap mode the clock moves the playhead on every frame, from a smoothed time.
+      if (!this.tapMode) this.setAdjusterPlayhead(time);
       this.$emit("timeupdate", time);
+    },
+    startClock() {
+      if (this.clockFrame) return;
+      this.clock.shown = -1;
+      const tick = (now: number) => {
+        this.clockFrame = requestAnimationFrame(tick);
+        this.onClockFrame(now);
+      };
+      this.clockFrame = requestAnimationFrame(tick);
+    },
+    stopClock() {
+      cancelAnimationFrame(this.clockFrame);
+      this.clockFrame = 0;
+    },
+    /**
+     * Keep the playhead in the middle of the view, and grow the region being tapped up to it.
+     */
+    onClockFrame(now: number) {
+      const audio = this.audioElement();
+      const wavesurfer = this.wavesurferRef();
+      if (!audio || !wavesurfer) return;
+      const { clock } = this;
+      let time = audio.currentTime;
+      if (!audio.paused) {
+        if (time !== clock.base) {
+          clock.base = time;
+          clock.at = now;
+        }
+        const estimate = time + ((now - clock.at) / 1000) * audio.playbackRate;
+        // A late step of the audio clock would pull the estimate back. Only a seek may do that.
+        time =
+          Math.abs(estimate - clock.shown) > SEEK_JUMP ? estimate : Math.max(estimate, clock.shown);
+      }
+      if (time === clock.shown) return;
+      clock.shown = time;
+      wavesurfer.setTime(time);
+      wavesurfer.centerOn(time);
+      if (this.growing !== undefined && !audio.paused) {
+        wavesurfer.growRegion(`segment_${this.growing}`, time);
+      }
     },
     onAudioSeeking(event: Event) {
       const time = (event.target as HTMLAudioElement).currentTime;
+      // The clock never steps back by less than a seek's worth, so it is told of every seek.
+      this.clock.shown = -1;
       this.setAdjusterPlayhead(time);
       this.$emit("seeking", time);
+    },
+    onRegionClicked(id: string, event: MouseEvent) {
+      if (!this.tapMode) return;
+      // In Tap mode a click on a region picks it, so it must not also seek to where it landed.
+      event.stopPropagation();
+      this.$emit("segment-picked", parseInt(id.split("_")[1]));
     },
     onWavesurferSeeking(time: number) {
       console.log("Wavesurfer seeking", time);
@@ -326,6 +451,7 @@ export default defineComponent({
     },
     onAudioPause() {
       this.wavesurferRef()?.pause();
+      this.$emit("pause");
     },
     onAudioError(event: Event) {
       const audio = event.target as HTMLAudioElement;
@@ -338,6 +464,7 @@ export default defineComponent({
     },
   },
   beforeUnmount() {
+    this.stopClock();
     for (const url of this.trackUrls.values()) {
       URL.revokeObjectURL(url);
     }
@@ -347,6 +474,23 @@ export default defineComponent({
 </script>
 
 <style scoped>
+.timing-adjuster {
+  display: flex;
+  flex-direction: column;
+}
+
+/* The waveform takes whatever height the stage is given, so it can't size the stage itself. */
+.waveform-stage {
+  position: relative;
+  flex: 1 1 auto;
+  min-height: 300px;
+}
+
+.waveform-stage > .wavesurfer-container {
+  position: absolute;
+  inset: 0;
+}
+
 audio {
   width: 100%;
   margin-bottom: 1em;

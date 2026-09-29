@@ -1,71 +1,222 @@
 <template>
   <b-tab-item
     value="adjust"
-    icon="flask"
-    label="Adjust"
+    icon="stopwatch"
+    label="Timing"
     :disabled="!isEnabled"
     class="timing-adjustment-tab"
+    :class="{ 'is-immersive': isImmersive, 'settings-open': isImmersive && settingsOpen }"
     headerClass="timing-adjustment-tab-header"
   >
-    <div class="title-row">
-      <h2 class="title">Adjust Timings</h2>
-      <div class="title-actions">
+    <div v-if="isImmersive" class="immersive-bar">
+      <div class="buttons">
         <b-button
           icon-left="arrow-rotate-left"
           aria-label="Undo"
           :title="`Undo (${undoShortcut})`"
-          :disabled="!timingsStore.canUndo"
-          @click="timingsStore.undo()"
+          :disabled="!pass?.previous && !timingsStore.canUndo"
+          @click="stepHistory('undo')"
+        />
+        <span
+          v-if="timingStatus"
+          class="immersive-status"
+          :class="timingStatus === 'done' ? 'has-text-success' : 'has-text-warning'"
+          role="img"
+          :aria-label="statusTitle"
+          :title="statusTitle"
+        >
+          <b-icon :icon="timingStatus === 'done' ? 'check' : 'warning'" />
+        </span>
+      </div>
+      <div class="buttons">
+        <b-button
+          v-if="canFullScreen"
+          :icon-left="isFullScreen ? 'compress' : 'expand'"
+          :aria-label="isFullScreen ? 'Leave full screen' : 'Full screen'"
+          @click="toggleFullScreen"
+        />
+        <b-button
+          icon-left="sliders"
+          aria-label="Settings"
+          :aria-pressed="settingsOpen"
+          :type="settingsOpen ? 'is-primary' : ''"
+          @click="settingsOpen = !settingsOpen"
+        />
+      </div>
+    </div>
+    <div class="title-row">
+      <div class="title-main">
+        <h2 class="title">Timing</h2>
+        <button
+          v-if="timingStatus && acknowledgedStatus === timingStatus"
+          type="button"
+          class="status-icon"
+          :class="timingStatus === 'done' ? 'has-text-success' : 'has-text-warning'"
+          :aria-label="statusTitle"
+          :title="`${statusTitle}. Click for more.`"
+          @click="acknowledgedStatus = null"
+        >
+          <b-icon :icon="timingStatus === 'done' ? 'check' : 'warning'" />
+        </button>
+      </div>
+      <div class="title-actions">
+        <b-button
+          v-if="isTapMode"
+          icon-left="keyboard"
+          aria-label="Timing buttons"
+          :aria-pressed="showTapButtons"
+          :type="showTapButtons ? 'is-primary' : ''"
+          title="Show or hide buttons for tapping without a keyboard"
+          @click="showTapButtons = !showTapButtons"
+        />
+        <b-button
+          icon-left="arrow-rotate-left"
+          aria-label="Undo"
+          :title="`Undo (${undoShortcut})`"
+          :disabled="!pass?.previous && !timingsStore.canUndo"
+          @click="stepHistory('undo')"
         />
         <b-button
           icon-left="arrow-rotate-right"
           aria-label="Redo"
           :title="`Redo (${redoShortcut})`"
-          :disabled="!timingsStore.canRedo"
-          @click="timingsStore.redo()"
+          :disabled="!!pass || !timingsStore.canRedo"
+          @click="stepHistory('redo')"
+        />
+        <b-button
+          icon-left="eraser"
+          aria-label="Reset timings"
+          title="Clear every timing of this voice"
+          :disabled="!hasTimings && !pass"
+          @click="resetTimings"
         />
         <voice-selector />
       </div>
     </div>
     <help-section>
-      <p>
-        Use this tab to adjust lyric timings by dragging the start of the lyric's rectangle. Drag
-        the end of the rectangle to adjust the release. Drag the end up to the start of the next
-        rectangle to join them. When rectangles are joined, dragging the start of the next rectangle
-        will move the end of the previous rectangle.
-      </p>
-      <p>
-        Click a rectangle to select it, then click another one to select every rectangle between the
-        two. Dragging any selected rectangle moves the whole selection at once, up to the rectangles
-        on either side of it. Click a selected rectangle or press <kbd>Esc</kbd> to clear the
-        selection.
-      </p>
-      <p>
-        Press <kbd>spacebar</kbd> to start and stop playback, and <kbd>&larr;</kbd>
-        <kbd>&rarr;</kbd> to move the playhead by the preroll set below. Hold <kbd>shift</kbd> for
-        steps five times as long. <kbd>Home</kbd> and <kbd>End</kbd> move it to the left and right
-        edges of the waveform as it is currently scrolled, and <kbd>ctrl</kbd> with either one moves
-        it to the very beginning or end of the song. Press <kbd>Enter</kbd> to play again from the
-        last position you set yourself, by clicking the waveform, using the arrow keys, or dragging
-        a timing. Scroll up and down on the waveform to zoom in and out on the area under the
-        cursor.
-      </p>
-      <p>
-        Press <kbd>{{ undoShortcut }}</kbd> to undo an edit, and <kbd>{{ redoShortcut }}</kbd> to
-        redo it. Each voice has its own history, which is lost once its timings change in another
-        tab.
-      </p>
-      <p v-if="advancedStore.isAdvanced">
-        With <strong>Line display times</strong> on, each line is drawn in a frame that spans the
-        time it's on screen. Drag a frame's left or right edge to set when the line appears or
-        disappears, and double-click an edge to go back to the automatic time. A dashed edge follows
-        the automatic rules, and a solid one has been set. <strong>Reset</strong> puts every line of
-        every voice back on the automatic times. Undoing it restores the voice you're looking at.
-      </p>
+      <template v-if="isTapMode">
+        <p>
+          Play the song and tap along. The queue on the waveform lists the syllables to time,
+          starting at the playhead. Press <kbd>{{ timingKeyLabel("start") }}</kbd> as the
+          highlighted syllable starts, and the next one takes its place. A syllable lasts until the
+          next one starts, so press <kbd>{{ timingKeyLabel("end") }}</kbd> only where the singer
+          pauses.
+        </p>
+        <p>
+          Your taps are saved when playback stops. While paused, either key plays from the playhead.
+          <kbd>{{ timingKeyLabel("redo") }}</kbd> goes back a line, and <kbd>Esc</kbd> stops.
+        </p>
+        <p>
+          Click a rectangle or a syllable in the queue to tap again from there. The playhead moves
+          back by the preroll set below, so you hear the run-up. Clicking a syllable that isn't
+          timed yet takes you back to where the timing stops. In the queue, timed syllables are
+          tinted purple, and checkered ones have a start but no end.
+        </p>
+        <p>
+          <kbd>{{ undoShortcut }}</kbd> takes back your last tap and moves the playhead to just
+          before it. If the song is playing, it plays on from there.
+          <kbd>{{ redoShortcut }}</kbd> puts a tap back while paused. The eraser clears every timing
+          of this voice, which you can undo too.
+        </p>
+        <p>
+          The arrow keys move the playhead by the preroll, and so does scrolling sideways on the
+          waveform. Scroll up and down to zoom. Press <kbd>T</kbd> to switch to Adjust mode.
+        </p>
+        <p class="legacy-tab-switch">
+          Looking for the old timing tab?
+          <b-switch v-model="legacyTimingStore.isShown">Show it</b-switch>
+        </p>
+      </template>
+      <template v-else>
+        <p>
+          Drag the left edge of a rectangle to change when a syllable starts, and the right edge to
+          change when it ends. Drag an end onto the next start to join the two. Once they're joined,
+          dragging that start moves the end before it too.
+        </p>
+        <p>
+          Click a rectangle to select it, then click another to select everything in between. Drag
+          any selected rectangle to move the whole selection. Click a selected rectangle or press
+          <kbd>Esc</kbd> to clear the selection.
+        </p>
+        <p>
+          <kbd>Space</kbd> plays and pauses. <kbd>Enter</kbd> replays from the last spot you picked
+          by clicking the waveform, using the arrow keys or dragging a timing. The arrow keys step
+          by the preroll set below, five times as far with <kbd>Shift</kbd>. <kbd>Home</kbd> and
+          <kbd>End</kbd> jump to the edges of the view, or to the start and end of the song with
+          <kbd>Ctrl</kbd>. Scroll up and down on the waveform to zoom.
+        </p>
+        <p>
+          <kbd>{{ undoShortcut }}</kbd> and <kbd>{{ redoShortcut }}</kbd> undo and redo your edits.
+          Each voice has its own history, which is lost if its timings change in another tab. The
+          eraser clears every timing of this voice, which you can undo too. Press <kbd>T</kbd> to
+          switch to Tap mode.
+        </p>
+        <p v-if="advancedStore.isAdvanced">
+          With <strong>Line display times</strong> on, each line gets a frame for the time it's on
+          screen. Drag its edges to change when the line appears and disappears, or double-click an
+          edge to go back to the automatic time. Dashed edges are automatic, and solid ones were set
+          by hand. <strong>Reset</strong> puts every line of every voice back on automatic times.
+          Undoing it restores only the voice you're looking at.
+        </p>
+      </template>
     </help-section>
+    <p class="rotate-hint notification is-info">
+      Turn your phone sideways to give the waveform the whole screen.
+    </p>
+    <b-message
+      v-if="timingStatus && acknowledgedStatus !== timingStatus"
+      :key="timingStatus"
+      :type="timingStatus === 'done' ? 'is-success' : 'is-warning'"
+      has-icon
+      :icon="timingStatus === 'done' ? 'check' : 'warning'"
+      icon-size="is-small"
+      class="status-message"
+    >
+      <!-- Buefy only draws a close button in a titled header, which this short message goes without. -->
+      <div class="status-message-body">
+        <span v-if="timingStatus === 'almost'">
+          Almost done! Press <kbd>{{ timingKeyLabel("end") }}</kbd> when the last line ends.
+        </span>
+        <span v-else>
+          Done! You've got everything you need to create your video. Go to the Submit tab.
+        </span>
+        <button
+          type="button"
+          class="delete"
+          aria-label="Tuck the message away"
+          title="Tuck the message away. Its icon by the heading brings it back."
+          @click="tuckStatusMessage"
+        />
+      </div>
+    </b-message>
     <div class="adjust-top">
       <div class="adjustment-form">
-        <div class="adjustment-fields">
+        <div
+          class="adjustment-fields"
+          :class="{ 'has-more-above': settingsScrolled }"
+          @scroll="onSettingsScroll"
+        >
+          <b-field label="Mode" horizontal>
+            <div class="buttons has-addons mode-switch">
+              <b-button
+                :type="isTapMode ? 'is-primary' : ''"
+                :aria-pressed="isTapMode"
+                title="Tap the timings as the song plays (T)"
+                @click="setMode('tap')"
+              >
+                Tap
+              </b-button>
+              <b-button
+                :type="isTapMode ? '' : 'is-primary'"
+                :aria-pressed="!isTapMode"
+                :disabled="!hasTimings"
+                title="Drag the timings into place (T)"
+                @click="setMode('adjust')"
+              >
+                Adjust
+              </b-button>
+            </div>
+          </b-field>
           <b-field label="Playback rate" horizontal>
             <b-numberinput
               expanded
@@ -110,7 +261,18 @@
               <option value="vocals">Vocals only</option>
             </b-select>
           </b-field>
-          <b-field label="Shift all timings (ms)" horizontal>
+          <template v-if="isTapMode">
+            <key-capture-input
+              v-for="key in TIMING_KEY_FIELDS"
+              :key="key.name"
+              :label="key.label"
+              :key-label="timingKeyLabel(key.name)"
+              @bind="
+                (code: string, label?: string) => settingsStore.setTimingKey(key.name, code, label)
+              "
+            />
+          </template>
+          <b-field v-if="!isTapMode" label="Shift all timings (ms)" horizontal>
             <b-numberinput
               expanded
               :model-value="shiftMs"
@@ -122,7 +284,7 @@
             />
             <b-button class="field-action" label="Apply" @click="applyShift" />
           </b-field>
-          <b-field v-if="advancedStore.isAdvanced" horizontal>
+          <b-field v-if="advancedStore.isAdvanced && !isTapMode" horizontal>
             <template #label>
               Line display times
               <b-tooltip
@@ -145,18 +307,29 @@
       </div>
       <subtitle-display
         class="subtitle-display"
-        v-if="songFile && debouncedSubtitles"
+        v-if="songFile"
         ref="subtitleDisplay"
         :subtitles="debouncedSubtitles"
         :fonts="previewFonts"
         :backgroundColor="previewColors.background.toString()"
       />
+      <b-button
+        v-if="isImmersive"
+        class="immersive-exit"
+        label="Show the other tabs"
+        @click="immersiveDismissed = true"
+      />
     </div>
     <timing-adjuster
-      v-if="songFile && adjustmentSubtitles"
+      v-if="songFile"
       ref="timing-adjuster"
-      :segments="timingsStore.activeSegments"
+      :segments="displayedSegments"
       :displayMode="displayMode"
+      :tapMode="isTapMode"
+      :growing="pass?.growing"
+      :head="tapHead"
+      :tapped="tappedSegments"
+      :queue="queue"
       :bands="displayBands"
       :bandsEnabled="settingsStore.videoOptions.useStoredDisplayPeriods"
       :audioData="songFile ?? undefined"
@@ -172,9 +345,27 @@
       @band-updated="onBandUpdated"
       @band-reset="onBandReset"
       @zoom-change="onZoomChange"
+      @zoom-by="onZoomBy"
       @scroll-change="onScrollChange"
       @timeupdate="onPlayheadUpdate"
       @seeking="onSeek"
+      @segment-picked="onSegmentPicked"
+      @play="isPlaying = true"
+      @pause="onPlaybackPause"
+    />
+    <tap-buttons
+      v-if="songFile && (isImmersive || (isTapMode && showTapButtons))"
+      :timing-buttons="isTapMode"
+      :floating="isImmersive"
+      :start-label="timingKeyLabel('start')"
+      :end-label="timingKeyLabel('end')"
+      :redo-label="timingKeyLabel('redo')"
+      :playing="isPlaying"
+      :show-keys="!isMobile && !isImmersive"
+      @start="onTimingKey('start')"
+      @end="onTimingKey('end')"
+      @redo="onTimingKey('redo')"
+      @play-pause="timingAdjusterRef()?.togglePlayPause()"
     />
   </b-tab-item>
 </template>
@@ -190,17 +381,40 @@ import { useTimingsStore } from "@/stores/timings";
 import { useAdvancedStore } from "@/stores/advanced";
 import { useLyricsStore } from "@/stores/lyrics";
 import { useSettingsStore } from "@/stores/settings";
+import { useLegacyTimingStore } from "@/stores/legacyTiming";
 import { storeToRefs } from "pinia";
-import { BButton, BField, BNumberinput, BSelect, BSwitch } from "buefy";
+import { BButton, BField, BIcon, BMessage, BNumberinput, BSelect, BSwitch } from "buefy";
+import { PHONE_LANDSCAPE_QUERY, isMobile } from "@/lib/device";
+import TapButtons from "@/components/TapButtons.vue";
 import { VoiceId } from "@/lib/voices";
 import { clampSegmentOverlaps } from "@/lib/timingValidation";
 import { isDragging } from "@/lib/wavesurferPlugins/OpenEndedRegionPlugin";
-import { TimedSegment } from "@/lib/timedSegments";
+import { TimedSegment, fromLyric } from "@/lib/timedSegments";
+import {
+  TapPass,
+  followHead,
+  lineStarts,
+  prerollStart,
+  previousLine,
+  moveHead,
+  redoLine,
+  segmentHeadAt,
+  startPass,
+  steppedTap,
+  tapEnd,
+  tapStart,
+  tapSteps,
+  undoTap,
+} from "@/lib/tapPass";
+import { TimingKeys, eventMatchesKey, keyLabel } from "@/lib/timingKeys";
+import KeyCaptureInput from "@/components/KeyCaptureInput.vue";
+import { QueueItem } from "@/components/TapQueue.vue";
+import { displayText, resolveStarts } from "@/lib/timing";
 import { DisplayBand, displayBands } from "@/lib/displayBands";
 import { resolveThemeColor } from "@/lib/themeColor";
 import { onSchemeChange } from "@/lib/colorScheme";
 import { loadJsonFromStorage } from "@/lib/persistence";
-import { pick, throttle } from "lodash-es";
+import { findLastIndex, pick, throttle } from "lodash-es";
 import { CJK_FONT, SYMBOL_FONT } from "@/lib/fonts";
 import { useFallbackFontsStore } from "@/stores/fallbackFonts";
 import { default as BuefyColor } from "buefy/src/utils/color";
@@ -231,7 +445,7 @@ function historyStepFor(event: KeyboardEvent): "undo" | "redo" | null {
 // so it uses the app's own palette, font and size rather than the video settings.
 // The size is in SUBTITLE_CANVAS units,
 // so it scales with the preview instead of being a pixel height.
-const PREVIEW_FONT_SIZE = 20;
+const PREVIEW_FONT_SIZE = 23;
 const PREVIEW_FONT = SYMBOL_FONT;
 
 // Fallbacks are the light-theme values, applied only where the stylesheet is absent.
@@ -254,13 +468,35 @@ function resolvePreviewColors(): PreviewColors {
 interface AdjustVoiceState {
   playhead: number;
   manualPlayhead: number;
+  // The preroll in Adjust mode. It keeps its old name so saved states still load.
   prerollSeconds: number;
+  tapPrerollSeconds: number;
   shiftMs: number;
   zoomPercent: number;
   waveformScroll: number;
   playbackRate: number;
   playbackTrackChoice: "full" | "vocals";
+  tapHead: number;
+  // The Almost done or Done message the user tucked away, which then shows as an icon.
+  acknowledgedStatus?: TimingStatus | null;
 }
+
+type AdjustMode = "tap" | "adjust";
+
+// How far the voice is timed: every segment has a start, and the last one an end too.
+type TimingStatus = "almost" | "done";
+
+const TIMING_KEY_FIELDS: Array<{ name: keyof TimingKeys; label: string }> = [
+  { name: "start", label: "Start key" },
+  { name: "end", label: "End key" },
+  { name: "redo", label: "Redo key" },
+];
+
+// A pass needs more of a run-up than a replay, to catch the beat before the first tap.
+const DEFAULT_TAP_PREROLL = 2;
+
+// The queue shows the rest of the head's line and this many lines after it.
+const QUEUE_EXTRA_LINES = 2;
 
 const ADJUST_STORAGE_KEY = "adjust.state";
 
@@ -275,6 +511,16 @@ interface PersistedAdjust {
   voiceState: Record<VoiceId, AdjustVoiceState>;
   preservePitch: boolean;
   showDisplayBands?: boolean;
+  mode?: AdjustMode;
+  showTapButtons?: boolean;
+}
+
+function writeAdjustState(value: PersistedAdjust) {
+  try {
+    localStorage.setItem(ADJUST_STORAGE_KEY, JSON.stringify(value));
+  } catch (e) {
+    console.error(`Failed to save ${ADJUST_STORAGE_KEY} to localStorage`, e);
+  }
 }
 
 function defaultAdjustState(): AdjustVoiceState {
@@ -282,11 +528,14 @@ function defaultAdjustState(): AdjustVoiceState {
     playhead: 0.0,
     manualPlayhead: 0.0,
     prerollSeconds: 1,
+    tapPrerollSeconds: DEFAULT_TAP_PREROLL,
     shiftMs: 0,
     zoomPercent: 100,
     waveformScroll: 0,
     playbackRate: 1,
     playbackTrackChoice: "full",
+    tapHead: 0,
+    acknowledgedStatus: null,
   };
 }
 
@@ -298,6 +547,10 @@ export default defineComponent({
     BSelect,
     BSwitch,
     HelpSection,
+    BIcon,
+    BMessage,
+    TapButtons,
+    KeyCaptureInput,
     TimingAdjuster,
     SubtitleDisplay,
     VoiceSelector,
@@ -311,6 +564,7 @@ export default defineComponent({
     const { subtitles } = storeToRefs(timingsStore);
     return {
       advancedStore: useAdvancedStore(),
+      legacyTimingStore: useLegacyTimingStore(),
       mediaStore,
       timingsStore,
       lyricsStore,
@@ -329,7 +583,8 @@ export default defineComponent({
       // as opposed to one reached by playback running on.
       // Enter replays from here.
       manualPlayhead: 0.0,
-      prerollSeconds: 1,
+      adjustPrerollSeconds: 1,
+      tapPrerollSeconds: DEFAULT_TAP_PREROLL,
       shiftMs: 0,
       zoom: 100,
       waveformScroll: 0,
@@ -339,6 +594,16 @@ export default defineComponent({
       preservePitch: restored?.preservePitch ?? false,
       // Off by default, since most users never set display times.
       showDisplayBands: restored?.showDisplayBands ?? false,
+      // On by default where there is likely no keyboard to tap with.
+      showTapButtons: restored?.showTapButtons ?? isMobile(),
+      isPlaying: false,
+      isPhoneLandscape: false,
+      // Set by "Show the other tabs", until the phone is turned upright again.
+      immersiveDismissed: false,
+      settingsOpen: false,
+      isFullScreen: false,
+      _phoneLandscape: null as MediaQueryList | null,
+      acknowledgedStatus: null as TimingStatus | null,
       // Which track to play back. The waveform always stays on the vocals.
       playbackTrackChoice: "full" as "full" | "vocals",
       // Per-voice control state.
@@ -356,7 +621,17 @@ export default defineComponent({
       debouncedSubtitles: "",
       _subtitleDebounceTimer: null as ReturnType<typeof setTimeout> | null,
       previewColors: resolvePreviewColors(),
+      // Whether the settings column is scrolled down, which fades out its top edge.
+      settingsScrolled: false,
       _unsubscribeScheme: null as (() => void) | null,
+      mode: restored?.mode ?? ("adjust" as AdjustMode),
+      // The active voice's head, the first segment the next start tap times.
+      tapHead: 0,
+      // The pass being tapped, and the voice it belongs to. Nothing is written before it ends.
+      pass: null as TapPass | null,
+      passVoice: null as VoiceId | null,
+      // The voice the segments last seen belong to, so a voice switch isn't read as a lyrics edit.
+      segmentsVoice: null as VoiceId | null,
     };
   },
   computed: {
@@ -365,6 +640,19 @@ export default defineComponent({
     },
     redoShortcut(): string {
       return `${SHORTCUT_MODIFIER}+Shift+Z`;
+    },
+    // Each mode has its own preroll, set in the same field.
+    prerollSeconds: {
+      get(): number {
+        return this.isTapMode ? this.tapPrerollSeconds : this.adjustPrerollSeconds;
+      },
+      set(seconds: number) {
+        if (this.isTapMode) {
+          this.tapPrerollSeconds = seconds;
+        } else {
+          this.adjustPrerollSeconds = seconds;
+        }
+      },
     },
     /**
      * The active voice's live values live in the flat fields,
@@ -375,6 +663,8 @@ export default defineComponent({
         voiceState: { ...this.voiceState, [this.activeVoice]: this.snapshotState() },
         preservePitch: this.preservePitch,
         showDisplayBands: this.showDisplayBands,
+        showTapButtons: this.showTapButtons,
+        mode: this.mode,
       };
     },
     activeVoice(): VoiceId {
@@ -400,11 +690,77 @@ export default defineComponent({
       return pick(this.fallbackFontsStore.fontUrls, [PREVIEW_FONT, CJK_FONT]);
     },
     isEnabled(): boolean {
-      return this.timingsStore.length > 0;
+      return !!this.songFile && this.lyricsStore.lyricSegments.length > 0;
+    },
+    // Adjust mode needs timings to drag, so a voice without any is in Tap mode whatever was chosen.
+    isTapMode(): boolean {
+      return this.mode === "tap" || !this.hasTimings;
+    },
+    hasTimings(): boolean {
+      return this.timingsStore.activeSegments.some((segment) => segment.start !== undefined);
+    },
+    // A voice that was never timed has no segments in the store yet, so they come from its lyrics.
+    tapSegments(): TimedSegment[] {
+      const stored = this.timingsStore.activeSegments;
+      if (stored.length > 0) return stored;
+      return this.lyricsStore.segmentsForVoice(this.activeVoice).map(fromLyric);
+    },
+    displayedSegments(): TimedSegment[] {
+      return this.pass?.staged ?? this.timingsStore.activeSegments;
+    },
+    // The segments from the head to the end of the second line after its own.
+    queue(): QueueItem[] {
+      const segments = this.pass?.staged ?? this.tapSegments;
+      const end =
+        lineStarts(segments).filter((start) => start > this.tapHead)[QUEUE_EXTRA_LINES] ??
+        segments.length;
+      const resolved = resolveStarts(segments);
+      return segments.slice(this.tapHead, end).map((segment, offset) => {
+        const index = this.tapHead + offset;
+        // A start is closed by the segment's own end, or by the start of the next one.
+        const closed = segment.end !== undefined || resolved[index + 1]?.start !== undefined;
+        return {
+          index,
+          text: displayText(segment.text).trim(),
+          isHead: offset === 0,
+          joinsNext: segment.text.endsWith("/"),
+          endsLine: segment.text.endsWith("\n"),
+          timing: segment.start === undefined ? "none" : closed ? "full" : "start",
+        };
+      });
+    },
+    TIMING_KEY_FIELDS: () => TIMING_KEY_FIELDS,
+    // A phone held sideways gives the whole screen to the waveform.
+    isImmersive(): boolean {
+      return this.isPhoneLandscape && !this.immersiveDismissed;
+    },
+    canFullScreen(): boolean {
+      return document.fullscreenEnabled ?? false;
+    },
+    isMobile,
+    /**
+     * In Tap mode, whether every segment has a start, and whether the last one has its end too,
+     * counting the taps of a pass under way.
+     */
+    timingStatus(): TimingStatus | null {
+      if (!this.isTapMode) return null;
+      const segments = this.pass?.staged ?? this.tapSegments;
+      if (segments.length === 0) return null;
+      if (resolveStarts(segments).some((segment) => segment.start === undefined)) return null;
+      return segments[segments.length - 1].end === undefined ? "almost" : "done";
+    },
+    statusTitle(): string {
+      return this.timingStatus === "done" ? "Done" : "Almost done";
+    },
+    tappedSegments(): number[] {
+      return this.pass ? [...this.pass.tapped] : [];
+    },
+    timingKeys(): TimingKeys {
+      return this.settingsStore.timingKeys;
     },
     // The switch keeps its position while advanced mode is off, so it comes back as it was.
     displayMode(): boolean {
-      return this.advancedStore.isAdvanced && this.showDisplayBands;
+      return this.advancedStore.isAdvanced && this.showDisplayBands && !this.isTapMode;
     },
     displayBands(): DisplayBand[] {
       if (!this.displayMode) return [];
@@ -432,16 +788,25 @@ export default defineComponent({
     this.loadState(this.activeVoice);
     this.restoredPlayhead = this.playhead;
     this.restoredScroll = this.waveformScroll;
+    this.segmentsVoice = this.activeVoice;
   },
   mounted() {
     // Capture phase: the audio element's built-in controls handle these same keys when they have focus,
     // so we have to get in ahead of them and cancel the native behavior.
     // A bubble-phase listener runs too late and both act.
     window.addEventListener("keydown", this.onKeyDown, true);
+    window.addEventListener("pagehide", this.saveBeforeLeaving);
+    document.addEventListener("fullscreenchange", this.onFullScreenChange);
+    this._phoneLandscape = window.matchMedia?.(PHONE_LANDSCAPE_QUERY) ?? null;
+    this.isPhoneLandscape = this._phoneLandscape?.matches ?? false;
+    this._phoneLandscape?.addEventListener("change", this.onPhoneLandscapeChange);
     this._unsubscribeScheme = onSchemeChange(this.applyPreviewColors);
   },
   beforeUnmount() {
     window.removeEventListener("keydown", this.onKeyDown, true);
+    window.removeEventListener("pagehide", this.saveBeforeLeaving);
+    document.removeEventListener("fullscreenchange", this.onFullScreenChange);
+    this._phoneLandscape?.removeEventListener("change", this.onPhoneLandscapeChange);
     this._unsubscribeScheme?.();
     if (this._subtitleDebounceTimer) {
       clearTimeout(this._subtitleDebounceTimer);
@@ -449,6 +814,7 @@ export default defineComponent({
   },
   watch: {
     activeVoice(newVoice: VoiceId, oldVoice?: VoiceId) {
+      this.endPass();
       // Save the outgoing voice's control state and load the incoming voice's.
       if (oldVoice) {
         this.voiceState = { ...this.voiceState, [oldVoice]: this.snapshotState() };
@@ -457,6 +823,15 @@ export default defineComponent({
     },
     playhead(newPlayhead: number) {
       this.subtitleDisplayRef()?.setPlayhead(newPlayhead);
+    },
+    // An edit to the lyrics shifts the segments, and the head has to follow the one it was on.
+    tapSegments(after: TimedSegment[], before: TimedSegment[]) {
+      const sameVoice = this.segmentsVoice === this.activeVoice;
+      this.segmentsVoice = this.activeVoice;
+      if (!sameVoice || this.pass) return;
+      if (after.length === before.length && after.every((s, i) => s.text === before[i].text))
+        return;
+      this.tapHead = followHead(before, after, this.tapHead);
     },
     persistedState: {
       handler(value: PersistedAdjust) {
@@ -502,36 +877,67 @@ export default defineComponent({
       return {
         playhead: this.playhead,
         manualPlayhead: this.manualPlayhead,
-        prerollSeconds: this.prerollSeconds,
+        prerollSeconds: this.adjustPrerollSeconds,
+        tapPrerollSeconds: this.tapPrerollSeconds,
         shiftMs: this.shiftMs,
         zoomPercent: this.zoom,
         waveformScroll: this.waveformScroll,
         playbackRate: this.playbackRate,
         playbackTrackChoice: this.playbackTrackChoice,
+        tapHead: this.tapHead,
+        acknowledgedStatus: this.acknowledgedStatus,
       };
     },
     loadState(voice: VoiceId) {
       const state = this.voiceState[voice] ?? defaultAdjustState();
       this.playhead = state.playhead;
       this.manualPlayhead = state.manualPlayhead;
-      this.prerollSeconds = state.prerollSeconds;
+      this.adjustPrerollSeconds = state.prerollSeconds;
+      this.tapPrerollSeconds = state.tapPrerollSeconds ?? DEFAULT_TAP_PREROLL;
       this.shiftMs = state.shiftMs;
       this.zoom = state.zoomPercent ?? 100;
       this.waveformScroll = state.waveformScroll ?? 0;
       this.playbackRate = state.playbackRate;
       this.playbackTrackChoice = state.playbackTrackChoice;
+      this.tapHead = state.tapHead ?? 0;
+      this.acknowledgedStatus = state.acknowledgedStatus ?? null;
     },
     // The save is throttled, because the playhead ticks several times a second while the track
     // plays.
     saveState: throttle(function (this: void, value: PersistedAdjust) {
-      try {
-        localStorage.setItem(ADJUST_STORAGE_KEY, JSON.stringify(value));
-      } catch (e) {
-        console.error(`Failed to save ${ADJUST_STORAGE_KEY} to localStorage`, e);
-      }
+      writeAdjustState(value);
     }, 1000),
+    /**
+     * Write a pass in progress and save everything at once, since a page being reloaded or closed
+     * doesn't wait for the saves that follow a change.
+     */
+    saveBeforeLeaving() {
+      this.endPass();
+      this.timingsStore.saveToStorage();
+      writeAdjustState(this.persistedState);
+    },
     onScrollChange(startSeconds: number) {
       this.waveformScroll = startSeconds;
+    },
+    onPhoneLandscapeChange(event: MediaQueryListEvent) {
+      this.isPhoneLandscape = event.matches;
+      if (!event.matches) {
+        this.immersiveDismissed = false;
+        this.settingsOpen = false;
+      }
+    },
+    onFullScreenChange() {
+      this.isFullScreen = document.fullscreenElement !== null;
+    },
+    toggleFullScreen() {
+      if (document.fullscreenElement) {
+        document.exitFullscreen();
+      } else {
+        document.documentElement.requestFullscreen();
+      }
+    },
+    onZoomBy(ratio: number) {
+      this.zoom = Math.min(MAX_ZOOM, Math.max(MIN_ZOOM, Math.round(this.zoom * ratio)));
     },
     onZoomChange(direction: number) {
       const zoom = Math.round(this.zoom * ZOOM_WHEEL_FACTOR ** direction);
@@ -543,28 +949,48 @@ export default defineComponent({
       const isEscape = event.code === "Escape";
       const isViewEdge = event.code === "Home" || event.code === "End";
       const historyStep = historyStepFor(event);
+      const hasModifier = event.ctrlKey || event.metaKey || event.altKey;
+      const timingKey = this.isTapMode && !hasModifier ? this.timingKeyFor(event) : null;
+      // The letter, wherever the keyboard layout puts it, so the shortcut matches its name.
+      const isModeKey = event.key.toLowerCase() === "t" && !hasModifier;
       if (
         event.code !== "Space" &&
         !isEnter &&
         !isArrow &&
         !isEscape &&
         !isViewEdge &&
-        !historyStep
+        !historyStep &&
+        !timingKey &&
+        !isModeKey
       ) {
         return;
       }
       const target = event.target as HTMLElement | null;
       // Form controls need these keys for themselves.
       if (target && ["INPUT", "TEXTAREA", "SELECT"].includes(target.tagName)) return;
+      // A key pressed on a timing key's picker is being picked, not pressed to time anything.
+      if (target?.closest?.(".key-capture-input")) return;
       // Enter is also how a focused button or link is activated,
       // so leave those to the browser rather than hijacking the key.
-      if (isEnter && target?.closest?.("button, a")) return;
-      if (this.$el.offsetParent === null) return;
+      // A tap can't wait for the focus to move, so a timing key is taken anyway.
+      if (isEnter && !timingKey && target?.closest?.("button, a")) return;
+      // A fixed element has no offset parent, so the full-screen layout asks for its boxes instead.
+      if (
+        this.isImmersive ? this.$el.getClientRects().length === 0 : this.$el.offsetParent === null
+      ) {
+        return;
+      }
       event.preventDefault();
-      if (historyStep) {
-        if (!isDragging()) {
-          this.timingsStore[historyStep]();
+      if (timingKey) {
+        if (!event.repeat) {
+          this.onTimingKey(timingKey);
         }
+      } else if (isModeKey) {
+        this.setMode(this.isTapMode ? "adjust" : "tap");
+      } else if (historyStep) {
+        this.stepHistory(historyStep);
+      } else if (isEscape && this.isTapMode) {
+        this.timingAdjusterRef()?.pause();
       } else if (isEscape) {
         this.timingAdjusterRef()?.clearSelection();
       } else if (isViewEdge) {
@@ -586,6 +1012,174 @@ export default defineComponent({
       } else {
         this.timingAdjusterRef()?.togglePlayPause();
       }
+    },
+    timingKeyLabel(name: keyof TimingKeys): string {
+      return keyLabel(this.timingKeys[name], this.settingsStore.timingKeyLabels);
+    },
+    onSettingsScroll(event: Event) {
+      // Sub-pixel leftovers are rounding, not content.
+      this.settingsScrolled = (event.target as HTMLElement).scrollTop > 1;
+    },
+    timingKeyFor(event: KeyboardEvent): keyof TimingKeys | null {
+      const keys = ["start", "end", "redo"] as const;
+      return keys.find((key) => eventMatchesKey(event.code, this.timingKeys[key])) ?? null;
+    },
+    setMode(mode: AdjustMode) {
+      if (mode === "adjust" && !this.hasTimings) return;
+      if ((mode === "tap") !== this.isTapMode) {
+        this.endPass();
+        if (mode === "tap") {
+          this.tapHead = segmentHeadAt(this.tapSegments, this.playhead);
+        }
+      }
+      this.mode = mode;
+    },
+    /**
+     * Undo or redo one tap, or one edit made in Adjust mode. In Tap mode the head goes back to where
+     * the tap was, and the playhead to the preroll before it, playing on if it was playing.
+     */
+    stepHistory(step: "undo" | "redo") {
+      if (isDragging()) return;
+      const adjuster = this.timingAdjusterRef();
+      const playing = this.isTapMode && !!adjuster && !adjuster.isPaused();
+      if (playing) {
+        // A redo would put a tap back ahead of the playhead.
+        if (step === "redo") return;
+        if (this.pass?.previous) {
+          this.undoLastTap();
+          return;
+        }
+      }
+      this.endPass();
+      const before = this.tapSegments;
+      this.timingsStore[step]();
+      const tap = steppedTap(before, this.tapSegments, step);
+      if (!tap) return;
+      this.tapHead = tap.head;
+      if (!this.isTapMode) return;
+      const at = Math.max(0, tap.time - this.prerollSeconds);
+      if (playing) {
+        adjuster.restartAt(at);
+      } else {
+        adjuster?.setAudioPlayhead(at);
+      }
+    },
+    onTimingKey(key: keyof TimingKeys) {
+      const adjuster = this.timingAdjusterRef();
+      if (!adjuster) return;
+      if (key === "redo") {
+        if (this.pass) {
+          this.pass = redoLine(this.pass);
+          this.tapHead = this.pass.head;
+        } else {
+          this.tapHead = previousLine(this.tapSegments, this.tapHead);
+        }
+        if (adjuster.isPaused()) {
+          this.cueHead();
+        } else {
+          this.playFromHead();
+        }
+        return;
+      }
+      // Whatever moves the head while paused cues the playhead to it, so play starts wherever the
+      // playhead was left, even if it was moved since.
+      if (adjuster.isPaused()) {
+        adjuster.togglePlayPause();
+        return;
+      }
+      const time = adjuster.currentTime();
+      if (!this.pass) {
+        const pass = startPass(this.tapSegments, this.tapHead);
+        if (key === "end" && pass.growing === undefined) return;
+        this.pass = pass;
+        this.passVoice = this.activeVoice;
+        // A voice with no timings is in Tap mode without it being chosen, and its first pass
+        // would otherwise drop it into Adjust mode.
+        this.mode = "tap";
+      }
+      if (key === "start") {
+        this.pass = tapStart(this.pass, time);
+        this.tapHead = this.pass.head;
+      } else {
+        this.pass = tapEnd(this.pass, time);
+      }
+    },
+    /**
+     * Make a segment clicked on the waveform or in the queue the head, and move the playhead to the
+     * preroll before it. During a pass, the taps made so far are kept, as on the redo key.
+     *
+     * The segments before an untimed one aren't timed either, so the head goes back to where the
+     * timing stops: the last timed segment if it has no end, to be tapped again, or the one after it.
+     */
+    onSegmentPicked(index: number) {
+      const segments = this.pass?.staged ?? this.tapSegments;
+      const resolved = resolveStarts(segments);
+      let head = index;
+      if (resolved[index]?.start === undefined) {
+        const lastTimed = findLastIndex(
+          resolved.slice(0, index),
+          (segment) => segment.start !== undefined,
+        );
+        head = lastTimed === -1 ? 0 : lastTimed + (segments[lastTimed].end === undefined ? 0 : 1);
+      }
+      if (this.pass) {
+        this.pass = moveHead(this.pass, head);
+      }
+      this.tapHead = head;
+      this.cueHead();
+    },
+    undoLastTap() {
+      const undone = this.pass && undoTap(this.pass);
+      if (!undone) return;
+      this.pass = undone.pass;
+      this.tapHead = undone.pass.head;
+      this.timingAdjusterRef()?.restartAt(Math.max(0, undone.time - this.prerollSeconds));
+    },
+    /**
+     * Move the playhead to the preroll before the head, without playing.
+     */
+    cueHead() {
+      const segments = this.pass?.staged ?? this.tapSegments;
+      this.timingAdjusterRef()?.setAudioPlayhead(
+        prerollStart(segments, this.tapHead, this.prerollSeconds),
+      );
+    },
+    playFromHead() {
+      const segments = this.pass?.staged ?? this.tapSegments;
+      this.timingAdjusterRef()?.restartAt(
+        prerollStart(segments, this.tapHead, this.prerollSeconds),
+      );
+    },
+    tuckStatusMessage() {
+      this.acknowledgedStatus = this.timingStatus;
+    },
+    onPlaybackPause() {
+      this.isPlaying = false;
+      this.endPass();
+    },
+    /**
+     * Write the pass to the store as one edit per tap. The head stays on the next segment to tap.
+     */
+    endPass() {
+      const { pass, passVoice } = this;
+      if (!pass || !passVoice) return;
+      this.pass = null;
+      this.passVoice = null;
+      this.timingsStore.applyVoiceEdits(passVoice, tapSteps(pass));
+      this.tapHead = pass.head;
+    },
+    /**
+     * Clear every timing of the active voice as one edit, and start tapping again from the top.
+     */
+    resetTimings() {
+      this.timingAdjusterRef()?.pause();
+      this.endPass();
+      this.timingsStore.applyVoiceEdit(
+        this.activeVoice,
+        this.tapSegments.map(({ start, end, displayStart, displayEnd, ...segment }) => segment),
+      );
+      this.tapHead = 0;
+      this.cueHead();
     },
     applyShift() {
       const deltaSeconds = this.shiftMs / 1000;
@@ -621,6 +1215,8 @@ export default defineComponent({
     // Every seek is a deliberate move of the playhead
     // (playback progress comes through as a timeupdate instead),
     // so it becomes the Enter replay point.
+    // In Tap mode it leaves the head and the pass alone, so the song can be rewound to get back
+    // into the rhythm before a missed tap. Only a click on a region moves the head.
     onSeek(newPlayhead: number) {
       this.manualPlayhead = newPlayhead;
       this.onPlayheadUpdate(newPlayhead);
@@ -640,12 +1236,19 @@ export default defineComponent({
 and the waveform is the point of the tab, so it scrolls.
 Buefy pins .tab-item at flex-shrink: 0,
 which with min-height: auto would hold this one open at content height
-and leave nothing to scroll. */
+and leave nothing to scroll.
+It grows to the full height too, so the waveform can take what the rest leaves. */
 .b-tabs .tab-content .timing-adjustment-tab {
+  flex-grow: 1;
   flex-shrink: 1;
   min-height: 0;
   overflow-x: hidden;
   overflow-y: auto;
+}
+
+/* The waveform takes the height left under the settings. */
+.timing-adjuster {
+  flex: 1 0 auto;
 }
 
 .title-row {
@@ -665,10 +1268,48 @@ The row owns the spacing instead. */
   margin-bottom: 0;
 }
 
+.title-main {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+/* The Almost done or Done message, tucked away. A click brings it back. */
+.status-icon {
+  display: inline-flex;
+  padding: 0;
+  border: none;
+  background: none;
+  cursor: pointer;
+}
+
+.status-message-body {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
 .title-actions {
   display: flex;
   align-items: center;
   gap: 0.5rem;
+}
+
+/* Bulma's button group pulls itself up by the margin it leaves under each button for wrapping.
+The two buttons never wrap, so neither margin is wanted. */
+.mode-switch,
+.mode-switch :deep(.button) {
+  margin-bottom: 0;
+}
+
+.mode-switch {
+  flex-wrap: nowrap;
+  width: 10em;
+}
+
+.mode-switch :deep(.button) {
+  flex: 1 1 0;
 }
 
 /* Two columns for as long as they fit,
@@ -680,12 +1321,15 @@ A container query has to be answered by an ancestor, so the grid needs this wrap
   container-type: inline-size;
 }
 
+/* While labels sit above their controls, a column is as wide as its widest field and every field
+takes that width, so the labels and controls line up. The columns are centred. */
 .adjustment-fields {
   display: grid;
-  grid-template-columns: minmax(0, 1fr);
+  grid-template-columns: fit-content(100%);
+  justify-content: center;
   column-gap: 1.5rem;
   row-gap: 0.5rem;
-  justify-items: center;
+  justify-items: stretch;
 }
 
 .adjustment-fields > :deep(.field) {
@@ -726,7 +1370,8 @@ but BFieldBody generates these wrappers itself and forwards no class, so it has 
 /* Two columns of label-above-control need 13rem each, the width of the longest label. */
 @container (min-width: 28rem) {
   .adjustment-fields {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
+    grid-template-columns: repeat(2, fit-content(50%));
+    justify-content: space-evenly;
   }
 }
 
@@ -773,9 +1418,16 @@ The Apply button wraps under its control until there is room for it too. */
   }
 }
 
+/* The key pickers are small on phones in the old Timing tab. Here they match the other controls. */
+.adjustment-fields :deep(.key-capture-input .button) {
+  --bulma-control-size: var(--bulma-size-normal);
+  --bulma-control-radius: var(--bulma-radius);
+}
+
 .adjustment-fields :deep(.b-numberinput),
 .adjustment-fields :deep(.select),
-.adjustment-fields :deep(.switch) {
+.adjustment-fields :deep(.switch),
+.adjustment-fields :deep(.key-capture-input .button) {
   width: 10em;
 }
 
@@ -834,8 +1486,37 @@ These rules come last so they win over the form's own column rules. */
     gap: 1.5rem;
   }
 
+  /* The preview alone sets the row's height. The settings scroll within it rather than pushing
+  the waveform down, so their grid is taken out of the flow. */
   .adjust-top > .adjustment-form {
     flex: 0 0 var(--settings-width);
+    align-self: stretch;
+    position: relative;
+  }
+
+  /* Fading the content out at an edge reads as "there is more this way", scrollbar or not,
+  as on the Submit tab. The bottom fade is always on, with padding under the last setting to
+  scroll it clear. The top fade only shows once the column is scrolled. */
+  .adjust-top .adjustment-fields {
+    --fade-below: 2.5rem;
+    position: absolute;
+    inset: 0;
+    overflow-y: auto;
+    align-content: start;
+    padding-bottom: var(--fade-below);
+    scrollbar-color: var(--bulma-border) transparent;
+    scrollbar-gutter: stable;
+    mask-image: linear-gradient(
+      to bottom,
+      transparent 0,
+      #000 var(--fade-above, 0px),
+      #000 calc(100% - var(--fade-below)),
+      transparent 100%
+    );
+  }
+
+  .adjust-top .adjustment-fields.has-more-above {
+    --fade-above: 2.5rem;
   }
 
   .adjust-top > .subtitle-display {
@@ -845,8 +1526,12 @@ These rules come last so they win over the form's own column rules. */
     margin-inline: auto;
   }
 
+  /* The control track always has room for a control and the button beside it, so the settings
+  keep their width and place when a mode without those buttons hides them. */
   .adjustment-fields {
-    grid-template-columns: minmax(0, 1fr) minmax(13rem, max-content) minmax(0, auto) minmax(0, 1fr);
+    grid-template-columns:
+      minmax(0, 1fr) minmax(13rem, max-content) minmax(calc(14.75em + 0.75rem), auto)
+      minmax(0, 1fr);
     column-gap: 0.75rem;
     justify-items: stretch;
   }
@@ -861,6 +1546,99 @@ These rules come last so they win over the form's own column rules. */
   .adjustment-fields :deep(.field-label) {
     grid-column: 2;
     margin: 0;
+  }
+}
+
+/* A phone held sideways gives the whole screen to the waveform, over the app's own bars. The
+buttons float over it, and the settings open in a drawer. */
+.b-tabs .tab-content .timing-adjustment-tab.is-immersive {
+  position: fixed;
+  inset: 0;
+  z-index: 35;
+  padding: 0;
+  overflow: hidden;
+  background: var(--bulma-scheme-main);
+}
+
+.is-immersive > .title-row,
+.is-immersive > .help-section,
+.is-immersive > .status-message,
+.is-immersive > .rotate-hint,
+.is-immersive > .adjust-top,
+.is-immersive .adjust-top > .subtitle-display,
+.is-immersive :deep(.timing-adjuster > audio) {
+  display: none;
+}
+
+.is-immersive > .timing-adjuster {
+  flex: 1 1 auto;
+  min-height: 0;
+}
+
+.is-immersive :deep(.waveform-stage) {
+  min-height: 0;
+}
+
+.immersive-bar {
+  position: absolute;
+  inset: 0 0 auto;
+  z-index: 30;
+  display: flex;
+  justify-content: space-between;
+  padding: 0.5rem;
+  pointer-events: none;
+}
+
+.immersive-bar .buttons {
+  margin: 0;
+  pointer-events: auto;
+}
+
+.immersive-bar :deep(.button:not(.is-primary)) {
+  margin-bottom: 0;
+  background: color-mix(in srgb, var(--bulma-scheme-main) 55%, transparent);
+  backdrop-filter: blur(3px);
+}
+
+.immersive-status {
+  display: inline-flex;
+}
+
+.is-immersive.settings-open > .adjust-top {
+  position: absolute;
+  inset: 0 0 0 auto;
+  z-index: 20;
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  width: min(24rem, 100%);
+  padding: 3.5rem 1rem 1rem;
+  overflow-y: auto;
+  background: var(--bulma-scheme-main);
+  box-shadow: -0.25rem 0 1rem rgb(0 0 0 / 35%);
+}
+
+/* The drawer is narrow, whatever width the wide layout would give the settings. */
+.is-immersive .adjust-top > .adjustment-form {
+  flex: none;
+}
+
+.is-immersive .adjust-top .adjustment-fields {
+  position: static;
+  padding-bottom: 0;
+  overflow: visible;
+  mask-image: none;
+}
+
+/* A phone held upright could time too, but sideways gives the waveform far more room. */
+.rotate-hint {
+  display: none;
+}
+
+@media (orientation: portrait) and (max-width: 500px) {
+  .rotate-hint {
+    display: block;
+    padding: 0.75rem 1rem;
   }
 }
 </style>

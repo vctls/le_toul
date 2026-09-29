@@ -35,6 +35,11 @@ import {
   faMoon,
   faCircleHalfStroke,
   faSliders,
+  faEraser,
+  faPlay,
+  faPause,
+  faExpand,
+  faCompress,
 } from "@fortawesome/free-solid-svg-icons";
 
 // Import from brands
@@ -75,6 +80,11 @@ library.add(
   faMoon,
   faCircleHalfStroke,
   faSliders,
+  faEraser,
+  faPlay,
+  faPause,
+  faExpand,
+  faCompress,
 
   // Brand icons
   faGithub,

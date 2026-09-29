@@ -151,6 +151,38 @@ export async function scrollWaveformIntoView(page: Page): Promise<void> {
     .toBe(true);
 }
 
+/** A segment as the app saves it. */
+export interface SavedSegment {
+  text: string;
+  start?: number;
+  end?: number;
+}
+
+/**
+ * The default voice's segments, as the app last saved them.
+ */
+export async function savedSegments(page: Page): Promise<SavedSegment[]> {
+  return page.evaluate(
+    (voice) => JSON.parse(localStorage.getItem("timings._segments") ?? "{}")[voice] ?? [],
+    DEFAULT_VOICE_ID,
+  );
+}
+
+/**
+ * Waits for the Timing tab's playback to reach `seconds` of the song, then presses `key`.
+ * Waiting on the song rather than the clock keeps the time it takes playback to start out of the
+ * tap.
+ */
+export async function pressAtSongTime(page: Page, seconds: number, key: string): Promise<void> {
+  await page.waitForFunction(
+    (time) =>
+      document.querySelector<HTMLAudioElement>(".timing-adjustment-tab audio[controls]")!
+        .currentTime >= time,
+    seconds,
+  );
+  await page.keyboard.press(key);
+}
+
 /**
  * Zooms the Adjust tab's waveform in by scrolling up over it, one wheel notch at a time.
  */
