@@ -4,6 +4,10 @@ audio-separator reads its input with libsndfile, which covers WAV, FLAC, AIFF,
 Ogg and MP3. Anything else, MP4 and WebM among them, goes to librosa's
 audioread fallback, which librosa deprecated and removes in 1.0. Converting
 those songs to FLAC first keeps every input on the libsndfile path.
+
+Only mono and stereo are supported. Audio with more channels, such as a video's
+5.1, is converted too, and downmixed to stereo, since the separation models
+cannot take it.
 """
 
 import subprocess
@@ -15,18 +19,18 @@ logger = structlog.get_logger(__name__)
 
 
 def needs_conversion(songfile: Path) -> bool:
-    """Return whether libsndfile cannot open the song."""
+    """Return whether libsndfile cannot open the song, or it is wider than stereo."""
     import soundfile
 
     try:
-        soundfile.info(str(songfile))
+        info = soundfile.info(str(songfile))
     except RuntimeError:
         return True
-    return False
+    return info.channels > 2
 
 
 def to_flac(songfile: Path, work_dir: Path) -> Path:
-    """Convert the song's first audio stream to 16-bit FLAC in work_dir.
+    """Convert the song's first audio stream to 16-bit mono or stereo FLAC in work_dir.
 
     Returns the song unchanged if ffmpeg is missing or cannot decode it,
     so audio-separator still gets its own try at the file.
@@ -43,6 +47,9 @@ def to_flac(songfile: Path, work_dir: Path) -> Path:
         str(songfile),
         "-map",
         "0:a:0",
+        # Mono and stereo pass through, and anything wider is downmixed to stereo.
+        "-af",
+        "aformat=channel_layouts=mono|stereo",
         "-c:a",
         "flac",
         # A lossy source decodes to float, which ffmpeg would store as 24-bit,
