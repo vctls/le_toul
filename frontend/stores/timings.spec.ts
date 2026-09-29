@@ -1042,9 +1042,57 @@ describe("Adjust history", () => {
     expect(timings.canUndo).toBe(false);
   });
 
-  test("the undo stack stops growing at 100 entries", () => {
+  test("undoes a run of edits one at a time", () => {
     const { timings } = loadTwoLines();
-    for (let i = 1; i <= 105; i++) {
+    const first = moved(twoLines(), 0, { start: 0.5 });
+    const second = moved(first, 1, { end: 3.5 });
+    timings.applyVoiceEdits(DEFAULT_VOICE_ID, [first, second]);
+
+    timings.undo();
+    expect(timings.activeSegments).toEqual(first);
+    timings.undo();
+    expect(timings.activeSegments).toEqual(twoLines());
+    timings.redo();
+    expect(timings.activeSegments).toEqual(first);
+  });
+
+  test("the history survives a reload", async () => {
+    const { timings } = loadTwoLines();
+    timings.setupPersistence();
+    timings.applyAdjustEdit(moved(timings.activeSegments, 1, { start: 2.5 }));
+    await nextTick();
+
+    setActivePinia(createPinia());
+    const reloaded = useTimingsStore();
+    expect(reloaded.canUndo).toBe(true);
+
+    reloaded.undo();
+    expect(reloaded.activeSegments).toEqual(twoLines());
+  });
+
+  test("saves at once when asked, without waiting for the change to settle", () => {
+    const { timings } = loadTwoLines();
+    timings.setupPersistence();
+    timings.applyAdjustEdit(moved(timings.activeSegments, 1, { start: 2.5 }));
+
+    timings.saveToStorage();
+
+    setActivePinia(createPinia());
+    expect(useTimingsStore().canUndo).toBe(true);
+  });
+
+  test("Start Over forgets the saved history", async () => {
+    const { timings } = loadTwoLines();
+    timings.setupPersistence();
+    timings.applyAdjustEdit(moved(timings.activeSegments, 1, { start: 2.5 }));
+    timings.clear();
+    await nextTick();
+    expect(localStorage.getItem("timings._history")).toBe("{}");
+  });
+
+  test("the undo stack stops growing at 1000 entries", () => {
+    const { timings } = loadTwoLines();
+    for (let i = 1; i <= 1005; i++) {
       timings.applyAdjustEdit(moved(timings.activeSegments, 1, { start: 2.5 + i / 1000 }));
     }
 
@@ -1054,7 +1102,7 @@ describe("Adjust history", () => {
       undone++;
     }
 
-    expect(undone).toBe(100);
+    expect(undone).toBe(1000);
     expect(timings.activeSegments[1].start).toBeCloseTo(2.505);
   });
 });
