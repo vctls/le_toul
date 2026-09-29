@@ -6,12 +6,12 @@
  * extends to the end of the audio or the start of the next region.
  */
 
-import { createDragStream } from "wavesurfer.js/dist/reactive/drag-stream.js";
 import { BasePlugin } from "wavesurfer.js/dist/base-plugin.js";
 import { BasePluginEvents } from "wavesurfer.js/dist/base-plugin.js";
 import EventEmitter from "wavesurfer.js/dist/event-emitter.js";
 import createElement from "wavesurfer.js/dist/dom.js";
 import { groupBy, sortBy } from "lodash-es";
+import { listenForDrags } from "./dragStream";
 
 // Every drag in progress, in any plugin instance.
 const activeDrags = new Set<object>();
@@ -31,24 +31,25 @@ export function makeDraggable(
   threshold?: number,
 ): () => void {
   const drag = {};
-  const { signal, cleanup } = createDragStream(element, { threshold });
-  const unsubscribe = signal.subscribe((event) => {
-    if (!event) return;
-    if (event.type === "start") {
-      activeDrags.add(drag);
-      onStart?.(event.x, event.y);
-    } else if (event.type === "move") {
-      onDrag(event.deltaX ?? 0, event.deltaY ?? 0, event.x, event.y);
-    } else {
-      activeDrags.delete(drag);
-      onEnd?.(event.x, event.y);
-    }
-  });
+  const stopListening = listenForDrags(
+    element,
+    {
+      onStart: (x, y) => {
+        activeDrags.add(drag);
+        onStart?.(x, y);
+      },
+      onMove: onDrag,
+      onEnd: (x, y) => {
+        activeDrags.delete(drag);
+        onEnd?.(x, y);
+      },
+    },
+    { threshold },
+  );
   return () => {
     // A drag cut short by removing its element never sends its end.
     activeDrags.delete(drag);
-    unsubscribe();
-    cleanup();
+    stopListening();
   };
 }
 
