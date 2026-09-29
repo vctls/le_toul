@@ -24,7 +24,10 @@ def record(id, duration, lyrics="Vel oma trin\nSossa lein", synced=False, **extr
 
 
 class FakeLrclib:
-    """Answers /get and /search from canned records, keyed by track name."""
+    """Answers /get and /search from canned records, keyed by track name.
+
+    A search that names an artist returns only that artist's records.
+    """
 
     def __init__(self, get=None, search=None):
         self.get = get or {}
@@ -39,7 +42,11 @@ class FakeLrclib:
             if found is None:
                 return httpx.Response(404, json={"code": 404})
             return httpx.Response(200, json=found)
-        return httpx.Response(200, json=self.search.get(track, []))
+        records = self.search.get(track, [])
+        artist = request.url.params.get("artist_name")
+        if artist is not None:
+            records = [r for r in records if r["artistName"] == artist]
+        return httpx.Response(200, json=records)
 
     @property
     def paths(self):
@@ -119,6 +126,37 @@ def test_an_unsynced_exact_hit_stands_when_the_search_fails():
         return hit(request)
 
     assert find(search_fails).url.endswith("/7")
+
+
+def test_a_title_search_finds_a_song_credited_to_another_artist_it_shares_a_word_with():
+    lrclib = FakeLrclib(
+        search={"Glim Tovar": [record(7, 200.5, artistName="Pell Wendels & Orla")]}
+    )
+
+    assert find(lrclib).url.endswith("/7")
+    assert ("/api/search", "Glim Tovar") in lrclib.paths
+
+
+def test_a_title_search_ignores_a_same_titled_song_by_an_unrelated_artist():
+    lrclib = FakeLrclib(
+        search={"Glim Tovar": [record(7, 200.0, artistName="Orla Sessen")]}
+    )
+
+    assert find(lrclib) is None
+
+
+def test_common_words_in_artist_names_do_not_vouch_for_a_match():
+    lrclib = FakeLrclib(
+        search={"Glim Tovar": [record(7, 200.0, artistName="The Sessen and Orla")]}
+    )
+
+    assert find(lrclib) is None
+
+
+def test_the_title_search_runs_when_cleanup_changes_nothing():
+    lrclib = FakeLrclib(search={"Glim Tovar": [record(7, 201.0, artistName="Wendels")]})
+
+    assert find(lrclib).url.endswith("/7")
 
 
 def test_it_sends_the_rounded_duration_and_names_itself():
@@ -210,7 +248,13 @@ def test_the_cleaned_step_is_skipped_when_cleanup_changes_nothing():
     lrclib = FakeLrclib()
 
     assert find(lrclib) is None
-    assert len(lrclib.requests) == 2
+    # The given names, then the title alone.
+    assert lrclib.paths == [
+        ("/api/get", "Glim Tovar"),
+        ("/api/search", "Glim Tovar"),
+        ("/api/search", "Glim Tovar"),
+    ]
+    assert "artist_name" not in lrclib.requests[-1].url.params
 
 
 @pytest.mark.parametrize("status", [500, 503, 429])
@@ -262,7 +306,7 @@ def test_requests_are_spaced_out():
 
     asyncio.run(provider.find(QUERY))
 
-    assert clock.sleeps == [pytest.approx(0.2)]
+    assert clock.sleeps == [pytest.approx(0.2), pytest.approx(0.2)]
 
 
 def test_concurrent_lookups_send_one_request_at_a_time():
