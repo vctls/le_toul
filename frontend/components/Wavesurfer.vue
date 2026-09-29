@@ -10,7 +10,7 @@
 // A Vue wrapper for a WaveSurfer instance
 import { defineComponent, markRaw, PropType } from "vue";
 import WaveSurfer from "wavesurfer.js";
-import type { GenericPlugin } from "wavesurfer.js/dist/base-plugin";
+import type { GenericPlugin } from "wavesurfer.js/dist/base-plugin.js";
 import RegionsPlugin, { Region, RegionParams } from "@/lib/wavesurferPlugins/OpenEndedRegionPlugin";
 import DisplayBandsPlugin from "@/lib/wavesurferPlugins/DisplayBandsPlugin";
 import { DisplayBand } from "@/lib/displayBands";

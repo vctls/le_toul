@@ -5,8 +5,8 @@
 // A dragged edge snaps to the edges of lines in other rows, unless Ctrl or Cmd is held.
 // Frames can overlap, so the handles are drawn over every frame, even the lifted one.
 
-import { BasePlugin, BasePluginEvents } from "wavesurfer.js/dist/base-plugin";
-import createElement from "wavesurfer.js/dist/dom";
+import { BasePlugin, BasePluginEvents } from "wavesurfer.js/dist/base-plugin.js";
+import createElement from "wavesurfer.js/dist/dom.js";
 import { groupBy, sortBy } from "lodash-es";
 import { DisplayBand, nearestTarget, snapTargets } from "@/lib/displayBands";
 import { sameHeight } from "@/lib/linePlacements";
