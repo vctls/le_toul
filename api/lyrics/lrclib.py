@@ -1,7 +1,9 @@
 """LRCLIB (https://lrclib.net), a free, open lyrics database."""
 
 import asyncio
+import re
 import time
+import unicodedata
 from collections.abc import Awaitable, Callable
 from email.utils import parsedate_to_datetime
 from typing import Any
@@ -23,6 +25,34 @@ USER_AGENT = f"LeToul/{settings.APP_VERSION} (https://github.com/vctls/le_toul)"
 TOLERANCES = (2.0, 5.0, 10.0)
 # In seconds, how close /api/get matches the duration.
 GET_TOLERANCE = 2.0
+# Words too common in artist names to vouch for a match on their own.
+_ARTIST_FILLER = frozenset(
+    [
+        "the",
+        "and",
+        "und",
+        "et",
+        "y",
+        "feat",
+        "ft",
+        "with",
+        "les",
+        "los",
+        "las",
+        "der",
+        "die",
+        "das",
+        "des",
+        "del",
+        "de",
+        "la",
+        "le",
+        "el",
+        "of",
+        "von",
+        "van",
+    ]
+)
 # A cleaned name is a looser match, so only a close duration vouches for it.
 CLEANED_TOLERANCES = (2.0,)
 
@@ -71,10 +101,8 @@ class LrclibProvider:
             record = await self._find(
                 client, query.title, query.artist, query.duration, TOLERANCES, "given"
             )
-            if record is None:
-                title, artist = cleaned(query.title), cleaned(query.artist)
-                if title is None and artist is None:
-                    return None
+            title, artist = cleaned(query.title), cleaned(query.artist)
+            if record is None and (title is not None or artist is not None):
                 record = await self._find(
                     client,
                     title or query.title,
@@ -83,6 +111,8 @@ class LrclibProvider:
                     CLEANED_TOLERANCES,
                     "cleaned",
                 )
+            if record is None:
+                record = await self._find_by_title(client, query)
         return None if record is None else _match(record)
 
     async def _find(
@@ -130,6 +160,23 @@ class LrclibProvider:
             return hit
 
         return _closest(candidates, duration, tolerances, "search", names)
+
+    async def _find_by_title(
+        self, client: httpx.AsyncClient, query: LyricsQuery
+    ) -> Record | None:
+        """Return a record found by title alone, whose artist shares a word with the query.
+
+        Releases credit a song differently, to its composer or to a group rather than its
+        singers. A title and a duration alone often name another song, so a shared word
+        in the artist has to vouch for the match.
+        """
+        given = _artist_words(query.artist)
+        candidates = [
+            r
+            for r in await self._candidates(client, {"track_name": query.title})
+            if given & _artist_words(r.get("artistName"))
+        ]
+        return _closest(candidates, query.duration, TOLERANCES, "title", "given")
 
     async def _candidates(
         self, client: httpx.AsyncClient, params: dict[str, Any]
@@ -216,6 +263,12 @@ def _closest(
                 ),
             )
     return None
+
+
+def _artist_words(artist: Any) -> set[str]:
+    decomposed = unicodedata.normalize("NFKD", str(artist or "").lower())
+    plain = "".join(c for c in decomposed if not unicodedata.combining(c))
+    return set(re.findall(r"[^\W_]+", plain)) - _ARTIST_FILLER
 
 
 def _usable(record: Record) -> bool:
