@@ -6,6 +6,8 @@ import TimingAdjustmentTab from "@/components/TimingAdjustmentTab.vue";
 import { useLyricsStore } from "@/stores/lyrics";
 import { useMediaStore } from "@/stores/media";
 import { useTimingsStore } from "@/stores/timings";
+import { useSettingsStore } from "@/stores/settings";
+import { useLegacyTimingStore } from "@/stores/legacyTiming";
 import { useAdvancedStore } from "@/stores/advanced";
 import { LYRIC_MARKERS } from "@/constants";
 import { DEFAULT_VOICE_ID } from "@/lib/voices";
@@ -22,6 +24,12 @@ const seekBy = vi.fn();
 const clearSelection = vi.fn();
 const seekToViewEdge = vi.fn();
 const seekToTrackEdge = vi.fn();
+const setAudioPlayhead = vi.fn();
+// The tab reads the playback clock through the adjuster.
+const playback = { paused: true, time: 0 };
+const pause = vi.fn(() => {
+  playback.paused = true;
+});
 
 // Stands in for the TimingAdjuster the tab drives through its ref.
 const timingAdjusterStub = {
@@ -34,6 +42,10 @@ const timingAdjusterStub = {
     clearSelection,
     seekToViewEdge,
     seekToTrackEdge,
+    pause,
+    setAudioPlayhead,
+    isPaused: () => playback.paused,
+    currentTime: () => playback.time,
   },
 };
 
@@ -93,6 +105,10 @@ describe("TimingAdjustmentTab shortcuts", () => {
     clearSelection.mockClear();
     seekToViewEdge.mockClear();
     seekToTrackEdge.mockClear();
+    pause.mockClear();
+    setAudioPlayhead.mockClear();
+    playback.paused = true;
+    playback.time = 0;
   });
 
   afterEach(() => {
@@ -194,6 +210,21 @@ describe("TimingAdjustmentTab shortcuts", () => {
     expect(seekBy).toHaveBeenLastCalledWith(10);
     pressKey("ArrowLeft", { shiftKey: true });
     expect(seekBy).toHaveBeenLastCalledWith(-10);
+  });
+
+  it("keeps a preroll for each mode, of 2 s in Tap mode at first", () => {
+    const wrapper = mountTab();
+    expect(wrapper.vm.prerollSeconds).toBe(1);
+    wrapper.vm.prerollSeconds = 3;
+
+    wrapper.vm.setMode("tap");
+    expect(wrapper.vm.prerollSeconds).toBe(2);
+    wrapper.vm.prerollSeconds = 4;
+
+    wrapper.vm.setMode("adjust");
+    expect(wrapper.vm.prerollSeconds).toBe(3);
+    wrapper.vm.setMode("tap");
+    expect(wrapper.vm.prerollSeconds).toBe(4);
   });
 
   it("leaves the arrow keys to form controls", () => {
@@ -303,7 +334,8 @@ describe("TimingAdjustmentTab shortcuts", () => {
 
     it("enables each button while there is something to undo or redo", async () => {
       const wrapper = mountTab();
-      const [undoButton, redoButton] = wrapper.findAll(".title-actions b-button-stub");
+      const undoButton = wrapper.find('b-button-stub[aria-label="Undo"]');
+      const redoButton = wrapper.find('b-button-stub[aria-label="Redo"]');
       expect(undoButton.attributes("disabled")).toBe("true");
 
       dragStart(wrapper);
@@ -431,6 +463,726 @@ describe("TimingAdjustmentTab shortcuts", () => {
         displayStart: 0.25,
         displayEnd: 3,
       });
+    });
+  });
+
+  describe("tap mode", () => {
+    const adjuster = (wrapper: ReturnType<typeof mountTab>) =>
+      wrapper.findComponent({ name: "TimingAdjuster" });
+
+    // Two lines, "ka den" and "lu so", timed and open-ended.
+    function mountTapTab() {
+      const wrapper = mountTab();
+      useLyricsStore().setLyrics("ka_den\nlu so");
+      useTimingsStore().setAllSegments({
+        [DEFAULT_VOICE_ID]: [
+          { text: "ka_", start: 1 },
+          { text: "den\n", start: 2 },
+          { text: "lu ", start: 5 },
+          { text: "so", start: 6 },
+        ],
+      });
+      wrapper.vm.setMode("tap");
+      return wrapper;
+    }
+
+    const starts = () => useTimingsStore().activeSegments.map((segment) => segment.start);
+
+    const tap = (code: string, time: number) => {
+      playback.time = time;
+      pressKey(code);
+    };
+
+    // A click on a region or a queued segment, which makes the segment the head.
+    const pick = (wrapper: ReturnType<typeof mountTab>, index: number) => {
+      adjuster(wrapper).vm.$emit("segment-picked", index);
+    };
+
+    const pausePlayback = (wrapper: ReturnType<typeof mountTab>) => {
+      playback.paused = true;
+      adjuster(wrapper).vm.$emit("pause");
+    };
+
+    it("is enabled with lyrics and no timings, and opens in Tap mode then", () => {
+      const mediaStore = useMediaStore();
+      mediaStore.songFile = new File(["audio"], "song.mp3", { type: "audio/mp3" });
+      useLyricsStore().setLyrics("hello world");
+      const wrapper = shallowMount(TimingAdjustmentTab, {
+        global: { stubs: { TimingAdjuster: timingAdjusterStub } },
+      });
+      mountedTabs.push(wrapper);
+
+      expect(wrapper.vm.isEnabled).toBe(true);
+      expect(wrapper.vm.isTapMode).toBe(true);
+      expect(wrapper.find(".timing-adjuster-stub").exists()).toBe(true);
+    });
+
+    it("shows an empty preview before there are any timings", () => {
+      useMediaStore().songFile = new File(["audio"], "song.mp3", { type: "audio/mp3" });
+      useLyricsStore().setLyrics("hello world");
+      const wrapper = shallowMount(TimingAdjustmentTab, {
+        global: { stubs: { TimingAdjuster: timingAdjusterStub } },
+      });
+      mountedTabs.push(wrapper);
+
+      const preview = wrapper.findComponent({ name: "SubtitleDisplay" });
+      expect(preview.exists()).toBe(true);
+      expect(preview.props("subtitles")).toBe("");
+    });
+
+    it("leaves Tap mode once timings arrive from elsewhere, unless it was chosen", () => {
+      useMediaStore().songFile = new File(["audio"], "song.mp3", { type: "audio/mp3" });
+      useLyricsStore().setLyrics("hello world");
+      const wrapper = shallowMount(TimingAdjustmentTab, {
+        global: { stubs: { TimingAdjuster: timingAdjusterStub } },
+      });
+      mountedTabs.push(wrapper);
+      expect(wrapper.vm.isTapMode).toBe(true);
+
+      useTimingsStore().resetTimings([[0.5, LYRIC_MARKERS.SEGMENT_START]]);
+
+      expect(wrapper.vm.isTapMode).toBe(false);
+    });
+
+    it("stays in Tap mode after the first pass over a voice with no timings", () => {
+      useMediaStore().songFile = new File(["audio"], "song.mp3", { type: "audio/mp3" });
+      useLyricsStore().setLyrics("hello world");
+      const wrapper = shallowMount(TimingAdjustmentTab, {
+        global: { stubs: { TimingAdjuster: timingAdjusterStub } },
+      });
+      Object.defineProperty(wrapper.vm.$el, "offsetParent", { value: document.body });
+      mountedTabs.push(wrapper);
+      playback.paused = false;
+      tap("Space", 0.5);
+
+      pausePlayback(wrapper);
+
+      expect(useTimingsStore().activeSegments[0].start).toBe(0.5);
+      expect(wrapper.vm.isTapMode).toBe(true);
+    });
+
+    it("switches modes with T", () => {
+      const wrapper = mountTab();
+      pressKey("KeyT", { key: "t" });
+      expect(wrapper.vm.isTapMode).toBe(true);
+      pressKey("KeyT", { key: "T", shiftKey: true });
+      expect(wrapper.vm.isTapMode).toBe(false);
+    });
+
+    it("switches modes on the letter T, wherever the layout puts it", () => {
+      const wrapper = mountTab();
+      // Bépo puts "è" where QWERTY has T, and T where QWERTY has J.
+      pressKey("KeyT", { key: "è" });
+      expect(wrapper.vm.isTapMode).toBe(false);
+      pressKey("KeyJ", { key: "t" });
+      expect(wrapper.vm.isTapMode).toBe(true);
+    });
+
+    it("draws the regions without handles or selection", async () => {
+      const wrapper = mountTapTab();
+      await nextTick();
+      expect(adjuster(wrapper).vm.$attrs.tapMode).toBe(true);
+    });
+
+    it("plays from wherever the playhead was left on the start key while paused", () => {
+      const wrapper = mountTapTab();
+      wrapper.vm.prerollSeconds = 2;
+      pick(wrapper, 2);
+      expect(setAudioPlayhead).toHaveBeenLastCalledWith(3);
+
+      pressKey("Space");
+      expect(togglePlayPause).toHaveBeenCalledOnce();
+      expect(restartAt).not.toHaveBeenCalled();
+    });
+
+    it("cues the playhead to the head's preroll when the redo key moves it while paused", () => {
+      const wrapper = mountTapTab();
+      wrapper.vm.prerollSeconds = 1;
+      pick(wrapper, 3);
+      pressKey("Backspace");
+      expect(wrapper.vm.tapHead).toBe(2);
+      expect(setAudioPlayhead).toHaveBeenLastCalledWith(4);
+      expect(togglePlayPause).not.toHaveBeenCalled();
+    });
+
+    it("cues the playhead to the preroll before the tap an undo takes back while paused", () => {
+      const wrapper = mountTapTab();
+      wrapper.vm.prerollSeconds = 1;
+      pick(wrapper, 2);
+      playback.paused = false;
+      tap("Space", 5.5);
+      pausePlayback(wrapper);
+
+      pressKey("KeyZ", { key: "z", ctrlKey: true });
+      expect(wrapper.vm.tapHead).toBe(2);
+      expect(setAudioPlayhead).toHaveBeenLastCalledWith(4.5);
+      expect(restartAt).not.toHaveBeenCalled();
+    });
+
+    it("stages the taps, and writes each as its own edit when playback pauses", async () => {
+      const wrapper = mountTapTab();
+      pick(wrapper, 2);
+      playback.paused = false;
+      tap("Space", 5.2);
+      tap("Space", 6.3);
+      tap("Enter", 6.8);
+
+      expect(starts()).toEqual([1, 2, 5, 6]);
+      await nextTick();
+      expect(adjuster(wrapper).vm.$attrs.segments).toMatchObject([
+        { start: 1 },
+        { start: 2 },
+        { start: 5.2 },
+        { start: 6.3, end: 6.8 },
+      ]);
+
+      pausePlayback(wrapper);
+      expect(starts()).toEqual([1, 2, 5.2, 6.3]);
+
+      pressKey("KeyZ", { key: "z", ctrlKey: true });
+      expect(useTimingsStore().activeSegments[3]).toEqual({ text: "so", start: 6.3 });
+      pressKey("KeyZ", { key: "z", ctrlKey: true });
+      expect(starts()).toEqual([1, 2, 5.2, 6]);
+      pressKey("KeyZ", { key: "z", ctrlKey: true });
+      expect(starts()).toEqual([1, 2, 5, 6]);
+    });
+
+    it("ends the segment before the head on the end key, before any start tap", () => {
+      const wrapper = mountTapTab();
+      pick(wrapper, 2);
+      playback.paused = false;
+      tap("Enter", 3);
+
+      pausePlayback(wrapper);
+
+      expect(useTimingsStore().activeSegments[1]).toMatchObject({ start: 2, end: 3 });
+    });
+
+    it("ends the segment before the pass's first tap after that tap is undone", () => {
+      const wrapper = mountTapTab();
+      pick(wrapper, 3);
+      playback.paused = false;
+      tap("Space", 6.3);
+      pressKey("KeyZ", { key: "z", ctrlKey: true });
+      tap("Enter", 5.8);
+
+      pausePlayback(wrapper);
+
+      expect(useTimingsStore().activeSegments.slice(2)).toMatchObject([
+        { start: 5, end: 5.8 },
+        { start: 6 },
+      ]);
+    });
+
+    it("clears every timing of the voice as one edit that can be undone", async () => {
+      const wrapper = mountTapTab();
+      pick(wrapper, 2);
+      await wrapper.find('b-button-stub[aria-label="Reset timings"]').trigger("click");
+
+      expect(starts()).toEqual([undefined, undefined, undefined, undefined]);
+      expect(wrapper.vm.tapHead).toBe(0);
+      await nextTick();
+      expect(wrapper.find('b-button-stub[aria-label="Reset timings"]').attributes("disabled")).toBe(
+        "true",
+      );
+
+      pressKey("KeyZ", { key: "z", ctrlKey: true });
+      expect(starts()).toEqual([1, 2, 5, 6]);
+    });
+
+    it("writes a pass that is running before clearing the timings", () => {
+      const wrapper = mountTapTab();
+      pick(wrapper, 2);
+      playback.paused = false;
+      tap("Space", 5.2);
+
+      wrapper.vm.resetTimings();
+
+      expect(starts()).toEqual([undefined, undefined, undefined, undefined]);
+      pressKey("KeyZ", { key: "z", ctrlKey: true });
+      expect(starts()).toEqual([1, 2, 5.2, 6]);
+    });
+
+    it("shows the help for the mode it is in", async () => {
+      useMediaStore().songFile = new File(["audio"], "song.mp3", { type: "audio/mp3" });
+      useLyricsStore().setLyrics("hello world");
+      useTimingsStore().resetTimings([[0.5, LYRIC_MARKERS.SEGMENT_START]]);
+      const wrapper = shallowMount(TimingAdjustmentTab, {
+        global: {
+          stubs: {
+            TimingAdjuster: timingAdjusterStub,
+            HelpSection: { template: '<div class="help"><slot /></div>' },
+          },
+        },
+      });
+      mountedTabs.push(wrapper);
+
+      expect(wrapper.find(".help").text()).toContain("Drag the left edge");
+      wrapper.vm.setMode("tap");
+      await nextTick();
+      expect(wrapper.find(".help").text()).toContain("tap along");
+      expect(wrapper.find(".help").text()).not.toContain("Drag the left edge");
+    });
+
+    it("shows the legacy Timing tab from a switch in the Tap mode help, off at first", async () => {
+      useMediaStore().songFile = new File(["audio"], "song.mp3", { type: "audio/mp3" });
+      useLyricsStore().setLyrics("hello world");
+      const wrapper = shallowMount(TimingAdjustmentTab, {
+        global: {
+          stubs: {
+            TimingAdjuster: timingAdjusterStub,
+            HelpSection: { template: '<div class="help"><slot /></div>' },
+          },
+        },
+      });
+      mountedTabs.push(wrapper);
+      const legacy = useLegacyTimingStore();
+      expect(legacy.isShown).toBe(false);
+
+      const toggle = wrapper.find(".legacy-tab-switch").findComponent({ name: "BSwitch" });
+      toggle.vm.$emit("update:modelValue", true);
+
+      expect(legacy.isShown).toBe(true);
+    });
+
+    it("shows the timing key pickers in Tap mode only", async () => {
+      const wrapper = mountTapTab();
+      await nextTick();
+      const pickers = wrapper.findAllComponents({ name: "KeyCaptureInput" });
+      expect(pickers.map((picker) => picker.props("label"))).toEqual([
+        "Start key",
+        "End key",
+        "Redo key",
+      ]);
+
+      pickers[1].vm.$emit("bind", "KeyJ", "J");
+      expect(useSettingsStore().timingKeys.end).toBe("KeyJ");
+
+      wrapper.vm.setMode("adjust");
+      await nextTick();
+      expect(wrapper.findAllComponents({ name: "KeyCaptureInput" })).toHaveLength(0);
+    });
+
+    it("leaves a key pressed on a timing key picker to the picker", () => {
+      const wrapper = mountTapTab();
+      const picker = document.createElement("div");
+      picker.className = "key-capture-input";
+      const button = document.createElement("button");
+      picker.appendChild(button);
+      document.body.appendChild(picker);
+
+      pressKey("Space", { target: button });
+      picker.remove();
+
+      expect(restartAt).not.toHaveBeenCalled();
+      expect(togglePlayPause).not.toHaveBeenCalled();
+      expect(wrapper.vm.pass).toBeNull();
+    });
+
+    it("writes a pass in progress and saves it when the page is left", () => {
+      const wrapper = mountTapTab();
+      pick(wrapper, 2);
+      playback.paused = false;
+      tap("Space", 5.2);
+
+      window.dispatchEvent(new Event("pagehide"));
+
+      expect(wrapper.vm.pass).toBeNull();
+      expect(starts()).toEqual([1, 2, 5.2, 6]);
+      const saved = JSON.parse(localStorage.getItem("timings._segments")!);
+      expect(saved[DEFAULT_VOICE_ID][2].start).toBe(5.2);
+      expect(
+        JSON.parse(localStorage.getItem("adjust.state")!).voiceState[DEFAULT_VOICE_ID].tapHead,
+      ).toBe(3);
+    });
+
+    it("hands the head and the pass's taps to the waveform, which fades the rest as ghosts", async () => {
+      const wrapper = mountTapTab();
+      pick(wrapper, 1);
+      playback.paused = false;
+      tap("Space", 2.2);
+      await nextTick();
+
+      expect(adjuster(wrapper).vm.$attrs.head).toBe(2);
+      expect(adjuster(wrapper).vm.$attrs.tapped).toEqual([1]);
+
+      pausePlayback(wrapper);
+      await nextTick();
+      expect(adjuster(wrapper).vm.$attrs.tapped).toEqual([]);
+    });
+
+    it("taps from the on-screen buttons, shown from the keyboard toggle", async () => {
+      const wrapper = mountTapTab();
+      wrapper.vm.showTapButtons = false;
+      await nextTick();
+      expect(wrapper.findComponent({ name: "TapButtons" }).exists()).toBe(false);
+
+      await wrapper.find('b-button-stub[aria-label="Timing buttons"]').trigger("click");
+      const buttons = wrapper.findComponent({ name: "TapButtons" });
+      pick(wrapper, 2);
+      playback.paused = false;
+      playback.time = 5.2;
+      buttons.vm.$emit("start");
+      playback.time = 5.6;
+      buttons.vm.$emit("end");
+      pausePlayback(wrapper);
+
+      expect(useTimingsStore().activeSegments[2]).toMatchObject({ start: 5.2, end: 5.6 });
+      buttons.vm.$emit("play-pause");
+      expect(togglePlayPause).toHaveBeenCalledOnce();
+    });
+
+    it("says it's almost done once every segment has a start, and done once the last one ends", async () => {
+      const wrapper = mountTapTab();
+      await nextTick();
+      expect(wrapper.vm.timingStatus).toBe("almost");
+      expect(wrapper.findComponent({ name: "BMessage" }).attributes("type")).toBe("is-warning");
+
+      pick(wrapper, 3);
+      playback.paused = false;
+      tap("Space", 6.2);
+      tap("Enter", 6.8);
+      await nextTick();
+      expect(wrapper.vm.timingStatus).toBe("done");
+      expect(wrapper.findComponent({ name: "BMessage" }).attributes("type")).toBe("is-success");
+    });
+
+    it("tucks a message away as an icon, which brings it back", async () => {
+      const wrapper = mountTapTab();
+      await nextTick();
+      wrapper.vm.tuckStatusMessage();
+      await nextTick();
+      expect(wrapper.findComponent({ name: "BMessage" }).exists()).toBe(false);
+      const icon = wrapper.find(".status-icon");
+      expect(icon.attributes("aria-label")).toBe("Almost done");
+
+      await icon.trigger("click");
+      expect(wrapper.findComponent({ name: "BMessage" }).exists()).toBe(true);
+      expect(wrapper.find(".status-icon").exists()).toBe(false);
+    });
+
+    it("shows a tucked-away message again once the status changes", async () => {
+      const wrapper = mountTapTab();
+      await nextTick();
+      wrapper.vm.tuckStatusMessage();
+      pick(wrapper, 3);
+      playback.paused = false;
+      tap("Space", 6.2);
+      tap("Enter", 6.8);
+      await nextTick();
+      expect(wrapper.findComponent({ name: "BMessage" }).attributes("type")).toBe("is-success");
+    });
+
+    it("keeps the pass and the head on a click on the waveform", () => {
+      const wrapper = mountTapTab();
+      pick(wrapper, 2);
+      playback.paused = false;
+      tap("Space", 5.2);
+
+      wrapper.vm.onSeek(1.5);
+
+      expect(wrapper.vm.pass).not.toBeNull();
+      expect(wrapper.vm.tapHead).toBe(3);
+      expect(starts()).toEqual([1, 2, 5, 6]);
+    });
+
+    it("keeps the pass through the seek of its own replay", () => {
+      const wrapper = mountTapTab();
+      pick(wrapper, 2);
+      wrapper.vm.prerollSeconds = 2;
+      playback.paused = false;
+      tap("Space", 5.2);
+      pressKey("Backspace");
+      expect(restartAt).toHaveBeenLastCalledWith(3.2);
+
+      wrapper.vm.onSeek(3.2);
+
+      expect(wrapper.vm.pass).not.toBeNull();
+      expect(wrapper.vm.tapHead).toBe(2);
+    });
+
+    it("moves the head back a line on the redo key while paused", () => {
+      const wrapper = mountTapTab();
+      pick(wrapper, 2);
+      pressKey("Backspace");
+      expect(wrapper.vm.tapHead).toBe(0);
+      expect(restartAt).not.toHaveBeenCalled();
+    });
+
+    it("pauses on Esc, which ends the pass", () => {
+      mountTapTab();
+      playback.paused = false;
+      pressKey("Escape");
+      expect(pause).toHaveBeenCalledOnce();
+      expect(clearSelection).not.toHaveBeenCalled();
+    });
+
+    it("takes back only the last tap on undo while playing, and replays from before it", () => {
+      const wrapper = mountTapTab();
+      pick(wrapper, 2);
+      wrapper.vm.prerollSeconds = 2;
+      playback.paused = false;
+      tap("Space", 5.2);
+      tap("Space", 6.3);
+
+      pressKey("KeyZ", { key: "z", ctrlKey: true });
+
+      expect(restartAt).toHaveBeenLastCalledWith(6.3 - 2);
+      expect(wrapper.vm.tapHead).toBe(3);
+      expect(wrapper.vm.pass?.staged[3].start).toBe(6);
+      expect(starts()).toEqual([1, 2, 5, 6]);
+
+      // The replay's own seek keeps the pass going.
+      wrapper.vm.onSeek(6.3 - 2);
+      pausePlayback(wrapper);
+      expect(starts()).toEqual([1, 2, 5.2, 6]);
+    });
+
+    it("goes on to the taps of earlier passes on undo while playing", () => {
+      const wrapper = mountTapTab();
+      wrapper.vm.prerollSeconds = 1;
+      pick(wrapper, 2);
+      playback.paused = false;
+      tap("Space", 5.5);
+      pausePlayback(wrapper);
+      playback.paused = false;
+
+      pressKey("KeyZ", { key: "z", ctrlKey: true });
+
+      expect(starts()).toEqual([1, 2, 5, 6]);
+      expect(wrapper.vm.tapHead).toBe(2);
+      expect(restartAt).toHaveBeenLastCalledWith(4.5);
+    });
+
+    it("waits for a pause to redo", () => {
+      const wrapper = mountTapTab();
+      pick(wrapper, 2);
+      playback.paused = false;
+      tap("Space", 5.2);
+      pausePlayback(wrapper);
+      pressKey("KeyZ", { key: "z", ctrlKey: true });
+      expect(starts()).toEqual([1, 2, 5, 6]);
+
+      playback.paused = false;
+      pressKey("KeyZ", { key: "z", ctrlKey: true, shiftKey: true });
+      expect(starts()).toEqual([1, 2, 5, 6]);
+
+      playback.paused = true;
+      pressKey("KeyZ", { key: "z", ctrlKey: true, shiftKey: true });
+      expect(starts()).toEqual([1, 2, 5.2, 6]);
+    });
+
+    it("keeps the head on the next segment to tap when a pass stops mid-line", () => {
+      const wrapper = mountTapTab();
+      pick(wrapper, 2);
+      playback.paused = false;
+      tap("Space", 5.2);
+
+      pausePlayback(wrapper);
+
+      expect(wrapper.vm.tapHead).toBe(3);
+    });
+
+    it("keeps the pass and the head when the arrow keys rewind the song", () => {
+      const wrapper = mountTapTab();
+      pick(wrapper, 2);
+      playback.paused = false;
+      tap("Space", 5.2);
+      tap("Space", 6.3);
+
+      pressKey("ArrowLeft");
+      wrapper.vm.onSeek(5.3);
+
+      expect(wrapper.vm.pass).not.toBeNull();
+      expect(wrapper.vm.tapHead).toBe(4);
+      expect(starts()).toEqual([1, 2, 5, 6]);
+    });
+
+    it("keeps the head when the arrow keys move the song while paused", () => {
+      const wrapper = mountTapTab();
+      pick(wrapper, 3);
+
+      pressKey("ArrowLeft", { shiftKey: true });
+      wrapper.vm.onSeek(1.2);
+
+      expect(wrapper.vm.tapHead).toBe(3);
+    });
+
+    it("makes a clicked region the head, and moves the playhead to the preroll before it", () => {
+      const wrapper = mountTapTab();
+      wrapper.vm.prerollSeconds = 2;
+      pick(wrapper, 3);
+      expect(wrapper.vm.tapHead).toBe(3);
+      expect(setAudioPlayhead).toHaveBeenLastCalledWith(4);
+      expect(restartAt).not.toHaveBeenCalled();
+    });
+
+    it("goes back to the last timed segment with no end when an untimed one is clicked", () => {
+      const wrapper = mountTapTab();
+      useTimingsStore().setAllSegments({
+        [DEFAULT_VOICE_ID]: [
+          { text: "ka_", start: 1 },
+          { text: "den\n", start: 3 },
+          { text: "lu " },
+          { text: "so" },
+        ],
+      });
+      wrapper.vm.prerollSeconds = 1;
+
+      pick(wrapper, 3);
+
+      expect(wrapper.vm.tapHead).toBe(1);
+      expect(setAudioPlayhead).toHaveBeenLastCalledWith(2);
+    });
+
+    it("goes to the segment after the last timed one when that one has an end", () => {
+      const wrapper = mountTapTab();
+      useTimingsStore().setAllSegments({
+        [DEFAULT_VOICE_ID]: [
+          { text: "ka_", start: 1 },
+          { text: "den\n", start: 3, end: 4 },
+          { text: "lu " },
+          { text: "so" },
+        ],
+      });
+      wrapper.vm.prerollSeconds = 1;
+
+      pick(wrapper, 3);
+
+      expect(wrapper.vm.tapHead).toBe(2);
+      expect(setAudioPlayhead).toHaveBeenLastCalledWith(3);
+    });
+
+    it("goes back to the first segment when one is clicked on a voice with no timings", () => {
+      const wrapper = mountTapTab();
+      useTimingsStore().setAllSegments({
+        [DEFAULT_VOICE_ID]: [{ text: "ka_" }, { text: "den\n" }, { text: "lu " }, { text: "so" }],
+      });
+      wrapper.vm.tapHead = 2;
+
+      pick(wrapper, 3);
+
+      expect(wrapper.vm.tapHead).toBe(0);
+      expect(setAudioPlayhead).toHaveBeenLastCalledWith(0);
+    });
+
+    it("keeps the taps made so far when a region is clicked during a pass", () => {
+      const wrapper = mountTapTab();
+      pick(wrapper, 2);
+      playback.paused = false;
+      tap("Space", 5.2);
+      tap("Space", 6.3);
+
+      pick(wrapper, 2);
+
+      expect(wrapper.vm.pass?.head).toBe(2);
+      expect(wrapper.vm.pass?.staged[3].start).toBe(6.3);
+      pausePlayback(wrapper);
+      expect(starts()).toEqual([1, 2, 5.2, 6.3]);
+    });
+
+    it("follows the segment it was on when a segment before it is split in the lyrics", async () => {
+      const wrapper = mountTapTab();
+      await nextTick();
+      pick(wrapper, 3);
+
+      useTimingsStore().setAllSegments({
+        [DEFAULT_VOICE_ID]: [
+          { text: "ka_", start: 1 },
+          { text: "den\n", start: 2 },
+          { text: "l/", start: 5 },
+          { text: "u " },
+          { text: "so", start: 6 },
+        ],
+      });
+      await nextTick();
+
+      expect(wrapper.vm.tapHead).toBe(4);
+    });
+
+    it("queues the segments from the head, marking the head, word joins, line ends and timings", async () => {
+      const wrapper = mountTapTab();
+      useLyricsStore().setLyrics("ka/den\nlu so");
+      useTimingsStore().setAllSegments({
+        [DEFAULT_VOICE_ID]: [
+          { text: "ka/", start: 1 },
+          { text: "den\n", start: 2, end: 2.5 },
+          { text: "lu ", start: 5 },
+          { text: "so" },
+        ],
+      });
+      pick(wrapper, 0);
+      await nextTick();
+
+      // "ka" is closed by the start of "den", "den" by its own end, and nothing closes "lu".
+      expect(adjuster(wrapper).vm.$attrs.queue).toEqual([
+        { index: 0, text: "ka", isHead: true, joinsNext: true, endsLine: false, timing: "full" },
+        { index: 1, text: "den", isHead: false, joinsNext: false, endsLine: true, timing: "full" },
+        { index: 2, text: "lu", isHead: false, joinsNext: false, endsLine: false, timing: "start" },
+        { index: 3, text: "so", isHead: false, joinsNext: false, endsLine: false, timing: "none" },
+      ]);
+
+      playback.paused = false;
+      tap("Space", 1.1);
+      await nextTick();
+      expect(adjuster(wrapper).vm.$attrs.queue).toMatchObject([
+        { text: "den", isHead: true },
+        {},
+        {},
+      ]);
+    });
+
+    it("queues each tap again as it is undone, across passes", () => {
+      const wrapper = mountTapTab();
+      pick(wrapper, 2);
+      playback.paused = false;
+      tap("Space", 5.2);
+      tap("Space", 6.1);
+      pausePlayback(wrapper);
+      pick(wrapper, 0);
+      playback.paused = false;
+      tap("Space", 1.2);
+      pausePlayback(wrapper);
+      expect(wrapper.vm.tapHead).toBe(1);
+      wrapper.vm.tapHead = 3;
+
+      pressKey("KeyZ", { key: "z", ctrlKey: true });
+      expect(wrapper.vm.tapHead).toBe(0);
+      pressKey("KeyZ", { key: "z", ctrlKey: true });
+      expect(wrapper.vm.tapHead).toBe(3);
+      pressKey("KeyZ", { key: "z", ctrlKey: true });
+      expect(wrapper.vm.tapHead).toBe(2);
+    });
+
+    it("queues the first segment again once every tap over a fresh voice is undone", () => {
+      useMediaStore().songFile = new File(["audio"], "song.mp3", { type: "audio/mp3" });
+      useLyricsStore().setLyrics("ka_den\nlu so");
+      const wrapper = shallowMount(TimingAdjustmentTab, {
+        global: { stubs: { TimingAdjuster: timingAdjusterStub } },
+      });
+      Object.defineProperty(wrapper.vm.$el, "offsetParent", { value: document.body });
+      mountedTabs.push(wrapper);
+      playback.paused = false;
+      tap("Space", 0.5);
+      tap("Space", 1);
+      tap("Space", 2);
+      pausePlayback(wrapper);
+      expect(wrapper.vm.tapHead).toBe(3);
+
+      pressKey("KeyZ", { key: "z", ctrlKey: true });
+      pressKey("KeyZ", { key: "z", ctrlKey: true });
+      pressKey("KeyZ", { key: "z", ctrlKey: true });
+
+      expect(useTimingsStore().activeSegments.some((s) => s.start !== undefined)).toBe(false);
+      expect(wrapper.vm.tapHead).toBe(0);
+    });
+
+    it("keeps Space and Enter for playback in Adjust mode", () => {
+      mountTab();
+      pressKey("Space");
+      pressKey("Enter");
+      expect(togglePlayPause).toHaveBeenCalledOnce();
+      expect(restartAt).toHaveBeenCalledOnce();
     });
   });
 });
