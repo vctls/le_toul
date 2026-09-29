@@ -1,8 +1,13 @@
 <template>
   <div
     ref="wavesurfer-container"
-    :class="['wavesurfer-container', { 'hide-waveform': !showWaveform }]"
+    :class="['wavesurfer-container', { 'hide-waveform': !showWaveform, centered }]"
     @wheel="onWheel"
+    @pointerdown="onTouchStart"
+    @pointermove="onTouchMove"
+    @pointerup="onTouchEnd"
+    @pointercancel="onTouchEnd"
+    @click.capture="onClickCapture"
   ></div>
 </template>
 
@@ -15,6 +20,15 @@ import RegionsPlugin, { Region, RegionParams } from "@/lib/wavesurferPlugins/Ope
 import DisplayBandsPlugin from "@/lib/wavesurferPlugins/DisplayBandsPlugin";
 import { DisplayBand } from "@/lib/displayBands";
 import { onSchemeChange } from "@/lib/colorScheme";
+
+// The height while the container has none of its own, such as in a hidden tab.
+const DEFAULT_HEIGHT = 300;
+
+// How far a finger can slide and still count as a tap rather than a swipe.
+const TAP_SLOP_PX = 10;
+
+// What a scroll by one line is worth, for a mouse wheel that reports lines rather than pixels.
+const LINE_HEIGHT_PX = 16;
 
 // WaveSurfer paints to a canvas, so custom properties have to be resolved to literal colors rather than inherited.
 function schemeColor(name: string, fallback: string): string {
@@ -71,6 +85,16 @@ export default defineComponent({
       type: Boolean,
       default: true,
     },
+    // Whether a click on a region selects it.
+    selectable: {
+      type: Boolean,
+      default: true,
+    },
+    // The view follows the playhead in the middle, and can't be scrolled by hand.
+    centered: {
+      type: Boolean,
+      default: false,
+    },
   },
   data() {
     return {
@@ -82,9 +106,18 @@ export default defineComponent({
       isVisible: false,
       _observer: null as IntersectionObserver | null,
       _resizeObserver: null as ResizeObserver | null,
+      _heightObserver: null as ResizeObserver | null,
       _zoomAnchor: null as { time: number; cursorX: number } | null,
       _unsubscribeScheme: null as (() => void) | null,
       _savedScrollLeft: 0,
+      _scrubSeconds: 0,
+      _scrubFrame: 0,
+      // The fingers on a centered view, by pointer id, where each was last seen.
+      _touches: new Map<number, { x: number; y: number }>(),
+      // How far the finger has slid, to tell a swipe from a tap.
+      _swipeDistance: 0,
+      _zoomRatio: 1,
+      _zoomFrame: 0,
       _initialScrollApplied: false,
       // Set when a drag/resize updates a region.
       // The drag has already moved the region's DOM to its final position, so when the resulting timings round-trip
@@ -124,19 +157,18 @@ export default defineComponent({
     this._resizeObserver = new ResizeObserver(() => {
       this.restoreScroll();
       this.applyZoom();
+      if (this.centered) this.centerOn(this.wavesurfer?.getCurrentTime() ?? 0);
     });
     this._resizeObserver.observe(this.$refs["wavesurfer-container"] as HTMLElement);
 
+    this.regionsPlugin.setSelectable(this.selectable);
     this.wavesurfer = WaveSurfer.create({
       container: this.$refs["wavesurfer-container"] as HTMLElement,
       cursorColor: this.cursorColor,
       cursorWidth: this.cursorWidth,
       mediaControls: this.mediaControls,
       ...this.schemeColors(),
-      barWidth: 3,
-      barHeight: 1,
-      barGap: 2,
-      height: 300,
+      height: this.fittedHeight() || DEFAULT_HEIGHT,
       normalize: false,
       plugins: [
         this.regionsPlugin as unknown as GenericPlugin,
@@ -146,6 +178,11 @@ export default defineComponent({
     if (this.audioData) this.wavesurfer.loadBlob(this.audioData);
 
     this.scrollElement()?.addEventListener("scroll", this.rememberScroll);
+
+    // A horizontal scrollbar showing up or going away changes the room left for the waveform.
+    this._heightObserver = new ResizeObserver(() => this.fitHeight());
+    this._heightObserver.observe(this.$refs["wavesurfer-container"] as HTMLElement);
+    this._heightObserver.observe(this.scrollElement()!, { box: "border-box" });
 
     this.wavesurfer.on("click", (x: number) => {
       const time = x * (this.wavesurfer?.getDuration() ?? 0);
@@ -180,6 +217,10 @@ export default defineComponent({
       this.$emit("region-updated", region);
     });
 
+    this.regionsPlugin.on("region-clicked", (region: Region, event: MouseEvent) => {
+      this.$emit("region-clicked", region.id, event);
+    });
+
     this.regionsPlugin.on("regions-updated", (regions: Region[]) => {
       this._skipNextRegionsUpdate = true;
       this.$emit("regions-updated", regions);
@@ -196,6 +237,17 @@ export default defineComponent({
     },
     zoom() {
       this.applyZoom();
+    },
+    selectable(selectable: boolean) {
+      this.regionsPlugin.setSelectable(selectable);
+    },
+    centered(centered: boolean) {
+      if (centered) {
+        this.centerOn(this.wavesurfer?.getCurrentTime() ?? 0);
+      } else {
+        const wrapper = this.wavesurfer?.getWrapper();
+        if (wrapper) wrapper.style.transform = "";
+      }
     },
     bands(bands: DisplayBand[]) {
       this.bandsPlugin.setBands(bands, this.bandsEnabled);
@@ -227,10 +279,13 @@ export default defineComponent({
     "seeking",
     "region-updated",
     "regions-updated",
+    "region-clicked",
     "band-updated",
     "band-reset",
     "zoom-change",
+    "zoom-by",
     "scroll-change",
+    "scrub",
   ],
   methods: {
     schemeColors() {
@@ -243,6 +298,18 @@ export default defineComponent({
       this.wavesurfer?.setOptions(this.schemeColors());
     },
     onWheel(event: WheelEvent) {
+      // A centered view can't be scrolled by hand, so scrolling sideways moves the playhead instead.
+      if (this.centered && event.deltaX !== 0) {
+        event.preventDefault();
+        const scrollEl = this.scrollElement();
+        this.queueScrub(
+          event.deltaMode === WheelEvent.DOM_DELTA_LINE
+            ? event.deltaX * LINE_HEIGHT_PX
+            : event.deltaMode === WheelEvent.DOM_DELTA_PAGE
+              ? event.deltaX * (scrollEl?.clientWidth ?? 0)
+              : event.deltaX,
+        );
+      }
       if (event.deltaY === 0) return;
       event.preventDefault();
       const scrollEl = this.scrollElement();
@@ -253,6 +320,82 @@ export default defineComponent({
       }
       // Scrolling up zooms in, matching maps and image viewers.
       this.$emit("zoom-change", -Math.sign(event.deltaY));
+    },
+    /**
+     * Add a sideways scroll of `pixels` to the distance the playhead moves on the next frame. A
+     * trackpad or a finger sends dozens of these a second, and seeking the audio on each one would
+     * make it stutter.
+     */
+    queueScrub(pixels: number) {
+      const wrapper = this.wavesurfer?.getWrapper();
+      const duration = this.wavesurfer?.getDuration() ?? 0;
+      if (!wrapper || !duration) return;
+      this._scrubSeconds += (pixels / wrapper.getBoundingClientRect().width) * duration;
+      if (this._scrubFrame) return;
+      this._scrubFrame = requestAnimationFrame(() => {
+        this._scrubFrame = 0;
+        const seconds = this._scrubSeconds;
+        this._scrubSeconds = 0;
+        if (seconds) this.$emit("scrub", seconds);
+      });
+    },
+    /**
+     * A finger on a centered view, which can't be scrolled by hand. One finger swipes the playhead
+     * along, and two pinch to zoom.
+     */
+    onTouchStart(event: PointerEvent) {
+      if (!this.centered || event.pointerType !== "touch") return;
+      if (this._touches.size === 0) this._swipeDistance = 0;
+      this._touches.set(event.pointerId, { x: event.clientX, y: event.clientY });
+    },
+    onTouchMove(event: PointerEvent) {
+      const last = this._touches.get(event.pointerId);
+      if (!last) return;
+      if (this._touches.size === 1) {
+        const dx = event.clientX - last.x;
+        this._swipeDistance += Math.abs(dx);
+        // The waveform follows the finger, so a swipe to the right goes back in time.
+        if (this._swipeDistance > TAP_SLOP_PX) this.queueScrub(-dx);
+      } else if (this._touches.size === 2) {
+        const before = this.touchSpread();
+        this._touches.set(event.pointerId, { x: event.clientX, y: event.clientY });
+        const after = this.touchSpread();
+        this._swipeDistance = Infinity;
+        if (before > 0) this.queueZoom(after / before);
+        return;
+      }
+      this._touches.set(event.pointerId, { x: event.clientX, y: event.clientY });
+    },
+    onTouchEnd(event: PointerEvent) {
+      this._touches.delete(event.pointerId);
+    },
+    /**
+     * A tap on the waveform seeks, and one on a region picks it, but not at the end of a swipe or a
+     * pinch.
+     */
+    onClickCapture(event: MouseEvent) {
+      if (this.centered && this._swipeDistance > TAP_SLOP_PX) {
+        event.stopPropagation();
+        event.preventDefault();
+        this._swipeDistance = 0;
+      }
+    },
+    touchSpread(): number {
+      const [a, b] = [...this._touches.values()];
+      return a && b ? Math.hypot(a.x - b.x, a.y - b.y) : 0;
+    },
+    /**
+     * Gather a pinch's zoom until the next frame, as a scrub is.
+     */
+    queueZoom(ratio: number) {
+      this._zoomRatio *= ratio;
+      if (this._zoomFrame) return;
+      this._zoomFrame = requestAnimationFrame(() => {
+        this._zoomFrame = 0;
+        const zoomRatio = this._zoomRatio;
+        this._zoomRatio = 1;
+        if (zoomRatio !== 1) this.$emit("zoom-by", zoomRatio);
+      });
     },
     pixelsPerSecond(scrollEl: HTMLElement): number {
       return scrollEl.scrollWidth / (this.wavesurfer?.getDuration() || 1);
@@ -273,7 +416,10 @@ export default defineComponent({
       }
       this.wavesurfer.zoom(pxPerSec);
       this.$nextTick(() => {
-        if (this._zoomAnchor) {
+        if (this.centered) {
+          this._zoomAnchor = null;
+          this.centerOn(this.wavesurfer?.getCurrentTime() ?? 0);
+        } else if (this._zoomAnchor) {
           scrollEl.scrollLeft =
             this._zoomAnchor.time * this.pixelsPerSecond(scrollEl) - this._zoomAnchor.cursorX;
           this._zoomAnchor = null;
@@ -310,6 +456,30 @@ export default defineComponent({
     clearSelection() {
       this.regionsPlugin.clearSelection();
     },
+    /**
+     * Scroll so that `time` sits in the middle of the view.
+     *
+     * Near either end of the track the scroll runs out, and the waveform itself is shifted instead,
+     * leaving blank space beside it. The shift also makes up for the scroll position being rounded,
+     * so the waveform moves by fractions of a pixel.
+     */
+    centerOn(time: number) {
+      const scrollEl = this.scrollElement();
+      const wrapper = this.wavesurfer?.getWrapper();
+      const duration = this.wavesurfer?.getDuration() ?? 0;
+      if (!scrollEl || !wrapper || !duration || !scrollEl.clientWidth) return;
+      const width = wrapper.getBoundingClientRect().width;
+      const target = (time / duration) * width - scrollEl.clientWidth / 2;
+      scrollEl.scrollLeft = Math.max(0, Math.min(width - scrollEl.clientWidth, target));
+      const shift = scrollEl.scrollLeft - target;
+      wrapper.style.transform = shift ? `translateX(${shift}px)` : "";
+    },
+    growRegion(id: string, end: number) {
+      this.regionsPlugin
+        .getRegions()
+        .find((region) => region.id === id)
+        ?.growTo(end);
+    },
     setTime(time: number) {
       if (this.wavesurfer) {
         this.wavesurfer.setTime(time);
@@ -317,6 +487,22 @@ export default defineComponent({
     },
     isReady() {
       return this.wavesurfer && this.wavesurfer.getDecodedData();
+    },
+    /**
+     * The waveform height that fills the container, less the horizontal scrollbar under it.
+     * It is 0 while the container has no height of its own.
+     */
+    fittedHeight(): number {
+      const container = this.$refs["wavesurfer-container"] as HTMLElement;
+      const scrollEl = this.scrollElement();
+      const scrollbar = scrollEl ? scrollEl.offsetHeight - scrollEl.clientHeight : 0;
+      return Math.max(0, container.clientHeight - scrollbar);
+    },
+    fitHeight() {
+      const height = this.fittedHeight();
+      if (this.wavesurfer && height > 0 && height !== this.wavesurfer.options.height) {
+        this.wavesurfer.setOptions({ height });
+      }
     },
     scrollElement(): HTMLElement | null {
       return (this.wavesurfer?.getWrapper()?.parentElement as HTMLElement) ?? null;
@@ -366,27 +552,15 @@ export default defineComponent({
     },
     updateRegions(regions: RegionParams[]) {
       if (!this.wavesurfer || !this.isVisible || !this.isReady()) return;
-
-      // Clear regions first
-      this.regionsPlugin.clearRegions();
-
-      // Wait for next tick to ensure DOM is updated
-      this.$nextTick(() => {
-        if (this.isVisible && this.wavesurfer) {
-          for (const region of regions) {
-            try {
-              this.regionsPlugin.addRegion(region);
-            } catch (e) {
-              console.error("Failed to add region", e);
-            }
-          }
-        }
-      });
+      this.regionsPlugin.syncRegions(regions);
     },
   },
   beforeUnmount() {
+    cancelAnimationFrame(this._scrubFrame);
+    cancelAnimationFrame(this._zoomFrame);
     this._observer?.disconnect();
     this._resizeObserver?.disconnect();
+    this._heightObserver?.disconnect();
     this._unsubscribeScheme?.();
     this.scrollElement()?.removeEventListener("scroll", this.rememberScroll);
     if (this.wavesurfer) {
@@ -397,6 +571,28 @@ export default defineComponent({
 </script>
 
 <style>
+.wavesurfer-container.centered ::part(scroll) {
+  overflow-x: hidden;
+}
+
+/* The page mustn't scroll or zoom under a swipe or a pinch, which move the waveform instead. */
+.wavesurfer-container.centered {
+  touch-action: none;
+}
+
+/* A region's label overlay covers anything drawn on the region itself,
+so the hover border and tint are a layer above the labels. */
+.wavesurfer-container ::part(region):hover::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border: 1px solid var(--bulma-primary);
+  border-radius: inherit;
+  background: color-mix(in srgb, var(--bulma-primary) 25%, transparent);
+  z-index: 2;
+  pointer-events: none;
+}
+
 .wavesurfer-container.hide-waveform ::part(canvases),
 .wavesurfer-container.hide-waveform ::part(progress) {
   visibility: hidden;

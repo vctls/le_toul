@@ -126,9 +126,21 @@ export type RegionParams = {
   maxLength?: number;
   /** The index of the channel */
   channelIdx?: number;
+  /** The number of channels, spread evenly over the track height */
+  channelCount?: number;
+  /** Paint the region in the selection's colors without selecting it */
+  highlighted?: boolean;
+  /** Draw the region faded, as one about to be replaced */
+  faded?: boolean;
   /** Allow/Disallow contenteditable property for content */
   contentEditable?: boolean;
 };
+
+// The room left above the first channel and below the last, where an overlay scrollbar is drawn.
+const CHANNEL_MARGIN_PX = 12;
+
+// Faint enough to read as a timing on its way out, and still readable with its label.
+const FADED_OPACITY = "0.4";
 
 // Keep in sync with --bulma-primary in main.scss.
 const SELECTION_COLOR = "#7957d5";
@@ -145,6 +157,9 @@ const LABEL_HALO = Array(3).fill("0 0 3px var(--bulma-scheme-main)").join(", ");
 const CONTENT_STYLE = {
   padding: "0em 0.2em",
   display: "inline-block",
+  // A clipped label's baseline drops to its bottom edge, which would make the region taller than
+  // one with a whole label, and a region would change height as its label is clipped.
+  verticalAlign: "top",
   whiteSpace: "nowrap",
   overflow: "visible",
   position: "relative",
@@ -203,6 +218,8 @@ class SingleRegion extends EventEmitter<RegionEvents> implements Region {
   public channelIdx: number;
   public contentEditable = false;
   public selected = false;
+  public highlighted = false;
+  public faded = false;
   public isAttached = false;
   public subscriptions: (() => void)[] = [];
   private labelMaxWidth = "";
@@ -275,9 +292,14 @@ class SingleRegion extends EventEmitter<RegionEvents> implements Region {
     this.minLength = params.minLength ?? this.minLength;
     this.maxLength = params.maxLength ?? this.maxLength;
     this.channelIdx = params.channelIdx ?? -1;
+    this.numberOfChannels = params.channelCount ?? this.numberOfChannels;
     this.contentEditable = params.contentEditable ?? this.contentEditable;
+    this.highlighted = params.highlighted ?? false;
+    this.faded = params.faded ?? false;
     this.element = this.initElement();
+    this.placeInChannel();
     this.setContent(params.content);
+    if (this.highlighted || this.faded) this.paint();
     this.setPart();
 
     this.renderPosition();
@@ -417,28 +439,32 @@ class SingleRegion extends EventEmitter<RegionEvents> implements Region {
     }
   }
 
+  /**
+   * Place the region in its channel. The first channel is at the top edge and the last at the
+   * bottom edge, less a margin, so a region is shifted up by the same share of its own height as
+   * its top is of the track height.
+   */
+  private placeInChannel() {
+    const last = this.numberOfChannels - 1;
+    const share = this.channelIdx >= 0 && last > 0 ? Math.min(this.channelIdx, last) / last : 0;
+    const margin = CHANNEL_MARGIN_PX * (1 - 2 * share);
+    this.element.style.top = `calc(${share * 100}% + ${margin}px)`;
+    this.element.style.transform = `translateY(${-share * 100}%)`;
+  }
+
   private initElement() {
     const isMarker = this.isMarker;
-
-    let elementTop = 0;
-    let elementHeight = "auto"; // Change to auto to fit content
-
-    if (this.channelIdx >= 0 && this.channelIdx < this.numberOfChannels) {
-      elementHeight = "auto"; // Change to auto to fit content
-      elementTop = (100 / this.numberOfChannels) * this.channelIdx;
-    }
 
     const element = createElement("div", {
       style: {
         position: "absolute",
-        top: `${elementTop}%`,
-        height: elementHeight, // Set height to auto
+        height: "auto",
         backgroundColor: isMarker ? "none" : this.color,
         borderLeft: isMarker ? "2px solid " + this.color : "none",
         borderRadius: "2px",
         boxSizing: "border-box",
         transition: "background-color 0.2s ease",
-        cursor: "default",
+        cursor: "pointer",
         pointerEvents: "all",
       },
     });
@@ -562,19 +588,25 @@ class SingleRegion extends EventEmitter<RegionEvents> implements Region {
   public setSelected(selected: boolean) {
     this.selected = selected;
     if (!this.element) return;
-    this.element.style.backgroundColor = selected
-      ? SELECTION_COLOR
-      : this.isMarker
-        ? "none"
-        : this.color;
-    this.element.style.borderLeftColor = selected ? SELECTION_COLOR : this.color;
-    this.element.style.cursor = selected ? "grab" : "default";
-    if (this.contentOverlay) {
-      this.contentOverlay.style.backgroundColor = selected ? SELECTION_COLOR : this.color;
-    }
-    if (this.contentOverlayLabel) {
-      this.contentOverlayLabel.style.color = selected ? LABEL_ON_SELECTION : LABEL_ON_REGION;
-    }
+    this.paint();
+  }
+
+  private get fill(): string {
+    return this.selected || this.highlighted ? SELECTION_COLOR : this.color;
+  }
+
+  private get labelOnFill(): string {
+    return this.selected || this.highlighted ? LABEL_ON_SELECTION : LABEL_ON_REGION;
+  }
+
+  private paint() {
+    this.element.style.opacity = this.faded ? FADED_OPACITY : "";
+    this.element.style.backgroundColor =
+      this.isMarker && this.fill === this.color ? "none" : this.fill;
+    this.element.style.borderLeftColor = this.fill;
+    this.element.style.cursor = this.selected ? "grab" : "pointer";
+    if (this.contentOverlay) this.contentOverlay.style.backgroundColor = this.fill;
+    if (this.contentOverlayLabel) this.contentOverlayLabel.style.color = this.labelOnFill;
   }
 
   /** Slide the region, and its explicit end if it has one, by `deltaSeconds`. */
@@ -634,12 +666,12 @@ class SingleRegion extends EventEmitter<RegionEvents> implements Region {
         inset: "0",
         overflow: "hidden",
         borderRadius: "inherit",
-        backgroundColor: this.selected ? SELECTION_COLOR : this.color,
+        backgroundColor: this.fill,
         pointerEvents: "none",
         zIndex: "1",
       },
     });
-    this.contentOverlayLabel = label(this.selected ? LABEL_ON_SELECTION : LABEL_ON_REGION);
+    this.contentOverlayLabel = label(this.labelOnFill);
     this.contentOverlay.appendChild(this.contentOverlayLabel);
     this.element.appendChild(this.contentOverlay);
   }
@@ -659,8 +691,7 @@ class SingleRegion extends EventEmitter<RegionEvents> implements Region {
   public setOptions(options: Partial<Omit<RegionParams, "minLength" | "maxLength">>) {
     if (options.color) {
       this.color = options.color;
-      this.element.style.backgroundColor = this.color;
-      if (this.contentOverlay) this.contentOverlay.style.backgroundColor = this.color;
+      this.paint();
     }
 
     if (options.start !== undefined || options.end !== undefined) {
@@ -688,6 +719,60 @@ class SingleRegion extends EventEmitter<RegionEvents> implements Region {
         this.removeResizeHandles(this.element);
       }
     }
+  }
+
+  /**
+   * Move the region and update how it looks, keeping its element.
+   * Positions are only clamped to the track. A neighbour may not have moved yet.
+   */
+  public patch({
+    start,
+    end,
+    content,
+    color,
+    resize,
+    channelIdx,
+    channelCount,
+    highlighted,
+    faded,
+  }: RegionParams) {
+    const clamp = (time: number) => Math.max(0, Math.min(this.totalDuration, time));
+    this.start = clamp(start);
+    this._explicitEnd = end === undefined ? undefined : clamp(end);
+    if (content !== this.content?.textContent) this.setContent(content);
+    if (color && color !== this.color) this.setOptions({ color });
+    if (resize !== undefined && resize !== this.resize) this.setOptions({ resize });
+    if ((highlighted ?? false) !== this.highlighted || (faded ?? false) !== this.faded) {
+      this.highlighted = highlighted ?? false;
+      this.faded = faded ?? false;
+      this.paint();
+    }
+    if (channelIdx !== undefined || channelCount !== undefined) {
+      this.channelIdx = channelIdx ?? this.channelIdx;
+      this.numberOfChannels = channelCount ?? this.numberOfChannels;
+      this.placeInChannel();
+    }
+    this.setPart();
+    const rightHandle = this.element.querySelector(
+      '[part*="region-handle-right"]',
+    ) as HTMLElement | null;
+    if (rightHandle) this.applyRightHandleAppearance(rightHandle);
+  }
+
+  /**
+   * Give the region an end at `end`, drawn at once. It may run past its next neighbour.
+   */
+  public growTo(end: number) {
+    this._explicitEnd = Math.max(this.start, Math.min(this.totalDuration, end));
+    this.renderPosition();
+  }
+
+  /**
+   * Redraw the region where it is. An open-ended region reaches its next neighbour's start, so it
+   * has to be redrawn when that neighbour moves.
+   */
+  public refreshPosition() {
+    this.renderPosition();
   }
 
   /** Remove the region */
@@ -724,6 +809,7 @@ class RegionsPlugin extends BasePlugin<RegionsPluginEvents, RegionsPluginOptions
   // teardown-and-rebuild the host does whenever the timings change.
   private selectedIds = new Set<string>();
   private anchorId?: string;
+  private selectable = true;
   private groupDrag?: Region[];
   private visibilityFrame = 0;
   private labelsFrame = 0;
@@ -916,6 +1002,14 @@ class RegionsPlugin extends BasePlugin<RegionsPluginEvents, RegionsPluginOptions
     this.anchorId = undefined;
   }
 
+  /**
+   * Turn selecting regions by clicking on or off. A group drag needs a selection, so it goes too.
+   */
+  public setSelectable(selectable: boolean) {
+    this.selectable = selectable;
+    if (!selectable) this.clearSelection();
+  }
+
   private setSelection(regions: Region[]) {
     const ids = new Set(regions.map((region) => region.id));
     this.regions.forEach((region) => region.setSelected(ids.has(region.id)));
@@ -923,6 +1017,7 @@ class RegionsPlugin extends BasePlugin<RegionsPluginEvents, RegionsPluginOptions
   }
 
   private onRegionClicked(region: Region) {
+    if (!this.selectable) return;
     if (this.selectedIds.has(region.id)) return this.clearSelection();
 
     const ordered = this.orderedRegions();
@@ -1097,6 +1192,40 @@ class RegionsPlugin extends BasePlugin<RegionsPluginEvents, RegionsPluginOptions
     }
 
     return region;
+  }
+
+  /**
+   * Make the regions match the given ones without rebuilding them. A region whose id is still
+   * wanted keeps its element, so nothing flickers. The given regions have to be in time order.
+   */
+  public syncRegions(params: RegionParams[]) {
+    const wanted = new Set(params.map((param) => param.id));
+    for (const region of [...this.regions]) {
+      if (wanted.has(region.id)) continue;
+      if (region === this.firstRegion) this.firstRegion = region.nextRegion;
+      region.remove();
+    }
+    const live = new Map(this.regions.map((region) => [region.id, region]));
+    const added: RegionParams[] = [];
+    for (const param of params) {
+      const region = param.id === undefined ? undefined : live.get(param.id);
+      if (region) {
+        region.patch(param);
+      } else {
+        added.push(param);
+      }
+    }
+    this.regions.forEach((region) => region.refreshPosition());
+    // Added last, so they are placed among regions that already have their new starts.
+    for (const param of added) {
+      try {
+        this.addRegion(param);
+      } catch (e) {
+        console.error("Failed to add region", e);
+      }
+    }
+    this.scheduleLabelClip();
+    this.scheduleVisibilityPass();
   }
 
   /** Remove all regions */
