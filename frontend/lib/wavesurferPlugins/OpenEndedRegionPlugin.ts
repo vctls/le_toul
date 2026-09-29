@@ -6,11 +6,11 @@
  * extends to the end of the audio or the start of the next region.
  */
 
-import { createDragStream } from "wavesurfer.js/dist/reactive/drag-stream";
-import { BasePlugin } from "wavesurfer.js/dist/base-plugin";
-import { BasePluginEvents } from "wavesurfer.js/dist/base-plugin";
-import EventEmitter from "wavesurfer.js/dist/event-emitter";
-import createElement from "wavesurfer.js/dist/dom";
+import { createDragStream } from "wavesurfer.js/dist/reactive/drag-stream.js";
+import { BasePlugin } from "wavesurfer.js/dist/base-plugin.js";
+import { BasePluginEvents } from "wavesurfer.js/dist/base-plugin.js";
+import EventEmitter from "wavesurfer.js/dist/event-emitter.js";
+import createElement from "wavesurfer.js/dist/dom.js";
 import { groupBy, sortBy } from "lodash-es";
 
 // Every drag in progress, in any plugin instance.
