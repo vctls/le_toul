@@ -1,0 +1,6 @@
+# The separator's CUDA image plus Node, for measuring syncing against hand-timed projects with
+# the repository bind-mounted (see the bench service in compose.gpu.yaml).
+# The timings wrapper, scripts/timings-to-json.mjs, runs under Node.
+FROM separator
+
+COPY --from=node:22-slim /usr/local/bin/node /usr/local/bin/node

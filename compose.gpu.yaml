@@ -58,3 +58,35 @@ services:
               count: all
               capabilities: [gpu]
     restart: unless-stopped
+
+  # Measures syncing on the GPU against hand-timed projects. Not started by `up`. Run with:
+  #   BENCH_PROJECTS=~/path/to/projects docker compose -f compose.yaml -f compose.gpu.yaml \
+  #     run --rm bench python scripts/align.py --search /projects
+  #
+  # The repository is mounted at /repo, so edits apply without a rebuild, and weights
+  # land in the host's api/pretrained_models. The projects are mounted read-only.
+  bench:
+    image: the-tuul-bench:cuda
+    build:
+      context: .
+      dockerfile: Dockerfile.bench
+      additional_contexts:
+        separator: service:separator
+    profiles: ["bench"]
+    working_dir: /repo
+    # Files written into the repository stay the host user's.
+    user: "${HOST_UID:-1000}:${HOST_GID:-1000}"
+    environment:
+      HOME: /tmp
+      # librosa's numba cache would otherwise go into the image's venv, which this user can't write.
+      NUMBA_CACHE_DIR: /tmp/numba
+    volumes:
+      - .:/repo
+      - ${BENCH_PROJECTS:-./songs}:/projects:ro
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
