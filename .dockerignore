@@ -16,6 +16,7 @@ api/pretrained_models/*.onnx
 api/pretrained_models/*.ckpt
 api/pretrained_models/*.pth
 api/pretrained_models/*.safetensors
+api/pretrained_models/mms_fa/
 # Built by the frontend-builder stage.
 # A host copy here would leave orphan bundles alongside it in the image.
 api/assets/bundles

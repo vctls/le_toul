@@ -3,13 +3,14 @@
 .idea
 .vscode
 __pycache__
-# Separation model binaries. Auto-downloaded by audio-separator on first use.
+# Model binaries, downloaded on first use by audio-separator and torchaudio.
 # See README "Credits" for sources. Keep metadata JSONs/YAMLs tracked so we
 # don't have to rebuild them on a clean clone.
 api/pretrained_models/*.onnx
 api/pretrained_models/*.ckpt
 api/pretrained_models/*.pth
 api/pretrained_models/*.safetensors
+api/pretrained_models/mms_fa/
 songs/
 tests/song_files/
 node_modules/

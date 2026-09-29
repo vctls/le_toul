@@ -65,7 +65,7 @@ RUN if [ "$INSTALL_SEPARATION" = "true" ] && [ "$SEPARATION_DEVICE" = "cuda" ]; 
         .venv/bin/python -m pip install --no-cache-dir \
             --index-url https://download.pytorch.org/whl/cu128 \
             --extra-index-url https://pypi.org/simple \
-            "torch==2.7.1+cu128" "torchvision==0.22.1+cu128" \
+            "torch==2.7.1+cu128" "torchvision==0.22.1+cu128" "torchaudio==2.7.1+cu128" \
         && .venv/bin/python -m pip uninstall -y onnxruntime \
         && .venv/bin/python -m pip install --no-cache-dir "onnxruntime-gpu==1.22.0"; \
     fi
