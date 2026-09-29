@@ -14,8 +14,8 @@ soundfile = pytest.importorskip("soundfile")
 pytestmark = pytest.mark.skipif(not shutil.which("ffmpeg"), reason="needs ffmpeg")
 
 
-def make_song(path: Path, codec: str) -> Path:
-    """Write a second of stereo tone in the given codec."""
+def make_song(path: Path, codec: str, layout: str = "stereo") -> Path:
+    """Write a second of tone in the given codec and channel layout."""
     subprocess.run(
         [
             "ffmpeg",
@@ -25,8 +25,8 @@ def make_song(path: Path, codec: str) -> Path:
             "lavfi",
             "-i",
             "sine=frequency=440:duration=1",
-            "-ac",
-            "2",
+            "-af",
+            f"aformat=channel_layouts={layout}",
             "-c:a",
             codec,
             str(path),
@@ -57,6 +57,27 @@ def test_mp4_converts_to_16_bit_flac(tmp_path):
     assert converted.suffix == ".flac"
     assert info.subtype == "PCM_16"
     assert info.channels == 2
+
+
+def test_audio_wider_than_stereo_needs_conversion(tmp_path):
+    assert audio_input.needs_conversion(
+        make_song(tmp_path / "song.wav", "pcm_s16le", "5.1")
+    )
+
+
+def test_mono_is_left_alone(tmp_path):
+    assert not audio_input.needs_conversion(
+        make_song(tmp_path / "song.wav", "pcm_s16le", "mono")
+    )
+
+
+@pytest.mark.parametrize(("layout", "channels"), [("mono", 1), ("5.1", 2), ("7.1", 2)])
+def test_conversion_keeps_mono_and_downmixes_wider_audio(tmp_path, layout, channels):
+    song = make_song(tmp_path / "song.mp4", "aac", layout)
+
+    converted = audio_input.to_flac(song, tmp_path)
+
+    assert soundfile.info(str(converted)).channels == channels
 
 
 def test_undecodable_song_is_handed_on_unchanged(tmp_path):
