@@ -131,6 +131,7 @@ import { useTimingsStore } from "@/stores/timings";
 import { useSettingsStore } from "@/stores/settings";
 import { useHelpStore } from "@/stores/help";
 import { useAdvancedStore } from "@/stores/advanced";
+import { useLegacyTimingStore } from "@/stores/legacyTiming";
 import { useThemeStore } from "@/stores/theme";
 import { useFallbackFontsStore } from "@/stores/fallbackFonts";
 import { ThemePreference } from "@/lib/colorScheme";
@@ -164,6 +165,7 @@ export default defineComponent({
       settingsStore: useSettingsStore(),
       helpStore: useHelpStore(),
       advancedStore: useAdvancedStore(),
+      legacyTimingStore: useLegacyTimingStore(),
       themeStore: useThemeStore(),
       fallbackFontsStore: useFallbackFontsStore(),
       ...useTabRoute(),
@@ -191,13 +193,16 @@ export default defineComponent({
     themeTitle(): string {
       return `${this.themeButton.label} — click to change`;
     },
-    isOnHiddenEditTab(): boolean {
-      return this.activeTab === "edit" && !this.advancedStore.isAdvanced;
+    isOnHiddenTab(): boolean {
+      return (
+        (this.activeTab === "edit" && !this.advancedStore.isAdvanced) ||
+        (this.activeTab === "timing" && !this.legacyTimingStore.isShown)
+      );
     },
   },
   watch: {
     // Buefy shows a blank page for a hidden tab that is still active.
-    isOnHiddenEditTab: {
+    isOnHiddenTab: {
       handler(isHidden: boolean) {
         if (isHidden) this.setActiveTab("adjust");
       },

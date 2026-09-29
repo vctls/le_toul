@@ -1,12 +1,20 @@
 <template>
   <b-tab-item
     value="timing"
-    label="Timing"
+    label="Timing (legacy)"
     icon="stopwatch"
     class="wrapper song-timing-tab"
     headerClass="song-timing-tab-header"
     :disabled="!songFile || lyricSegments.length == 0"
+    :visible="legacyTimingStore.isShown"
   >
+    <template #header>
+      <b-icon icon="stopwatch" />
+      <span>
+        Timing
+        <span class="tab-label-note">(legacy)</span>
+      </span>
+    </template>
     <div class="title-row">
       <h2 class="title">Song Timing</h2>
       <voice-selector />
@@ -174,6 +182,7 @@ import VoiceSelector from "@/components/VoiceSelector.vue";
 import { useTimingsStore } from "@/stores/timings";
 import { useLyricsStore } from "@/stores/lyrics";
 import { useMediaStore } from "@/stores/media";
+import { useLegacyTimingStore } from "@/stores/legacyTiming";
 import { useSettingsStore } from "@/stores/settings";
 import { TimingKeys, eventMatchesKey, keyLabel } from "@/lib/timingKeys";
 import { claimMediaKeys, registerPlayer } from "@/lib/exclusivePlayback";
@@ -197,7 +206,14 @@ export default defineComponent({
     const mediaStore = useMediaStore();
     const settingsStore = useSettingsStore();
     const { lyricSegments } = storeToRefs(lyricsStore);
-    return { timingsStore, lyricsStore, lyricSegments, mediaStore, settingsStore };
+    return {
+      timingsStore,
+      lyricsStore,
+      lyricSegments,
+      mediaStore,
+      settingsStore,
+      legacyTimingStore: useLegacyTimingStore(),
+    };
   },
   data() {
     return {
@@ -471,6 +487,11 @@ export default defineComponent({
 </script>
 
 <style scoped>
+/* The note goes under the name, so the tab list stays as narrow as the other names allow. */
+.tab-label-note {
+  display: block;
+}
+
 .title-row {
   display: flex;
   flex-direction: row;

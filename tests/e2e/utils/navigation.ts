@@ -27,13 +27,16 @@ export async function navigateToTab(page: Page, tabId: TabId): Promise<void> {
     [TabId.SongInfo]: "Get Your Song Ready",
     [TabId.LyricInput]: "Song Lyrics",
     [TabId.SongTiming]: "Song Timing",
-    [TabId.TimingAdjustment]: "Adjust Timings",
+    [TabId.TimingAdjustment]: "Timing",
     [TabId.VideoPreview]: "Video Preview",
     [TabId.Submit]: "More Settings",
     [TabId.Help]: "Help",
   };
 
-  await expect(page.locator(`h2:has-text("${tabHeaderMap[tabId]}")`)).toBeVisible();
+  // Exact, since "Timing" is also part of "Song Timing".
+  await expect(
+    page.getByRole("heading", { level: 2, name: tabHeaderMap[tabId], exact: true }),
+  ).toBeVisible();
 }
 
 /**
