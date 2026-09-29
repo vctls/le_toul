@@ -81,7 +81,9 @@ test.describe("Tab URL fragment", () => {
     await expect.poll(() => fragment(page)).toBe("#adjust");
 
     await page.reload();
-    await expect(page.locator('h2:has-text("Adjust Timings")')).toBeVisible();
+    await expect(
+      page.getByRole("heading", { level: 2, name: "Timing", exact: true }),
+    ).toBeVisible();
     await scrollWaveformIntoView(page);
 
     // The waveform has no duration to lay regions out against until the audio is decoded. Laid out too early,

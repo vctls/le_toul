@@ -89,8 +89,21 @@ export async function initAppSetup(page: Page): Promise<void> {
 export async function setupTestEnvironment(page: Page): Promise<void> {
   setupConsoleErrorListener(page);
   await installClipboardStub(page);
+  await showLegacyTimingTab(page);
   await mockLyricsLookup(page);
   await initAppSetup(page);
+}
+
+/**
+ * Shows the legacy Timing tab, which the suite taps its timings in and the app hides by default.
+ * A test that turns it off keeps it off across reloads.
+ */
+async function showLegacyTimingTab(page: Page): Promise<void> {
+  await page.addInitScript(() => {
+    if (localStorage.getItem("legacyTiming.isShown") === null) {
+      localStorage.setItem("legacyTiming.isShown", "true");
+    }
+  });
 }
 
 /**

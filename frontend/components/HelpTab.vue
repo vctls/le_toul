@@ -15,12 +15,9 @@
             again.
           </li>
           <li>
-            <strong>Timing:</strong> Play the song and tap <em>start</em> as each highlighted word
-            begins, and <em>end</em> to mark pauses. If it's too fast, slow the song down. Don't
-            worry if you can't get everything perfectly, you can adjust timings in the next step.
-          </li>
-          <li>
-            <strong>Adjust:</strong> Play it back and drag the edges of any timing that's off.
+            <strong>Timing:</strong> Play the song and tap <em>start</em> as each syllable in the
+            queue reaches the line, and <em>end</em> to mark pauses. If it's too fast, slow the song
+            down. Then switch to <em>Adjust</em> and drag the edges of any timing that's off.
           </li>
           <li>
             <strong>Submit:</strong> Pick fonts and colors, check the preview, and click
