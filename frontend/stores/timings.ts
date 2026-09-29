@@ -37,6 +37,9 @@ const SEGMENTS_STORAGE_KEY = "timings._segments";
 // left in place so a failed migration can't destroy a user's timings.
 const LEGACY_TIMINGS_STORAGE_KEY = "timings._timings";
 const ACTIVE_VOICE_STORAGE_KEY = "timings._activeVoice";
+// Each step of the history holds only what it changed, so it fits in localStorage, which is saved
+// at once when the page unloads.
+const HISTORY_STORAGE_KEY = "timings._history";
 
 type Timings = Array<[number, number]>;
 
@@ -49,16 +52,23 @@ type VideoSettingsOverride = Partial<Omit<VideoSettings, "font" | "color">> & {
 type TimingsByVoice = Record<VoiceId, Timings>;
 type SegmentsByVoice = Record<VoiceId, TimedSegment[]>;
 
-// One voice's Adjust tab edits, as the segments before each one.
+// What turns one list of segments into another: the new length, and the segments that differ.
+// A tap changes a segment or two, so this keeps a long history small.
+type SegmentsPatch = {
+  length: number;
+  changes: Record<number, TimedSegment>;
+};
+
+// One voice's Adjust tab edits, as the patch that takes back each one.
 type AdjustHistory = {
-  undo: TimedSegment[][];
-  redo: TimedSegment[][];
+  undo: SegmentsPatch[];
+  redo: SegmentsPatch[];
   // The voice's segments as this history last wrote them, serialized.
   // Any other write makes the current segments differ, and the stacks no longer apply to them.
   head: string;
 };
 
-const ADJUST_HISTORY_LIMIT = 100;
+const ADJUST_HISTORY_LIMIT = 1000;
 
 /**
  * The lyrics as persisted, split per voice.
@@ -127,6 +137,25 @@ function serializeSegments(segments: TimedSegment[]): string {
   );
 }
 
+/**
+ * The patch that turns `from` into `to`.
+ */
+function diffSegments(from: TimedSegment[], to: TimedSegment[]): SegmentsPatch {
+  const changes: Record<number, TimedSegment> = {};
+  to.forEach((segment, index) => {
+    if (index >= from.length || serializeSegments([segment]) !== serializeSegments([from[index]])) {
+      changes[index] = { ...segment };
+    }
+  });
+  return { length: to.length, changes };
+}
+
+function applyPatch(segments: TimedSegment[], patch: SegmentsPatch): TimedSegment[] {
+  return Array.from({ length: patch.length }, (_, index) => ({
+    ...(patch.changes[index] ?? segments[index]),
+  }));
+}
+
 function isCurrent(history: AdjustHistory | undefined, segments: TimedSegment[]): boolean {
   return history !== undefined && history.head === serializeSegments(segments);
 }
@@ -148,8 +177,7 @@ export const useTimingsStore = defineStore("timings", {
       // that the finished edit would have kept.
       _baselineByVoice: copySegmentsByVoice(segments),
       _activeVoice: loadJsonFromStorage<VoiceId | null>(ACTIVE_VOICE_STORAGE_KEY, null),
-      // This is kept in memory only, so a reload starts with no history.
-      _historyByVoice: {} as Record<VoiceId, AdjustHistory>,
+      _historyByVoice: loadJsonFromStorage<Record<VoiceId, AdjustHistory>>(HISTORY_STORAGE_KEY, {}),
     };
   },
 
@@ -461,11 +489,31 @@ export const useTimingsStore = defineStore("timings", {
      * Replace the active voice's segments with an edit made in the Adjust tab, which can be undone.
      */
     applyAdjustEdit(segments: TimedSegment[]) {
-      this.recordAdjustEdit([this.activeVoice], () => this.resetSegments(segments));
+      this.applyVoiceEdit(this.activeVoice, segments);
     },
 
     /**
-     * Run a write and push each voice's previous segments onto its undo stack.
+     * Replace one voice's segments with an edit that can be undone, whichever voice is active.
+     */
+    applyVoiceEdit(voice: VoiceId, segments: TimedSegment[]) {
+      this.recordAdjustEdit([voice], () => {
+        this._segmentsByVoice = { ...this._segmentsByVoice, [voice]: copySegments(segments) };
+        this.normalizeDisplayPeriods();
+        this.commitBaseline();
+      });
+    },
+
+    /**
+     * Replace one voice's segments with each of `steps` in turn, as one edit per step.
+     */
+    applyVoiceEdits(voice: VoiceId, steps: TimedSegment[][]) {
+      for (const segments of steps) {
+        this.applyVoiceEdit(voice, segments);
+      }
+    },
+
+    /**
+     * Run a write and push what takes it back onto each voice's undo stack.
      * A voice the write leaves unchanged records nothing.
      */
     recordAdjustEdit(voices: VoiceId[], write: () => void) {
@@ -476,11 +524,12 @@ export const useTimingsStore = defineStore("timings", {
       }));
       write();
       for (const { voice, history, segments } of before) {
-        const head = serializeSegments(this._segmentsByVoice[voice] ?? []);
+        const after = this._segmentsByVoice[voice] ?? [];
+        const head = serializeSegments(after);
         if (head === serializeSegments(segments)) {
           continue;
         }
-        history.undo.push(segments);
+        history.undo.push(diffSegments(after, segments));
         if (history.undo.length > ADJUST_HISTORY_LIMIT) {
           history.undo.shift();
         }
@@ -512,16 +561,18 @@ export const useTimingsStore = defineStore("timings", {
     },
 
     /**
-     * Restore the active voice's latest snapshot from one stack, and save its segments on the other.
+     * Apply the active voice's latest patch from one stack, and push what takes it back on the other.
      */
     stepHistory(from: "undo" | "redo", to: "undo" | "redo") {
       const history = this.currentHistory(this.activeVoice);
-      const snapshot = history[from].pop();
-      if (!snapshot) {
+      const patch = history[from].pop();
+      if (!patch) {
         return;
       }
-      history[to].push(copySegments(this.activeSegments));
-      this.resetSegments(snapshot);
+      const current = this.activeSegments;
+      const restored = applyPatch(current, patch);
+      history[to].push(diffSegments(restored, current));
+      this.resetSegments(restored);
       history.head = serializeSegments(this.activeSegments);
     },
 
@@ -701,6 +752,7 @@ export const useTimingsStore = defineStore("timings", {
     clear() {
       this._segmentsByVoice = {};
       this._baselineByVoice = {};
+      this._historyByVoice = {};
     },
 
     /**
@@ -752,15 +804,22 @@ export const useTimingsStore = defineStore("timings", {
       );
     },
 
+    /**
+     * Write the timings and their history to localStorage now, rather than after the change that
+     * asked for it.
+     */
+    saveToStorage() {
+      try {
+        localStorage.setItem(SEGMENTS_STORAGE_KEY, JSON.stringify(this._segmentsByVoice));
+        localStorage.setItem(ACTIVE_VOICE_STORAGE_KEY, JSON.stringify(this._activeVoice));
+        localStorage.setItem(HISTORY_STORAGE_KEY, JSON.stringify(this._historyByVoice));
+      } catch (e) {
+        console.error("Failed to save the timings to localStorage", e);
+      }
+    },
+
     setupPersistence() {
-      this.$subscribe((_mutation, state) => {
-        try {
-          localStorage.setItem(SEGMENTS_STORAGE_KEY, JSON.stringify(state._segmentsByVoice));
-          localStorage.setItem(ACTIVE_VOICE_STORAGE_KEY, JSON.stringify(state._activeVoice));
-        } catch (e) {
-          console.error(`Failed to save ${SEGMENTS_STORAGE_KEY} to localStorage`, e);
-        }
-      });
+      this.$subscribe(() => this.saveToStorage());
     },
   },
 });

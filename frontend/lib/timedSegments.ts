@@ -82,7 +82,7 @@ export function toEvents(segments: TimedSegment[]): LyricEvent[] {
  * The last segment of a lyric has no trailing separator, so appending to the end rewrites it and
  * `three` becomes `three_`. The same word in the same place must not read as a different one.
  */
-function segmentWord(text: string): string {
+export function segmentWord(text: string): string {
   return text.replace(/(\n\n|[\n/_])$/, "");
 }
 
