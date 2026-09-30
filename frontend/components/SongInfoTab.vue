@@ -201,7 +201,7 @@
             name="timings-file-upload"
             :accept="['.txt', '.json']"
             label="Timings File"
-            tooltip="A timings.txt exported from the Submit tab, or an older timings.json. Restores the timings you tapped out, so you can pick up where you left off."
+            tooltip="A timings.txt exported from the Submit tab, or an older timings.json. Restores the timings you tapped out, so you can pick up where you left off. A timings.txt also brings back the lyrics it was timed against."
             :model-value="mediaStore.timingsFile"
             @update:model-value="onTimingsFileSelect"
           />
@@ -356,6 +356,7 @@ import { kbpToProjectFiles, KbpImport } from "@/lib/kbpConvert";
 import { BUNDLED_FONTS } from "@/lib/fonts";
 import { isTimingsFile } from "@/lib/timedSegments";
 import { isTimingsText, parseTimingsText, TIMINGS_TEXT_VERSION } from "@/lib/timingsText";
+import { lyricsMatch, lyricsOf } from "@/lib/timingsLyrics";
 import FileUpload from "@/components/FileUpload.vue";
 import FolderUpload from "@/components/FolderUpload.vue";
 import CircularProgress from "@/components/CircularProgress.vue";
@@ -395,6 +396,8 @@ interface FolderLosses {
 interface PendingReplacement {
   kind: "lyrics" | "timings" | "kbp";
   file: File | null;
+  // A timings.txt whose lyrics differ from the ones loaded replaces those too.
+  replacesLyrics?: boolean;
 }
 
 const OUTCOME_LABELS = {
@@ -478,11 +481,20 @@ export default defineComponent({
       files: { lyrics?: string; timings?: string; settings?: string };
     } {
       const kind = this.pendingReplacement?.kind;
-      const lyrics = kind !== "timings" ? this.lyricsStore.lyricText : undefined;
+      const replacesLyrics = kind === "timings" && this.pendingReplacement?.replacesLyrics;
+      const lyrics = kind !== "timings" || replacesLyrics ? this.lyricsStore.lyricText : undefined;
       const timings =
         kind !== "lyrics" && this.timingsStore.hasAnyTimings
           ? this.timingsStore.timingsText
           : undefined;
+      if (replacesLyrics) {
+        return {
+          title: "Replace your lyrics and timings?",
+          subject: "lyrics and timings",
+          label: "Current files: ",
+          files: { lyrics, timings },
+        };
+      }
       if (kind === "kbp") {
         return {
           title: "Replace your lyrics and timings?",
@@ -650,6 +662,12 @@ export default defineComponent({
       const text = await file.text();
       if (isTimingsText(text)) {
         const { voices, warnings } = parseTimingsText(text);
+        // Each syllable in a timings.txt carries its text, so the file brings its lyrics along.
+        if (!lyricsMatch(this.lyricsStore.lyricText, voices)) {
+          this.lyricsStore.setLyrics(lyricsOf(voices));
+          // The lyrics input would otherwise go on naming a file that no longer holds these lyrics.
+          this.mediaStore.lyricsFile = null;
+        }
         this.timingsStore.setAllSegments(voices);
         return warnings;
       }
@@ -689,13 +707,27 @@ export default defineComponent({
       this.mediaStore.lyricsFile = file;
       this.onLyricsFileChange(file);
     },
-    onTimingsFileSelect(file: File | null) {
-      if (this.timingsStore.hasAnyTimings) {
-        this.askToReplace({ kind: "timings", file });
+    async onTimingsFileSelect(file: File | null) {
+      const replacesLyrics = file !== null && (await this.replacesLyrics(file));
+      if (this.timingsStore.hasAnyTimings || replacesLyrics) {
+        this.askToReplace({ kind: "timings", file, replacesLyrics });
         return;
       }
       this.mediaStore.timingsFile = file;
       this.onTimingsFileChange(file);
+    },
+    /**
+     * Whether loading a timings file would replace lyrics the user has, which only a timings.txt
+     * with other lyrics does. A file that can't be read replaces nothing, and says so once loaded.
+     */
+    async replacesLyrics(file: File): Promise<boolean> {
+      const text = await file.text();
+      if (!isTimingsText(text) || this.lyricsStore.lyricText.trim() === "") return false;
+      try {
+        return !lyricsMatch(this.lyricsStore.lyricText, parseTimingsText(text).voices);
+      } catch {
+        return false;
+      }
     },
     askToReplace(replacement: PendingReplacement) {
       this.pendingReplacement = replacement;
