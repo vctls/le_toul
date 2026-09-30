@@ -42,12 +42,12 @@ const WIDTH = 900;
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
 /** Assembles a numbered PNG sequence into an optimized GIF via ffmpeg. */
-async function assembleGif(framesDir, outPath, { fps = FPS, width = WIDTH } = {}) {
+async function assembleGif(framesDir, outPath, { fps = FPS, width = WIDTH, colors = 256 } = {}) {
   // No dithering: the captures are flat UI, so dither only stipples the solid areas,
   // which looks worse and costs a third of the file size.
   const vf =
     `fps=${fps},scale=${width}:-1:flags=lanczos,` +
-    `split[s0][s1];[s0]palettegen=stats_mode=diff[p];` +
+    `split[s0][s1];[s0]palettegen=stats_mode=diff:max_colors=${colors}[p];` +
     `[s1][p]paletteuse=dither=none`;
   await execFileP("ffmpeg", [
     "-y",
@@ -215,7 +215,7 @@ async function uploadTimings(page) {
 
 async function openAdjustTab(page) {
   await page.click("nav.tabs .timing-adjustment-tab-header");
-  await page.locator('h2:has-text("Adjust Timings")').waitFor();
+  await page.getByRole("heading", { level: 2, name: "Timing", exact: true }).waitFor();
   const waveform = page.locator(".wavesurfer-container");
   await waveform.waitFor();
   // The tab scrolls, and regions are only built while the waveform is on screen.
@@ -750,6 +750,8 @@ async function captureMultiVoice(page) {
 
 /** The Song Timing tab's transport: speed, pitch lock, seek bar, tap keys. */
 async function captureTimingControls(page) {
+  // The previous Timing tab is hidden unless asked for.
+  await page.addInitScript(() => localStorage.setItem("legacyTiming.isShown", "true"));
   await gotoApp(page);
   await uploadSong(page);
   await enterLyrics(page);
@@ -795,6 +797,118 @@ async function captureTimingControls(page) {
   await rec.hold(4);
 
   return { rec };
+}
+
+/**
+ * Shows the name of a key as it is pressed, since a screenshot can't show the keyboard. It fades
+ * out on its own.
+ */
+async function flashKey(page, label) {
+  await page.evaluate((text) => {
+    let el = document.getElementById("__key");
+    if (!el) {
+      el = document.createElement("div");
+      el.id = "__key";
+      Object.assign(el.style, {
+        position: "fixed",
+        right: "28px",
+        bottom: "28px",
+        zIndex: "10000",
+        padding: "6px 16px",
+        borderRadius: "6px",
+        font: "600 22px system-ui, sans-serif",
+        background: "rgba(20, 20, 20, 0.85)",
+        color: "#fff",
+        boxShadow: "0 2px 6px rgba(0, 0, 0, 0.4)",
+        transition: "opacity 0.25s",
+        pointerEvents: "none",
+      });
+      document.body.appendChild(el);
+    }
+    el.textContent = text;
+    el.style.opacity = "1";
+    clearTimeout(window.__keyTimer);
+    window.__keyTimer = setTimeout(() => (el.style.opacity = "0"), 450);
+  }, label);
+}
+
+/** The fixture's syllables as start and end taps, in order, each tagged with its segment. */
+async function fixtureTaps() {
+  const events = JSON.parse(await fs.readFile(TIMINGS, "utf-8"));
+  const taps = [];
+  let segment = -1;
+  for (const [time, marker] of events) {
+    if (marker === 1) segment += 1;
+    taps.push({ time, segment, key: marker === 1 ? "Space" : "Enter" });
+  }
+  return taps;
+}
+
+/**
+ * Tap mode: a line re-tapped as the song plays, each syllable fed from the queue through the
+ * playhead as its start is tapped.
+ */
+async function captureTapMode(page) {
+  await gotoApp(page);
+  // The instructions would push the waveform down, and this capture is about the view itself.
+  const help = page.getByRole("button", { name: "Instructions" });
+  if ((await help.getAttribute("aria-pressed")) === "true") await help.click();
+  await uploadSong(page);
+  await enterLyrics(page);
+  await uploadTimings(page);
+  await openAdjustTab(page);
+  await page.getByRole("button", { name: "Tap", exact: true }).click();
+  const tuck = page.getByRole("button", { name: "Tuck the message away" });
+  if (await tuck.isVisible()) await tuck.click();
+  await sleep(600);
+
+  const pointer = new Pointer(page);
+  await pointer.install();
+  const stage = await clipFor(page, page.locator(".waveform-stage"));
+  await pointer.moveTo(stage.x + stage.width / 2, stage.y + stage.height * 0.2);
+  await wheelZoom(page, 3);
+  // The playhead stays in the middle, so the line is brought on screen, a preroll step at a time.
+  for (let i = 0; i < 4; i++) await page.keyboard.press("ArrowRight");
+  await sleep(800);
+
+  // The third line, "I looked up, to my surprise", starts at segment 17 and ends at 23.
+  const FIRST = 17;
+  const LAST = 23;
+  const taps = (await fixtureTaps()).filter((tap) => tap.segment >= FIRST && tap.segment <= LAST);
+
+  const clip = await clipFor(page, page.locator(".timing-adjustment-tab"));
+  const rec = new Recorder(page, "tap-mode", clip);
+  await rec.init();
+  const startedAt = Date.now();
+  await rec.hold(6);
+
+  const target = await segmentBox(page, FIRST);
+  await pointer.glideTo((target.left + target.right) / 2, (target.top + target.bottom) / 2, rec);
+  await pointer.click(pointer.x, pointer.y);
+  await rec.hold(10);
+  // Out of the way of the queue and the playhead.
+  await pointer.glideTo(stage.x + stage.width * 0.85, stage.y + stage.height * 0.1, rec);
+
+  const songTime = () =>
+    page.locator(".timing-adjustment-tab audio[controls]").evaluate((audio) => audio.currentTime);
+  await flashKey(page, "Space");
+  await page.keyboard.press("Space");
+  for (const tap of taps) {
+    while ((await songTime()) < tap.time - 0.02) await rec.frame();
+    await flashKey(page, tap.key);
+    await page.keyboard.press(tap.key);
+    await rec.frame();
+  }
+  const until = taps[taps.length - 1].time + 1.2;
+  while ((await songTime()) < until) await rec.frame();
+  await flashKey(page, "Esc");
+  await page.keyboard.press("Escape");
+  await rec.hold(12);
+
+  // The frames come as fast as the screenshots allow, so the GIF plays them back at that rate,
+  // which keeps the song and the taps at their real speed.
+  const fps = Math.max(1, Math.round(rec.n / ((Date.now() - startedAt) / 1000)));
+  return { rec, fps };
 }
 
 // The stages the backend actually reports, from api/karaoke/separation_progress.py.
@@ -1161,6 +1275,16 @@ const CAPTURES = {
   },
   "multi-voice": { fn: captureMultiVoice, out: "multi-voice.gif" },
   "timing-controls": { fn: captureTimingControls, out: "timing-controls.gif" },
+  // At 1x, since the frames have to keep up with the song and the GIF is scaled down anyway.
+  "tap-mode": {
+    fn: captureTapMode,
+    out: "tap-mode.gif",
+    viewport: { width: 1280, height: 800 },
+    deviceScaleFactor: 1,
+    // The waveform scrolls in every frame, which makes it the largest GIF by far. 64 colors take
+    // a quarter off and still draw the UI cleanly.
+    colors: 64,
+  },
   theme: { fn: captureTheme, out: "theme-toggle.gif" },
   separation: {
     fn: captureSeparation,
@@ -1186,10 +1310,15 @@ async function main() {
 
   // Each capture gets a fresh context: the app persists a session, so a reused
   // one would start from the previous capture's state.
-  const withPage = async (fn, viewport = DEFAULT_VIEWPORT, outPath = null) => {
+  const withPage = async (
+    fn,
+    viewport = DEFAULT_VIEWPORT,
+    outPath = null,
+    deviceScaleFactor = 2,
+  ) => {
     const context = await browser.newContext({
       viewport,
-      deviceScaleFactor: 2,
+      deviceScaleFactor,
     });
     const page = await context.newPage();
     page.on("console", (m) => {
@@ -1217,8 +1346,15 @@ async function main() {
     console.log(`\n== ${name}`);
     const out = path.join(OUT_DIR, capture.out);
     // A still capture writes the file itself and returns nothing.
-    const { rec } = (await withPage(capture.fn, capture.viewport, out)) ?? {};
-    if (rec) await assembleGif(rec.dir, out, capture.fps ? { fps: capture.fps } : {});
+    const { rec, fps } =
+      (await withPage(capture.fn, capture.viewport, out, capture.deviceScaleFactor)) ?? {};
+    const rate = fps ?? capture.fps;
+    if (rec) {
+      await assembleGif(rec.dir, out, {
+        ...(rate ? { fps: rate } : {}),
+        ...(capture.colors ? { colors: capture.colors } : {}),
+      });
+    }
     const { size } = await fs.stat(out);
     const frames = rec ? `${rec.n} frames, ` : "";
     console.log(`Wrote ${out} (${frames}${Math.round(size / 1024)} KB)`);
