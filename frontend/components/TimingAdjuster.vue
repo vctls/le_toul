@@ -451,10 +451,10 @@ export default defineComponent({
       this.$emit("seeking", time);
     },
     onRegionClicked(id: string, event: MouseEvent) {
-      if (!this.tapMode) return;
-      // In Tap mode a click on a region picks it, so it must not also seek to where it landed.
+      // A click on a region picks it in Tap mode and toggles its selection otherwise.
+      // Either way, it must not also seek to where it landed.
       event.stopPropagation();
-      this.$emit("segment-picked", parseInt(id.split("_")[1]));
+      if (this.tapMode) this.$emit("segment-picked", parseInt(id.split("_")[1]));
     },
     onWavesurferSeeking(time: number) {
       console.log("Wavesurfer seeking", time);
