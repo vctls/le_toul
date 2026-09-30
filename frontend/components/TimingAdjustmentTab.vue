@@ -140,9 +140,9 @@
           syllable you clicked.
         </p>
         <p>
-          Drag any selected rectangle to move the whole selection. What you moved plays when you let
-          go. Once a syllable or selection has played, the playhead goes back to the preroll before
-          it.
+          Drag a rectangle to move it, or a selected one to move the whole selection. What you moved
+          plays when you let go. Once a syllable or selection has played, the playhead goes back to
+          the preroll before it.
         </p>
         <p>
           <kbd>Space</kbd> plays and pauses. <kbd>Enter</kbd> replays from the last spot you picked

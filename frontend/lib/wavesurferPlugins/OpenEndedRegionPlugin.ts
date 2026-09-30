@@ -474,7 +474,8 @@ class SingleRegion extends EventEmitter<RegionEvents> implements Region {
       this.addResizeHandles(element);
     }
 
-    // The body drives group moves, and the plugin ignores the drag unless this region is part of the current selection.
+    // The body drives moves. A selected region moves with the whole selection,
+    // and any other region moves alone.
     this.subscriptions.push(
       makeDraggable(
         element,
@@ -1003,7 +1004,7 @@ class RegionsPlugin extends BasePlugin<RegionsPluginEvents, RegionsPluginOptions
   }
 
   /**
-   * Turn selecting regions by clicking on or off. A group drag needs a selection, so it goes too.
+   * Turn selecting regions by clicking, and moving them by dragging their body, on or off.
    */
   public setSelectable(selectable: boolean) {
     this.selectable = selectable;
@@ -1034,8 +1035,8 @@ class RegionsPlugin extends BasePlugin<RegionsPluginEvents, RegionsPluginOptions
   }
 
   private onGroupDragStart(region: Region) {
-    if (!this.selectedIds.has(region.id)) return;
-    this.groupDrag = this.getSelectedRegions();
+    if (!this.selectable) return;
+    this.groupDrag = this.selectedIds.has(region.id) ? this.getSelectedRegions() : [region];
   }
 
   private onGroupDrag(region: Region, dx: number) {
