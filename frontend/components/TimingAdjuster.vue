@@ -59,6 +59,10 @@ const ADJUST_CHANNELS = 5;
 // A jump of the audio clock larger than this is a seek, which the smoothed time follows at once.
 const SEEK_JUMP = 0.25;
 
+// How long the shown time takes to settle on the audio's. The audio reports its time every few
+// frames, each report up to a frame late, and following every one made the waveform judder.
+const CLOCK_SETTLE_SECONDS = 0.3;
+
 function createLyricRegion(
   id: number,
   params: Partial<RegionParams> & { start: number },
@@ -133,9 +137,10 @@ export default defineComponent({
       trackUrls: markRaw(new Map<Blob, string>()),
       _playheadRestored: false,
       clockFrame: 0,
-      // The audio clock only moves in steps, so the view extrapolates from its last change.
+      // The audio clock only moves in steps, so the view runs its own clock between them and pulls
+      // it gently toward each one.
       // Nothing here is rendered, hence markRaw.
-      clock: markRaw({ base: -1, at: 0, shown: -1 }),
+      clock: markRaw({ base: -1, at: 0, shown: -1, lastFrame: 0 }),
     };
   },
   mounted() {
@@ -410,17 +415,26 @@ export default defineComponent({
       const wavesurfer = this.wavesurferRef();
       if (!audio || !wavesurfer) return;
       const { clock } = this;
-      let time = audio.currentTime;
+      const reported = audio.currentTime;
+      const elapsed = clock.lastFrame ? (now - clock.lastFrame) / 1000 : 0;
+      let time = reported;
       if (!audio.paused) {
-        if (time !== clock.base) {
-          clock.base = time;
-          clock.at = now;
+        if (reported !== clock.base) {
+          clock.base = reported;
+          // The report changed at some point since the last frame, so halfway is the best guess.
+          clock.at = clock.lastFrame ? (now + clock.lastFrame) / 2 : now;
         }
-        const estimate = time + ((now - clock.at) / 1000) * audio.playbackRate;
-        // A late step of the audio clock would pull the estimate back. Only a seek may do that.
-        time =
-          Math.abs(estimate - clock.shown) > SEEK_JUMP ? estimate : Math.max(estimate, clock.shown);
+        const estimate = reported + ((now - clock.at) / 1000) * audio.playbackRate;
+        const predicted = clock.shown + elapsed * audio.playbackRate;
+        if (clock.shown < 0 || Math.abs(estimate - predicted) > SEEK_JUMP) {
+          time = estimate;
+        } else {
+          const pull = 1 - Math.exp(-elapsed / CLOCK_SETTLE_SECONDS);
+          // Only a seek may take the view back.
+          time = Math.max(clock.shown, predicted + (estimate - predicted) * pull);
+        }
       }
+      clock.lastFrame = now;
       if (time === clock.shown) return;
       clock.shown = time;
       wavesurfer.setTime(time);
