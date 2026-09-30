@@ -61,11 +61,26 @@ its own pass through the timing tabs, and optionally its own font, weight and co
 
 ### Tapping out the timings
 
-The keys used to tap timing region start and end can now be remapped, and so can a third one that
-jumps back to redo the current screen without reaching for the mouse.  
-When changing playback speed, pitch preservation can now be toggled on or off.
+The Timing tab has a **Tap mode** for timing the song as it plays. The playhead stays in the middle
+and the waveform scrolls past it, with the syllables still to tap queued along the middle. Press the
+start key as each syllable begins, and it feeds through the playhead. A syllable lasts until the next
+one starts, so the end key is only needed where the singer pauses.
 
-![Remapping the start, end and redo keys, the playback speed and pitch preservation, and tapping timings against the seek bar](docs/media/timing-controls.gif)
+- **Re-tap any part of the song** by clicking its rectangle, or a syllable in the queue. Only what you
+  tap changes. The syllables ahead are drawn faded until you reach them, and keep their timings if
+  you stop first.
+- **Undo takes back one tap at a time**, playing or paused, and moves the playhead to just before it.
+- **Taps are kept** when playback stops, and when the page is reloaded mid-song.
+- **On a phone held sideways**, the waveform takes the whole screen, with the timing buttons floating
+  under your thumbs. Swipe to move the playhead, and pinch to zoom.
+
+![Re-tapping a line: a click on its first rectangle, then the start and end keys as the song plays](docs/media/tap-mode.gif)
+
+The start, end and redo keys can be remapped, and pitch preservation can be toggled on or off when
+changing playback speed.  
+The previous Timing tab is still there, behind a switch at the end of the Tap mode help.
+
+![Remapping the start, end and redo keys, the playback speed and pitch preservation, and tapping timings against the seek bar in the previous Timing tab](docs/media/timing-controls.gif)
 
 ### Adjusting timings manually
 
