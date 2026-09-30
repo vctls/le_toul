@@ -131,12 +131,18 @@
         <p>
           Drag the left edge of a rectangle to change when a syllable starts, and the right edge to
           change when it ends. Drag an end onto the next start to join the two. Once they're joined,
-          dragging that start moves the end before it too.
+          dragging that start moves the end before it too. When you let go of an edge, the syllable
+          plays.
         </p>
         <p>
-          Click a rectangle to select it, then click another to select everything in between. Drag
-          any selected rectangle to move the whole selection. Click a selected rectangle or press
-          <kbd>Esc</kbd> to clear the selection.
+          Click a rectangle to select it, then click another to select everything in between. Click
+          a selected rectangle or press <kbd>Esc</kbd> to clear the selection. Each click plays the
+          syllable you clicked.
+        </p>
+        <p>
+          Drag any selected rectangle to move the whole selection. What you moved plays when you let
+          go. Once a syllable or selection has played, the playhead goes back to the preroll before
+          it.
         </p>
         <p>
           <kbd>Space</kbd> plays and pauses. <kbd>Enter</kbd> replays from the last spot you picked
@@ -579,7 +585,7 @@ export default defineComponent({
       // Controls playhead in video and adjuster (in seconds)
       playhead: 0.0,
       // Last playhead position the user set on purpose
-      // (waveform click, player seek, or the preroll jump after a timing drag),
+      // (waveform click, player seek, or the preroll a played region goes back to),
       // as opposed to one reached by playback running on.
       // Enter replays from here.
       manualPlayhead: 0.0,

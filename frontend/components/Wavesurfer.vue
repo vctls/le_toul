@@ -218,7 +218,7 @@ export default defineComponent({
     });
 
     this.regionsPlugin.on("region-clicked", (region: Region, event: MouseEvent) => {
-      this.$emit("region-clicked", region.id, event);
+      this.$emit("region-clicked", region, event);
     });
 
     this.regionsPlugin.on("regions-updated", (regions: Region[]) => {

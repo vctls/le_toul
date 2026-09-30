@@ -63,6 +63,10 @@ const SEEK_JUMP = 0.25;
 // frames, each report up to a frame late, and following every one made the waveform judder.
 const CLOCK_SETTLE_SECONDS = 0.3;
 
+// A seek this far before a range's start still counts as inside it, since the audio may land a
+// little off the time it was sent to.
+const RANGE_SEEK_SLACK = 0.05;
+
 function createLyricRegion(
   id: number,
   params: Partial<RegionParams> & { start: number },
@@ -141,6 +145,9 @@ export default defineComponent({
       // it gently toward each one.
       // Nothing here is rendered, hence markRaw.
       clock: markRaw({ base: -1, at: 0, shown: -1, lastFrame: 0 }),
+      // The span being played by playRange, which pauses at its end and goes back to the preroll
+      // before its start.
+      playingRange: null as { start: number; end: number } | null,
     };
   },
   mounted() {
@@ -167,6 +174,7 @@ export default defineComponent({
       if (this.tapMode) this.regions = this.createRegions(this.segments ?? []);
     },
     tapMode(tapMode: boolean) {
+      this.playingRange = null;
       this.regions = this.createRegions(this.segments ?? []);
       if (tapMode) {
         this.startClock();
@@ -298,8 +306,14 @@ export default defineComponent({
     onRegionUpdated(region: Region) {
       this.onRegionsUpdated([region]);
     },
+    /**
+     * A handle or a selection was released, so the regions play through with their new timing.
+     * They come in time order.
+     */
     onRegionsUpdated(regions: Array<Region>) {
       if (regions.length === 0) return;
+      const start = regions[0].start;
+      const end = regions[regions.length - 1].end;
       const updated = (this.segments ?? []).map((segment) => ({ ...segment }));
       for (const region of regions) {
         const index = parseInt(region.id.split("_")[1]);
@@ -309,13 +323,7 @@ export default defineComponent({
         segment.end = region.isOpenEnded ? undefined : region.end;
       }
       this.$emit("segmentschange", updated);
-      this.$nextTick(() => {
-        this.previewNewTiming(regions[0]);
-      });
-    },
-    previewNewTiming(region: Region) {
-      const newPlayhead = Math.max(0, region.start - this.prerollSeconds);
-      this.setAudioPlayhead(newPlayhead);
+      this.$nextTick(() => this.playRange(start, end));
     },
     onTimeUpdate(time: number) {
       this.$emit("timeupdate", time);
@@ -388,8 +396,25 @@ export default defineComponent({
         });
       }
     },
+    /**
+     * Play from `start`, whether or not playback is running. At `end`, pause and move the playhead
+     * to the preroll before `start`.
+     */
+    playRange(start: number, end: number) {
+      this.playingRange = { start, end };
+      this.restartAt(start);
+    },
     onAudioTimeUpdate(event: Event) {
       const time = (event.target as HTMLAudioElement).currentTime;
+      const range = this.playingRange;
+      if (range && time >= range.end) {
+        this.playingRange = null;
+        this.pause();
+        this.setAudioPlayhead(Math.max(0, range.start - this.prerollSeconds));
+        // The seek updates the waveform itself. Sending it this time too would leave it stuck
+        // here, since wavesurfer drops a time set while its audio is still seeking.
+        return;
+      }
       // In Tap mode the clock moves the playhead on every frame, from a smoothed time.
       if (!this.tapMode) this.setAdjusterPlayhead(time);
       this.$emit("timeupdate", time);
@@ -447,14 +472,22 @@ export default defineComponent({
       const time = (event.target as HTMLAudioElement).currentTime;
       // The clock never steps back by less than a seek's worth, so it is told of every seek.
       this.clock.shown = -1;
+      const range = this.playingRange;
+      if (range && (time < range.start - RANGE_SEEK_SLACK || time >= range.end)) {
+        this.playingRange = null;
+      }
       this.setAdjusterPlayhead(time);
       this.$emit("seeking", time);
     },
-    onRegionClicked(id: string, event: MouseEvent) {
+    onRegionClicked(region: Region, event: MouseEvent) {
       // A click on a region picks it in Tap mode and toggles its selection otherwise.
       // Either way, it must not also seek to where it landed.
       event.stopPropagation();
-      if (this.tapMode) this.$emit("segment-picked", parseInt(id.split("_")[1]));
+      if (this.tapMode) {
+        this.$emit("segment-picked", parseInt(region.id.split("_")[1]));
+      } else {
+        this.playRange(region.start, region.end);
+      }
     },
     onWavesurferSeeking(time: number) {
       console.log("Wavesurfer seeking", time);
@@ -464,6 +497,7 @@ export default defineComponent({
       this.setAudioPlayhead(time);
     },
     onAudioPause() {
+      this.playingRange = null;
       this.wavesurferRef()?.pause();
       this.$emit("pause");
     },
