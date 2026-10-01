@@ -3,6 +3,7 @@ import {
   fromEvents,
   toEvents,
   reconcile,
+  lostTimings,
   clampDisplayPeriods,
   normalizeDisplayPeriods,
   TimedSegment,
@@ -132,6 +133,39 @@ describe("round trip", () => {
       { text: "two_", start: 3.0 },
       { text: "three" },
     ]);
+  });
+});
+
+describe("lostTimings", () => {
+  it("counts each start and end that no segment holds any more", () => {
+    const before: TimedSegment[] = [
+      { text: "one_", start: 1, end: 1.5 },
+      { text: "two_", start: 2 },
+      { text: "three", start: 3, end: 3.5 },
+    ];
+    const after: TimedSegment[] = [
+      { text: "one_", start: 1, end: 1.5 },
+      { text: "too_" },
+      { text: "tree" },
+      { text: "three", start: 3 },
+    ];
+
+    expect(lostTimings(before, after)).toBe(2);
+  });
+
+  it("counts a time held twice once per segment", () => {
+    const before: TimedSegment[] = [
+      { text: "a_", end: 2 },
+      { text: "b", start: 2, end: 2 },
+    ];
+
+    expect(lostTimings(before, [{ text: "a_", end: 2 }, { text: "b" }])).toBe(2);
+  });
+
+  it("ignores display periods", () => {
+    const before: TimedSegment[] = [{ text: "one", start: 1, displayStart: 0, displayEnd: 4 }];
+
+    expect(lostTimings(before, [{ text: "one", start: 1 }])).toBe(0);
   });
 });
 

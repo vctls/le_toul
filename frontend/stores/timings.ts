@@ -12,6 +12,7 @@ import {
   layOutVoices,
   resolveStarts,
   DEFAULT_KARAOKE_OPTIONS,
+  parseLyrics,
   Segment,
   VoiceTrack,
 } from "@/lib/timing";
@@ -22,6 +23,7 @@ import {
   fromEvents,
   fromLyric,
   hasDisplayPeriod,
+  lostTimings,
   normalizeDisplayPeriods,
   reconcile,
   toEvents,
@@ -369,6 +371,36 @@ export const useTimingsStore = defineStore("timings", {
       return Object.values(state._segmentsByVoice).some((segments) =>
         segments.some(hasDisplayPeriod),
       );
+    },
+
+    /**
+     * How many timings replacing the lyrics with `lyricText` would remove, without writing anything.
+     * It follows what the reconciliation watchers do after a lyric edit.
+     */
+    timingsLostBy(state) {
+      return (lyricText: string): number => {
+        const { voices, lyricTextByVoice } = parseAnnotatedLyrics(lyricText);
+        let segmentsByVoice = state._segmentsByVoice;
+        let baselineByVoice = state._baselineByVoice;
+        // The rename watcher only runs when the voices change.
+        const rename =
+          voices.join("\n") === useLyricsStore().voices.join("\n")
+            ? null
+            : findVoiceRename(segmentsByVoice, voices);
+        if (rename) {
+          segmentsByVoice = renameVoice(segmentsByVoice, rename.from, rename.to);
+          if (baselineByVoice[rename.from]) {
+            baselineByVoice = renameVoice(baselineByVoice, rename.from, rename.to);
+          }
+        }
+        const after = reconcileByVoice(segmentsByVoice, baselineByVoice, voices, (voice) =>
+          parseLyrics(lyricTextByVoice[voice] ?? "", true),
+        );
+        return Object.entries(state._segmentsByVoice).reduce((lost, [voice, before]) => {
+          const renamed = voice === rename?.from ? rename.to : voice;
+          return lost + lostTimings(before, after[renamed] ?? []);
+        }, 0);
+      };
     },
 
     canUndo(state): boolean {

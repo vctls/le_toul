@@ -3,18 +3,32 @@
     class="textarea is-flex-grow-1 lyric-editor-textarea"
     :value="modelValue"
     @input="onLyricInput"
+    @paste="onPaste"
     ref="lyricInput"
     spellcheck="false"
     autocorrect="off"
     autocapitalize="off"
     autocomplete="off"
   ></textarea>
+  <confirm-modal
+    v-model="isConfirmingPaste"
+    title="Paste over timed lyrics?"
+    type="is-danger"
+    icon="circle-exclamation"
+    confirm-label="Paste anyway"
+    @confirm="confirmPaste"
+    @update:model-value="onPasteModalToggle"
+  >
+    <p>
+      This paste removes {{ pendingPaste?.lost }} timing{{ pendingPaste?.lost === 1 ? "" : "s" }}.
+    </p>
+  </confirm-modal>
 </template>
 
 <script lang="ts">
 import { defineComponent } from "vue";
-
-// import { getCurrentWord } from "@/lib/lyrics";
+import ConfirmModal from "@/components/ConfirmModal.vue";
+import { useTimingsStore } from "@/stores/timings";
 
 import {
   getCurrentWord,
@@ -23,7 +37,11 @@ import {
   convertSpacesToUnderscores,
 } from "@/lib/lyrics";
 
+type PendingPaste = { start: number; end: number; text: string; lost: number };
+
 export default defineComponent({
+  components: { ConfirmModal },
+  emits: ["update:modelValue"],
   props: {
     modelValue: { type: String, default: "" },
     magicSlashes: {
@@ -36,6 +54,8 @@ export default defineComponent({
       scrollTop: 0,
       visibilityObserver: null as IntersectionObserver | null,
       replacing: false,
+      isConfirmingPaste: false,
+      pendingPaste: null as PendingPaste | null,
     };
   },
   mounted() {
@@ -78,6 +98,40 @@ export default defineComponent({
         input.setSelectionRange(newCursor, newCursor);
       }
       this.$emit("update:modelValue", input.value);
+    },
+    /**
+     * Holds back a paste that would remove timings until the user confirms it.
+     */
+    onPaste(e: ClipboardEvent) {
+      const pasted = e.clipboardData?.getData("text/plain");
+      if (!pasted) return;
+      const input = this.textarea();
+      const { selectionStart: start, selectionEnd: end, value } = input;
+      // The textarea normalizes line breaks as it inserts, so the count must too.
+      const text = pasted.replace(/\r\n?/g, "\n");
+      const lost = useTimingsStore().timingsLostBy(value.slice(0, start) + text + value.slice(end));
+      if (lost === 0) return;
+      e.preventDefault();
+      this.pendingPaste = { start, end, text, lost };
+      this.isConfirmingPaste = true;
+    },
+    confirmPaste() {
+      const paste = this.pendingPaste;
+      if (!paste) return;
+      const input = this.textarea();
+      const { value } = input;
+      this.replaceUndoably(
+        input,
+        value.slice(0, paste.start) + paste.text + value.slice(paste.end),
+      );
+      const cursor = paste.start + paste.text.length;
+      input.setSelectionRange(cursor, cursor);
+      this.$emit("update:modelValue", input.value);
+    },
+    onPasteModalToggle(open: boolean) {
+      if (open) return;
+      // The modal took the focus, and the user was typing here.
+      this.$nextTick(() => this.textarea().focus());
     },
     isSlashEntry(e: Event) {
       // Return true if event is a user typing a slash
