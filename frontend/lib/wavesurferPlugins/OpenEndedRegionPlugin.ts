@@ -1017,8 +1017,9 @@ class RegionsPlugin extends BasePlugin<RegionsPluginEvents, RegionsPluginOptions
     this.selectedIds = ids;
   }
 
-  private onRegionClicked(region: Region) {
+  private onRegionClicked(region: Region, event: MouseEvent) {
     if (!this.selectable) return;
+    if ((event.target as Element).closest('[part~="region-handle"]')) return;
     if (this.selectedIds.has(region.id)) return this.clearSelection();
 
     const ordered = this.orderedRegions();
@@ -1143,7 +1144,7 @@ class RegionsPlugin extends BasePlugin<RegionsPluginEvents, RegionsPluginOptions
       }),
 
       region.on("click", (e) => {
-        this.onRegionClicked(region);
+        this.onRegionClicked(region, e);
         this.emit("region-clicked", region, e);
       }),
 
