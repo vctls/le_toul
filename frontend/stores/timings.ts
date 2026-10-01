@@ -12,6 +12,7 @@ import {
   layOutVoices,
   resolveStarts,
   DEFAULT_KARAOKE_OPTIONS,
+  Segment,
   VoiceTrack,
 } from "@/lib/timing";
 import { LinePlacement, placeLines } from "@/lib/linePlacements";
@@ -158,6 +159,58 @@ function applyPatch(segments: TimedSegment[], patch: SegmentsPatch): TimedSegmen
 
 function isCurrent(history: AdjustHistory | undefined, segments: TimedSegment[]): boolean {
   return history !== undefined && history.head === serializeSegments(segments);
+}
+
+/**
+ * The voice rename that the lyric voices imply, if it is unambiguous (see `reconcileVoices`).
+ */
+function findVoiceRename(
+  segmentsByVoice: SegmentsByVoice,
+  voices: VoiceId[],
+): { from: VoiceId; to: VoiceId } | null {
+  const timed = (voice: VoiceId) => isTimed(segmentsByVoice[voice]);
+  const orphans = Object.keys(segmentsByVoice).filter(
+    (voice) => timed(voice) && !voices.includes(voice),
+  );
+  const untimed = voices.filter((voice) => !timed(voice));
+  if (orphans.length !== 1 || untimed.length !== 1) {
+    return null;
+  }
+  return { from: orphans[0], to: untimed[0] };
+}
+
+function renameVoice<T>(
+  byVoice: Record<VoiceId, T>,
+  from: VoiceId,
+  to: VoiceId,
+): Record<VoiceId, T> {
+  const { [from]: moved, ...rest } = byVoice;
+  return { ...rest, [to]: moved };
+}
+
+/**
+ * Every voice's segments carried across to the lyrics that `lyricSegmentsFor` gives.
+ * Each voice is reconciled from its baseline, and a voice the lyrics no longer mention is kept as
+ * it is.
+ */
+function reconcileByVoice(
+  segmentsByVoice: SegmentsByVoice,
+  baselineByVoice: SegmentsByVoice,
+  voices: VoiceId[],
+  lyricSegmentsFor: (voice: VoiceId) => Segment[],
+): SegmentsByVoice {
+  const updated: SegmentsByVoice = {};
+  for (const [voice, segments] of Object.entries(segmentsByVoice)) {
+    // A voice with no baseline yet falls back to its current segments,
+    // which is the older chaining behavior, rather than a crash.
+    const baseline = baselineByVoice[voice] ?? segments;
+    // A voice the lyrics no longer mention is parked, not reconciled against nothing:
+    // retyping its tag has to bring the timings back (see reconcileVoices).
+    updated[voice] = voices.includes(voice)
+      ? reconcile(baseline, lyricSegmentsFor(voice))
+      : segments;
+  }
+  return updated;
 }
 
 export const useTimingsStore = defineStore("timings", {
@@ -722,26 +775,17 @@ export const useTimingsStore = defineStore("timings", {
      * timed) is left alone. Orphaned entries are never deleted, so re-typing the old tag brings them back.
      */
     reconcileVoices() {
-      const voices = useLyricsStore().voices;
-      const timed = (voice: VoiceId) => isTimed(this._segmentsByVoice[voice]);
-
-      const orphans = Object.keys(this._segmentsByVoice).filter(
-        (voice) => timed(voice) && !voices.includes(voice),
-      );
-      const untimed = voices.filter((voice) => !timed(voice));
-      if (orphans.length !== 1 || untimed.length !== 1) {
+      const rename = findVoiceRename(this._segmentsByVoice, useLyricsStore().voices);
+      if (!rename) {
         return;
       }
 
-      const [from] = orphans;
-      const [to] = untimed;
-      const { [from]: moved, ...rest } = this._segmentsByVoice;
-      this._segmentsByVoice = { ...rest, [to]: moved };
+      const { from, to } = rename;
+      this._segmentsByVoice = renameVoice(this._segmentsByVoice, from, to);
       // The rename is the only thing that moves, so the baseline follows the key rather than being recommitted.
       // Recommitting here would fold in the edit that triggered the rename.
       if (this._baselineByVoice[from]) {
-        const { [from]: movedBaseline, ...restBaseline } = this._baselineByVoice;
-        this._baselineByVoice = { ...restBaseline, [to]: movedBaseline };
+        this._baselineByVoice = renameVoice(this._baselineByVoice, from, to);
       }
       if (this._activeVoice === from) {
         this._activeVoice = to;
@@ -777,19 +821,12 @@ export const useTimingsStore = defineStore("timings", {
      */
     reconcileSegments() {
       const lyricsStore = useLyricsStore();
-      const updated: SegmentsByVoice = {};
-      for (const [voice, segments] of Object.entries(this._segmentsByVoice)) {
-        const lyricSegments = lyricsStore.segmentsForVoice(voice);
-        // A voice with no baseline yet falls back to its current segments,
-        // which is the older chaining behavior, rather than a crash.
-        const baseline = this._baselineByVoice[voice] ?? segments;
-        // A voice the lyrics no longer mention is parked, not reconciled against nothing:
-        // retyping its tag has to bring the timings back (see reconcileVoices).
-        updated[voice] = lyricsStore.voices.includes(voice)
-          ? reconcile(baseline, lyricSegments)
-          : segments;
-      }
-      this._segmentsByVoice = updated;
+      this._segmentsByVoice = reconcileByVoice(
+        this._segmentsByVoice,
+        this._baselineByVoice,
+        lyricsStore.voices,
+        (voice) => lyricsStore.segmentsForVoice(voice),
+      );
       this.normalizeDisplayPeriods();
     },
 
