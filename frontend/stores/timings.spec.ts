@@ -10,7 +10,7 @@ import { beforeEach, describe, expect, test, vi } from "vitest";
 import { LYRIC_MARKERS } from "@/constants";
 import { createAssFile } from "@/lib/timing";
 import { DEFAULT_VOICE_ID } from "@/lib/voices";
-import { TimedSegment } from "@/lib/timedSegments";
+import { TimedSegment, lostTimings } from "@/lib/timedSegments";
 import { parseTimingsText } from "@/lib/timingsText";
 
 // Mock the createAssFile function
@@ -681,6 +681,55 @@ describe("Timings Store", () => {
     expect(timingsStore.rawTimings).toEqual([]);
     timingsStore.setActiveVoice("Ben");
     expect(timingsStore.rawTimings).toEqual([]);
+  });
+
+  describe("timingsLostBy", () => {
+    const timeThreeWords = () => {
+      const timings = useTimingsStore();
+      const lyrics = useLyricsStore();
+      lyrics.setLyrics("one_alchemy_three");
+      timings.add(0, LYRIC_MARKERS.SEGMENT_START, 1.0);
+      timings.add(1, LYRIC_MARKERS.SEGMENT_START, 2.0);
+      timings.add(2, LYRIC_MARKERS.SEGMENT_START, 3.0);
+      timings.setupVoiceReconciliation();
+      timings.setupSegmentReconciliation();
+      return { timings, lyrics };
+    };
+
+    test("counts what the edit then removes, and writes nothing", async () => {
+      const { timings, lyrics } = timeThreeWords();
+      const before = timings.activeSegments;
+      const edit = "one_al_chem_y_more_three";
+
+      expect(timings.timingsLostBy(edit)).toBe(1);
+      expect(timings.activeSegments).toBe(before);
+
+      lyrics.setLyrics(edit);
+      await nextTick();
+      expect(lostTimings(before, timings.activeSegments)).toBe(1);
+    });
+
+    test("counts nothing for an edit that keeps every timing", () => {
+      const { timings } = timeThreeWords();
+
+      expect(timings.timingsLostBy("one_al/chem/y_three")).toBe(0);
+      expect(timings.timingsLostBy("one_alchemie_three")).toBe(0);
+    });
+
+    test("reconciles from the baseline, as a real edit does", async () => {
+      const { timings, lyrics } = timeThreeWords();
+      lyrics.setLyrics("one_three");
+      await nextTick();
+
+      expect(timings.timingsLostBy("one_alchemy_three")).toBe(0);
+    });
+
+    test("follows a voice rename", () => {
+      const { timings } = timeThreeWords();
+
+      expect(timings.timingsLostBy("[Anna] one_alchemy_three")).toBe(0);
+      expect(timings.timingsLostBy("[Anna] one_three")).toBe(1);
+    });
   });
 
   describe("voice reconciliation", () => {

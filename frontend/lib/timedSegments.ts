@@ -134,6 +134,34 @@ export function reconcile(stored: TimedSegment[], current: Segment[]): TimedSegm
   ];
 }
 
+/**
+ * How many `start` and `end` values of `before` that `after` no longer holds.
+ * Display periods don't count, since a line without one falls back to the automatic display rules.
+ */
+export function lostTimings(before: TimedSegment[], after: TimedSegment[]): number {
+  let lost = 0;
+  for (const bound of ["start", "end"] as const) {
+    const remaining = new Map<number, number>();
+    for (const segment of after) {
+      const time = segment[bound];
+      if (time !== undefined) {
+        remaining.set(time, (remaining.get(time) ?? 0) + 1);
+      }
+    }
+    for (const segment of before) {
+      const time = segment[bound];
+      if (time === undefined) continue;
+      const count = remaining.get(time) ?? 0;
+      if (count > 0) {
+        remaining.set(time, count - 1);
+      } else {
+        lost++;
+      }
+    }
+  }
+  return lost;
+}
+
 function reconcileWindow(stored: TimedSegment[], current: Segment[]): TimedSegment[] {
   const segments: TimedSegment[] = current.map(fromLyric);
   if (segments.length === 0 || stored.length === 0) {
