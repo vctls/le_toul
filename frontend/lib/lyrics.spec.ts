@@ -20,6 +20,9 @@ test("slashifyAllOccurences", () => {
   expect(slashifyAllOccurences("Ggg end\nbegin ggg", "Ggg", "G/gg")).toBe("G/gg end\nbegin g/gg");
   expect(slashifyAllOccurences("ggg\n/\n\nggg\n", "", "/")).toBe("ggg\n/\n\nggg\n");
   expect(slashifyAllOccurences("ggg ,/\n\n", ",", ",/")).toBe("ggg ,/\n\n");
+  expect(slashifyAllOccurences("ggg/ ggg_ggg\nggg", "ggg", "ggg/")).toBe("ggg/ ggg_ggg\nggg/");
+  expect(slashifyAllOccurences("ggg ggg/\nggg", "ggg", "ggg/")).toBe("ggg/ ggg/\nggg/");
+  expect(slashifyAllOccurences("ggg_ggg", "ggg", "g/gg/")).toBe("g/gg_g/gg/");
 });
 
 test("slashifiedPosition", () => {

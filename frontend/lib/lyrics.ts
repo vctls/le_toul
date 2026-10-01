@@ -68,12 +68,17 @@ export function slashifyAllOccurences(
     currentWord: string,
     word: string,
     slashedVersion: string,
+    next: string | undefined,
   ): string {
-    if (areWordsEquivalent(currentWord, word)) {
-      return text + addSlashes(currentWord, slashedVersion);
-    } else {
+    if (!areWordsEquivalent(currentWord, word)) {
       return text + currentWord;
     }
+    let slashed = addSlashes(currentWord, slashedVersion);
+    if (next == "_" || next == "\n") {
+      // The occurrence keeps its own slash here, so a slash typed before a line break survives.
+      slashed = slashed.replace(/\/$/, "") + (currentWord.endsWith("/") ? "/" : "");
+    }
+    return text + slashed;
   }
 
   lyrics.split("").forEach((char) => {
@@ -81,7 +86,7 @@ export function slashifyAllOccurences(
       state = "WORDEND";
     }
     if (state == "WORDEND") {
-      result = appendWord(result, currentWord, word, slashedVersion);
+      result = appendWord(result, currentWord, word, slashedVersion, char);
       currentWord = "";
       result += char;
       state = "INWORD";
@@ -89,7 +94,7 @@ export function slashifyAllOccurences(
       currentWord += char;
     }
   });
-  result = appendWord(result, currentWord, word, slashedVersion);
+  result = appendWord(result, currentWord, word, slashedVersion, undefined);
 
   return result;
 }
