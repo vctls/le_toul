@@ -134,19 +134,27 @@ export default defineComponent({
   color: var(--bulma-primary-invert);
 }
 
-/* The tint shows how much is timed, so a segment to review is marked by its outline instead. */
-.queue-item.is-review-lost,
-.queue-item.is-review-moved {
-  border-width: 2px;
-  border-color: var(--review-color);
-}
-
+/* A segment to review takes its rectangle's colour from the waveform, muted until it is the head.
+The muted colour stands in for the timed tint, so a start alone still shows as a checkerboard. */
 .queue-item.is-review-lost {
   --review-color: var(--region-review-lost);
 }
 
 .queue-item.is-review-moved {
   --review-color: var(--region-review-moved);
+}
+
+.queue-item.is-review-lost,
+.queue-item.is-review-moved {
+  --queue-timed: color-mix(in srgb, var(--review-color) 45%, var(--bulma-scheme-main));
+  background-color: var(--queue-timed);
+}
+
+.queue-item.is-head.is-review-lost,
+.queue-item.is-head.is-review-moved {
+  border-color: var(--review-color);
+  background: var(--review-color);
+  color: var(--region-label-on-fill);
 }
 
 /* The syllables of one word touch, so the word reads as one block cut into pieces.
