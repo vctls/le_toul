@@ -93,10 +93,11 @@ export function segmentWord(text: string): string {
  * 1. same segment count    -> relabel in place, every timing is kept (the typo fix)
  * 2. otherwise             -> trim the common prefix and suffix, and nothing outside it moves
  * 3. window text unchanged -> a pure split or join, so keep the window's outer bounds
- * 4. anything else         -> un-time the window only
+ * 4. anything else         -> keep the window's unchanged lines, and un-time the rest
  *
- * This is deliberately not an LCS.
+ * This is deliberately not an LCS over segments.
  * An LCS would read a one-character typo as a delete plus an insert, and drop a timing that the first rule keeps.
+ * Rule 4 runs one over the window's lines instead, where a typo changes one line, which still goes through rule 1.
  */
 export function reconcile(stored: TimedSegment[], current: Segment[]): TimedSegment[] {
   if (stored.length === current.length) {
@@ -162,7 +163,108 @@ export function lostTimings(before: TimedSegment[], after: TimedSegment[]): numb
   return lost;
 }
 
+/**
+ * The segments split into lines, each ending at a segment whose text ends in a line break.
+ * What follows the last line break is a line of its own.
+ */
+function splitLines<T extends { text: string }>(segments: T[]): T[][] {
+  const lines: T[][] = [];
+  let line: T[] = [];
+  for (const segment of segments) {
+    line.push(segment);
+    if (segment.text.endsWith("\n")) {
+      lines.push(line);
+      line = [];
+    }
+  }
+  if (line.length > 0) {
+    lines.push(line);
+  }
+  return lines;
+}
+
+/**
+ * A line as drawn, without its line break, so that a line which only gained a split, or moved to
+ * another screen, still matches.
+ */
+function lineKey(line: { text: string }[]): string {
+  return line
+    .map(({ text }) => displayText(text))
+    .join("")
+    .trim();
+}
+
+/**
+ * The index pairs of a longest common subsequence of `a` and `b`, in order.
+ */
+function commonSubsequence(a: string[], b: string[]): Array<[number, number]> {
+  const lengths = Array.from({ length: a.length + 1 }, () =>
+    new Array<number>(b.length + 1).fill(0),
+  );
+  for (let i = a.length - 1; i >= 0; i--) {
+    for (let j = b.length - 1; j >= 0; j--) {
+      lengths[i][j] =
+        a[i] === b[j] ? lengths[i + 1][j + 1] + 1 : Math.max(lengths[i + 1][j], lengths[i][j + 1]);
+    }
+  }
+  const pairs: Array<[number, number]> = [];
+  let i = 0;
+  let j = 0;
+  while (i < a.length && j < b.length) {
+    if (a[i] === b[j]) {
+      pairs.push([i, j]);
+      i++;
+      j++;
+    } else if (lengths[i + 1][j] >= lengths[i][j + 1]) {
+      i++;
+    } else {
+      j++;
+    }
+  }
+  return pairs;
+}
+
+/**
+ * Rules 3 and 4 for the window that the prefix and suffix trim leaves.
+ * The lines the edit left unchanged are matched by their drawn text, and each pair is reconciled on
+ * its own. Between two matches, as many lines on each side are reconciled pair by pair, and any
+ * other gap as one span.
+ */
 function reconcileWindow(stored: TimedSegment[], current: Segment[]): TimedSegment[] {
+  const storedLines = splitLines(stored);
+  const currentLines = splitLines(current);
+  if (storedLines.length <= 1 && currentLines.length <= 1) {
+    return reconcileSpan(stored, current);
+  }
+
+  const result: TimedSegment[] = [];
+  let storedNext = 0;
+  let currentNext = 0;
+  const reconcileGap = (storedEnd: number, currentEnd: number) => {
+    const storedGap = storedLines.slice(storedNext, storedEnd);
+    const currentGap = currentLines.slice(currentNext, currentEnd);
+    if (storedGap.length === currentGap.length) {
+      storedGap.forEach((line, k) => result.push(...reconcile(line, currentGap[k])));
+    } else {
+      result.push(...reconcileSpan(storedGap.flat(), currentGap.flat()));
+    }
+  };
+  const matches = commonSubsequence(storedLines.map(lineKey), currentLines.map(lineKey));
+  for (const [i, j] of matches) {
+    reconcileGap(i, j);
+    result.push(...reconcile(storedLines[i], currentLines[j]));
+    storedNext = i + 1;
+    currentNext = j + 1;
+  }
+  reconcileGap(storedLines.length, currentLines.length);
+  return result;
+}
+
+/**
+ * Rules 3 and 4 for a span of segments with no line to match: keep its outer bounds if its words
+ * are unchanged, or un-time it.
+ */
+function reconcileSpan(stored: TimedSegment[], current: Segment[]): TimedSegment[] {
   const segments: TimedSegment[] = current.map(fromLyric);
   if (segments.length === 0 || stored.length === 0) {
     return segments;
