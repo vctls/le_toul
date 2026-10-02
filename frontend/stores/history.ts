@@ -11,10 +11,11 @@ import {
   hashState,
   isEmptyPatch,
 } from "@/lib/history";
-import { TimedSegment, reviewCounts } from "@/lib/timedSegments";
+import { TimedSegment, raisedFlags } from "@/lib/timedSegments";
 import { VoiceId } from "@/lib/voices";
 import { TabId } from "@/lib/tabRoute";
 import { loadJsonFromStorage } from "@/lib/persistence";
+import { sumBy } from "lodash-es";
 
 const STORAGE_KEY = "history";
 // The per-voice Adjust history that this one replaced.
@@ -40,10 +41,6 @@ function copyByVoice(byVoice: Record<VoiceId, TimedSegment[]>): Record<VoiceId, 
       segments.map((segment) => ({ ...segment })),
     ]),
   );
-}
-
-function allSegments(byVoice: Record<VoiceId, TimedSegment[]>): TimedSegment[] {
-  return Object.values(byVoice).flat();
 }
 
 /**
@@ -147,6 +144,22 @@ export const useHistoryStore = defineStore("history", () => {
     }
   }
 
+  /**
+   * The flags that the last lyric write raised on every voice's segments.
+   * The diff runs from the segments before the write rather than from the baseline,
+   * so that flags left by earlier edits aren't counted again.
+   */
+  function flagsRaised(before: Record<VoiceId, TimedSegment[]>): { lost: number; moved: number } {
+    const lyrics = useLyricsStore();
+    const raised = lyrics.voices
+      .filter((voice) => before[voice])
+      .map((voice) => raisedFlags(before[voice], lyrics.segmentsForVoice(voice)));
+    return {
+      lost: sumBy(raised, "lost"),
+      moved: sumBy(raised, "moved"),
+    };
+  }
+
   function push(meta: EntryMeta, before: HistoryState, warnLoss = false) {
     const after = liveState();
     const patch = diffStates(after, before);
@@ -157,10 +170,7 @@ export const useHistoryStore = defineStore("history", () => {
     head.value = hashState(after);
     save();
     if (warnLoss) {
-      const counts = reviewCounts(allSegments(after.segments));
-      const previous = reviewCounts(allSegments(before.segments));
-      const lost = Math.max(0, counts.lost - previous.lost);
-      const moved = Math.max(0, counts.moved - previous.moved);
+      const { lost, moved } = flagsRaised(before.segments);
       if (lost + moved > 0) {
         lastLoss.value = { entry, lost, moved };
       }

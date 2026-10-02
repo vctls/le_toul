@@ -3,6 +3,7 @@ import {
   fromEvents,
   toEvents,
   reconcile,
+  raisedFlags,
   ReviewFlag,
   isSpellingFix,
   clampDisplayPeriods,
@@ -150,7 +151,7 @@ describe("reconcile", () => {
     review,
   });
 
-  it("rule 1: a typo keeps every timing, because the count is unchanged", () => {
+  it("a typo keeps every timing, because the count is unchanged", () => {
     const stored = [timed("recieve_", 1.0, 1.5), timed("the_", 2.0), timed("call", 3.0)];
 
     expect(reconcile(stored, lyrics("receive_the_call"))).toEqual([
@@ -160,7 +161,7 @@ describe("reconcile", () => {
     ]);
   });
 
-  it("rule 3: splitting a word keeps the outer bounds and leaves the middle untimed", () => {
+  it("splitting a word keeps the outer bounds and leaves the middle untimed", () => {
     const stored = [timed("one_", 1.0), timed("alchemy_", 2.0, 2.9), timed("three", 3.0)];
 
     expect(reconcile(stored, lyrics("one_al/chem/y_three"))).toEqual([
@@ -172,7 +173,7 @@ describe("reconcile", () => {
     ]);
   });
 
-  it("rule 3: joining syllables takes the first start and the last end", () => {
+  it("joining syllables takes the first start and the last end", () => {
     const stored = [
       timed("one_", 1.0),
       timed("al/", 2.0),
@@ -188,7 +189,7 @@ describe("reconcile", () => {
     ]);
   });
 
-  it("rule 2: an insertion at the head leaves the tail's timings untouched", () => {
+  it("an insertion at the head leaves the tail's timings untouched", () => {
     const stored = [timed("one_", 1.0), timed("two_", 2.0), timed("three", 3.0)];
 
     expect(reconcile(stored, lyrics("zero_one_two_three"))).toEqual([
@@ -199,7 +200,7 @@ describe("reconcile", () => {
     ]);
   });
 
-  it("rule 2: a deletion at the head leaves the tail's timings untouched", () => {
+  it("a deletion at the head leaves the tail's timings untouched", () => {
     const stored = [
       timed("zero_", 0.5),
       timed("one_", 1.0),
@@ -214,18 +215,18 @@ describe("reconcile", () => {
     ]);
   });
 
-  it("rule 4: an unrelated rewrite untimes only the changed window", () => {
+  it("a word replaced by two keeps its start on the first, flagged moved", () => {
     const stored = [timed("one_", 1.0), timed("two_", 2.0), timed("three", 3.0)];
 
     expect(reconcile(stored, lyrics("one_bravo_charlie_three"))).toEqual([
       timed("one_", 1.0),
-      flag(timed("bravo_"), "lost"),
-      flag(timed("charlie_"), "lost"),
+      flag(timed("bravo_", 2.0), "moved"),
+      timed("charlie_"),
       timed("three", 3.0),
     ]);
   });
 
-  it("rule 4: keeps the timings of the lines that edits on either side leave unchanged", () => {
+  it("keeps the timings of the lines that edits on either side leave unchanged", () => {
     const stored = [
       timed("ka_", 1),
       timed("den\n", 2),
@@ -251,7 +252,7 @@ describe("reconcile", () => {
     ]);
   });
 
-  it("rule 4: a matched line that only gained a split keeps its outer bounds", () => {
+  it("a matched line that only gained a split keeps its outer bounds", () => {
     const stored = [
       timed("ka_", 1),
       timed("den\n", 2),
@@ -262,8 +263,8 @@ describe("reconcile", () => {
 
     expect(reconcile(stored, lyrics("ka_dun_po\nlu_mo\nri/sa"))).toEqual([
       timed("ka_", 1),
-      flag(timed("dun_"), "lost"),
-      flag(timed("po\n"), "lost"),
+      flag(timed("dun_", 2), "moved"),
+      timed("po\n"),
       timed("lu_", 3),
       timed("mo\n", 4),
       timed("ri/", 5),
@@ -271,7 +272,7 @@ describe("reconcile", () => {
     ]);
   });
 
-  it("rule 4: reconciles a gap of as many lines on each side pair by pair", () => {
+  it("reconciles a gap of as many lines on each side pair by pair", () => {
     const stored = [
       timed("ka_", 1),
       timed("den_", 2),
@@ -282,8 +283,8 @@ describe("reconcile", () => {
 
     expect(reconcile(stored, lyrics("ka_dun_xo_lu\nmo_ri_zu"))).toEqual([
       timed("ka_", 1),
-      flag(timed("dun_"), "lost"),
-      flag(timed("xo_"), "lost"),
+      flag(timed("dun_", 2), "moved"),
+      timed("xo_"),
       timed("lu\n", 3),
       timed("mo_", 4),
       timed("ri_", 5),
@@ -291,7 +292,7 @@ describe("reconcile", () => {
     ]);
   });
 
-  it("rule 4: a line inserted inside the window un-times nothing else", () => {
+  it("a line inserted between others un-times nothing else", () => {
     const stored = [timed("ka\n", 1), timed("den\n", 2), timed("lu\n", 3), timed("mo", 4)];
 
     expect(reconcile(stored, lyrics("kaa\nden\nxo\nlu\nmo"))).toEqual([
@@ -303,19 +304,19 @@ describe("reconcile", () => {
     ]);
   });
 
-  it("rule 4: un-times a gap whose line count changed", () => {
+  it("keeps the outer bounds of a gap whose line count changed", () => {
     const stored = [timed("ka\n", 1), timed("den\n", 2), timed("lu\n", 3), timed("mo", 4)];
 
     expect(reconcile(stored, lyrics("xo\nden\npi\nzu\nmo"))).toEqual([
       flag(timed("xo\n", 1), "moved"),
       timed("den\n", 2),
-      flag(timed("pi\n"), "lost"),
-      flag(timed("zu\n"), "lost"),
+      flag(timed("pi\n", 3), "moved"),
+      timed("zu\n"),
       timed("mo", 4),
     ]);
   });
 
-  it("rule 1: adding or removing a spacer keeps every timing and display period", () => {
+  it("adding or removing a spacer keeps every timing and display period", () => {
     const stored: TimedSegment[] = [
       { text: "one\n", start: 1.0, displayStart: 0.5 },
       timed("two", 2.0),
@@ -329,7 +330,7 @@ describe("reconcile", () => {
     expect(reconcile(spaced, lyrics("one\ntwo"))).toEqual(stored);
   });
 
-  it("rule 2: takes the spacers outside the window from the lyrics", () => {
+  it("takes the spacers of unchanged lines from the lyrics", () => {
     const stored: TimedSegment[] = [
       timed("one_", 1.0),
       timed("two\n", 2.0),
@@ -344,7 +345,7 @@ describe("reconcile", () => {
     ]);
   });
 
-  it("rule 3: takes the spacers inside the window from the lyrics", () => {
+  it("takes the spacers of a split line from the lyrics", () => {
     const stored = [timed("one\n", 1.0), timed("alchemy", 2.0, 2.9)];
 
     expect(reconcile(stored, lyrics("one\n/\nal/chemy"))).toEqual([
@@ -409,7 +410,7 @@ describe("reconcile", () => {
   });
 
   describe("review flags", () => {
-    it("rule 1: flags a timing relabelled onto a different word as moved", () => {
+    it("flags a timing relabelled onto a different word as moved", () => {
       const stored = [timed("cat_", 1.0, 1.5), timed("sat_", 2.0), timed("down")];
 
       expect(reconcile(stored, lyrics("cut_sit_dawn"))).toEqual([
@@ -419,7 +420,7 @@ describe("reconcile", () => {
       ]);
     });
 
-    it("rule 1: doesn't flag a spelling fix", () => {
+    it("doesn't flag a spelling fix", () => {
       const stored = [timed("Wonder,_", 1.0), timed("colour_", 2.0), timed("recieve", 3.0)];
 
       expect(reconcile(stored, lyrics("wander_color_receive"))).toEqual([
@@ -429,11 +430,11 @@ describe("reconcile", () => {
       ]);
     });
 
-    it("rule 1: doesn't flag a timing tapped before the lyrics existed", () => {
+    it("doesn't flag a timing tapped before the lyrics existed", () => {
       expect(reconcile([timed("", 1.0)], lyrics("one"))).toEqual([timed("one", 1.0)]);
     });
 
-    it("rule 3: flags the untimed middle of a join that lost timings", () => {
+    it("flags the untimed middle of a join that lost timings", () => {
       const stored = [timed("al/", 2.0), timed("chemy", 2.4, 2.9)];
 
       expect(reconcile(stored, lyrics("a/lche/my"))).toEqual([
@@ -443,7 +444,7 @@ describe("reconcile", () => {
       ]);
     });
 
-    it("rule 3: doesn't flag a split that keeps every timing", () => {
+    it("doesn't flag a split that keeps every timing", () => {
       const stored = [timed("one_", 1.0), timed("alchemy", 2.0, 2.9)];
 
       expect(reconcile(stored, lyrics("one_al/chem/y"))).toEqual([
@@ -503,11 +504,143 @@ describe("reconcile", () => {
         timed("four", 4.0),
       ];
 
-      expect(reconcile(stored, lyrics("one_bravo_four"))).toEqual([
+      expect(reconcile(stored, lyrics("one_ka_lu_mo_four"))).toEqual([
         timed("one_", 1.0),
-        flag(timed("bravo_"), "lost"),
+        flag(timed("ka_", 2.0), "moved"),
+        flag(timed("lu_"), "lost"),
+        flag(timed("mo_"), "moved"),
         timed("four", 4.0),
       ]);
+    });
+  });
+
+  describe("the diff", () => {
+    it("moves nothing between an addition and a deletion in different lines", () => {
+      const stored = [
+        timed("ka_", 1),
+        timed("den\n", 2),
+        timed("lu_", 3),
+        timed("mo\n", 4),
+        timed("ri_", 5),
+        timed("sa", 6),
+      ];
+
+      expect(reconcile(stored, lyrics("ka_den_xo\nlu_mo\nri"))).toEqual([
+        timed("ka_", 1),
+        timed("den_", 2),
+        timed("xo\n"),
+        timed("lu_", 3),
+        timed("mo\n", 4),
+        timed("ri", 5),
+      ]);
+    });
+
+    it("anchors on a word whose case or punctuation changed", () => {
+      const stored = [timed("Star,_", 1), timed("light", 2)];
+
+      expect(reconcile(stored, lyrics("star_bright_light"))).toEqual([
+        timed("star_", 1),
+        timed("bright_"),
+        timed("light", 2),
+      ]);
+    });
+
+    it("replaces a rewritten gap as one run when it only shares a common word", () => {
+      const stored = [
+        timed("the_", 1),
+        timed("ka_", 2),
+        timed("den\n", 3),
+        timed("lu_", 4),
+        timed("mo", 5),
+      ];
+
+      expect(reconcile(stored, lyrics("xo_pi\nzu\nthe"))).toEqual([
+        flag(timed("xo_", 1), "moved"),
+        flag(timed("pi\n"), "lost"),
+        flag(timed("zu\n"), "lost"),
+        timed("the"),
+      ]);
+    });
+
+    it("anchors on a lone common word inside a pair of lines", () => {
+      const stored = [timed("one_", 1, 1.5), timed("two_", 2, 2.5), timed("three", 3, 3.5)];
+
+      expect(reconcile(stored, lyrics("xa_ya_za_three"))).toEqual([
+        flag(timed("xa_", 1), "moved"),
+        flag(timed("ya_"), "lost"),
+        flag(timed("za_", undefined, 2.5), "moved"),
+        timed("three", 3, 3.5),
+      ]);
+    });
+
+    it("flags nothing in a run that was never timed", () => {
+      const stored = [timed("one_", 1), timed("two_"), timed("three", 3)];
+
+      expect(reconcile(stored, lyrics("one_ka_lu_mo_three"))).toEqual([
+        timed("one_", 1),
+        timed("ka_"),
+        timed("lu_"),
+        timed("mo_"),
+        timed("three", 3),
+      ]);
+    });
+
+    describe("keeps a line's display period", () => {
+      const stored: TimedSegment[] = [
+        { text: "ka_", start: 1, displayStart: 0.5, displayEnd: 3 },
+        timed("den\n", 2),
+        timed("lu", 3),
+      ];
+      const period = { displayStart: 0.5, displayEnd: 3 };
+
+      it("when its first segment is replaced", () => {
+        expect(reconcile(stored, lyrics("xo_po_den\nlu"))[0]).toEqual({
+          ...flag(timed("xo_", 1), "moved"),
+          ...period,
+        });
+      });
+
+      it("when its first segment is deleted", () => {
+        expect(reconcile(stored, lyrics("den\nlu"))[0]).toEqual({
+          ...timed("den\n", 2),
+          ...period,
+        });
+      });
+
+      it("when a segment is inserted before it", () => {
+        const [inserted, kept] = reconcile(stored, lyrics("zo_ka_den\nlu"));
+        expect(inserted).toEqual({ ...timed("zo_"), ...period });
+        expect(kept).toEqual(timed("ka_", 1));
+      });
+    });
+
+    it("keeps the period of a line joined to the next one", () => {
+      const stored: TimedSegment[] = [
+        { text: "ka\n", start: 1, displayStart: 0.5 },
+        { text: "den\n", start: 2, displayStart: 1.5 },
+        timed("lu", 3),
+      ];
+
+      expect(reconcile(stored, lyrics("ka_den\nlu"))).toEqual([
+        { text: "ka_", start: 1, displayStart: 0.5 },
+        { text: "den\n", start: 2, displayStart: 1.5 },
+        timed("lu", 3),
+      ]);
+    });
+  });
+
+  describe("raisedFlags", () => {
+    it("counts the flags a diff raised", () => {
+      const stored = [timed("one_", 1), timed("two_", 2), timed("three_", 3), timed("four", 4)];
+
+      expect(raisedFlags(stored, lyrics("one_ka_lu_mo_four"))).toEqual({ lost: 1, moved: 1 });
+    });
+
+    it("doesn't count flags that segments inherited", () => {
+      const stored = [timed("one_", 1), flag(timed("two_", 2), "moved"), timed("three", 3)];
+
+      expect(raisedFlags(stored, lyrics("one_too_three"))).toEqual({ lost: 0, moved: 0 });
+      expect(raisedFlags(stored, lyrics("one_two_three_four"))).toEqual({ lost: 0, moved: 0 });
     });
   });
 });

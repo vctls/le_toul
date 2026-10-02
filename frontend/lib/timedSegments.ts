@@ -34,23 +34,11 @@ function strongerFlag(a?: ReviewFlag, b?: ReviewFlag): ReviewFlag | undefined {
   return a === "lost" || b === "lost" ? "lost" : (a ?? b);
 }
 
-function flagged(segment: TimedSegment, review?: ReviewFlag): TimedSegment {
-  const stronger = strongerFlag(segment.review, review);
-  return stronger ? { ...segment, review: stronger } : segment;
-}
-
 /**
  * The segment without its review flag.
  */
 export function unflagged({ review: _review, ...segment }: TimedSegment): TimedSegment {
   return segment;
-}
-
-export function reviewCounts(segments: TimedSegment[]): { lost: number; moved: number } {
-  return {
-    lost: segments.filter(({ review }) => review === "lost").length,
-    moved: segments.filter(({ review }) => review === "moved").length,
-  };
 }
 
 function isTimedSegment({ start, end }: TimedSegment): boolean {
@@ -129,20 +117,6 @@ function relabel(stored: TimedSegment, lyric: Segment): TimedSegment {
 }
 
 /**
- * Relabel a stored segment that may now hold a different word, and flag its timing as moved if so.
- */
-function relabelInPlace(stored: TimedSegment, lyric: Segment): TimedSegment {
-  const segment = relabel(stored, lyric);
-  const word = segmentWord(stored.text);
-  // A textless segment holds a timing tapped before the lyrics existed,
-  // so it had no word to move from.
-  if (word === "" || !isTimedSegment(stored) || isSpellingFix(word, segmentWord(lyric.text))) {
-    return segment;
-  }
-  return flagged(segment, "moved");
-}
-
-/**
  * An event past the end of the lyrics gets a textless segment rather than being dropped.
  * Timings are entered before lyrics exist, so losing one is worse than carrying an empty text.
  */
@@ -188,57 +162,35 @@ export function segmentWord(text: string): string {
   return text.replace(/(\n\n|[\n/_])$/, "");
 }
 
+// A reconciled segment, with the flag the diff raised on it over the one it inherited.
+type Carried = { segment: TimedSegment; raised?: ReviewFlag };
+
 /**
- * This carries timings across an edit to the lyrics.
- * Four ordered rules apply, and the first match wins:
+ * This carries one voice's timings across an edit to its lyrics.
  *
- * 1. same segment count    -> relabel in place, every timing is kept (the typo fix)
- * 2. otherwise             -> trim the common prefix and suffix, and nothing outside it moves
- * 3. window text unchanged -> a pure split or join, so keep the window's outer bounds
- * 4. anything else         -> keep the window's unchanged lines, and un-time the rest
- *
- * The result flags the timings the user should check (see `TimedSegment.review`):
- * a timing that rule 1 puts on a different word is moved,
- * and segments that replace lost timings are lost.
- *
- * This is deliberately not an LCS over segments.
- * An LCS would read a one-character typo as a delete plus an insert, and drop a timing that the first rule keeps.
- * Rule 4 runs one over the window's lines instead, where a typo changes one line, which still goes through rule 1.
+ * The lines are aligned by their drawn text,
+ * and the words of each pair of lines, or of each gap between matched lines, by a word diff
+ * (see `diffSegments`).
+ * A matched word keeps its timing, an inserted one is untimed,
+ * and a replaced run keeps what it can, flagging what the user should check
+ * (see `TimedSegment.review`).
  */
 export function reconcile(stored: TimedSegment[], current: Segment[]): TimedSegment[] {
-  if (stored.length === current.length) {
-    return current.map((lyric, i) => relabelInPlace(stored[i], lyric));
-  }
+  return reconcileLines(stored, current).map(({ segment }) => segment);
+}
 
-  const matches = (a: { text: string }, b: { text: string }) =>
-    segmentWord(a.text) === segmentWord(b.text);
-
-  let head = 0;
-  while (head < stored.length && head < current.length && matches(stored[head], current[head])) {
-    head++;
-  }
-
-  let tail = 0;
-  while (
-    tail < stored.length - head &&
-    tail < current.length - head &&
-    matches(stored[stored.length - 1 - tail], current[current.length - 1 - tail])
-  ) {
-    tail++;
-  }
-
-  // Outside the window, the timings are kept but the text comes from the lyrics,
-  // since a matched segment may have gained or lost its separator.
-  return [
-    ...stored.slice(0, head).map((segment, i) => relabel(segment, current[i])),
-    ...reconcileWindow(
-      stored.slice(head, stored.length - tail),
-      current.slice(head, current.length - tail),
-    ),
-    ...stored
-      .slice(stored.length - tail)
-      .map((segment, i) => relabel(segment, current[current.length - tail + i])),
-  ];
+/**
+ * How many segments reconciling raised a flag on, over the flags they inherited.
+ */
+export function raisedFlags(
+  stored: TimedSegment[],
+  current: Segment[],
+): { lost: number; moved: number } {
+  const raised = reconcileLines(stored, current).map(({ raised }) => raised);
+  return {
+    lost: raised.filter((flag) => flag === "lost").length,
+    moved: raised.filter((flag) => flag === "moved").length,
+  };
 }
 
 /**
@@ -274,23 +226,44 @@ function lineKey(line: { text: string }[]): string {
 
 /**
  * The index pairs of a longest common subsequence of `a` and `b`, in order.
+ * Where several exist, equal items are matched from the front.
  */
 function commonSubsequence(a: string[], b: string[]): Array<[number, number]> {
-  const lengths = Array.from({ length: a.length + 1 }, () =>
-    new Array<number>(b.length + 1).fill(0),
+  // The table is quadratic,
+  // so the equal head and tail, which most edits leave long, stay out of it.
+  let head = 0;
+  while (head < a.length && head < b.length && a[head] === b[head]) {
+    head++;
+  }
+  let tail = 0;
+  while (
+    tail < a.length - head &&
+    tail < b.length - head &&
+    a[a.length - 1 - tail] === b[b.length - 1 - tail]
+  ) {
+    tail++;
+  }
+  const middleA = a.slice(head, a.length - tail);
+  const middleB = b.slice(head, b.length - tail);
+
+  const lengths = Array.from(
+    { length: middleA.length + 1 },
+    () => new Int32Array(middleB.length + 1),
   );
-  for (let i = a.length - 1; i >= 0; i--) {
-    for (let j = b.length - 1; j >= 0; j--) {
+  for (let i = middleA.length - 1; i >= 0; i--) {
+    for (let j = middleB.length - 1; j >= 0; j--) {
       lengths[i][j] =
-        a[i] === b[j] ? lengths[i + 1][j + 1] + 1 : Math.max(lengths[i + 1][j], lengths[i][j + 1]);
+        middleA[i] === middleB[j]
+          ? lengths[i + 1][j + 1] + 1
+          : Math.max(lengths[i + 1][j], lengths[i][j + 1]);
     }
   }
-  const pairs: Array<[number, number]> = [];
+  const pairs: Array<[number, number]> = Array.from({ length: head }, (_, k) => [k, k]);
   let i = 0;
   let j = 0;
-  while (i < a.length && j < b.length) {
-    if (a[i] === b[j]) {
-      pairs.push([i, j]);
+  while (i < middleA.length && j < middleB.length) {
+    if (middleA[i] === middleB[j]) {
+      pairs.push([head + i, head + j]);
       i++;
       j++;
     } else if (lengths[i + 1][j] >= lengths[i][j + 1]) {
@@ -299,38 +272,40 @@ function commonSubsequence(a: string[], b: string[]): Array<[number, number]> {
       j++;
     }
   }
+  for (let k = tail; k > 0; k--) {
+    pairs.push([a.length - k, b.length - k]);
+  }
   return pairs;
 }
 
 /**
- * Rules 3 and 4 for the window that the prefix and suffix trim leaves.
- * The lines the edit left unchanged are matched by their drawn text, and each pair is reconciled on
- * its own. Between two matches, as many lines on each side are reconciled pair by pair, and any
- * other gap as one span.
+ * The lines the edit left unchanged are matched by their drawn text,
+ * and each pair is diffed on its own.
+ * Between two matches, as many lines on each side are diffed pair by pair,
+ * and any other gap as one run.
  */
-function reconcileWindow(stored: TimedSegment[], current: Segment[]): TimedSegment[] {
+function reconcileLines(stored: TimedSegment[], current: Segment[]): Carried[] {
   const storedLines = splitLines(stored);
   const currentLines = splitLines(current);
-  if (storedLines.length <= 1 && currentLines.length <= 1) {
-    return reconcileSpan(stored, current);
-  }
-
-  const result: TimedSegment[] = [];
+  const result: Carried[] = [];
   let storedNext = 0;
   let currentNext = 0;
   const reconcileGap = (storedEnd: number, currentEnd: number) => {
     const storedGap = storedLines.slice(storedNext, storedEnd);
     const currentGap = currentLines.slice(currentNext, currentEnd);
     if (storedGap.length === currentGap.length) {
-      storedGap.forEach((line, k) => result.push(...reconcile(line, currentGap[k])));
+      storedGap.forEach((line, k) => result.push(...reconcileLine(line, currentGap[k])));
     } else {
-      result.push(...reconcileSpan(storedGap.flat(), currentGap.flat()));
+      // These lines have no counterparts,
+      // so a period stays on the segment that carried it,
+      // and `normalizeDisplayPeriods` clears it if that segment no longer starts a line.
+      result.push(...diffSegments(storedGap.flat(), currentGap.flat(), true));
     }
   };
   const matches = commonSubsequence(storedLines.map(lineKey), currentLines.map(lineKey));
   for (const [i, j] of matches) {
     reconcileGap(i, j);
-    result.push(...reconcile(storedLines[i], currentLines[j]));
+    result.push(...reconcileLine(storedLines[i], currentLines[j]));
     storedNext = i + 1;
     currentNext = j + 1;
   }
@@ -339,30 +314,89 @@ function reconcileWindow(stored: TimedSegment[], current: Segment[]): TimedSegme
 }
 
 /**
- * Rules 3 and 4 for a span of segments with no line to match: keep its outer bounds if its words
- * are unchanged, or un-time it.
- * The new segments take the old ones' flags, and are flagged lost if they replace a lost timing.
+ * A pair of lines.
+ * The old line's display period goes to the new line's first segment,
+ * whatever became of the old first segment.
  */
-function reconcileSpan(stored: TimedSegment[], current: Segment[]): TimedSegment[] {
-  const segments: TimedSegment[] = current.map(fromLyric);
-  if (segments.length === 0 || stored.length === 0) {
-    return segments;
+function reconcileLine(stored: TimedSegment[], current: Segment[]): Carried[] {
+  const carried = diffSegments(stored, current, false).map(withoutDisplayPeriod);
+  const { displayStart, displayEnd } = stored[0];
+  if (carried.length > 0) {
+    carried[0].segment = {
+      ...carried[0].segment,
+      ...(displayStart !== undefined && { displayStart }),
+      ...(displayEnd !== undefined && { displayEnd }),
+    };
   }
+  return carried;
+}
+
+function withoutDisplayPeriod({ segment, raised }: Carried): Carried {
+  const { displayStart: _start, displayEnd: _end, ...rest } = segment;
+  return { segment: rest, raised };
+}
+
+/**
+ * Align the words of a pair of lines, or of a gap,
+ * and carry each run between the matches by its shape (see `replaceRun`).
+ * Words are compared without case or punctuation, so that a change of either still anchors.
+ *
+ * In a gap whose line count changed,
+ * a common word can match one on another line and keep a time far from where it is now sung.
+ * So there, an alignment that matches fewer than half the words on its shorter side
+ * is taken for a rewrite, and the whole gap is replaced instead.
+ */
+function diffSegments(stored: TimedSegment[], current: Segment[], isGap: boolean): Carried[] {
+  const key = ({ text }: { text: string }) => spellingKey(segmentWord(text)).join("");
+  let matches = commonSubsequence(stored.map(key), current.map(key));
+  if (isGap && matches.length * 2 < Math.min(stored.length, current.length)) {
+    matches = [];
+  }
+  const result: Carried[] = [];
+  let storedNext = 0;
+  let currentNext = 0;
+  for (const [i, j] of [...matches, [stored.length, current.length]]) {
+    result.push(...replaceRun(stored.slice(storedNext, i), current.slice(currentNext, j)));
+    if (i < stored.length) {
+      result.push({ segment: relabel(stored[i], current[j]) });
+    }
+    storedNext = i + 1;
+    currentNext = j + 1;
+  }
+  return result;
+}
+
+/**
+ * A run of stored segments that the edit replaced with lyric segments.
+ * As many segments on each side are carried position by position.
+ * Otherwise the run keeps its outer start and end,
+ * since the new words are sung over the same stretch of the song as the old ones.
+ * The new segments take the old run's flags, and a flag is only raised on a timing that existed.
+ */
+function replaceRun(stored: TimedSegment[], current: Segment[]): Carried[] {
+  if (stored.length === 0 || current.length === 0) {
+    return current.map((lyric) => ({ segment: fromLyric(lyric) }));
+  }
+
+  if (stored.length === current.length) {
+    return current.map((lyric, i) => {
+      const word = segmentWord(stored[i].text);
+      // A textless segment holds a timing tapped before the lyrics existed,
+      // so it had no word to move from.
+      const moved =
+        word !== "" && isTimedSegment(stored[i]) && !isSpellingFix(word, segmentWord(lyric.text));
+      return raise(relabel(stored[i], lyric), moved ? "moved" : undefined);
+    });
+  }
+
   const inherited = stored.reduce<ReviewFlag | undefined>(
     (flag, { review }) => strongerFlag(flag, review),
     undefined,
   );
-
-  // Compared as drawn, not as stored: a split inserts the very `/` or `_` being compared, so the
-  // raw texts always differ. Only the words have to match.
-  const drawn = (list: { text: string }[]) => list.map(({ text }) => displayText(text)).join("");
-  if (drawn(stored) !== drawn(current)) {
-    const lost = stored.some(isTimedSegment) ? "lost" : undefined;
-    return segments.map((segment) => flagged(segment, strongerFlag(inherited, lost)));
-  }
-
-  // The words are unchanged, so the window's own start and end still hold.
-  // Only the divisions inside it are unknown.
+  const segments: TimedSegment[] = current.map((lyric) => ({
+    ...fromLyric(lyric),
+    ...(inherited && { review: inherited }),
+  }));
   const { start } = stored[0];
   const { end } = stored[stored.length - 1];
   if (start !== undefined) {
@@ -371,13 +405,33 @@ function reconcileSpan(stored: TimedSegment[], current: Segment[]): TimedSegment
   if (end !== undefined) {
     segments[segments.length - 1].end = end;
   }
+
+  // Compared as drawn, not as stored:
+  // a split inserts the very `/` or `_` being compared, so the raw texts always differ.
+  // A split or join keeps the words, and only its divisions are unknown.
+  const drawn = (list: { text: string }[]) => list.map(({ text }) => displayText(text)).join("");
+  const rewritten = drawn(stored) !== drawn(current);
   const timingCount = (list: TimedSegment[]) =>
     list.filter(({ start }) => start !== undefined).length +
     list.filter(({ end }) => end !== undefined).length;
-  const lost = timingCount(stored) > timingCount(segments) ? "lost" : undefined;
-  return segments.map((segment, i) =>
-    flagged(segment, i > 0 && i < segments.length - 1 ? strongerFlag(inherited, lost) : inherited),
-  );
+  const lost = timingCount(stored) > timingCount(segments);
+  return segments.map((segment, i) => {
+    if (i > 0 && i < segments.length - 1) {
+      return raise(segment, lost ? "lost" : undefined);
+    }
+    return raise(segment, rewritten && isTimedSegment(segment) ? "moved" : undefined);
+  });
+}
+
+/**
+ * The segment with `flag` raised over the one it carries.
+ */
+function raise(segment: TimedSegment, flag?: ReviewFlag): Carried {
+  const review = strongerFlag(segment.review, flag);
+  if (review === segment.review) {
+    return { segment };
+  }
+  return { segment: { ...segment, review }, raised: review };
 }
 
 /**

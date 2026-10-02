@@ -268,7 +268,7 @@ describe("Timings Store", () => {
       ]);
     });
 
-    test("an unrelated rewrite untimes only what changed", async () => {
+    test("a word replaced by two passes its start to the first, flagged moved", async () => {
       const { timings, lyrics } = timeThreeWords();
 
       lyrics.setLyrics("one_bravo_charlie_three");
@@ -276,8 +276,8 @@ describe("Timings Store", () => {
 
       expect(timings.activeSegments).toEqual([
         { text: "one_", start: 1.0 },
-        { text: "bravo_", review: "lost" },
-        { text: "charlie_", review: "lost" },
+        { text: "bravo_", start: 2.0, review: "moved" },
+        { text: "charlie_" },
         { text: "three", start: 3.0 },
       ]);
     });
