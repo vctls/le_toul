@@ -206,8 +206,8 @@ export default defineComponent({
       this.applyInitialScroll();
     });
 
-    this.bandsPlugin.on("band-updated", (segmentIndex, side, time) => {
-      this.$emit("band-updated", segmentIndex, side, time);
+    this.bandsPlugin.on("bands-updated", (updates) => {
+      this.$emit("bands-updated", updates);
     });
     this.bandsPlugin.on("band-reset", (segmentIndex, side) => {
       this.$emit("band-reset", segmentIndex, side);
@@ -288,7 +288,7 @@ export default defineComponent({
     "regions-updated",
     "region-clicked",
     "selection-change",
-    "band-updated",
+    "bands-updated",
     "band-reset",
     "zoom-change",
     "zoom-by",
@@ -479,6 +479,7 @@ export default defineComponent({
     },
     clearSelection() {
       this.regionsPlugin.clearSelection();
+      this.bandsPlugin.clearSelection();
     },
     /**
      * Select a region alone, and scroll its start into view if it is outside.

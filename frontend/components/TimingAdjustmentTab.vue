@@ -186,9 +186,13 @@
         <p v-if="advancedStore.isAdvanced">
           With <strong>Line display times</strong> on, each line gets a frame for the time it's on
           screen. Drag its edges to change when the line appears and disappears, or double-click an
-          edge to go back to the automatic time. Dashed edges are automatic, and solid ones were set
-          by hand. <strong>Reset</strong> puts every line of every voice back on automatic times,
-          and one undo brings them all back.
+          edge to go back to the automatic time. Drag a frame to move both its edges. Frames are
+          selected like rectangles, except that the box you drag follows the pointer up and down and
+          selects only the frames it touches. Dragging a selected frame moves the whole selection,
+          and dragging an edge of one moves that edge of every selected frame. A frame always keeps
+          its line's syllables inside it, and stops at the lines shown at the same height. Dashed
+          edges are automatic, and solid ones were set by hand. <strong>Reset</strong> puts every
+          line of every voice back on automatic times, and one undo brings them all back.
         </p>
       </template>
     </help-section>
@@ -374,7 +378,7 @@
       :initialPlayhead="restoredPlayhead"
       :initialScroll="restoredScroll"
       @segmentschange="onSegmentsChange"
-      @band-updated="onBandUpdated"
+      @bands-updated="onBandsUpdated"
       @band-reset="onBandReset"
       @zoom-change="onZoomChange"
       @zoom-by="onZoomBy"
@@ -445,7 +449,7 @@ import { QueueItem } from "@/components/TapQueue.vue";
 import { displayText, resolveStarts } from "@/lib/timing";
 import { REDO_SHORTCUT, UNDO_SHORTCUT, historyStepFor, historyTitle } from "@/lib/history";
 import { useHistoryStore } from "@/stores/history";
-import { DisplayBand, displayBands } from "@/lib/displayBands";
+import { BandUpdate, DisplayBand, displayBands } from "@/lib/displayBands";
 import { resolveThemeColor } from "@/lib/themeColor";
 import { onSchemeChange } from "@/lib/colorScheme";
 import { loadJsonFromStorage } from "@/lib/persistence";
@@ -1334,10 +1338,12 @@ export default defineComponent({
         keepReview: true,
       });
     },
-    onBandUpdated(segmentIndex: number, side: "start" | "end", time: number) {
+    onBandsUpdated(updates: BandUpdate[]) {
       const segments = this.timingsStore.activeSegments.map((segment) => ({ ...segment }));
-      const bound = side === "start" ? "displayStart" : "displayEnd";
-      segments[segmentIndex] = { ...segments[segmentIndex], [bound]: time };
+      for (const { segmentIndex, start, end } of updates) {
+        if (start !== undefined) segments[segmentIndex].displayStart = start;
+        if (end !== undefined) segments[segmentIndex].displayEnd = end;
+      }
       this.timingsStore.applyAdjustEdit(segments, "Display time");
     },
     onBandReset(segmentIndex: number, side: "start" | "end") {

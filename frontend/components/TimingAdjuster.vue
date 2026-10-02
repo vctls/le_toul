@@ -26,7 +26,7 @@
         :initialScroll="initialScroll"
         @region-updated="onRegionUpdated"
         @regions-updated="onRegionsUpdated"
-        @band-updated="(...args: unknown[]) => $emit('band-updated', ...args)"
+        @bands-updated="$emit('bands-updated', $event)"
         @band-reset="(...args: unknown[]) => $emit('band-reset', ...args)"
         @seeking="onWavesurferSeeking"
         @region-clicked="onRegionClicked"
@@ -113,7 +113,7 @@ function createLyricRegion(
 export default defineComponent({
   emits: [
     "segmentschange",
-    "band-updated",
+    "bands-updated",
     "band-reset",
     "timeupdate",
     "seeking",

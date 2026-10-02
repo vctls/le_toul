@@ -3,18 +3,28 @@
 // Hovering or dragging a frame tints it and lifts it over the others, and more lightly tints
 // the frames of lines drawn at the same height in the video.
 // A dragged edge snaps to the edges of lines in other rows, unless Ctrl or Cmd is held.
+// Clicking frames or dragging a box around them selects them. Dragging a selected frame moves the
+// whole selection, and dragging one of its edges moves that edge of every frame in the selection.
 // Frames can overlap, so the handles are drawn over every frame, even the lifted one.
 
 import { BasePlugin, BasePluginEvents } from "wavesurfer.js/dist/base-plugin.js";
 import createElement from "wavesurfer.js/dist/dom.js";
 import { groupBy, sortBy } from "lodash-es";
-import { DisplayBand, nearestTarget, snapTargets } from "@/lib/displayBands";
+import {
+  BandUpdate,
+  clampBandShift,
+  clampEdgeShift,
+  DisplayBand,
+  nearestTarget,
+  snapTargets,
+} from "@/lib/displayBands";
 import { sameHeight } from "@/lib/linePlacements";
 import { makeDraggable } from "./OpenEndedRegionPlugin";
+import { listenForMarquee, MarqueeArea } from "./marquee";
 
 export type DisplayBandsPluginEvents = BasePluginEvents & {
-  /** When an edge has been dragged to a new time */
-  "band-updated": [segmentIndex: number, side: "start" | "end", time: number];
+  /** When frames or edges have been dragged to new times */
+  "bands-updated": [updates: BandUpdate[]];
   /** When an edge has been double-clicked, to put it back on the automatic rules */
   "band-reset": [segmentIndex: number, side: "start" | "end"];
 };
@@ -27,6 +37,8 @@ const FRAME_COLOR = "var(--region-label-on-waveform)";
 const OVERLAP_COLOR = "var(--bulma-danger)";
 const ACTIVE_FILL = "color-mix(in srgb, var(--bulma-primary) 45%, transparent)";
 const SAME_HEIGHT_FILL = "color-mix(in srgb, var(--bulma-primary) 20%, transparent)";
+const SELECTED_FILL = "color-mix(in srgb, var(--bulma-primary) 30%, transparent)";
+const SELECTED_COLOR = "var(--bulma-primary)";
 const LIMIT_COLOR = "var(--bulma-primary)";
 const SNAP_COLOR = `color-mix(in srgb, ${FRAME_COLOR} 45%, transparent)`;
 // In pixels, so snapping feels the same at every zoom.
@@ -57,11 +69,20 @@ class DisplayBandsPlugin extends BasePlugin<DisplayBandsPluginEvents, undefined>
   private bands: DisplayBand[] = [];
   private enabled = true;
   private cleanups: (() => void)[] = [];
-  private frames: { band: DisplayBand; row: HTMLElement; frame: HTMLElement }[] = [];
+  private frames: {
+    band: DisplayBand;
+    row: HTMLElement;
+    frame: HTMLElement;
+    show: (start: number, end: number) => void;
+  }[] = [];
   private limits: Record<"start" | "end", HTMLElement> | undefined;
   private snapLine: HTMLElement | undefined;
   private hovered?: DisplayBand;
   private dragged?: DisplayBand;
+  // Lines are kept by the index of their first segment, which a re-render doesn't change.
+  private selected = new Set<number>();
+  private anchor?: number;
+  private moving?: { bands: DisplayBand[]; pointer: number; delta: number };
 
   constructor() {
     super(undefined);
@@ -85,8 +106,21 @@ class DisplayBandsPlugin extends BasePlugin<DisplayBandsPluginEvents, undefined>
 
   /** Called by wavesurfer, don't call manually */
   onInit() {
-    this.wavesurfer?.getWrapper().appendChild(this.container);
-    this.subscriptions.push(this.wavesurfer!.on("ready", () => this.render()));
+    const wrapper = this.wavesurfer!.getWrapper();
+    wrapper.appendChild(this.container);
+    // Only a click on the bare waveform targets the wrapper itself.
+    const clearOnBareClick = (event: MouseEvent) => {
+      if (event.target === wrapper && this.selected.size) this.clearSelection();
+    };
+    wrapper.addEventListener("click", clearOnBareClick);
+    this.subscriptions.push(
+      () => wrapper.removeEventListener("click", clearOnBareClick),
+      this.wavesurfer!.on("ready", () => this.render()),
+      listenForMarquee(this.wavesurfer!, {
+        canStart: () => this.enabled && this.bands.length > 0,
+        onChange: (area) => this.selectTouched(area),
+      }),
+    );
     this.render();
   }
 
@@ -96,6 +130,8 @@ class DisplayBandsPlugin extends BasePlugin<DisplayBandsPluginEvents, undefined>
   public setBands(bands: DisplayBand[], enabled: boolean) {
     this.bands = bands;
     this.enabled = enabled;
+    const lines = new Set(bands.map((band) => band.segmentIndex));
+    if (!enabled || [...this.selected].some((line) => !lines.has(line))) this.clearSelection();
     this.render();
   }
 
@@ -105,6 +141,7 @@ class DisplayBandsPlugin extends BasePlugin<DisplayBandsPluginEvents, undefined>
     this.frames = [];
     this.hovered = undefined;
     this.dragged = undefined;
+    this.moving = undefined;
     this.container.replaceChildren();
     const duration = this.wavesurfer?.getDuration() ?? 0;
     if (!duration) return;
@@ -143,6 +180,7 @@ class DisplayBandsPlugin extends BasePlugin<DisplayBandsPluginEvents, undefined>
       },
       this.container,
     );
+    this.highlightFrames();
   }
 
   private showSnap(time: number | undefined, duration: number) {
@@ -223,22 +261,34 @@ class DisplayBandsPlugin extends BasePlugin<DisplayBandsPluginEvents, undefined>
           // The rounded corners show which side of an edge its frame is on.
           borderRadius: "var(--bulma-control-radius)",
           backgroundColor: restFill(color),
+          cursor: "grab",
           pointerEvents: this.enabled ? "auto" : "none",
         },
       },
       row,
     );
     if (overlaps) frame.dataset.overlaps = "";
-    this.frames.push({ band, row, frame });
     const hoverables: HTMLElement[] = [frame];
-    let { start, end } = band;
     const edges = {} as Record<"start" | "end", HTMLElement>;
-    const place = () => {
+    const show = (start: number, end: number) => {
       frame.style.left = percent(start);
       frame.style.right = percent(duration - end);
       edges.start.style.left = `calc(${percent(start)} - ${HANDLE_WIDTH / 2}px)`;
       edges.end.style.left = `calc(${percent(end)} - ${HANDLE_WIDTH / 2}px)`;
     };
+    this.frames.push({ band, row, frame, show });
+
+    const click = () => this.onFrameClicked(band);
+    frame.addEventListener("click", click);
+    this.cleanups.push(
+      () => frame.removeEventListener("click", click),
+      makeDraggable(
+        frame,
+        (dx) => this.onMove(dx),
+        () => this.onMoveStart(band),
+        () => this.onMoveEnd(),
+      ),
+    );
 
     for (const side of ["start", "end"] as const) {
       const handle = createElement(
@@ -295,6 +345,8 @@ class DisplayBandsPlugin extends BasePlugin<DisplayBandsPluginEvents, undefined>
       let pointer = 0;
       let targets: number[] = [];
       let snapping = true;
+      let group: DisplayBand[] = [];
+      let delta = 0;
       const move = () => {
         // An edge stops at its own line's timings and at the fixed part of a line at its height.
         const [min, max] =
@@ -308,10 +360,13 @@ class DisplayBandsPlugin extends BasePlugin<DisplayBandsPluginEvents, undefined>
           side === "start"
             ? Math.min(max, Math.max(min, pointer))
             : Math.max(min, Math.min(max, pointer));
-        if (side === "start") start = target ?? stopped;
-        else end = target ?? stopped;
-        place();
-        this.showSnap(target, duration);
+        const wanted = (target ?? stopped) - band[side];
+        // The other frames can stop the edge short of where it would snap.
+        delta = clampEdgeShift(group, side, wanted, duration);
+        this.showFrames(group, (other) =>
+          side === "start" ? [other.start + delta, other.end] : [other.start, other.end + delta],
+        );
+        this.showSnap(delta === wanted ? target : undefined, duration);
       };
       const watchModifier = (event: KeyboardEvent | PointerEvent) => {
         // Ctrl or Cmd held turns snapping off.
@@ -333,9 +388,11 @@ class DisplayBandsPlugin extends BasePlugin<DisplayBandsPluginEvents, undefined>
             move();
           },
           () => {
-            pointer = side === "start" ? start : end;
-            targets = snapTargets(this.bands, band);
+            pointer = band[side];
+            group = this.groupFor(band);
+            targets = snapTargets(this.bands, band, group);
             snapping = true;
+            delta = 0;
             modifierEvents.forEach((type) => window.addEventListener(type, watchModifier));
             this.setDragged(band);
           },
@@ -343,13 +400,21 @@ class DisplayBandsPlugin extends BasePlugin<DisplayBandsPluginEvents, undefined>
             unwatchModifier();
             this.showSnap(undefined, duration);
             this.setDragged(undefined);
-            this.emit("band-updated", band.segmentIndex, side, side === "start" ? start : end);
+            // An edge that didn't move is stored where it is, but the rest of the selection is
+            // left alone.
+            this.emit(
+              "bands-updated",
+              (delta ? group : [band]).map((other) => ({
+                segmentIndex: other.segmentIndex,
+                [side]: other[side] + delta,
+              })),
+            );
           },
           1,
         ),
       );
     }
-    place();
+    show(band.start, band.end);
 
     // A handle isn't inside its frame, so it keeps the frame hovered on its own.
     const enter = () => this.setHovered(band);
@@ -362,6 +427,93 @@ class DisplayBandsPlugin extends BasePlugin<DisplayBandsPluginEvents, undefined>
         element.removeEventListener("mouseleave", leave);
       });
     }
+  }
+
+  private onFrameClicked(band: DisplayBand) {
+    const line = band.segmentIndex;
+    if (this.selected.has(line)) return this.clearSelection();
+    const anchorAt = this.bands.findIndex((other) => other.segmentIndex === this.anchor);
+    if (anchorAt === -1) {
+      this.anchor = line;
+      return this.setSelection([line]);
+    }
+    const clickedAt = this.bands.indexOf(band);
+    this.setSelection(
+      this.bands
+        .slice(Math.min(anchorAt, clickedAt), Math.max(anchorAt, clickedAt) + 1)
+        .map((other) => other.segmentIndex),
+    );
+  }
+
+  /**
+   * Select the frames the box touches. A click after the drag extends the selection from the side
+   * the drag started on.
+   */
+  private selectTouched({ touches, forward }: MarqueeArea) {
+    const touched = this.frames
+      .filter(({ frame }) => touches(frame))
+      .map(({ band }) => band.segmentIndex);
+    this.anchor = forward ? touched[0] : touched[touched.length - 1];
+    this.setSelection(touched);
+  }
+
+  public clearSelection() {
+    this.anchor = undefined;
+    this.setSelection([]);
+  }
+
+  private setSelection(lines: number[]) {
+    this.selected = new Set(lines);
+    this.highlightFrames();
+  }
+
+  /**
+   * The selection if the band is in it, and the band alone otherwise.
+   */
+  private groupFor(band: DisplayBand): DisplayBand[] {
+    return this.selected.has(band.segmentIndex)
+      ? this.bands.filter((other) => this.selected.has(other.segmentIndex))
+      : [band];
+  }
+
+  /**
+   * Draw each of the bands' frames between the times `span` gives for it, without storing them.
+   */
+  private showFrames(bands: DisplayBand[], span: (band: DisplayBand) => [number, number]) {
+    for (const { band, show } of this.frames) {
+      if (bands.includes(band)) show(...span(band));
+    }
+  }
+
+  private onMoveStart(band: DisplayBand) {
+    this.moving = { bands: this.groupFor(band), pointer: 0, delta: 0 };
+    this.setDragged(band);
+  }
+
+  private onMove(dx: number) {
+    const duration = this.wavesurfer?.getDuration() ?? 0;
+    const moving = this.moving;
+    if (!moving || !duration) return;
+    moving.pointer += (dx / this.container.clientWidth) * duration;
+    const delta = clampBandShift(moving.bands, moving.pointer, duration);
+    moving.delta = delta;
+    this.showFrames(moving.bands, (band) => [band.start + delta, band.end + delta]);
+  }
+
+  private onMoveEnd() {
+    const moving = this.moving;
+    this.moving = undefined;
+    this.setDragged(undefined);
+    if (!moving?.delta) return;
+    const { bands, delta } = moving;
+    this.emit(
+      "bands-updated",
+      bands.map((band) => ({
+        segmentIndex: band.segmentIndex,
+        start: band.start + delta,
+        end: band.end + delta,
+      })),
+    );
   }
 
   private setHovered(band: DisplayBand | undefined) {
@@ -387,8 +539,16 @@ class DisplayBandsPlugin extends BasePlugin<DisplayBandsPluginEvents, undefined>
         active?.placement !== undefined &&
         band.placement !== undefined &&
         sameHeight(band.placement, active.placement);
+      const selected = this.selected.has(band.segmentIndex);
       frame.style.backgroundColor =
-        band === active ? ACTIVE_FILL : atSameHeight ? SAME_HEIGHT_FILL : restFill(bandColor(band));
+        band === active
+          ? ACTIVE_FILL
+          : selected
+            ? SELECTED_FILL
+            : atSameHeight
+              ? SAME_HEIGHT_FILL
+              : restFill(bandColor(band));
+      frame.style.borderColor = selected ? SELECTED_COLOR : bandColor(band);
     }
     const duration = this.wavesurfer?.getDuration() ?? 0;
     if (!this.limits || !duration) return;
