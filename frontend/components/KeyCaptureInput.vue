@@ -9,7 +9,7 @@
     <button
       type="button"
       class="button"
-      :class="{ 'is-small': isMobile, 'is-primary': isListening }"
+      :class="{ 'is-primary': isListening }"
       :aria-label="`${label}: ${keyLabel}`"
       :title="isListening ? '' : 'Click, then press the key to use'"
       @click="isListening = !isListening"
@@ -22,15 +22,21 @@
 </template>
 
 <script lang="ts">
-// Picks a key by having the user press it, so its code name never has to be known or typed.
+// Picks a key by having the user press it, so its name never has to be known or typed.
 
 import { defineComponent } from "vue";
 import { BField } from "buefy";
-import { isMobile } from "@/lib/device";
-import { formatKeyName, isKeyName, keyLabelFromEvent } from "@/lib/timingKeys";
+import { bindingFromEvent, bindingLabel, keyLabel } from "@/lib/timingKeys";
+import { historyStepFor } from "@/lib/history";
 
 // Held to type a character, so they are part of pressing a key rather than a key of their own.
 const MODIFIERS = new Set(["Shift", "Control", "Alt", "AltGraph", "Meta", "CapsLock", "OS"]);
+
+function swallowEscape(event: KeyboardEvent) {
+  if (event.key === "Escape") {
+    event.stopPropagation();
+  }
+}
 
 export default defineComponent({
   components: { BField },
@@ -47,7 +53,6 @@ export default defineComponent({
     };
   },
   computed: {
-    isMobile,
     message(): string {
       if (this.rejectedKey) {
         return `${this.rejectedKey} can't be used. Press another key, or Esc to cancel.`;
@@ -64,22 +69,28 @@ export default defineComponent({
       if (!this.isListening) {
         return;
       }
-      // The tab catches timing keys on window, and this press is not a timing.
+      // The press is the key being picked, not a shortcut.
       event.preventDefault();
       event.stopPropagation();
       if (MODIFIERS.has(event.key)) {
         return;
       }
-      if (event.code !== "Escape") {
-        if (!isKeyName(event.code)) {
-          this.rejectedKey =
-            event.key.length === 1 ? event.key : formatKeyName(event.code || event.key);
+      if (event.key === "Escape") {
+        // Buefy closes a modal on the keyup, and this Escape only meant to cancel the picking.
+        window.addEventListener("keyup", swallowEscape, { capture: true, once: true });
+      } else {
+        const binding = bindingFromEvent(event);
+        if (!binding) {
+          this.rejectedKey = event.key === "Dead" ? "An accent key" : keyLabel(event.key);
           return;
         }
-        this.$emit("bind", event.code, keyLabelFromEvent(event));
+        // Undo and redo come first, so the binding would never fire.
+        if (historyStepFor(event)) {
+          this.rejectedKey = bindingLabel(binding);
+          return;
+        }
+        this.$emit("bind", binding);
       }
-      // A focused button answers Space and Enter itself, so it would swallow the next timing tap.
-      (event.currentTarget as HTMLElement | null)?.blur();
       this.stopListening();
     },
   },
@@ -87,25 +98,20 @@ export default defineComponent({
 </script>
 
 <style scoped>
-/* These sit in a flex row with its own gap, so Bulma's spacing between stacked fields only
-pushes the non-last one out of line.
-Qualified with .field to win the specificity tie against Bulma's own .field:not(:last-child). */
+/* Qualified with .field to win the specificity tie against Bulma's own .field:not(:last-child),
+whose margin would set a row with a note under it apart from the others. */
 .field.key-capture-input {
   margin-bottom: 0;
-  position: relative;
 }
 
-/* The message comes and goes while a key is picked, and would shift the whole row each time. */
-.key-capture-input :deep(.help) {
-  position: absolute;
-  top: 100%;
-  white-space: nowrap;
-}
-
+/* The label takes the room left by the key, so the keys line up in a column. */
 .key-capture-input :deep(.field-label) {
-  white-space: nowrap;
+  flex-grow: 1;
+  text-align: left;
+}
+
+.key-capture-input :deep(.field-body) {
   flex-grow: 0;
-  margin-right: 0.75rem;
 }
 
 .key-capture-input .button {

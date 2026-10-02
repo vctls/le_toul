@@ -28,7 +28,8 @@
         highlighted segment.
       </p>
       <p>
-        Press <kbd>{{ redoKeyLabel }}</kbd> to jump back and redo the current screen.
+        Press <kbd>{{ redoKeyLabel }}</kbd> to jump back and redo the current screen. The keyboard
+        button at the top of the page changes these keys.
       </p>
       <p>Adjust the playback speed to slow down fast parts or skip through long instrumentals.</p>
     </help-section>
@@ -117,24 +118,6 @@
       </div>
     </div>
 
-    <div class="timing-keys">
-      <key-capture-input
-        label="Start key"
-        :key-label="startKeyLabel"
-        @bind="(name: string, label?: string) => settingsStore.setTimingKey('start', name, label)"
-      />
-      <key-capture-input
-        label="End key"
-        :key-label="endKeyLabel"
-        @bind="(name: string, label?: string) => settingsStore.setTimingKey('end', name, label)"
-      />
-      <key-capture-input
-        label="Redo key"
-        :key-label="redoKeyLabel"
-        @bind="(name: string, label?: string) => settingsStore.setTimingKey('redo', name, label)"
-      />
-    </div>
-
     <div class="seek-bar">
       <span class="seek-time">{{ formatTime(currentTime) }}</span>
       <input
@@ -175,7 +158,6 @@ import { LYRIC_MARKERS } from "@/constants";
 import { isMobile } from "@/lib/device";
 import { Segment } from "@/lib/timing";
 import HelpSection from "@/components/HelpSection.vue";
-import KeyCaptureInput from "@/components/KeyCaptureInput.vue";
 import LyricDisplay from "@/components/LyricDisplay.vue";
 import TimingButtons from "@/components/TimingButtons.vue";
 import VoiceSelector from "@/components/VoiceSelector.vue";
@@ -185,7 +167,7 @@ import { useLyricsStore } from "@/stores/lyrics";
 import { useMediaStore } from "@/stores/media";
 import { useLegacyTimingStore } from "@/stores/legacyTiming";
 import { useSettingsStore } from "@/stores/settings";
-import { TimingKeys, eventMatchesKey, keyLabel } from "@/lib/timingKeys";
+import { TimingKeys, bindingLabel, findBinding } from "@/lib/timingKeys";
 import { claimMediaKeys, registerPlayer } from "@/lib/exclusivePlayback";
 import { VoiceId } from "@/lib/voices";
 
@@ -200,7 +182,7 @@ function defaultVoiceState(): VoiceTimingState {
 }
 
 export default defineComponent({
-  components: { HelpSection, KeyCaptureInput, LyricDisplay, TimingButtons, VoiceSelector },
+  components: { HelpSection, LyricDisplay, TimingButtons, VoiceSelector },
   setup() {
     const timingsStore = useTimingsStore();
     const lyricsStore = useLyricsStore();
@@ -247,13 +229,13 @@ export default defineComponent({
       return this.settingsStore.timingKeys;
     },
     startKeyLabel(): string {
-      return keyLabel(this.timingKeys.start, this.settingsStore.timingKeyLabels);
+      return bindingLabel(this.timingKeys.start);
     },
     endKeyLabel(): string {
-      return keyLabel(this.timingKeys.end, this.settingsStore.timingKeyLabels);
+      return bindingLabel(this.timingKeys.end);
     },
     redoKeyLabel(): string {
-      return keyLabel(this.timingKeys.redo, this.settingsStore.timingKeyLabels);
+      return bindingLabel(this.timingKeys.redo);
     },
     activeVoice(): VoiceId {
       return this.timingsStore.activeVoice;
@@ -365,14 +347,8 @@ export default defineComponent({
       }
       return this.voiceState[voice];
     },
-    timingMarker(eventCode: string): number | undefined {
-      if (eventMatchesKey(eventCode, this.timingKeys.start)) {
-        return LYRIC_MARKERS.SEGMENT_START;
-      }
-      if (eventMatchesKey(eventCode, this.timingKeys.end)) {
-        return LYRIC_MARKERS.SEGMENT_END;
-      }
-      return undefined;
+    tapKeyFor(event: KeyboardEvent): "start" | "end" | "redo" | undefined {
+      return findBinding(event, this.timingKeys, ["redo", "start", "end"] as const);
     },
     // Timing keys are caught on `window`, so a key typed into a field must not also land as a timing.
     isTypingTarget(target: EventTarget | null): boolean {
@@ -386,12 +362,18 @@ export default defineComponent({
       if (this.isTypingTarget(e.target)) {
         return;
       }
-      if (eventMatchesKey(e.code, this.timingKeys.redo)) {
+      const tapKey = this.tapKeyFor(e);
+      if (tapKey === "redo") {
         this.redoScreen();
         e.preventDefault();
         return false;
       }
-      const marker = this.timingMarker(e.code);
+      const marker =
+        tapKey === "start"
+          ? LYRIC_MARKERS.SEGMENT_START
+          : tapKey === "end"
+            ? LYRIC_MARKERS.SEGMENT_END
+            : undefined;
       const audio = this.audioElement();
       if (marker !== undefined && this.isPlaying && audio) {
         const currentSongTime = audio.currentTime;
@@ -515,14 +497,6 @@ export default defineComponent({
    is v-if'd away for single-voice songs. The row owns the spacing instead. */
 .title-row .title {
   margin-bottom: 0;
-}
-
-.timing-keys {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 0.75rem 2rem;
-  margin-bottom: 1rem;
 }
 
 .playback-speed {

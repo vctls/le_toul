@@ -91,9 +91,20 @@ function mountTab() {
   return wrapper;
 }
 
+// What a US QWERTY keyboard reports for the key, unless the test gives another layout's key.
+function qwertyKey(code: string): string {
+  if (code === "Space") return " ";
+  return /^Key[A-Z]$/.test(code) ? code.slice(3).toLowerCase() : code;
+}
+
 function pressKey(
   code: string,
-  { target = document.body as HTMLElement, shiftKey = false, ctrlKey = false, key = "" } = {},
+  {
+    target = document.body as HTMLElement,
+    shiftKey = false,
+    ctrlKey = false,
+    key = qwertyKey(code),
+  } = {},
 ) {
   target.dispatchEvent(
     new KeyboardEvent("keydown", { code, key, shiftKey, ctrlKey, bubbles: true }),
@@ -167,6 +178,16 @@ describe("TimingAdjustmentTab shortcuts", () => {
     expect(seekToViewEdge).toHaveBeenLastCalledWith("end");
   });
 
+  it("moves the playhead to the start of the song on the key bound to it", () => {
+    mountTab();
+    useSettingsStore().setTimingKey("songStart", { key: "k", code: "KeyK", ctrl: true });
+
+    pressKey("Home", { ctrlKey: true });
+    expect(seekToTrackEdge).not.toHaveBeenCalled();
+    pressKey("KeyK", { ctrlKey: true });
+    expect(seekToTrackEdge).toHaveBeenLastCalledWith("start");
+  });
+
   it("moves the playhead to the ends of the song with ctrl held", () => {
     mountTab();
     pressKey("Home", { ctrlKey: true });
@@ -184,6 +205,72 @@ describe("TimingAdjustmentTab shortcuts", () => {
     pressKey("End", { target: input });
     expect(seekToViewEdge).not.toHaveBeenCalled();
     input.remove();
+  });
+
+  it("plays, steps and zooms on the keys bound to them", () => {
+    const wrapper = mountTab();
+    const store = useSettingsStore();
+    store.setTimingKey("playPause", { key: "p", code: "KeyP" });
+    store.setTimingKey("seekBack", { key: "a", code: "KeyA" });
+    store.setTimingKey("zoomIn", { key: "w", code: "KeyW" });
+
+    pressKey("Space");
+    pressKey("ArrowLeft");
+    pressKey("ArrowUp");
+    expect(togglePlayPause).not.toHaveBeenCalled();
+    expect(seekBy).not.toHaveBeenCalled();
+
+    pressKey("KeyP");
+    expect(togglePlayPause).toHaveBeenCalledOnce();
+    pressKey("KeyA");
+    expect(seekBy).toHaveBeenCalledWith(-1);
+    const zoom = wrapper.vm.zoom;
+    pressKey("KeyW");
+    expect(wrapper.vm.zoom).toBeGreaterThan(zoom);
+  });
+
+  it("steps five times as far with Shift and an arrow key", () => {
+    mountTab();
+    pressKey("ArrowLeft", { shiftKey: true });
+    expect(seekBy).toHaveBeenCalledWith(-5);
+    pressKey("ArrowRight", { shiftKey: true });
+    expect(seekBy).toHaveBeenLastCalledWith(5);
+  });
+
+  it("steps further on the character Shift types, once it is bound to that", () => {
+    mountTab();
+    const store = useSettingsStore();
+    store.setTimingKey("seekBack", { key: ",", code: "Comma" });
+    store.setTimingKey("seekBackFar", { key: "<", code: "Comma" });
+
+    pressKey("Comma", { key: "," });
+    expect(seekBy).toHaveBeenLastCalledWith(-1);
+    pressKey("Comma", { key: "<", shiftKey: true });
+    expect(seekBy).toHaveBeenLastCalledWith(-5);
+  });
+
+  it("switches modes on the key in T's place when a Russian layout types е there", () => {
+    const wrapper = mountTab();
+    pressKey("KeyT", { key: "е" });
+    expect(wrapper.vm.isTapMode).toBe(true);
+  });
+
+  it("leaves a bound key held with Ctrl to the browser, except at the view's edges", () => {
+    mountTab();
+    pressKey("Space", { ctrlKey: true });
+    pressKey("ArrowLeft", { ctrlKey: true });
+    expect(togglePlayPause).not.toHaveBeenCalled();
+    expect(seekBy).not.toHaveBeenCalled();
+  });
+
+  it("leaves keys alone while a dialog is open", () => {
+    mountTab();
+    const modal = document.createElement("div");
+    modal.className = "modal is-active";
+    document.body.appendChild(modal);
+    pressKey("Space");
+    expect(togglePlayPause).not.toHaveBeenCalled();
+    modal.remove();
   });
 
   it("clears the region selection on Esc", () => {
@@ -672,6 +759,15 @@ describe("TimingAdjustmentTab shortcuts", () => {
       expect(wrapper.vm.isTapMode).toBe(true);
     });
 
+    it("switches modes on the key bound to it", () => {
+      const wrapper = mountTab();
+      useSettingsStore().setTimingKey("switchMode", { key: "m", code: "KeyM" });
+      pressKey("KeyT", { key: "t" });
+      expect(wrapper.vm.isTapMode).toBe(false);
+      pressKey("KeyM", { key: "m" });
+      expect(wrapper.vm.isTapMode).toBe(true);
+    });
+
     it("draws the regions without handles or selection", async () => {
       const wrapper = mountTapTab();
       await nextTick();
@@ -837,40 +933,6 @@ describe("TimingAdjustmentTab shortcuts", () => {
       toggle.vm.$emit("update:modelValue", true);
 
       expect(legacy.isShown).toBe(true);
-    });
-
-    it("shows the timing key pickers in Tap mode only", async () => {
-      const wrapper = mountTapTab();
-      await nextTick();
-      const pickers = wrapper.findAllComponents({ name: "KeyCaptureInput" });
-      expect(pickers.map((picker) => picker.props("label"))).toEqual([
-        "Start key",
-        "End key",
-        "Redo key",
-      ]);
-
-      pickers[1].vm.$emit("bind", "KeyJ", "J");
-      expect(useSettingsStore().timingKeys.end).toBe("KeyJ");
-
-      wrapper.vm.setMode("adjust");
-      await nextTick();
-      expect(wrapper.findAllComponents({ name: "KeyCaptureInput" })).toHaveLength(0);
-    });
-
-    it("leaves a key pressed on a timing key picker to the picker", () => {
-      const wrapper = mountTapTab();
-      const picker = document.createElement("div");
-      picker.className = "key-capture-input";
-      const button = document.createElement("button");
-      picker.appendChild(button);
-      document.body.appendChild(picker);
-
-      pressKey("Space", { target: button });
-      picker.remove();
-
-      expect(restartAt).not.toHaveBeenCalled();
-      expect(togglePlayPause).not.toHaveBeenCalled();
-      expect(wrapper.vm.pass).toBeNull();
     });
 
     it("writes a pass in progress and saves it when the page is left", () => {
@@ -1398,7 +1460,7 @@ describe("TimingAdjustmentTab shortcuts", () => {
 
     it("lets a tap key bound to N tap instead", async () => {
       const wrapper = mountFlagged();
-      useSettingsStore().setTimingKey("start", "KeyN", "N");
+      useSettingsStore().setTimingKey("start", { key: "n", code: "KeyN" });
       wrapper.vm.setMode("tap");
       wrapper.vm.tapHead = 0;
       await nextTick();
