@@ -1,7 +1,8 @@
 import { defineStore } from "pinia";
 import { reactive, watch, ref, computed, shallowRef } from "vue";
 import { GlyphCoverage, CountInMode, OutputFormat, VerticalAlignment } from "@/lib/timing";
-import { NO_VOCALS_SEPARATOR_MODEL, BACKING_VOCALS_SEPARATOR_MODEL, useMediaStore } from "./media";
+import { useMediaStore } from "./media";
+import { NO_VOCALS_SEPARATOR_MODEL, BACKING_VOCALS_SEPARATOR_MODEL } from "@/lib/separationModels";
 import Color from "buefy/src/utils/color";
 import { SeparationModel } from "@/types";
 import { VoiceStyleOverride, serializeVoiceStyle, deserializeVoiceStyle } from "@/lib/voiceStyle";
