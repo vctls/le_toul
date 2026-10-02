@@ -153,8 +153,8 @@
         <p>
           Click a rectangle to select it, then click another to select everything in between. You
           can also drag across the waveform from a bare spot to select every rectangle in that
-          stretch of time. Click a selected rectangle or press <kbd>Esc</kbd> to clear the
-          selection. Each click plays the syllable you clicked.
+          stretch of time. Click a selected rectangle or a bare spot on the waveform, or press
+          <kbd>Esc</kbd>, to clear the selection. Each click plays the syllable you clicked.
         </p>
         <p>
           Drag a rectangle to move it, or a selected one to move the whole selection. What you moved

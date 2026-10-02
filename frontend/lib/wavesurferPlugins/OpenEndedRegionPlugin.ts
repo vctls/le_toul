@@ -921,7 +921,13 @@ class RegionsPlugin extends BasePlugin<RegionsPluginEvents, RegionsPluginOptions
     wrapper.appendChild(this.regionsContainer);
     wrapper.appendChild(this.markersContainer);
 
+    // Only a click on the bare waveform targets the wrapper itself.
+    const clearOnBareClick = (event: MouseEvent) => {
+      if (event.target === wrapper && this.selectedIds.size) this.clearSelection();
+    };
+    wrapper.addEventListener("click", clearOnBareClick);
     this.subscriptions.push(
+      () => wrapper.removeEventListener("click", clearOnBareClick),
       listenForMarquee(this.wavesurfer, {
         canStart: () => this.selectable && this.regions.length > 0,
         // A selection is a run of consecutive regions, which only a box across every row shows.
