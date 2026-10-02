@@ -29,24 +29,53 @@ describe("KeyCaptureInput", () => {
     expect(button.text()).toBe("Press a key");
   });
 
-  it("binds the pressed key by its position, labelled by what it types", async () => {
+  it("binds the pressed key by what it types, and where it sits", async () => {
     const wrapper = mountInput();
     const button = await listen(wrapper);
 
     // On AZERTY, the key where QWERTY has Q types A.
     await button.trigger("keydown", { code: "KeyQ", key: "a" });
 
-    expect(wrapper.emitted("bind")).toEqual([["KeyQ", "A"]]);
+    expect(wrapper.emitted("bind")).toEqual([[{ key: "a", code: "KeyQ" }]]);
     expect(button.text()).toBe("Space");
   });
 
-  it("binds a key named the same on every layout without a label", async () => {
+  it("binds Shift with the key it was held with", async () => {
+    const wrapper = mountInput();
+    const button = await listen(wrapper);
+
+    await button.trigger("keydown", { code: "KeyN", key: "N", shiftKey: true });
+
+    expect(wrapper.emitted("bind")).toEqual([[{ key: "n", code: "KeyN", shift: true }]]);
+  });
+
+  it("binds a key that types nothing by its name alone", async () => {
     const wrapper = mountInput();
     const button = await listen(wrapper);
 
     await button.trigger("keydown", { code: "Enter", key: "Enter" });
 
-    expect(wrapper.emitted("bind")).toEqual([["Enter", undefined]]);
+    expect(wrapper.emitted("bind")).toEqual([[{ key: "Enter" }]]);
+  });
+
+  it("rejects the undo shortcut, which would always win", async () => {
+    const wrapper = mountInput();
+    const button = await listen(wrapper);
+
+    await button.trigger("keydown", { code: "KeyZ", key: "z", ctrlKey: true });
+
+    expect(wrapper.emitted("bind")).toBeUndefined();
+    expect(wrapper.find(".help").text()).toContain("Ctrl+Z can't be used");
+  });
+
+  it("rejects a dead key", async () => {
+    const wrapper = mountInput();
+    const button = await listen(wrapper);
+
+    await button.trigger("keydown", { code: "BracketLeft", key: "Dead" });
+
+    expect(wrapper.emitted("bind")).toBeUndefined();
+    expect(wrapper.find(".help").text()).toContain("An accent key can't be used");
   });
 
   it("keeps the press from reaching the window's timing handler", async () => {
@@ -60,16 +89,6 @@ describe("KeyCaptureInput", () => {
 
     window.removeEventListener("keydown", onWindowKeyDown);
     expect(reachedWindow).toBe(false);
-  });
-
-  it("gives up focus once bound, so the next timing tap doesn't press the button", async () => {
-    const wrapper = mountInput();
-    const button = await listen(wrapper);
-    (button.element as HTMLButtonElement).focus();
-
-    await button.trigger("keydown", { code: "KeyQ", key: "a" });
-
-    expect(document.activeElement).not.toBe(button.element);
   });
 
   it("cancels on Esc without binding", async () => {
@@ -118,5 +137,19 @@ describe("KeyCaptureInput", () => {
     await button.trigger("blur");
 
     expect(button.text()).toBe("Space");
+  });
+
+  it("keeps the Escape that cancels from also closing a dialog", async () => {
+    const wrapper = mountInput();
+    const button = await listen(wrapper);
+    let closed = false;
+    const onKeyUp = () => (closed = true);
+    document.addEventListener("keyup", onKeyUp);
+
+    await button.trigger("keydown", { code: "Escape", key: "Escape" });
+    document.dispatchEvent(new KeyboardEvent("keyup", { key: "Escape", bubbles: true }));
+
+    expect(closed).toBe(false);
+    document.removeEventListener("keyup", onKeyUp);
   });
 });

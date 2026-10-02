@@ -39,6 +39,15 @@
                 <b-icon icon="circle-question" size="is-large"></b-icon>
               </b-button>
             </viewport-tooltip>
+            <viewport-tooltip label="Keyboard shortcuts (?)">
+              <b-button
+                type="is-text"
+                @click="isShowingKeyBindings = true"
+                aria-label="Keyboard shortcuts"
+              >
+                <b-icon icon="keyboard" size="is-large"></b-icon>
+              </b-button>
+            </viewport-tooltip>
             <viewport-tooltip
               label="Show or hide the advanced features: the Edit tab, Karaoke Builder Studio files and line display times"
             >
@@ -103,6 +112,7 @@
       <timing-edit-tab />
       <submit-tab></submit-tab>
     </b-tabs>
+    <key-bindings-modal v-model="isShowingKeyBindings" />
     <confirm-modal
       v-model="isConfirmingStartOver"
       title="Start over?"
@@ -142,6 +152,7 @@ import TimingAdjustmentTab from "@/components/TimingAdjustmentTab.vue";
 import TimingEditTab from "@/components/TimingEditTab.vue";
 import SubmitTab from "@/components/SubmitTab.vue";
 import ConfirmModal from "@/components/ConfirmModal.vue";
+import KeyBindingsModal from "@/components/KeyBindingsModal.vue";
 import SourceFileDownloadLinks from "@/components/SourceFileDownloadLinks.vue";
 import ViewportTooltip from "@/components/ViewportTooltip.vue";
 import { useMediaStore } from "@/stores/media";
@@ -195,6 +206,7 @@ export default defineComponent({
     TimingEditTab,
     SubmitTab,
     ConfirmModal,
+    KeyBindingsModal,
     SourceFileDownloadLinks,
     ViewportTooltip,
   },
@@ -220,6 +232,7 @@ export default defineComponent({
       appName: appName(),
       isSubmitting: false,
       isConfirmingStartOver: false,
+      isShowingKeyBindings: false,
     };
   },
 
@@ -310,18 +323,24 @@ export default defineComponent({
       this.isConfirmingStartOver = true;
     },
     /**
-     * Undoes and redoes from anywhere that doesn't handle the keys itself.
-     * Form controls keep their own undo.
+     * Undoes and redoes, and opens the keyboard shortcuts on ?, from anywhere that doesn't handle
+     * the keys itself. Form controls keep their own undo.
      */
     onKeyDown(event: KeyboardEvent) {
       if (event.defaultPrevented) return;
       const step = historyStepFor(event);
-      if (!step) return;
+      // The character, wherever the layout puts it, as nothing can rebind it.
+      const isShortcutsKey = event.key === "?" && !event.ctrlKey && !event.metaKey;
+      if (!step && !isShortcutsKey) return;
       const target = event.target as HTMLElement | null;
       if (target?.closest?.("input, textarea, select, [contenteditable]")) return;
       if (document.querySelector(".modal.is-active")) return;
       event.preventDefault();
-      this.historyStore[step]();
+      if (step) {
+        this.historyStore[step]();
+      } else {
+        this.isShowingKeyBindings = true;
+      }
     },
     /**
      * Whether the navbar's Undo or Redo has anything to do, asking the shown tab if it steps the

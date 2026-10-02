@@ -8,6 +8,7 @@ import Color from "buefy/src/utils/color";
 import { beforeEach, describe, expect, test, vi } from "vitest";
 import { nextTick } from "vue";
 import { applyVoiceStyle } from "@/lib/voiceStyle";
+import { DEFAULT_TIMING_KEYS } from "@/lib/timingKeys";
 import { UnreadableFontError } from "@/lib/fontFile";
 
 function fontFile(name: string, as = name): File {
@@ -458,113 +459,206 @@ describe("Settings Store", () => {
       setActivePinia(createPinia());
     });
 
-    test("defaults to spacebar, enter and backspace", () => {
+    test("taps with spacebar, enter and backspace by default", () => {
       const store = useSettingsStore();
 
-      expect(store.timingKeys).toEqual({ start: "Space", end: "Enter", redo: "Backspace" });
+      expect(store.timingKeys).toMatchObject({
+        start: { key: "Space" },
+        end: { key: "Enter" },
+        redo: { key: "Backspace" },
+      });
     });
 
     test("stores a rebound key", async () => {
       const store = useSettingsStore();
 
-      store.setTimingKey("start", "KeyZ");
+      store.setTimingKey("start", { key: "z", code: "KeyW" });
       await nextTick();
 
-      expect(store.timingKeys).toEqual({ start: "KeyZ", end: "Enter", redo: "Backspace" });
-      expect(JSON.parse(localStorage.getItem("timingKeys")!)).toEqual({
-        start: "KeyZ",
-        end: "Enter",
-        redo: "Backspace",
-      });
+      const expected = { ...DEFAULT_TIMING_KEYS, start: { key: "z", code: "KeyW" } };
+      expect(store.timingKeys).toEqual(expected);
+      expect(JSON.parse(localStorage.getItem("timingKeys")!)).toEqual(expected);
     });
 
     test("binding another role's key swaps the two", () => {
       const store = useSettingsStore();
 
-      store.setTimingKey("start", "Enter");
+      store.setTimingKey("start", { key: "Enter" });
 
-      expect(store.timingKeys).toEqual({ start: "Enter", end: "Space", redo: "Backspace" });
+      expect(store.timingKeys).toEqual({
+        ...DEFAULT_TIMING_KEYS,
+        start: { key: "Enter" },
+        end: { key: "Space" },
+      });
     });
 
     test("swaps with whichever role holds the key", () => {
       const store = useSettingsStore();
 
-      store.setTimingKey("redo", "Space");
+      store.setTimingKey("redo", { key: "Space" });
 
-      expect(store.timingKeys).toEqual({ start: "Backspace", end: "Enter", redo: "Space" });
+      expect(store.timingKeys).toEqual({
+        ...DEFAULT_TIMING_KEYS,
+        start: { key: "Backspace" },
+        redo: { key: "Space" },
+      });
+    });
+
+    test("swaps two actions outside Tap mode", () => {
+      const store = useSettingsStore();
+
+      store.setTimingKey("switchMode", { key: "n", code: "KeyN" });
+
+      expect(store.timingKeys).toEqual({
+        ...DEFAULT_TIMING_KEYS,
+        switchMode: { key: "n", code: "KeyN" },
+        nextReview: { key: "t", code: "KeyT" },
+      });
+    });
+
+    test("tells a key with Shift from the key alone when swapping", () => {
+      const store = useSettingsStore();
+
+      store.setTimingKey("seekBack", { key: "ArrowLeft", shift: true });
+
+      expect(store.timingKeys).toMatchObject({
+        seekBack: { key: "ArrowLeft", shift: true },
+        seekBackFar: { key: "ArrowLeft" },
+      });
+    });
+
+    test("tells a key with Ctrl from the key alone when swapping", () => {
+      const store = useSettingsStore();
+
+      store.setTimingKey("viewStart", { key: "Home", ctrl: true });
+
+      expect(store.timingKeys).toMatchObject({
+        viewStart: { key: "Home", ctrl: true },
+        songStart: { key: "Home" },
+      });
+    });
+
+    test("loads a stored Ctrl", () => {
+      localStorage.setItem("timingKeys", JSON.stringify({ songEnd: { key: "e", ctrl: true } }));
+      setActivePinia(createPinia());
+
+      expect(useSettingsStore().timingKeys.songEnd).toEqual({ key: "e", ctrl: true });
+    });
+
+    test("loads a stored Shift", () => {
+      localStorage.setItem(
+        "timingKeys",
+        JSON.stringify({ previousReview: { key: "p", code: "KeyP", shift: true } }),
+      );
+      setActivePinia(createPinia());
+
+      expect(useSettingsStore().timingKeys.previousReview).toEqual({
+        key: "p",
+        code: "KeyP",
+        shift: true,
+      });
+    });
+
+    test("lets a tap key share its key with an action outside Tap mode", () => {
+      const store = useSettingsStore();
+
+      store.setTimingKey("start", { key: "t", code: "KeyT" });
+
+      expect(store.timingKeys).toEqual({
+        ...DEFAULT_TIMING_KEYS,
+        start: { key: "t", code: "KeyT" },
+      });
     });
 
     test("loads stored keys", () => {
       localStorage.setItem(
         "timingKeys",
-        JSON.stringify({ start: "KeyA", end: "KeyB", redo: "KeyC" }),
-      );
-      setActivePinia(createPinia());
-
-      expect(useSettingsStore().timingKeys).toEqual({ start: "KeyA", end: "KeyB", redo: "KeyC" });
-    });
-
-    test("falls back to the default for a stored name no key has", () => {
-      localStorage.setItem(
-        "timingKeys",
-        JSON.stringify({ start: "Spacebar", end: "KeyB", redo: "Erase" }),
+        JSON.stringify({ start: { key: "a", code: "KeyQ" }, end: { key: "Home" } }),
       );
       setActivePinia(createPinia());
 
       expect(useSettingsStore().timingKeys).toEqual({
-        start: "Space",
-        end: "KeyB",
-        redo: "Backspace",
+        ...DEFAULT_TIMING_KEYS,
+        start: { key: "a", code: "KeyQ" },
+        end: { key: "Home" },
       });
     });
 
-    test("stores the label a key was bound with", async () => {
-      const store = useSettingsStore();
-
-      store.setTimingKey("start", "KeyQ", "A");
-      await nextTick();
-
-      expect(store.timingKeyLabels).toEqual({ KeyQ: "A" });
-      expect(JSON.parse(localStorage.getItem("timingKeyLabels")!)).toEqual({ KeyQ: "A" });
-    });
-
-    test("a label follows its key through a swap", () => {
-      const store = useSettingsStore();
-      store.setTimingKey("start", "KeyQ", "A");
-
-      store.setTimingKey("end", "KeyQ", "A");
-
-      expect(store.timingKeys).toEqual({ start: "Enter", end: "KeyQ", redo: "Backspace" });
-      expect(store.timingKeyLabels).toEqual({ KeyQ: "A" });
-    });
-
-    test("rebinding a key without a label drops its old one", () => {
-      const store = useSettingsStore();
-      store.setTimingKey("start", "BracketLeft", "^");
-
-      store.setTimingKey("start", "BracketLeft");
-
-      expect(store.timingKeyLabels).toEqual({});
-    });
-
-    test("loads stored labels, skipping entries for no known key", () => {
+    test("falls back to the default for a stored key that no longer names one", () => {
       localStorage.setItem(
-        "timingKeyLabels",
-        JSON.stringify({ KeyQ: "A", Spacebar: "S", KeyW: 3 }),
+        "timingKeys",
+        JSON.stringify({ start: { key: "Spacebar" }, end: { key: "b" }, redo: 3 }),
       );
       setActivePinia(createPinia());
 
-      expect(useSettingsStore().timingKeyLabels).toEqual({ KeyQ: "A" });
+      expect(useSettingsStore().timingKeys).toEqual({ ...DEFAULT_TIMING_KEYS, end: { key: "b" } });
+    });
+
+    test("loads keys saved as plain names", () => {
+      localStorage.setItem("timingKeys", JSON.stringify({ start: "Home", switchMode: "t" }));
+      setActivePinia(createPinia());
+
+      expect(useSettingsStore().timingKeys).toMatchObject({
+        start: { key: "Home" },
+        switchMode: { key: "t", code: "KeyT" },
+      });
+    });
+
+    test("turns keys saved by position into what they typed, keeping the position", () => {
+      localStorage.setItem(
+        "timingKeys",
+        JSON.stringify({ start: "KeyQ", end: "Digit1", redo: "NumpadEnter" }),
+      );
+      localStorage.setItem("timingKeyLabels", JSON.stringify({ KeyQ: "A", Digit1: "&" }));
+      setActivePinia(createPinia());
+
+      expect(useSettingsStore().timingKeys).toEqual({
+        ...DEFAULT_TIMING_KEYS,
+        start: { key: "a", code: "KeyQ" },
+        end: { key: "&", code: "Digit1" },
+        redo: { key: "Enter" },
+      });
+    });
+
+    test("reads a key saved by position without a label as what it types on QWERTY", () => {
+      localStorage.setItem("timingKeys", JSON.stringify({ start: "KeyJ", end: "Slash" }));
+      setActivePinia(createPinia());
+
+      expect(useSettingsStore().timingKeys).toMatchObject({
+        start: { key: "j", code: "KeyJ" },
+        end: { key: "/", code: "Slash" },
+      });
+    });
+
+    test("saves the migrated keys and drops the old labels", () => {
+      localStorage.setItem("timingKeys", JSON.stringify({ start: "KeyQ" }));
+      localStorage.setItem("timingKeyLabels", JSON.stringify({ KeyQ: "A" }));
+      setActivePinia(createPinia());
+      useSettingsStore();
+
+      expect(JSON.parse(localStorage.getItem("timingKeys")!)).toMatchObject({
+        start: { key: "a", code: "KeyQ" },
+      });
+      expect(localStorage.getItem("timingKeyLabels")).toBeNull();
+    });
+
+    test("resetTimingKeys restores the defaults", () => {
+      const store = useSettingsStore();
+      store.setTimingKey("end", { key: "b", code: "KeyB" });
+      store.setTimingKey("zoomIn", { key: "a", code: "KeyQ" });
+
+      store.resetTimingKeys();
+
+      expect(store.timingKeys).toEqual(DEFAULT_TIMING_KEYS);
     });
 
     test("resetSettings restores the defaults", () => {
       const store = useSettingsStore();
-      store.setTimingKey("end", "KeyB", "B");
+      store.setTimingKey("end", { key: "b", code: "KeyB" });
 
       store.resetSettings();
 
-      expect(store.timingKeys).toEqual({ start: "Space", end: "Enter", redo: "Backspace" });
-      expect(store.timingKeyLabels).toEqual({});
+      expect(store.timingKeys).toEqual(DEFAULT_TIMING_KEYS);
     });
   });
 });

@@ -64,14 +64,14 @@
           v-if="canMarkChecked"
           icon-left="check"
           label="Mark as checked"
-          title="Clear the review flag of the selected syllables (C)"
+          :title="`Clear the review flag of the selected syllables (${keyLabels.markChecked})`"
           @click="markChecked"
         />
         <div v-if="reviewIndices.length > 0" class="buttons has-addons review-nav">
           <b-button
             icon-left="angle-left"
             aria-label="Previous syllable to review"
-            title="Previous syllable to review (Shift+N)"
+            :title="`Previous syllable to review (${keyLabels.previousReview})`"
             @click="goToReview(-1)"
           />
           <span class="button is-static review-count" :title="reviewCountTitle">
@@ -81,7 +81,7 @@
           <b-button
             icon-left="angle-right"
             aria-label="Next syllable to review"
-            title="Next syllable to review (N)"
+            :title="`Next syllable to review (${keyLabels.nextReview})`"
             @click="goToReview(1)"
           />
         </div>
@@ -117,14 +117,13 @@
       <template v-if="isTapMode">
         <p>
           Play the song and tap along. The queue on the waveform lists the syllables to time,
-          starting at the playhead. Press <kbd>{{ timingKeyLabel("start") }}</kbd> as the
-          highlighted syllable starts, and the next one takes its place. A syllable lasts until the
-          next one starts, so press <kbd>{{ timingKeyLabel("end") }}</kbd> only where the singer
-          pauses.
+          starting at the playhead. Press <kbd>{{ keyLabels.start }}</kbd> as the highlighted
+          syllable starts, and the next one takes its place. A syllable lasts until the next one
+          starts, so press <kbd>{{ keyLabels.end }}</kbd> only where the singer pauses.
         </p>
         <p>
           Your taps are saved when playback stops. While paused, either key plays from the playhead.
-          <kbd>{{ timingKeyLabel("redo") }}</kbd> goes back a line, and <kbd>Esc</kbd> stops.
+          <kbd>{{ keyLabels.redo }}</kbd> goes back a line, and <kbd>Esc</kbd> stops.
         </p>
         <p>
           Click a rectangle or a syllable in the queue to tap again from there. The playhead moves
@@ -139,14 +138,18 @@
           of this voice, which you can undo too.
         </p>
         <p>
-          <kbd>&larr;</kbd> and <kbd>&rarr;</kbd> move the playhead by the preroll, and so does
-          scrolling sideways on the waveform. Scroll up and down, or press <kbd>&uarr;</kbd> and
-          <kbd>&darr;</kbd>, to zoom. Press <kbd>T</kbd> to switch to {{ editModeName }} mode.
+          The <kbd>{{ keyLabels.seekBack }}</kbd> and <kbd>{{ keyLabels.seekForward }}</kbd> keys
+          move the playhead by the preroll, and so does scrolling sideways on the waveform. Scroll
+          up and down, or press the <kbd>{{ keyLabels.zoomIn }}</kbd> and
+          <kbd>{{ keyLabels.zoomOut }}</kbd> keys, to zoom. Press
+          <kbd>{{ keyLabels.switchMode }}</kbd> to switch to {{ editModeName }} mode. The keyboard
+          button at the top of the page lists every key, and lets you change them.
         </p>
         <p v-if="reviewIndices.length > 0">
           A lyric edit changed the timings of the syllables outlined in red or orange. The arrows by
-          the heading, or <kbd>N</kbd> and <kbd>Shift</kbd>+<kbd>N</kbd>, make the next or previous
-          one the syllable to tap.
+          the heading make the next or previous one the syllable to tap. The
+          <kbd>{{ keyLabels.nextReview }}</kbd> and <kbd>{{ keyLabels.previousReview }}</kbd> keys
+          do the same.
         </p>
         <p class="legacy-tab-switch">
           Looking for the old timing tab?
@@ -190,12 +193,16 @@
           </p>
         </template>
         <p>
-          <kbd>Space</kbd> plays and pauses. <kbd>Enter</kbd> replays from the last spot you picked
-          by clicking the waveform, using the arrow keys or dragging a timing. <kbd>&larr;</kbd> and
-          <kbd>&rarr;</kbd> step by the preroll set below, five times as far with <kbd>Shift</kbd>.
-          <kbd>Home</kbd> and <kbd>End</kbd> jump to the edges of the view, or to the start and end
-          of the song with <kbd>Ctrl</kbd>. Scroll up and down on the waveform, or press
-          <kbd>&uarr;</kbd> and <kbd>&darr;</kbd>, to zoom.
+          <kbd>{{ keyLabels.playPause }}</kbd> plays and pauses.
+          <kbd>{{ keyLabels.replay }}</kbd> replays from the last spot you picked by clicking the
+          waveform, stepping or dragging a timing. The <kbd>{{ keyLabels.seekBack }}</kbd> and
+          <kbd>{{ keyLabels.seekForward }}</kbd> keys step by the preroll set below, and the
+          <kbd>{{ keyLabels.seekBackFar }}</kbd> and <kbd>{{ keyLabels.seekForwardFar }}</kbd> keys
+          five times as far. The <kbd>{{ keyLabels.viewStart }}</kbd> and
+          <kbd>{{ keyLabels.viewEnd }}</kbd> keys jump to the edges of the view, and the
+          <kbd>{{ keyLabels.songStart }}</kbd> and <kbd>{{ keyLabels.songEnd }}</kbd> keys to the
+          start and end of the song. Scroll up and down on the waveform, or press the
+          <kbd>{{ keyLabels.zoomIn }}</kbd> and <kbd>{{ keyLabels.zoomOut }}</kbd> keys, to zoom.
         </p>
         <p>
           <kbd>{{ undoShortcut }}</kbd> and <kbd>{{ redoShortcut }}</kbd> undo and redo your edits,
@@ -207,15 +214,17 @@
           <template v-else>
             The eraser clears every timing of this voice, which you can undo too.
           </template>
-          Press <kbd>T</kbd> to switch to Tap mode.
+          Press <kbd>{{ keyLabels.switchMode }}</kbd> to switch to Tap mode. The keyboard button at
+          the top of the page lists every key, and lets you change them.
         </p>
         <p v-if="reviewIndices.length > 0 && !displayMode">
           A lyric edit changed the timings of the syllables drawn in red or orange, with a line
           across the waveform at each. Red ones lost their timing and sit where the syllables around
           them put them. Orange ones took their timing from a word that was replaced. The arrows by
-          the heading, or <kbd>N</kbd> and <kbd>Shift</kbd>+<kbd>N</kbd>, go from one to the next
-          and move the playhead to the preroll before it. Moving a syllable clears its mark, and
-          <strong>Mark as checked</strong>, or <kbd>C</kbd>, clears it on the selected syllables
+          the heading go from one to the next and move the playhead to the preroll before it. The
+          <kbd>{{ keyLabels.nextReview }}</kbd> and <kbd>{{ keyLabels.previousReview }}</kbd> keys
+          do the same. Moving a syllable clears its mark, and <strong>Mark as checked</strong>, or
+          the <kbd>{{ keyLabels.markChecked }}</kbd> key, clears it on the selected syllables
           without moving them, then goes to the next one.
         </p>
       </template>
@@ -235,7 +244,7 @@
       <!-- Buefy only draws a close button in a titled header, which this short message goes without. -->
       <div class="status-message-body">
         <span v-if="timingStatus === 'almost'">
-          Almost done! Press <kbd>{{ timingKeyLabel("end") }}</kbd> when the last line ends.
+          Almost done! Press <kbd>{{ keyLabels.end }}</kbd> when the last line ends.
         </span>
         <span v-else>
           Done! You've got everything you need to create your video. Go to the Submit tab.
@@ -261,7 +270,7 @@
               <b-button
                 :type="isTapMode ? 'is-primary' : ''"
                 :aria-pressed="isTapMode"
-                title="Tap the timings as the song plays (T)"
+                :title="`Tap the timings as the song plays (${keyLabels.switchMode})`"
                 @click="setMode('tap')"
               >
                 Tap
@@ -270,7 +279,7 @@
                 :type="isAdjustMode ? 'is-primary' : ''"
                 :aria-pressed="isAdjustMode"
                 :disabled="!hasTimings"
-                title="Drag the timings into place (T)"
+                :title="`Drag the timings into place (${keyLabels.switchMode})`"
                 @click="setMode('adjust')"
               >
                 Adjust
@@ -280,7 +289,7 @@
                 :type="displayMode ? 'is-primary' : ''"
                 :aria-pressed="displayMode"
                 :disabled="!hasTimings"
-                title="Drag when each line is on screen (T)"
+                :title="`Drag when each line is on screen (${keyLabels.switchMode})`"
                 @click="setMode('lines')"
               >
                 Lines
@@ -331,17 +340,6 @@
               <option value="vocals">Vocals only</option>
             </b-select>
           </b-field>
-          <template v-if="isTapMode">
-            <key-capture-input
-              v-for="key in TIMING_KEY_FIELDS"
-              :key="key.name"
-              :label="key.label"
-              :key-label="timingKeyLabel(key.name)"
-              @bind="
-                (code: string, label?: string) => settingsStore.setTimingKey(key.name, code, label)
-              "
-            />
-          </template>
           <b-field v-if="isAdjustMode" label="Shift all timings (ms)" horizontal>
             <b-numberinput
               expanded
@@ -409,9 +407,9 @@
       v-if="songFile && (isImmersive || (isTapMode && showTapButtons))"
       :timing-buttons="isTapMode"
       :floating="isImmersive"
-      :start-label="timingKeyLabel('start')"
-      :end-label="timingKeyLabel('end')"
-      :redo-label="timingKeyLabel('redo')"
+      :start-label="keyLabels.start"
+      :end-label="keyLabels.end"
+      :redo-label="keyLabels.redo"
       :playing="isPlaying"
       :show-keys="!isMobile && !isImmersive"
       @start="onTimingKey('start')"
@@ -458,8 +456,15 @@ import {
   tapSteps,
   undoTap,
 } from "@/lib/tapPass";
-import { TimingKeys, eventMatchesKey, keyLabel } from "@/lib/timingKeys";
-import KeyCaptureInput from "@/components/KeyCaptureInput.vue";
+import {
+  TIMING_ACTIONS,
+  TapAction,
+  TimingAction,
+  TimingKeys,
+  findBinding,
+  bindingLabel,
+  isTapAction,
+} from "@/lib/timingKeys";
 import { QueueItem } from "@/components/TapQueue.vue";
 import { displayText, resolveStarts } from "@/lib/timing";
 import { REDO_SHORTCUT, UNDO_SHORTCUT, historyStepFor, historyTitle } from "@/lib/history";
@@ -476,7 +481,7 @@ import { DEFAULT_OUTLINE_WIDTH } from "@/constants";
 
 // The arrow keys step by the playhead preroll,
 // so stepping and the preview jump after a drag agree on what one step is worth.
-// Shift takes five of them.
+// The far steps take five of them.
 const COARSE_STEP_MULTIPLIER = 5;
 
 // The preview here is a working view of the timings, not a proxy for the final video,
@@ -524,12 +529,6 @@ type AdjustMode = "tap" | "adjust" | "lines";
 
 // How far the voice is timed: every segment has a start, and the last one an end too.
 type TimingStatus = "almost" | "done";
-
-const TIMING_KEY_FIELDS: Array<{ name: keyof TimingKeys; label: string }> = [
-  { name: "start", label: "Start key" },
-  { name: "end", label: "End key" },
-  { name: "redo", label: "Redo key" },
-];
 
 // A pass needs more of a run-up than a replay, to catch the beat before the first tap.
 const DEFAULT_TAP_PREROLL = 2;
@@ -595,7 +594,6 @@ export default defineComponent({
     BIcon,
     BMessage,
     TapButtons,
-    KeyCaptureInput,
     TimingAdjuster,
     SubtitleDisplay,
     VoiceSelector,
@@ -784,7 +782,6 @@ export default defineComponent({
         };
       });
     },
-    TIMING_KEY_FIELDS: () => TIMING_KEY_FIELDS,
     // A phone held sideways gives the whole screen to the waveform.
     isImmersive(): boolean {
       return this.isPhoneLandscape && !this.immersiveDismissed;
@@ -825,6 +822,11 @@ export default defineComponent({
     },
     timingKeys(): TimingKeys {
       return this.settingsStore.timingKeys;
+    },
+    keyLabels(): Record<TimingAction, string> {
+      return Object.fromEntries(
+        TIMING_ACTIONS.map((action) => [action, bindingLabel(this.timingKeys[action])]),
+      ) as Record<TimingAction, string>;
     },
     // Lines mode is Adjust mode while advanced mode is off, and comes back with it.
     displayMode(): boolean {
@@ -1045,43 +1047,20 @@ export default defineComponent({
       return Math.min(MAX_ZOOM, Math.max(MIN_ZOOM, zoom));
     },
     onKeyDown(event: KeyboardEvent) {
-      const isEnter = event.code === "Enter" || event.code === "NumpadEnter";
-      const isArrow = event.code === "ArrowLeft" || event.code === "ArrowRight";
-      const isZoomKey = event.code === "ArrowUp" || event.code === "ArrowDown";
-      const isEscape = event.code === "Escape";
-      const isViewEdge = event.code === "Home" || event.code === "End";
       const historyStep = historyStepFor(event);
-      const hasModifier = event.ctrlKey || event.metaKey || event.altKey;
-      const timingKey = this.isTapMode && !hasModifier ? this.timingKeyFor(event) : null;
-      // The letter, wherever the keyboard layout puts it, so the shortcut matches its name.
-      const letter = hasModifier ? "" : event.key.toLowerCase();
-      const isModeKey = letter === "t";
-      // Tap keys are matched first, so a letter bound to one taps instead.
-      // Mark as checked needs a selection, which Tap mode doesn't have.
-      const isReviewKey = letter === "n" || (letter === "c" && !this.isTapMode);
-      if (
-        event.code !== "Space" &&
-        !isEnter &&
-        !isArrow &&
-        !isZoomKey &&
-        !isEscape &&
-        !isViewEdge &&
-        !historyStep &&
-        !timingKey &&
-        !isModeKey &&
-        !isReviewKey
-      ) {
-        return;
-      }
+      const action = historyStep ? null : this.actionFor(event);
+      const isEscape = event.key === "Escape";
+      if (!historyStep && !action && !isEscape) return;
       const target = event.target as HTMLElement | null;
       // Form controls need these keys for themselves.
       if (target && ["INPUT", "TEXTAREA", "SELECT"].includes(target.tagName)) return;
-      // A key pressed on a timing key's picker is being picked, not pressed to time anything.
-      if (target?.closest?.(".key-capture-input")) return;
+      if (document.querySelector(".modal.is-active")) return;
       // Enter is also how a focused button or link is activated,
       // so leave those to the browser rather than hijacking the key.
       // A tap can't wait for the focus to move, so a timing key is taken anyway.
-      if (isEnter && !timingKey && target?.closest?.("button, a")) return;
+      const isEnter = event.key === "Enter";
+      const isTap = !!action && isTapAction(action);
+      if (isEnter && !isTap && target?.closest?.("button, a")) return;
       // A fixed element has no offset parent, so the full-screen layout asks for its boxes instead.
       if (
         this.isImmersive ? this.$el.getClientRects().length === 0 : this.$el.offsetParent === null
@@ -1089,54 +1068,59 @@ export default defineComponent({
         return;
       }
       event.preventDefault();
-      if (timingKey) {
-        if (!event.repeat) {
-          this.onTimingKey(timingKey);
-        }
-      } else if (isModeKey) {
-        this.setMode(this.isTapMode ? this.lastEditMode : "tap");
-      } else if (isReviewKey && letter === "c") {
-        this.markChecked();
-      } else if (isReviewKey) {
-        this.goToReview(event.shiftKey ? -1 : 1);
-      } else if (historyStep) {
+      const adjuster = this.timingAdjusterRef();
+      if (historyStep) {
         this.stepHistory(historyStep);
       } else if (isEscape && this.isTapMode) {
-        this.timingAdjusterRef()?.pause();
+        adjuster?.pause();
       } else if (isEscape) {
-        this.timingAdjusterRef()?.clearSelection();
-      } else if (isViewEdge) {
-        const edge = event.code === "Home" ? "start" : "end";
-        const adjuster = this.timingAdjusterRef();
-        if (event.ctrlKey) {
-          adjuster?.seekToTrackEdge(edge);
-        } else {
-          adjuster?.seekToViewEdge(edge);
+        adjuster?.clearSelection();
+      } else if (action && isTapAction(action)) {
+        if (!event.repeat) {
+          this.onTimingKey(action);
         }
-      } else if (isEnter) {
-        this.timingAdjusterRef()?.restartAt(this.manualPlayhead);
-      } else if (isZoomKey) {
-        this.zoomAroundPlayhead(event.code === "ArrowUp" ? 1 : -1);
-      } else if (isArrow) {
-        const direction = event.code === "ArrowLeft" ? -1 : 1;
-        const step = event.shiftKey
-          ? this.prerollSeconds * COARSE_STEP_MULTIPLIER
-          : this.prerollSeconds;
-        this.timingAdjusterRef()?.seekBy(direction * step);
+      } else if (action === "switchMode") {
+        this.setMode(this.isTapMode ? this.lastEditMode : "tap");
+      } else if (action === "markChecked") {
+        this.markChecked();
+      } else if (action === "nextReview" || action === "previousReview") {
+        this.goToReview(action === "nextReview" ? 1 : -1);
+      } else if (action === "viewStart" || action === "viewEnd") {
+        adjuster?.seekToViewEdge(action === "viewStart" ? "start" : "end");
+      } else if (action === "songStart" || action === "songEnd") {
+        adjuster?.seekToTrackEdge(action === "songStart" ? "start" : "end");
+      } else if (action === "replay") {
+        adjuster?.restartAt(this.manualPlayhead);
+      } else if (action === "zoomIn" || action === "zoomOut") {
+        this.zoomAroundPlayhead(action === "zoomIn" ? 1 : -1);
+      } else if (action === "seekBack" || action === "seekForward") {
+        adjuster?.seekBy((action === "seekBack" ? -1 : 1) * this.prerollSeconds);
+      } else if (action === "seekBackFar" || action === "seekForwardFar") {
+        const step = this.prerollSeconds * COARSE_STEP_MULTIPLIER;
+        adjuster?.seekBy((action === "seekBackFar" ? -1 : 1) * step);
       } else {
-        this.timingAdjusterRef()?.togglePlayPause();
+        adjuster?.togglePlayPause();
       }
     },
-    timingKeyLabel(name: keyof TimingKeys): string {
-      return keyLabel(this.timingKeys[name], this.settingsStore.timingKeyLabels);
+    /**
+     * The action the key is bound to in the current mode, if any.
+     * Alt and Meta make the press someone else's shortcut.
+     */
+    actionFor(event: KeyboardEvent): TimingAction | null {
+      // AltGr reports as Ctrl and Alt on Windows, and is how some layouts type a character.
+      const isAltGraph = event.getModifierState?.("AltGraph") ?? false;
+      if ((event.altKey && !isAltGraph) || event.metaKey) return null;
+      const candidates = TIMING_ACTIONS.filter(
+        (candidate) =>
+          (this.isTapMode || !isTapAction(candidate)) &&
+          // Mark as checked needs a selection, which Tap mode doesn't have.
+          !(this.isTapMode && candidate === "markChecked"),
+      );
+      return findBinding(event, this.timingKeys, candidates) ?? null;
     },
     onSettingsScroll(event: Event) {
       // Sub-pixel leftovers are rounding, not content.
       this.settingsScrolled = (event.target as HTMLElement).scrollTop > 1;
-    },
-    timingKeyFor(event: KeyboardEvent): keyof TimingKeys | null {
-      const keys = ["start", "end", "redo"] as const;
-      return keys.find((key) => eventMatchesKey(event.code, this.timingKeys[key])) ?? null;
     },
     setMode(mode: AdjustMode) {
       if (mode !== "tap" && !this.hasTimings) return;
@@ -1191,7 +1175,7 @@ export default defineComponent({
         adjuster?.setAudioPlayhead(at);
       }
     },
-    onTimingKey(key: keyof TimingKeys) {
+    onTimingKey(key: TapAction) {
       const adjuster = this.timingAdjusterRef();
       if (!adjuster) return;
       if (key === "redo") {
@@ -1617,16 +1601,9 @@ The Apply button wraps under its control until there is room for it too. */
   }
 }
 
-/* The key pickers are small on phones in the old Timing tab. Here they match the other controls. */
-.adjustment-fields :deep(.key-capture-input .button) {
-  --bulma-control-size: var(--bulma-size-normal);
-  --bulma-control-radius: var(--bulma-radius);
-}
-
 .adjustment-fields :deep(.b-numberinput),
 .adjustment-fields :deep(.select),
-.adjustment-fields :deep(.switch),
-.adjustment-fields :deep(.key-capture-input .button) {
+.adjustment-fields :deep(.switch) {
   width: 10em;
 }
 

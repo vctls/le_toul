@@ -8,7 +8,17 @@ import { SeparationModel } from "@/types";
 import { VoiceStyleOverride, serializeVoiceStyle, deserializeVoiceStyle } from "@/lib/voiceStyle";
 import { VoiceId } from "@/lib/voices";
 import { persistBlobRef } from "@/lib/persistence";
-import { TimingKeys, DEFAULT_TIMING_KEYS, isKeyName } from "@/lib/timingKeys";
+import {
+  TimingAction,
+  TimingKeys,
+  DEFAULT_TIMING_KEYS,
+  KeyBinding,
+  TIMING_ACTIONS,
+  isCharacterKey,
+  isKeyName,
+  isTapAction,
+  sameBinding,
+} from "@/lib/timingKeys";
 import { readFont } from "@/lib/fontFile";
 import { serializeSettingsYaml } from "@/lib/settingsFile";
 import {
@@ -24,7 +34,30 @@ import {
 
 const VOICE_STYLES_STORAGE_KEY = "voiceStyles";
 const TIMING_KEYS_STORAGE_KEY = "timingKeys";
-const TIMING_KEY_LABELS_STORAGE_KEY = "timingKeyLabels";
+// Where bindings saved as key positions kept what each key typed. Read once to migrate them.
+const LEGACY_KEY_LABELS_STORAGE_KEY = "timingKeyLabels";
+
+// What the position-named keys type on a US layout, for those saved without a label.
+const LEGACY_CODE_CHARACTERS: Record<string, string> = {
+  Backquote: "`",
+  Minus: "-",
+  Equal: "=",
+  BracketLeft: "[",
+  BracketRight: "]",
+  Backslash: "\\",
+  IntlBackslash: "\\",
+  Semicolon: ";",
+  Quote: "'",
+  Comma: ",",
+  Period: ".",
+  Slash: "/",
+  NumpadAdd: "+",
+  NumpadSubtract: "-",
+  NumpadMultiply: "*",
+  NumpadDivide: "/",
+  NumpadDecimal: ".",
+  NumpadEnter: "Enter",
+};
 
 function loadVoiceStyles(): Record<VoiceId, VoiceStyleOverride> {
   try {
@@ -40,33 +73,62 @@ function loadVoiceStyles(): Record<VoiceId, VoiceStyleOverride> {
   }
 }
 
-// A key that has since stopped being a name we recognise falls back to the default,
-// so a stale entry can never leave the timing tab with an unpressable binding.
+/**
+ * The binding for a key saved by its position alone, such as "KeyQ", with what it typed when it
+ * was bound.
+ */
+function legacyBinding(code: string, label: unknown): KeyBinding | undefined {
+  const typed =
+    typeof label === "string"
+      ? label
+      : (/^(?:Key|Digit|Numpad)(\w)$/.exec(code)?.[1] ?? LEGACY_CODE_CHARACTERS[code]);
+  const key = typed?.length === 1 ? typed.toLowerCase() : typed;
+  if (!isKeyName(key)) return undefined;
+  return isCharacterKey(key) ? { key, code } : { key };
+}
+
+/**
+ * A saved binding, or the fallback when it no longer names a key, so a stale entry can never
+ * leave the timing tab with an unpressable binding.
+ * Bindings were saved as plain strings before they kept where the key sits.
+ */
+function storedBinding(
+  stored: unknown,
+  labels: Record<string, unknown>,
+  fallback: KeyBinding,
+): KeyBinding {
+  if (typeof stored === "string") {
+    if (!isKeyName(stored)) return legacyBinding(stored, labels[stored]) ?? fallback;
+    return stored === fallback.key ? fallback : { key: stored };
+  }
+  const { key, code, shift, ctrl } = (stored ?? {}) as Partial<KeyBinding>;
+  if (!isKeyName(key)) return fallback;
+  const binding: KeyBinding =
+    typeof code === "string" && isCharacterKey(key) ? { key, code } : { key };
+  if (shift === true) binding.shift = true;
+  if (ctrl === true) binding.ctrl = true;
+  return binding;
+}
+
 function loadTimingKeys(): TimingKeys {
   try {
     const raw = JSON.parse(localStorage.getItem(TIMING_KEYS_STORAGE_KEY) || "{}");
-    return {
-      start: isKeyName(raw.start) ? raw.start : DEFAULT_TIMING_KEYS.start,
-      end: isKeyName(raw.end) ? raw.end : DEFAULT_TIMING_KEYS.end,
-      redo: isKeyName(raw.redo) ? raw.redo : DEFAULT_TIMING_KEYS.redo,
-    };
+    const labels = JSON.parse(localStorage.getItem(LEGACY_KEY_LABELS_STORAGE_KEY) || "{}");
+    const keys = Object.fromEntries(
+      TIMING_ACTIONS.map((action) => [
+        action,
+        storedBinding(raw[action], labels, DEFAULT_TIMING_KEYS[action]),
+      ]),
+    ) as unknown as TimingKeys;
+    // The labels are only good for the migration, so the migrated keys are saved before they go.
+    if (localStorage.getItem(LEGACY_KEY_LABELS_STORAGE_KEY) !== null) {
+      localStorage.setItem(TIMING_KEYS_STORAGE_KEY, JSON.stringify(keys));
+      localStorage.removeItem(LEGACY_KEY_LABELS_STORAGE_KEY);
+    }
+    return keys;
   } catch (e) {
     console.error("Error loading timing keys:", e);
     return { ...DEFAULT_TIMING_KEYS };
-  }
-}
-
-function loadTimingKeyLabels(): Record<string, string> {
-  try {
-    const raw = JSON.parse(localStorage.getItem(TIMING_KEY_LABELS_STORAGE_KEY) || "{}");
-    return Object.fromEntries(
-      Object.entries(raw).filter(
-        (entry): entry is [string, string] => isKeyName(entry[0]) && typeof entry[1] === "string",
-      ),
-    );
-  } catch (e) {
-    console.error("Error loading timing key labels:", e);
-    return {};
   }
 }
 
@@ -169,9 +231,6 @@ export const useSettingsStore = defineStore("settings", () => {
   // Kept out of `videoOptions`, which is what the exported settings.yaml describes: these
   // are about how the tapping tab is driven, not about the video.
   const timingKeys = ref<TimingKeys>(loadTimingKeys());
-  // Each bound key's name on the layout it was bound with, keyed by code name.
-  // A label belongs to the key rather than the role, so a swap keeps it.
-  const timingKeyLabels = ref<Record<string, string>>(loadTimingKeyLabels());
 
   // Kept out of `videoOptions`, which is JSON-serialized to localStorage wholesale. The
   // file goes to IndexedDB instead.
@@ -227,14 +286,6 @@ export const useSettingsStore = defineStore("settings", () => {
     timingKeys,
     () => {
       localStorage.setItem(TIMING_KEYS_STORAGE_KEY, JSON.stringify(timingKeys.value));
-    },
-    { deep: true },
-  );
-
-  watch(
-    timingKeyLabels,
-    () => {
-      localStorage.setItem(TIMING_KEY_LABELS_STORAGE_KEY, JSON.stringify(timingKeyLabels.value));
     },
     { deep: true },
   );
@@ -363,20 +414,27 @@ export const useSettingsStore = defineStore("settings", () => {
     return coverage;
   });
 
-  // Binding a key another role already holds swaps the two, so no two roles point at the same key,
-  // which would make one of them unreachable.
-  function setTimingKey(role: keyof TimingKeys, name: string, label?: string): void {
+  /**
+   * Binds the key to the action. A tap key takes its key from another tap key by swapping the two,
+   * and so does any other action from another non-tap action.
+   */
+  function setTimingKey(role: TimingAction, binding: KeyBinding): void {
     const next: TimingKeys = { ...timingKeys.value };
-    const clash = (Object.keys(next) as (keyof TimingKeys)[]).find(
-      (other) => other !== role && next[other] === name,
+    const clash = TIMING_ACTIONS.find(
+      (other) =>
+        other !== role &&
+        isTapAction(other) === isTapAction(role) &&
+        sameBinding(next[other], binding),
     );
     if (clash) {
       next[clash] = next[role];
     }
-    next[role] = name;
+    next[role] = binding;
     timingKeys.value = next;
-    const { [name]: _stale, ...labels } = timingKeyLabels.value;
-    timingKeyLabels.value = label === undefined ? labels : { ...labels, [name]: label };
+  }
+
+  function resetTimingKeys(): void {
+    timingKeys.value = { ...DEFAULT_TIMING_KEYS };
   }
 
   function getVoiceStyle(voice: VoiceId): VoiceStyleOverride | undefined {
@@ -514,8 +572,7 @@ export const useSettingsStore = defineStore("settings", () => {
   function resetSettings(): void {
     Object.assign(videoOptions, defaultSettings());
     voiceStyles.value = {};
-    timingKeys.value = { ...DEFAULT_TIMING_KEYS };
-    timingKeyLabels.value = {};
+    resetTimingKeys();
     void clearCustomFonts();
   }
 
@@ -525,7 +582,6 @@ export const useSettingsStore = defineStore("settings", () => {
     settingsYaml,
     voiceStyles,
     timingKeys,
-    timingKeyLabels,
     customFont,
     customFontFamily,
     customFontUrl,
@@ -536,6 +592,7 @@ export const useSettingsStore = defineStore("settings", () => {
     glyphCoverage,
     clearCustomFonts,
     setTimingKey,
+    resetTimingKeys,
     getVoiceStyle,
     setVoiceStyleField,
     clearVoiceStyle,
