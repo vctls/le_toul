@@ -75,6 +75,9 @@ class MockYouTubeStreams:
             return MockYouTubeStreamQuery("video", self.fixture_dir)
         return None
 
+    def get_audio_only(self):
+        return MockYouTubeStream("audio", self.fixture_dir)
+
 
 class MockYouTube:
     """Mock class for YouTube API."""
