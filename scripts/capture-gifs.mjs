@@ -1139,7 +1139,7 @@ async function captureReconcile(page) {
   // Segment 22 is `sur/` and 23 is `prise`, the split word in the third line of the fixture.
   const SPLIT = 22;
   // The frame has to hold both tabs, so the per-tab instructions are collapsed to make room.
-  await page.click('button[title="Show or hide the instructions on each tab"]');
+  await page.getByRole("button", { name: "Instructions", pressed: true }).click();
   await sleep(300);
   await page.locator(".wavesurfer-container").scrollIntoViewIfNeeded();
   await sleep(150);
