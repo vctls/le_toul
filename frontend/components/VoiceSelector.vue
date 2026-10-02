@@ -1,7 +1,7 @@
 <template>
   <b-field v-if="voices.length > 1" horizontal label="Voice" class="voice-selector">
     <b-select v-model="activeVoice" aria-label="Active voice">
-      <option v-for="voice in voices" :key="voice" :value="voice">{{ voice }}</option>
+      <option v-for="voice in voices" :key="voice" :value="voice">{{ optionLabel(voice) }}</option>
     </b-select>
   </b-field>
 </template>
@@ -24,6 +24,16 @@ export default defineComponent({
     const timingsStore = useTimingsStore();
     const { voices } = storeToRefs(lyricsStore);
     return { timingsStore, voices };
+  },
+  methods: {
+    /**
+     * The voice, with the count of segments it has to review unless it is the one shown.
+     */
+    optionLabel(voice: VoiceId): string {
+      const count = this.timingsStore.reviewCountByVoice[voice] ?? 0;
+      if (voice === this.activeVoice || count === 0) return voice;
+      return `${voice} (${count} to review)`;
+    },
   },
   computed: {
     activeVoice: {

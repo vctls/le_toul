@@ -123,6 +123,8 @@ export default defineComponent({
       // The drag has already moved the region's DOM to its final position, so when the resulting timings round-trip
       // back through the `regions` prop we skip the expensive teardown-and-rebuild of every region for that one update.
       _skipNextRegionsUpdate: false,
+      // A time to scroll into view once the waveform is laid out, asked for while it was hidden.
+      _pendingReveal: null as number | null,
     };
   },
   mounted() {
@@ -137,6 +139,7 @@ export default defineComponent({
           // A hidden container has no scroll box, so a restore can only land once it is laid out.
           this.$nextTick(() => {
             this.applyInitialScroll();
+            if (this._pendingReveal !== null) this.revealTime(this._pendingReveal);
             if (this.regions.length > 0) {
               this.updateRegions(this.regions);
             }
@@ -221,6 +224,10 @@ export default defineComponent({
       this.$emit("region-clicked", region, event);
     });
 
+    this.regionsPlugin.on("selection-change", (ids: string[]) => {
+      this.$emit("selection-change", ids);
+    });
+
     this.regionsPlugin.on("regions-updated", (regions: Region[]) => {
       this._skipNextRegionsUpdate = true;
       this.$emit("regions-updated", regions);
@@ -264,7 +271,7 @@ export default defineComponent({
           // The drag already moved the region, so there is no new position left to apply.
           // It can also give an untimed segment a start, which changes the region color,
           // and nothing has repainted that yet.
-          this.syncRegionColors(newRegions);
+          this.syncRegionAppearance(newRegions);
           return;
         }
         // Add regions after audio is decoded or they won't render right
@@ -280,6 +287,7 @@ export default defineComponent({
     "region-updated",
     "regions-updated",
     "region-clicked",
+    "selection-change",
     "band-updated",
     "band-reset",
     "zoom-change",
@@ -457,6 +465,30 @@ export default defineComponent({
       this.regionsPlugin.clearSelection();
     },
     /**
+     * Select a region alone, and scroll its start into view if it is outside.
+     */
+    selectRegion(id: string, start: number) {
+      this.regionsPlugin.selectRegion(id);
+      this.revealTime(start);
+    },
+    /**
+     * Scroll so that `time` sits in the middle of the view, unless it is in view already.
+     */
+    revealTime(time: number) {
+      const scrollEl = this.scrollElement();
+      const duration = this.wavesurfer?.getDuration() ?? 0;
+      if (!this.isVisible || !scrollEl?.clientWidth || !duration) {
+        this._pendingReveal = time;
+        return;
+      }
+      this._pendingReveal = null;
+      const range = this.visibleTimeRange();
+      if (range && time >= range.start && time <= range.end) return;
+      scrollEl.scrollLeft = (time / duration) * scrollEl.scrollWidth - scrollEl.clientWidth / 2;
+      // The resize that follows a tab switch restores the saved offset, which has to be this one.
+      this._savedScrollLeft = scrollEl.scrollLeft;
+    },
+    /**
      * Scroll so that `time` sits in the middle of the view.
      *
      * Near either end of the track the scroll runs out, and the waveform itself is shifted instead,
@@ -538,15 +570,18 @@ export default defineComponent({
       scrollEl.scrollLeft = this._savedScrollLeft;
     },
     /**
-     * Color is the only thing a drag can change besides position.
+     * Color and the review flag are the only things a drag can change besides position.
      * A drag can't alter the text, and no other region's fill depends on where this one landed.
      */
-    syncRegionColors(regions: RegionParams[]) {
+    syncRegionAppearance(regions: RegionParams[]) {
       const live = new Map(this.regionsPlugin.getRegions().map((region) => [region.id, region]));
       for (const params of regions) {
         const region = params.id ? live.get(params.id) : undefined;
         if (region && params.color && params.color !== region.color) {
           region.setOptions({ color: params.color });
+        }
+        if (region && params.review !== region.review) {
+          region.setReview(params.review);
         }
       }
     },

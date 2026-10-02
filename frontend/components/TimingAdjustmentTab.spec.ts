@@ -26,6 +26,7 @@ const clearSelection = vi.fn();
 const seekToViewEdge = vi.fn();
 const seekToTrackEdge = vi.fn();
 const setAudioPlayhead = vi.fn();
+const selectSegment = vi.fn();
 // The tab reads the playback clock through the adjuster.
 const playback = { paused: true, time: 0 };
 const pause = vi.fn(() => {
@@ -45,6 +46,7 @@ const timingAdjusterStub = {
     seekToTrackEdge,
     pause,
     setAudioPlayhead,
+    selectSegment,
     isPaused: () => playback.paused,
     currentTime: () => playback.time,
   },
@@ -108,6 +110,7 @@ describe("TimingAdjustmentTab shortcuts", () => {
     seekToTrackEdge.mockClear();
     pause.mockClear();
     setAudioPlayhead.mockClear();
+    selectSegment.mockClear();
     playback.paused = true;
     playback.time = 0;
   });
@@ -1185,6 +1188,103 @@ describe("TimingAdjustmentTab shortcuts", () => {
       pressKey("Enter");
       expect(togglePlayPause).toHaveBeenCalledOnce();
       expect(restartAt).toHaveBeenCalledOnce();
+    });
+  });
+  describe("segments to review", () => {
+    const mountFlagged = () => {
+      const wrapper = mountTab();
+      useLyricsStore().setLyrics("one_two_three_four");
+      useTimingsStore().resetSegments([
+        { text: "one_", start: 1 },
+        { text: "two_", start: 2, review: "moved" },
+        { text: "three_", start: 3 },
+        { text: "four", review: "lost" },
+      ]);
+      return wrapper;
+    };
+    const select = (wrapper: ReturnType<typeof mountTab>, indices: number[]) =>
+      wrapper.findComponent({ name: "TimingAdjuster" }).vm.$emit("selection-change", indices);
+    const markButton = (wrapper: ReturnType<typeof mountTab>) =>
+      wrapper.find('[label="Mark as checked"]');
+
+    it("goes to the next and previous ones in order, wrapping around", async () => {
+      const wrapper = mountFlagged();
+      await nextTick();
+
+      pressKey("KeyN", { key: "n" });
+      expect(selectSegment).toHaveBeenLastCalledWith(1);
+      select(wrapper, [1]);
+      pressKey("KeyN", { key: "n" });
+      expect(selectSegment).toHaveBeenLastCalledWith(3);
+      select(wrapper, [3]);
+      pressKey("KeyN", { key: "n" });
+      expect(selectSegment).toHaveBeenLastCalledWith(1);
+      select(wrapper, [1]);
+      pressKey("KeyN", { key: "N", shiftKey: true });
+      expect(selectSegment).toHaveBeenLastCalledWith(3);
+    });
+
+    it("counts them by the heading", async () => {
+      const wrapper = mountFlagged();
+      await nextTick();
+
+      expect(wrapper.find(".review-count").attributes("title")).toBe("2 syllables to review");
+    });
+
+    it("shows Mark as checked only for a selection holding one", async () => {
+      const wrapper = mountFlagged();
+      await nextTick();
+      expect(markButton(wrapper).exists()).toBe(false);
+
+      select(wrapper, [0]);
+      await nextTick();
+      expect(markButton(wrapper).exists()).toBe(false);
+
+      select(wrapper, [0, 1]);
+      await nextTick();
+      expect(markButton(wrapper).exists()).toBe(true);
+    });
+
+    it("clears the selected flags with C, and an undo brings them back", async () => {
+      const wrapper = mountFlagged();
+      select(wrapper, [1, 2, 3]);
+      await nextTick();
+
+      pressKey("KeyC", { key: "c" });
+      const timings = useTimingsStore();
+      expect(timings.activeSegments.map(({ review }) => review)).toEqual([
+        undefined,
+        undefined,
+        undefined,
+        undefined,
+      ]);
+      expect(timings.activeSegments[1].start).toBe(2);
+
+      pressKey("KeyZ", { key: "z", ctrlKey: true });
+      expect(timings.activeSegments[1].review).toBe("moved");
+    });
+
+    it("leaves N and C alone in Tap mode", async () => {
+      const wrapper = mountFlagged();
+      wrapper.vm.setMode("tap");
+      select(wrapper, [1]);
+      await nextTick();
+
+      pressKey("KeyN", { key: "n" });
+      pressKey("KeyC", { key: "c" });
+
+      expect(selectSegment).not.toHaveBeenCalled();
+      expect(useTimingsStore().activeSegments[1].review).toBe("moved");
+    });
+
+    it("goes to the first one when the toast asks", async () => {
+      mountFlagged();
+      await nextTick();
+
+      useTimingsStore().requestReview();
+      await nextTick();
+
+      expect(selectSegment).toHaveBeenLastCalledWith(1);
     });
   });
 });

@@ -69,6 +69,10 @@
   --region-fill: rgba(102, 209, 255, 1);
   // A segment with no timing of its own, drawn where interpolation puts it.
   --region-fill-hole: rgba(102, 209, 255, 0.35);
+  // Segments a lyric edit changed the timing of, in the danger and warning hues,
+  // darkened enough to stand out from both the waveform and the other regions.
+  --region-review-lost: hsl(348deg, 86%, 55%);
+  --region-review-moved: hsl(32deg, 100%, 50%);
   --region-label-on-fill: black;
   --region-label-on-waveform: var(--bulma-text-strong);
 }
@@ -79,6 +83,8 @@
   --waveform-wave: hsl(221deg, 14%, 53%);
   --region-fill: rgb(35, 113, 149);
   --region-fill-hole: rgba(35, 113, 149, 0.4);
+  --region-review-lost: hsl(348deg, 80%, 47%);
+  --region-review-moved: hsl(32deg, 100%, 36%);
   --region-label-on-fill: white;
   --region-label-on-waveform: white;
 }

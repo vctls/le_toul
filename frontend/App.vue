@@ -131,7 +131,7 @@
 </template>
 
 <script lang="ts">
-import { defineComponent } from "vue";
+import { defineComponent, h } from "vue";
 import { isMobile } from "@/lib/device";
 import { DONATE_URL, appName } from "@/constants";
 import HelpTab from "@/components/HelpTab.vue";
@@ -164,6 +164,26 @@ const THEME_BUTTONS: Record<ThemePreference, { icon: string; label: string }> = 
   light: { icon: "sun", label: "Theme: light" },
   dark: { icon: "moon", label: "Theme: dark" },
 };
+
+/**
+ * What a lyric edit did to the timings, by the segments it flagged.
+ */
+function reviewMessage({
+  entry,
+  lost,
+  moved,
+}: {
+  entry: HistoryEntry;
+  lost: number;
+  moved: number;
+}): string {
+  const edit = `This ${entry.label.toLowerCase()}`;
+  const syllables = `${lost} syllable${lost === 1 ? "" : "s"}`;
+  if (moved === 0) return `${edit} lost the timings of ${syllables}.`;
+  if (lost === 0)
+    return `${edit} moved ${moved} timing${moved === 1 ? "" : "s"} to replaced words.`;
+  return `${edit} lost the timings of ${syllables}, and moved ${moved} to replaced words.`;
+}
 
 export default defineComponent({
   components: {
@@ -248,11 +268,26 @@ export default defineComponent({
         duration: 4000,
       });
     },
-    "historyStore.lastLoss"(loss: { entry: HistoryEntry; lost: number } | null) {
+    "historyStore.lastLoss"(loss: { entry: HistoryEntry; lost: number; moved: number } | null) {
       if (!loss) return;
-      const { entry, lost } = loss;
-      this.$buefy.snackbar.open({
-        message: `This ${entry.label.toLowerCase()} removed ${lost} timing${lost === 1 ? "" : "s"}.`,
+      const { entry } = loss;
+      // The message is a slot, so that Show can sit beside Undo.
+      const snackbar = this.$buefy.snackbar.open({
+        message: [
+          h("div", { class: "text" }, reviewMessage(loss)),
+          h(
+            "div",
+            {
+              class: "action is-warning",
+              onClick: () => {
+                this.setActiveTab("adjust");
+                this.timingsStore.requestReview();
+                snackbar.close();
+              },
+            },
+            h("button", { class: "button" }, "Show"),
+          ),
+        ],
         type: "is-warning",
         actionText: "Undo",
         // After another edit, Undo would take back that one instead.

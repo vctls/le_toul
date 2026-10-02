@@ -76,6 +76,8 @@ export type RegionsPluginEvents = BasePluginEvents & {
   "region-clicked": [region: Region, e: MouseEvent];
   /** When a region is double-clicked */
   "region-double-clicked": [region: Region, e: MouseEvent];
+  /** When the selection changes, with the ids of the selected regions */
+  "selection-change": [ids: string[]];
   /** When playback enters a region */
   "region-in": [region: Region];
   /** When playback leaves a region */
@@ -132,6 +134,8 @@ export type RegionParams = {
   highlighted?: boolean;
   /** Draw the region faded, as one about to be replaced */
   faded?: boolean;
+  /** Mark the region as one whose timing a lyric edit changed */
+  review?: RegionReview;
   /** Allow/Disallow contenteditable property for content */
   contentEditable?: boolean;
 };
@@ -144,6 +148,20 @@ const FADED_OPACITY = "0.4";
 
 // Keep in sync with --bulma-primary in main.scss.
 const SELECTION_COLOR = "#7957d5";
+
+export type RegionReview = "lost" | "moved";
+
+// A region to review stays visible and clickable however far the waveform is zoomed out.
+const REVIEW_MIN_WIDTH_PX = 6;
+const REVIEW_MARKER_WIDTH_PX = 2;
+const REVIEW_COLORS: Record<RegionReview, string> = {
+  lost: "var(--region-review-lost)",
+  moved: "var(--region-review-moved)",
+};
+const REVIEW_TITLES: Record<RegionReview, string> = {
+  lost: "Lost its timing in a lyric edit",
+  moved: "Timing taken from a replaced word",
+};
 
 // The label spans two backgrounds: the region's own fill and,
 // where it is wider than the region, the bare waveform behind it.
@@ -220,6 +238,8 @@ class SingleRegion extends EventEmitter<RegionEvents> implements Region {
   public selected = false;
   public highlighted = false;
   public faded = false;
+  public review?: RegionReview;
+  private reviewMarker?: HTMLElement;
   public isAttached = false;
   public subscriptions: (() => void)[] = [];
   private labelMaxWidth = "";
@@ -280,6 +300,7 @@ class SingleRegion extends EventEmitter<RegionEvents> implements Region {
     params: RegionParams,
     private totalDuration: number,
     private numberOfChannels = 0,
+    private markerLayer?: HTMLElement,
   ) {
     super();
 
@@ -296,10 +317,12 @@ class SingleRegion extends EventEmitter<RegionEvents> implements Region {
     this.contentEditable = params.contentEditable ?? this.contentEditable;
     this.highlighted = params.highlighted ?? false;
     this.faded = params.faded ?? false;
+    this.review = params.review;
     this.element = this.initElement();
     this.placeInChannel();
     this.setContent(params.content);
-    if (this.highlighted || this.faded) this.paint();
+    this.applyReview();
+    if (this.highlighted || this.faded || this.review) this.paint();
     this.setPart();
 
     this.renderPosition();
@@ -493,6 +516,45 @@ class SingleRegion extends EventEmitter<RegionEvents> implements Region {
     const end = (this.totalDuration - this.end) / this.totalDuration;
     this.element.style.left = `${start * 100}%`;
     this.element.style.right = `${end * 100}%`;
+    if (this.reviewMarker) this.reviewMarker.style.left = `${start * 100}%`;
+  }
+
+  /**
+   * Give a region to review its minimum width, its tooltip and its marker line,
+   * which spans every row in a layer of its own.
+   */
+  private applyReview() {
+    const { review, element } = this;
+    // The region overflows its time span to reach the minimum width,
+    // so it is drawn over its neighbours.
+    element.style.minWidth = review ? `${REVIEW_MIN_WIDTH_PX}px` : "";
+    element.style.zIndex = review ? "1" : "";
+    if (review) {
+      element.title = REVIEW_TITLES[review];
+    } else {
+      element.removeAttribute("title");
+    }
+    if (review && this.markerLayer) {
+      this.reviewMarker ??= createElement(
+        "div",
+        {
+          part: "review-marker",
+          style: {
+            position: "absolute",
+            top: "0",
+            bottom: "0",
+            width: `${REVIEW_MARKER_WIDTH_PX}px`,
+            pointerEvents: "none",
+          },
+        },
+        this.markerLayer,
+      );
+      this.reviewMarker.style.backgroundColor = REVIEW_COLORS[review];
+    } else {
+      this.reviewMarker?.remove();
+      this.reviewMarker = undefined;
+    }
+    this.renderPosition();
   }
 
   private initMouseEvents() {
@@ -593,7 +655,8 @@ class SingleRegion extends EventEmitter<RegionEvents> implements Region {
   }
 
   private get fill(): string {
-    return this.selected || this.highlighted ? SELECTION_COLOR : this.color;
+    if (this.selected || this.highlighted) return SELECTION_COLOR;
+    return this.review ? REVIEW_COLORS[this.review] : this.color;
   }
 
   private get labelOnFill(): string {
@@ -736,6 +799,7 @@ class SingleRegion extends EventEmitter<RegionEvents> implements Region {
     channelCount,
     highlighted,
     faded,
+    review,
   }: RegionParams) {
     const clamp = (time: number) => Math.max(0, Math.min(this.totalDuration, time));
     this.start = clamp(start);
@@ -748,6 +812,7 @@ class SingleRegion extends EventEmitter<RegionEvents> implements Region {
       this.faded = faded ?? false;
       this.paint();
     }
+    if (review !== this.review) this.setReview(review);
     if (channelIdx !== undefined || channelCount !== undefined) {
       this.channelIdx = channelIdx ?? this.channelIdx;
       this.numberOfChannels = channelCount ?? this.numberOfChannels;
@@ -758,6 +823,12 @@ class SingleRegion extends EventEmitter<RegionEvents> implements Region {
       '[part*="region-handle-right"]',
     ) as HTMLElement | null;
     if (rightHandle) this.applyRightHandleAppearance(rightHandle);
+  }
+
+  public setReview(review: RegionReview | undefined) {
+    this.review = review;
+    this.applyReview();
+    this.paint();
   }
 
   /**
@@ -794,6 +865,8 @@ class SingleRegion extends EventEmitter<RegionEvents> implements Region {
     this.prevRegion = undefined;
 
     this.emit("remove");
+    this.reviewMarker?.remove();
+    this.reviewMarker = undefined;
     if (this.element) {
       this.element.remove();
       // This violates the type but we want to clean up the DOM reference
@@ -805,6 +878,7 @@ class SingleRegion extends EventEmitter<RegionEvents> implements Region {
 class RegionsPlugin extends BasePlugin<RegionsPluginEvents, RegionsPluginOptions> {
   private regions: Region[] = [];
   private readonly regionsContainer: HTMLElement;
+  private readonly markersContainer: HTMLElement;
   private firstRegion?: Region;
   // Kept as ids rather than references so a selection survives the
   // teardown-and-rebuild the host does whenever the timings change.
@@ -819,6 +893,15 @@ class RegionsPlugin extends BasePlugin<RegionsPluginEvents, RegionsPluginOptions
   constructor(options?: RegionsPluginOptions) {
     super(options);
     this.regionsContainer = this.initRegionsContainer();
+    this.markersContainer = createElement("div", {
+      part: "review-markers",
+      style: {
+        position: "absolute",
+        inset: "0",
+        zIndex: "4",
+        pointerEvents: "none",
+      },
+    });
   }
 
   /** Create an instance of RegionsPlugin */
@@ -832,6 +915,7 @@ class RegionsPlugin extends BasePlugin<RegionsPluginEvents, RegionsPluginOptions
       throw Error("WaveSurfer is not initialized");
     }
     this.wavesurfer.getWrapper().appendChild(this.regionsContainer);
+    this.wavesurfer.getWrapper().appendChild(this.markersContainer);
 
     // A zoom moves every region without necessarily scrolling, so redraw has to drive the pass too.
     this.subscriptions.push(
@@ -1004,6 +1088,14 @@ class RegionsPlugin extends BasePlugin<RegionsPluginEvents, RegionsPluginOptions
   }
 
   /**
+   * Select one region, as a click on it does. A region that isn't drawn yet is selected once it is.
+   */
+  public selectRegion(id: string) {
+    this.setSelection([id]);
+    this.anchorId = id;
+  }
+
+  /**
    * Turn selecting regions by clicking, and moving them by dragging their body, on or off.
    */
   public setSelectable(selectable: boolean) {
@@ -1011,10 +1103,10 @@ class RegionsPlugin extends BasePlugin<RegionsPluginEvents, RegionsPluginOptions
     if (!selectable) this.clearSelection();
   }
 
-  private setSelection(regions: Region[]) {
-    const ids = new Set(regions.map((region) => region.id));
-    this.regions.forEach((region) => region.setSelected(ids.has(region.id)));
-    this.selectedIds = ids;
+  private setSelection(ids: string[]) {
+    this.selectedIds = new Set(ids);
+    this.regions.forEach((region) => region.setSelected(this.selectedIds.has(region.id)));
+    this.emit("selection-change", ids);
   }
 
   private onRegionClicked(region: Region, event: MouseEvent) {
@@ -1026,12 +1118,14 @@ class RegionsPlugin extends BasePlugin<RegionsPluginEvents, RegionsPluginOptions
     const anchorIndex = ordered.findIndex((other) => other.id === this.anchorId);
     if (anchorIndex === -1) {
       this.anchorId = region.id;
-      return this.setSelection([region]);
+      return this.setSelection([region.id]);
     }
 
     const clickedIndex = ordered.findIndex((other) => other.id === region.id);
     this.setSelection(
-      ordered.slice(Math.min(anchorIndex, clickedIndex), Math.max(anchorIndex, clickedIndex) + 1),
+      ordered
+        .slice(Math.min(anchorIndex, clickedIndex), Math.max(anchorIndex, clickedIndex) + 1)
+        .map((other) => other.id),
     );
   }
 
@@ -1103,7 +1197,10 @@ class RegionsPlugin extends BasePlugin<RegionsPluginEvents, RegionsPluginOptions
     for (const region of this.regions) {
       if (!region.element) continue;
       const start = (region.start / duration) * trackWidth;
-      const width = ((region.end - region.start) / duration) * trackWidth || 1;
+      const width = Math.max(
+        ((region.end - region.start) / duration) * trackWidth,
+        region.review ? REVIEW_MIN_WIDTH_PX : 1,
+      );
       const isVisible = start + width > viewLeft && start < viewRight;
       if (isVisible === region.isAttached) continue;
       region.isAttached = isVisible;
@@ -1180,7 +1277,7 @@ class RegionsPlugin extends BasePlugin<RegionsPluginEvents, RegionsPluginOptions
 
     const duration = this.wavesurfer.getDuration();
     const numberOfChannels = 5; // this.wavesurfer?.getDecodedData()?.numberOfChannels
-    const region = new SingleRegion(options, duration, numberOfChannels);
+    const region = new SingleRegion(options, duration, numberOfChannels, this.markersContainer);
 
     if (!duration) {
       this.subscriptions.push(
@@ -1244,6 +1341,7 @@ class RegionsPlugin extends BasePlugin<RegionsPluginEvents, RegionsPluginOptions
     this.clearRegions();
     super.destroy();
     this.regionsContainer.remove();
+    this.markersContainer.remove();
   }
 }
 
