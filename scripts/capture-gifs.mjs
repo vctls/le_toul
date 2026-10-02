@@ -1258,6 +1258,107 @@ async function captureReconcile(page) {
   return { rec };
 }
 
+/**
+ * A paste that replaces words over timed lyrics: the toast, Show, the flagged rectangles with their
+ * marker lines, a drag that retimes one, and Mark as checked on another.
+ */
+async function captureReview(page) {
+  await setupAdjustView(page);
+  await page.context().grantPermissions(["clipboard-read", "clipboard-write"]);
+  const pointer = new Pointer(page);
+  await pointer.install();
+  // The frame has to hold the title row and the waveform, so the instructions are collapsed.
+  await page.getByRole("button", { name: "Instructions", pressed: true }).click();
+  await sleep(300);
+
+  const view = page.viewportSize();
+  // Clipped below the app header, down to the toast at the bottom of the viewport.
+  const clip = { x: 0, y: 58, width: view.width, height: view.height - 58 };
+  const rec = new Recorder(page, "review", clip);
+  await rec.init();
+
+  const lyricsTab = page.locator("nav.tabs .lyric-input-tab-header");
+  const editor = page.locator(".lyric-input-tab .lyric-editor-textarea");
+
+  /** Glides to an element and clicks it, recording the press. */
+  const clickOn = async (locator, settle = 300) => {
+    const box = await locator.boundingBox();
+    await pointer.glideTo(box.x + box.width / 2, box.y + box.height / 2, rec, 10, 30);
+    await rec.hold(3);
+    await pointer.press();
+    await rec.hold(2);
+    await pointer.release();
+    await sleep(settle);
+    await rec.hold(3);
+  };
+
+  await clickOn(lyricsTab, 500);
+  await rec.hold(6);
+
+  // Two words become three, so the middle one loses its timing, and a word is replaced by
+  // another. The new words are made up.
+  const lyrics = await fs.readFile(LYRICS, "utf-8");
+  const from = lyrics.indexOf("great_big");
+  const to = lyrics.indexOf("seemed") + "seemed".length;
+  const pasted = lyrics
+    .slice(from, to)
+    .replace("great_big", "flim_zad_kroo")
+    .replace("seemed", "zorvel");
+  const box = await editor.boundingBox();
+  await pointer.glideTo(box.x + 300, box.y + 40, rec, 8, 30);
+  await page.evaluate(
+    ({ start, end }) => {
+      const t = document.querySelector(".lyric-input-tab .lyric-editor-textarea");
+      t.focus();
+      t.setSelectionRange(start, end);
+    },
+    { start: from, end: to },
+  );
+  await rec.hold(14);
+  await page.evaluate((text) => navigator.clipboard.writeText(text), pasted);
+  await page.keyboard.press("ControlOrMeta+V");
+  await sleep(300);
+  await rec.hold(30);
+
+  // Show opens the Timing tab on the first flagged syllable.
+  await clickOn(page.getByRole("alertdialog").getByRole("button", { name: "Show" }), 1200);
+  // The viewport holds the whole tab, from the title row's buttons down to the waveform.
+  await page.locator(".timing-adjustment-tab").evaluate((tab) => (tab.scrollTop = 0));
+  await sleep(300);
+  await rec.hold(26);
+
+  // The next one lost its timing. Dragging it into place clears its flag.
+  await clickOn(page.getByRole("button", { name: "Next syllable to review" }), 400);
+  await rec.hold(16);
+  const flagged = await page.evaluate(() => {
+    const pinia = document.querySelector("#app").__vue_app__.config.globalProperties.$pinia;
+    const timings = pinia._s.get("timings");
+    return timings.activeSegments.flatMap((segment, i) => (segment.review ? [i] : []));
+  });
+  const lost = await segmentBox(page, flagged[1]);
+  const y = (lost.top + lost.bottom) / 2;
+  await pointer.glideTo((lost.left + lost.right) / 2, y, rec, 10, 30);
+  await rec.hold(4);
+  await pointer.press();
+  await rec.hold(3);
+  for (let i = 1; i <= 10; i++) {
+    await pointer.moveTo((lost.left + lost.right) / 2 - (12 * i) / 10, y);
+    await sleep(30);
+    await rec.frame();
+  }
+  await pointer.release();
+  await sleep(600);
+  await rec.hold(20);
+
+  // The last one keeps its timing, which is already right.
+  await clickOn(page.getByRole("button", { name: "Next syllable to review" }), 400);
+  await rec.hold(14);
+  await clickOn(page.getByRole("button", { name: "Mark as checked" }), 400);
+  await rec.hold(30);
+
+  return { rec };
+}
+
 const CAPTURES = {
   zoom: { fn: captureZoom, out: "waveform-zoom.gif" },
   split: { fn: captureSplit, out: "segment-split-join.gif" },
@@ -1267,6 +1368,11 @@ const CAPTURES = {
     viewport: { width: 1180, height: 660 },
   },
   "group-drag": { fn: captureGroupDrag, out: "region-group-drag.gif" },
+  review: {
+    fn: captureReview,
+    out: "timings-review.gif",
+    viewport: { width: 1180, height: 1000 },
+  },
   "round-trip": {
     fn: captureSessionRoundTrip,
     out: "start-over-and-restore.gif",

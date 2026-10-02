@@ -103,6 +103,17 @@ The previous Timing tab is still there, behind a switch at the end of the Tap mo
 
   ![Removing a slash merges two rectangles, adding it back leaves a faded one that a drag pins down](docs/media/lyric-edit-reconcile.gif)
 
+- **See what a lyric edit did to the timings.** When an edit replaces words, the timings it
+  couldn't keep for certain are flagged on the waveform: red for a syllable that lost its timing,
+  orange for one that took its timing from a replaced word. Each gets a line across the waveform,
+  so it stands out however far you zoom out. The message after a paste says how many there are,
+  and **Show** takes you to the first.  
+  The arrows by the heading, or <kbd>N</kbd> and <kbd>shift</kbd>+<kbd>N</kbd>, go from one to the
+  next. Moving a syllable clears its flag, and **Mark as checked** (<kbd>C</kbd>) clears it on the
+  selected ones without moving them.
+
+  ![Pasting replaced words over timed lyrics, then Show, a drag that retimes the red syllable, and Mark as checked on an orange one](docs/media/timings-review.gif)
+
 - **Select and drag multiple regions at once.** Click one, click another, and everything between
   the two moves together, clamped by the rectangles on either side. <kbd>Esc</kbd> clears it.  
   That way you can quickly fix entire timing sections.
