@@ -5,6 +5,7 @@ from pathlib import Path
 
 import pytubefix as pytube
 import structlog
+from pytubefix import exceptions as pytube_exceptions
 from pytubefix import extract
 
 from .. import settings
@@ -56,6 +57,14 @@ def get_youtube_streams(
 
         return assemble_metadata(youtube), Path(audio_path), Path(video_path)
 
+    except pytube_exceptions.BotDetection as e:
+        logger.error("youtube_bot_detection", youtube_url=youtube_url, error=str(e))
+        raise YouTubeException(
+            "YouTube refused the download because it looked automated. Try again later."
+        ) from e
+    except pytube_exceptions.PytubeFixError as e:
+        logger.error("youtube_download_error", youtube_url=youtube_url, error=str(e))
+        raise YouTubeException(str(e)) from e
     except urllib.error.URLError as e:
         # Check if this is a "No route to host" error (errno 113)
         is_no_route_error = False

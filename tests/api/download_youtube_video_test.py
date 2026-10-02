@@ -6,6 +6,7 @@ from unittest import mock
 
 import pytest
 from fastapi.testclient import TestClient
+from pytubefix import exceptions as pytube_exceptions
 
 from api.helpers import youtube_helper
 from api.main import app
@@ -186,6 +187,22 @@ def test_download_youtube_video_async_with_storage(youtube_url):
         mock_background_task.assert_called_once_with("gVw-wI1GeqI", youtube_url)
 
 
+def test_download_youtube_video_bot_detection_returns_400():
+    client = TestClient(app)
+
+    with (
+        mock.patch("api.settings.SEPARATED_TRACKS_BUCKET", None),
+        mock.patch(
+            "api.helpers.youtube_helper.pytube.YouTube",
+            side_effect=pytube_exceptions.BotDetection("gVw-wI1GeqI"),
+        ),
+    ):
+        response = client.get("/download_video?url=https://youtu.be/gVw-wI1GeqI")
+
+    assert response.status_code == 400
+    assert "looked automated" in response.json()["detail"]
+
+
 def test_download_youtube_video_invalid_url():
     """Test that invalid YouTube URLs return 400 error."""
     client = TestClient(app)
@@ -244,3 +261,22 @@ def test_process_youtube_download_background(
         assert "audio.mp4" in file_names
         assert "video.mp4" in file_names
         assert "metadata.json" in file_names
+
+
+@mock.patch("api.helpers.youtube_helper.write_async_error")
+def test_process_youtube_download_background_writes_pytubefix_errors(
+    mock_write_async_error,
+):
+    """The client polls until a zip or an error file appears, so every failure needs one."""
+    with mock.patch(
+        "api.helpers.youtube_helper.pytube.YouTube",
+        side_effect=pytube_exceptions.VideoPrivate("gVw-wI1GeqI"),
+    ):
+        youtube_helper.process_youtube_download_background(
+            "gVw-wI1GeqI", "https://youtu.be/gVw-wI1GeqI"
+        )
+
+    mock_write_async_error.assert_called_once()
+    message, filename = mock_write_async_error.call_args[0]
+    assert "private" in message
+    assert filename == "gVw-wI1GeqI"
