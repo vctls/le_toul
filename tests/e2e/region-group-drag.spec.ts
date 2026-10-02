@@ -16,13 +16,14 @@ import {
   getCurrentTimings,
   expectTimingsToMatch,
 } from "./utils";
+import type { Page } from "@playwright/test";
 
 // Segments 1 and 2 of the fixture are joined: segment 1 has no end marker, so
 // it runs up to segment 2's start and has to stretch when segment 2 moves.
 const FIXTURE_TIMINGS = "timings-adjust-group.json";
 const LYRICS = "One\nTwo\nThree\nFour";
 
-async function setupAdjustTab(page: import("@playwright/test").Page) {
+async function setupAdjustTab(page: Page) {
   await navigateToTab(page, TabId.SongInfo);
   await uploadAudioFile(
     page,
@@ -37,6 +38,31 @@ async function setupAdjustTab(page: import("@playwright/test").Page) {
   await navigateToTab(page, TabId.TimingAdjustment);
   await scrollWaveformIntoView(page);
   await expect(regionLocator(page, 0)).toBeVisible();
+}
+
+/**
+ * Drags a box over the waveform from `from` to `to`, each a time in seconds and the segment whose
+ * row it is level with.
+ */
+async function dragBox(
+  page: Page,
+  from: { time: number; row: number },
+  to: { time: number; row: number },
+): Promise<void> {
+  const wrapper = await page
+    .locator('.timing-adjustment-tab .wavesurfer-container [part~="wrapper"]')
+    .boundingBox();
+  const pixelsPerSecond = await waveformPixelsPerSecond(page);
+  const point = async ({ time, row }: { time: number; row: number }) => {
+    const box = await regionLocator(page, row).boundingBox();
+    return { x: wrapper!.x + time * pixelsPerSecond, y: box!.y + box!.height / 2 };
+  };
+  const start = await point(from);
+  const end = await point(to);
+  await page.mouse.move(start.x, start.y);
+  await page.mouse.down();
+  await page.mouse.move(end.x, end.y, { steps: 5 });
+  await page.mouse.up();
 }
 
 test.describe("Adjust tab region selection", () => {
@@ -115,5 +141,26 @@ test.describe("Adjust tab region selection", () => {
     await expectRegionSelected(page, 1, false);
     await expectRegionSelected(page, 2, false);
     await expectRegionSelected(page, 3, false);
+  });
+
+  test("dragging across the waveform selects the rectangles in that stretch of time", async ({
+    page,
+  }) => {
+    await setupAdjustTab(page);
+
+    // Nothing is drawn between segment 2's end at 6 s and segment 3's start at 7 s.
+    // The drag stays in segment 3's row, which holds none of the others.
+    await dragBox(page, { time: 6.5, row: 3 }, { time: 1.5, row: 3 });
+
+    await expectRegionSelected(page, 0);
+    await expectRegionSelected(page, 1);
+    await expectRegionSelected(page, 2);
+    await expectRegionSelected(page, 3, false);
+    await expect(page.locator('[part="selection-marquee"]')).toHaveCount(0);
+
+    // A box that touches nothing clears the selection.
+    await dragBox(page, { time: 6.2, row: 0 }, { time: 6.8, row: 3 });
+    await expectRegionSelected(page, 0, false);
+    await expectRegionSelected(page, 2, false);
   });
 });
