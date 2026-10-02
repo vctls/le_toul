@@ -176,9 +176,10 @@
           A lyric edit changed the timings of the syllables drawn in red or orange, with a line
           across the waveform at each. Red ones lost their timing and sit where the syllables around
           them put them. Orange ones took their timing from a word that was replaced. The arrows by
-          the heading, or <kbd>N</kbd> and <kbd>Shift</kbd>+<kbd>N</kbd>, go from one to the next.
-          Moving a syllable clears its mark, and <strong>Mark as checked</strong>, or <kbd>C</kbd>,
-          clears it on the selected syllables without moving them.
+          the heading, or <kbd>N</kbd> and <kbd>Shift</kbd>+<kbd>N</kbd>, go from one to the next
+          and move the playhead to the preroll before it. Moving a syllable clears its mark, and
+          <strong>Mark as checked</strong>, or <kbd>C</kbd>, clears it on the selected syllables
+          without moving them.
         </p>
         <p v-if="advancedStore.isAdvanced">
           With <strong>Line display times</strong> on, each line gets a frame for the time it's on
@@ -1271,13 +1272,18 @@ export default defineComponent({
       this.goToSegment(target);
     },
     /**
-     * Select a segment's region and scroll it into view, or make it the head in Tap mode.
+     * Select a segment's region, scroll it into view and move the playhead to the preroll before
+     * it, or make it the head in Tap mode.
      */
     goToSegment(index: number) {
       if (this.isTapMode) {
         this.onSegmentPicked(index);
       } else {
-        this.timingAdjusterRef()?.selectSegment(index);
+        const adjuster = this.timingAdjusterRef();
+        adjuster?.selectSegment(index);
+        adjuster?.setAudioPlayhead(
+          prerollStart(this.timingsStore.activeSegments, index, this.prerollSeconds),
+        );
       }
     },
     /**
