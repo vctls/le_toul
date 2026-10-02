@@ -31,6 +31,87 @@ export const SYMBOL_FONT = "DejaVu Sans";
 // miscellaneous symbols and dingbats, which karaoke projects type as count-ins and instrumental bars.
 export const SYMBOL_CHAR = String.raw`[\u2022-\u2023\u2190-\u21ff\u2300-\u23ff\u2500-\u27bf\u27f0-\u27ff\u2b00-\u2bff]`;
 
+// The symbols the count-in picker offers. Every one must be in SYMBOL_CHAR and drawn by DejaVu Sans,
+// so it renders whatever the style's font is.
+export const COUNT_IN_SYMBOLS = [
+  {
+    name: "Arrows",
+    symbols: [
+      { char: "➤", name: "Black rightwards arrowhead" },
+      { char: "➣", name: "Three-D bottom-lighted rightwards arrowhead" },
+      { char: "➢", name: "Three-D top-lighted rightwards arrowhead" },
+      { char: "➔", name: "Heavy wide-headed rightwards arrow" },
+      { char: "➜", name: "Heavy round-tipped rightwards arrow" },
+      { char: "➡", name: "Black rightwards arrow" },
+      { char: "➨", name: "Heavy concave-pointed black rightwards arrow" },
+      { char: "⇒", name: "Rightwards double arrow" },
+      { char: "⇨", name: "Rightwards white arrow" },
+      { char: "→", name: "Rightwards arrow" },
+      { char: "►", name: "Black right-pointing pointer" },
+      { char: "▶", name: "Black right-pointing triangle" },
+      { char: "▸", name: "Black right-pointing small triangle" },
+      { char: "▷", name: "White right-pointing triangle" },
+      { char: "❯", name: "Heavy right-pointing angle quotation mark ornament" },
+      { char: "❱", name: "Heavy right-pointing angle bracket ornament" },
+    ],
+  },
+  {
+    name: "Shapes",
+    symbols: [
+      { char: "●", name: "Black circle" },
+      { char: "○", name: "White circle" },
+      { char: "•", name: "Bullet" },
+      { char: "‣", name: "Triangular bullet" },
+      { char: "◦", name: "White bullet" },
+      { char: "◉", name: "Fisheye" },
+      { char: "◎", name: "Bullseye" },
+      { char: "⬤", name: "Black large circle" },
+      { char: "◆", name: "Black diamond" },
+      { char: "◇", name: "White diamond" },
+      { char: "■", name: "Black square" },
+      { char: "□", name: "White square" },
+      { char: "◼", name: "Black medium square" },
+      { char: "▪", name: "Black small square" },
+      { char: "▲", name: "Black up-pointing triangle" },
+      { char: "△", name: "White up-pointing triangle" },
+    ],
+  },
+  {
+    name: "Stars and notes",
+    symbols: [
+      { char: "★", name: "Black star" },
+      { char: "☆", name: "White star" },
+      { char: "✦", name: "Black four pointed star" },
+      { char: "✧", name: "White four pointed star" },
+      { char: "✩", name: "Stress outlined white star" },
+      { char: "✪", name: "Circled white star" },
+      { char: "♪", name: "Eighth note" },
+      { char: "♫", name: "Beamed eighth notes" },
+      { char: "♬", name: "Beamed sixteenth notes" },
+      { char: "♩", name: "Quarter note" },
+      { char: "♥", name: "Black heart suit" },
+      { char: "♡", name: "White heart suit" },
+    ],
+  },
+  {
+    name: "Numbers",
+    symbols: [
+      { char: "❶", name: "Dingbat negative circled digit one" },
+      { char: "❷", name: "Dingbat negative circled digit two" },
+      { char: "❸", name: "Dingbat negative circled digit three" },
+      { char: "❹", name: "Dingbat negative circled digit four" },
+      { char: "➊", name: "Dingbat negative circled sans-serif digit one" },
+      { char: "➋", name: "Dingbat negative circled sans-serif digit two" },
+      { char: "➌", name: "Dingbat negative circled sans-serif digit three" },
+      { char: "➍", name: "Dingbat negative circled sans-serif digit four" },
+      { char: "➀", name: "Dingbat circled sans-serif digit one" },
+      { char: "➁", name: "Dingbat circled sans-serif digit two" },
+      { char: "➂", name: "Dingbat circled sans-serif digit three" },
+      { char: "➃", name: "Dingbat circled sans-serif digit four" },
+    ],
+  },
+];
+
 // The bundled fonts that draw what a style's font can't, and the characters each one stands in for.
 export const FALLBACK_FONTS = [
   { family: CJK_FONT, chars: CJK_CHAR },
