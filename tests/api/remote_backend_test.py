@@ -7,7 +7,9 @@ demand: stay queued, lose a task, or stop answering.
 """
 
 import json
+import shutil
 import threading
+import wave
 from pathlib import Path
 from unittest import mock
 
@@ -129,6 +131,26 @@ def test_it_separates_through_the_protocol(song, song_dir):
     assert result.vocals.read_bytes() == SONG
     assert stages[0] == separation_progress.UPLOADING_STAGE
     assert stages[-1] == separation_progress.DOWNLOADING_STEMS_STAGE
+
+
+@pytest.mark.skipif(not shutil.which("ffmpeg"), reason="needs ffmpeg")
+def test_a_wav_song_goes_up_as_flac(tmp_path, song_dir):
+    songfile = tmp_path / "song.wav"
+    with wave.open(str(songfile), "wb") as wav:
+        wav.setnchannels(2)
+        wav.setsampwidth(2)
+        wav.setframerate(44100)
+        wav.writeframes(bytes(4 * 44100))
+    client, _ = server(PassthroughBackend())
+
+    result = RemoteBackend(client).separate(songfile, song_dir, MODEL_NAME)
+
+    # The passthrough server hands the upload back as both stems.
+    assert result.vocals.read_bytes().startswith(b"fLaC")
+    assert {path.name for path in song_dir.iterdir()} == {
+        result.accompaniment.name,
+        result.vocals.name,
+    }
 
 
 def test_it_reports_a_queued_task_as_waiting_for_a_gpu(song, song_dir):

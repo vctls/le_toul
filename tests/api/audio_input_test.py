@@ -118,3 +118,63 @@ def test_separation_reads_the_converted_song(tmp_path):
     assert reports[0] == separation_progress.CONVERTING_STAGE
     # The conversion is scratch, and does not outlive the separation.
     assert not separated_from[0].exists()
+
+
+@pytest.mark.parametrize(
+    ("name", "codec", "subtype"),
+    [
+        ("song.wav", "pcm_s16le", "PCM_16"),
+        ("song.wav", "pcm_s24le", "PCM_24"),
+        ("song.aiff", "pcm_s16be", "PCM_16"),
+    ],
+)
+def test_pcm_compresses_to_flac_losslessly(tmp_path, name, codec, subtype):
+    song = make_song(tmp_path / name, codec)
+    work_dir = tmp_path / "work"
+    work_dir.mkdir()
+
+    compressed = audio_input.compress_pcm(song, work_dir)
+
+    assert compressed.suffix == ".flac"
+    assert soundfile.info(str(compressed)).subtype == subtype
+    original, _ = soundfile.read(str(song), dtype="int32")
+    decoded, _ = soundfile.read(str(compressed), dtype="int32")
+    assert (original == decoded).all()
+
+
+def test_compression_keeps_every_channel(tmp_path):
+    song = make_song(tmp_path / "song.wav", "pcm_s16le", "5.1")
+
+    compressed = audio_input.compress_pcm(song, tmp_path)
+
+    assert soundfile.info(str(compressed)).channels == 6
+
+
+@pytest.mark.parametrize(
+    ("name", "codec"),
+    [
+        ("song.mp3", "libmp3lame"),
+        ("song.flac", "flac"),
+        # FLAC would store these as 24-bit, losing precision.
+        ("song.wav", "pcm_s32le"),
+        ("song.wav", "pcm_f32le"),
+    ],
+)
+def test_songs_flac_cannot_hold_losslessly_go_up_as_they_are(tmp_path, name, codec):
+    song = make_song(tmp_path / name, codec)
+
+    assert audio_input.compress_pcm(song, tmp_path) == song
+
+
+def test_undecodable_song_goes_up_as_it_is(tmp_path):
+    song = tmp_path / "song.wav"
+    song.write_bytes(b"not audio")
+
+    assert audio_input.compress_pcm(song, tmp_path) == song
+
+
+def test_missing_ffprobe_sends_the_song_as_it_is(tmp_path):
+    song = make_song(tmp_path / "song.wav", "pcm_s16le")
+
+    with mock.patch("subprocess.run", side_effect=FileNotFoundError):
+        assert audio_input.compress_pcm(song, tmp_path) == song
