@@ -12,6 +12,7 @@ import { createAssFile } from "@/lib/timing";
 import { DEFAULT_VOICE_ID } from "@/lib/voices";
 import { TimedSegment } from "@/lib/timedSegments";
 import { parseTimingsText } from "@/lib/timingsText";
+import { startPass, tapStart, tapSteps } from "@/lib/tapPass";
 
 // Mock the createAssFile function
 vi.mock("@/lib/timing", async (importOriginal) => ({
@@ -442,6 +443,28 @@ describe("Timings Store", () => {
       timings.add(1, LYRIC_MARKERS.SEGMENT_END, 2.8);
 
       expect(timings.activeSegments[1]).toEqual({ text: "two_", start: 2, end: 2.8 });
+    });
+
+    test("a pass of taps clears the flag of every segment it retimes", () => {
+      const timings = useTimingsStore();
+      useLyricsStore().setLyrics("one_two_three");
+      timings.setAllSegments({
+        [DEFAULT_VOICE_ID]: [
+          { text: "one_", start: 1, review: "moved" },
+          { text: "two_", start: 2, review: "moved" },
+          { text: "three", start: 3, review: "moved" },
+        ],
+      });
+      let pass = startPass(timings.activeSegments, 0);
+      pass = tapStart(tapStart(tapStart(pass, 1.1), 2.1), 3.1);
+
+      timings.applyVoiceEdits(DEFAULT_VOICE_ID, tapSteps(pass), "Tap");
+
+      expect(timings.activeSegments).toEqual([
+        { text: "one_", start: 1.1 },
+        { text: "two_", start: 2.1 },
+        { text: "three", start: 3.1 },
+      ]);
     });
 
     test("resuming the timing from a segment clears the flags from there on", () => {
