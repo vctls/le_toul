@@ -482,7 +482,7 @@ class SingleRegion extends EventEmitter<RegionEvents> implements Region {
       style: {
         position: "absolute",
         height: "auto",
-        backgroundColor: isMarker ? "none" : this.color,
+        backgroundColor: isMarker ? "transparent" : this.color,
         borderLeft: isMarker ? "2px solid " + this.color : "none",
         borderRadius: "2px",
         boxSizing: "border-box",
@@ -666,7 +666,7 @@ class SingleRegion extends EventEmitter<RegionEvents> implements Region {
   private paint() {
     this.element.style.opacity = this.faded ? FADED_OPACITY : "";
     this.element.style.backgroundColor =
-      this.isMarker && this.fill === this.color ? "none" : this.fill;
+      this.isMarker && this.fill === this.color ? "transparent" : this.fill;
     this.element.style.borderLeftColor = this.fill;
     this.element.style.cursor = this.selected ? "grab" : "pointer";
     if (this.contentOverlay) this.contentOverlay.style.backgroundColor = this.fill;
@@ -845,6 +845,8 @@ class SingleRegion extends EventEmitter<RegionEvents> implements Region {
    */
   public refreshPosition() {
     this.renderPosition();
+    // Whether the region is a marker depends on that neighbour too, and a marker has no fill.
+    this.paint();
   }
 
   /** Remove the region */

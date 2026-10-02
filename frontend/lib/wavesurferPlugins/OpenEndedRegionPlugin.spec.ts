@@ -125,6 +125,20 @@ describe("regions to review", () => {
     expect(markers()).toHaveLength(0);
   });
 
+  it("repaints a region that was a marker while its neighbour moved", () => {
+    const { plugin } = setUp();
+    const first = plugin.addRegion({ id: "a", start: 10, color: "blue", review: "moved" });
+    plugin.addRegion({ id: "b", start: 20, color: "blue", review: "moved" });
+
+    // "a" takes the start "b" had, so it is a marker until "b" moves on.
+    plugin.syncRegions([
+      { id: "a", start: 20, color: "blue" },
+      { id: "b", start: 30, color: "blue" },
+    ]);
+
+    expect(first.element.style.backgroundColor).toBe("blue");
+  });
+
   it("selects a region by id, even one added later", () => {
     const { plugin } = setUp();
     const selections: string[][] = [];
