@@ -255,6 +255,12 @@ export default defineComponent({
     themeTitle(): string {
       return `${this.themeButton.label} — click to change`;
     },
+    pageTitle(): string {
+      return [this.appName, this.mediaStore.songTitle, this.mediaStore.songArtist]
+        .map((part) => part?.trim())
+        .filter(Boolean)
+        .join(" | ");
+    },
     isOnHiddenTab(): boolean {
       return (
         (this.activeTab === "edit" && !this.advancedStore.isAdvanced) ||
@@ -263,6 +269,12 @@ export default defineComponent({
     },
   },
   watch: {
+    pageTitle: {
+      handler(title: string) {
+        document.title = title;
+      },
+      immediate: true,
+    },
     // Buefy shows a blank page for a hidden tab that is still active.
     isOnHiddenTab: {
       handler(isHidden: boolean) {
