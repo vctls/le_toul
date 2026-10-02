@@ -1304,6 +1304,21 @@ describe("TimingAdjustmentTab shortcuts", () => {
       expect(timings.activeSegments[1].review).toBe("moved");
     });
 
+    it("goes to the next one once the selection is marked as checked", async () => {
+      const wrapper = mountFlagged();
+      select(wrapper, [1]);
+      await nextTick();
+
+      pressKey("KeyC", { key: "c" });
+      expect(selectSegment).toHaveBeenLastCalledWith(3);
+
+      select(wrapper, [3]);
+      await nextTick();
+      selectSegment.mockClear();
+      pressKey("KeyC", { key: "c" });
+      expect(selectSegment).not.toHaveBeenCalled();
+    });
+
     it("makes the next one the head with N in Tap mode, and leaves C alone", async () => {
       const wrapper = mountFlagged();
       wrapper.vm.setMode("tap");
