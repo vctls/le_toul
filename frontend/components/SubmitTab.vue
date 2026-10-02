@@ -107,7 +107,7 @@
               expanded
               :model-value="videoOptions.countInThreshold"
               :min="0.5"
-              :step="0.5"
+              :step="0.1"
               @update:model-value="
                 (v: number | null | undefined) =>
                   (videoOptions.countInThreshold = Number(v ?? videoOptions.countInThreshold))
@@ -131,7 +131,7 @@
               :model-value="videoOptions.countInDuration"
               :min="0.5"
               :max="videoOptions.countInThreshold"
-              :step="0.5"
+              :step="0.1"
               @update:model-value="
                 (v: number | null | undefined) =>
                   (videoOptions.countInDuration = Number(v ?? videoOptions.countInDuration))
