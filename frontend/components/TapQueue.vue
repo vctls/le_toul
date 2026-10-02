@@ -139,9 +139,6 @@ export default defineComponent({
 .queue-item.is-review-moved {
   border-width: 2px;
   border-color: var(--review-color);
-  box-shadow:
-    inset 0 -4px 0 var(--review-color),
-    0 0.1rem 0.4rem rgb(0 0 0 / 35%);
 }
 
 .queue-item.is-review-lost {
