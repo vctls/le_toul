@@ -1264,17 +1264,32 @@ describe("TimingAdjustmentTab shortcuts", () => {
       expect(timings.activeSegments[1].review).toBe("moved");
     });
 
-    it("leaves N and C alone in Tap mode", async () => {
+    it("makes the next one the head with N in Tap mode, and leaves C alone", async () => {
       const wrapper = mountFlagged();
       wrapper.vm.setMode("tap");
+      wrapper.vm.tapHead = 0;
       select(wrapper, [1]);
       await nextTick();
 
       pressKey("KeyN", { key: "n" });
       pressKey("KeyC", { key: "c" });
 
+      expect(wrapper.vm.tapHead).toBe(1);
       expect(selectSegment).not.toHaveBeenCalled();
       expect(useTimingsStore().activeSegments[1].review).toBe("moved");
+    });
+
+    it("lets a tap key bound to N tap instead", async () => {
+      const wrapper = mountFlagged();
+      useSettingsStore().setTimingKey("start", "KeyN", "N");
+      wrapper.vm.setMode("tap");
+      wrapper.vm.tapHead = 0;
+      await nextTick();
+
+      pressKey("KeyN", { key: "n" });
+
+      expect(togglePlayPause).toHaveBeenCalledOnce();
+      expect(wrapper.vm.tapHead).toBe(0);
     });
 
     it("goes to the first one when the toast asks", async () => {

@@ -71,9 +71,7 @@
           <b-button
             icon-left="angle-left"
             aria-label="Previous syllable to review"
-            :title="
-              isTapMode ? 'Previous syllable to review' : 'Previous syllable to review (Shift+N)'
-            "
+            title="Previous syllable to review (Shift+N)"
             @click="goToReview(-1)"
           />
           <span class="button is-static review-count" :title="reviewCountTitle">
@@ -83,7 +81,7 @@
           <b-button
             icon-left="angle-right"
             aria-label="Next syllable to review"
-            :title="isTapMode ? 'Next syllable to review' : 'Next syllable to review (N)'"
+            title="Next syllable to review (N)"
             @click="goToReview(1)"
           />
         </div>
@@ -134,6 +132,11 @@
         <p>
           The arrow keys move the playhead by the preroll, and so does scrolling sideways on the
           waveform. Scroll up and down to zoom. Press <kbd>T</kbd> to switch to Adjust mode.
+        </p>
+        <p v-if="reviewIndices.length > 0">
+          A lyric edit changed the timings of the syllables outlined in red or orange. The arrows by
+          the heading, or <kbd>N</kbd> and <kbd>Shift</kbd>+<kbd>N</kbd>, make the next or previous
+          one the syllable to tap.
         </p>
         <p class="legacy-tab-switch">
           Looking for the old timing tab?
@@ -1001,8 +1004,9 @@ export default defineComponent({
       // The letter, wherever the keyboard layout puts it, so the shortcut matches its name.
       const letter = hasModifier ? "" : event.key.toLowerCase();
       const isModeKey = letter === "t";
-      // The tap keys only apply in Tap mode, so these letters are free in Adjust mode.
-      const isReviewKey = !this.isTapMode && (letter === "n" || letter === "c");
+      // Tap keys are matched first, so a letter bound to one taps instead.
+      // Mark as checked needs a selection, which Tap mode doesn't have.
+      const isReviewKey = letter === "n" || (letter === "c" && !this.isTapMode);
       if (
         event.code !== "Space" &&
         !isEnter &&
