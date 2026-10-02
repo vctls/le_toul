@@ -2,33 +2,23 @@
   <textarea
     class="textarea is-flex-grow-1 lyric-editor-textarea"
     :value="modelValue"
+    @beforeinput="onBeforeInput"
     @input="onLyricInput"
-    @paste="onPaste"
+    @keydown="onKeyDown"
+    @blur="onBlur"
     ref="lyricInput"
+    aria-label="Lyrics"
     spellcheck="false"
     autocorrect="off"
     autocapitalize="off"
     autocomplete="off"
   ></textarea>
-  <confirm-modal
-    v-model="isConfirmingPaste"
-    title="Paste over timed lyrics?"
-    type="is-danger"
-    icon="circle-exclamation"
-    confirm-label="Paste anyway"
-    @confirm="confirmPaste"
-    @update:model-value="onPasteModalToggle"
-  >
-    <p>
-      This paste removes {{ pendingPaste?.lost }} timing{{ pendingPaste?.lost === 1 ? "" : "s" }}.
-    </p>
-  </confirm-modal>
 </template>
 
 <script lang="ts">
 import { defineComponent } from "vue";
-import ConfirmModal from "@/components/ConfirmModal.vue";
-import { useTimingsStore } from "@/stores/timings";
+import { useHistoryStore } from "@/stores/history";
+import { EntryMeta, historyStepFor } from "@/lib/history";
 
 import {
   getCurrentWord,
@@ -37,10 +27,30 @@ import {
   convertSpacesToUnderscores,
 } from "@/lib/lyrics";
 
-type PendingPaste = { start: number; end: number; text: string; lost: number };
+type Selection = [number, number];
+type LastStep = ReturnType<typeof useHistoryStore>["lastStep"];
+
+// Typing of these kinds joins the edits before it as one undo step.
+const TYPING_INPUT_TYPES = new Set([
+  "insertText",
+  "insertLineBreak",
+  "insertCompositionText",
+  "deleteContentBackward",
+  "deleteContentForward",
+]);
+// A pause this long in milliseconds starts a new undo step.
+const TYPING_PAUSE = 1000;
+// Typing one of these ends the undo step, so a word is undone at a time.
+const SEPARATOR = /[\s_/]/;
+
+const EDIT_LABELS: Record<string, string> = {
+  insertFromPaste: "Paste",
+  insertFromDrop: "Drop",
+  deleteByCut: "Cut",
+  deleteByDrag: "Drag",
+};
 
 export default defineComponent({
-  components: { ConfirmModal },
   emits: ["update:modelValue"],
   props: {
     modelValue: { type: String, default: "" },
@@ -49,14 +59,39 @@ export default defineComponent({
       default: true,
     },
   },
+  setup() {
+    return { history: useHistoryStore() };
+  },
   data() {
     return {
       scrollTop: 0,
       visibilityObserver: null as IntersectionObserver | null,
-      replacing: false,
-      isConfirmingPaste: false,
-      pendingPaste: null as PendingPaste | null,
+      // The selection when the edit being made started, read before the browser changes it.
+      selectionBefore: null as Selection | null,
+      // Where the last typing left the cursor, to tell whether the next edit continues it.
+      typing: null as { cursor: number; at: number; ended: boolean } | null,
+      // A selection an undo restored while the tab was hidden.
+      pendingSelection: null as Selection | null,
     };
+  },
+  watch: {
+    "history.lastStep"(last: LastStep) {
+      const selection = last?.entry.selection;
+      if (!last || !selection) return;
+      this.typing = null;
+      const [start, end] = last.step === "undo" ? selection.before : selection.after;
+      // The textarea's value only changes once Vue renders.
+      this.$nextTick(() => {
+        const input = this.textarea();
+        // A hidden tab's textarea has no offset parent.
+        if (input.offsetParent !== null) {
+          input.focus();
+          input.setSelectionRange(start, end);
+        } else {
+          this.pendingSelection = [start, end];
+        }
+      });
+    },
   },
   mounted() {
     const input = this.textarea();
@@ -65,6 +100,10 @@ export default defineComponent({
     this.visibilityObserver = new IntersectionObserver(([entry]) => {
       if (entry.isIntersecting) {
         input.scrollTop = this.scrollTop;
+        if (this.pendingSelection) {
+          input.setSelectionRange(...this.pendingSelection);
+          this.pendingSelection = null;
+        }
       }
     });
     this.visibilityObserver.observe(input);
@@ -77,6 +116,10 @@ export default defineComponent({
     textarea(): HTMLTextAreaElement {
       return this.$refs.lyricInput as HTMLTextAreaElement;
     },
+    selection(): Selection {
+      const input = this.textarea();
+      return [input.selectionStart, input.selectionEnd];
+    },
     rememberScroll() {
       const input = this.textarea();
       // Hiding the tab zeroes scrollTop. Ignore that so the saved offset survives.
@@ -84,93 +127,96 @@ export default defineComponent({
         this.scrollTop = input.scrollTop;
       }
     },
+    /**
+     * Sends the browser's own undo, from its Edit menu, context menu or shake to undo, to the
+     * history.
+     */
+    onBeforeInput(e: InputEvent) {
+      if (e.inputType === "historyUndo" || e.inputType === "historyRedo") {
+        e.preventDefault();
+        this.history[e.inputType === "historyUndo" ? "undo" : "redo"]();
+        return;
+      }
+      this.selectionBefore = this.selection();
+    },
+    onKeyDown(e: KeyboardEvent) {
+      const step = historyStepFor(e);
+      if (!step) return;
+      e.preventDefault();
+      this.history[step]();
+    },
+    onBlur() {
+      this.history.closeGroup();
+      this.typing = null;
+    },
     onLyricInput(e: Event) {
       // TODO: Also update on slash removal
       // TODO: update on pasted text and bulk-removed text
       const input = e.target as HTMLTextAreaElement;
-      if (this.magicSlashes && !this.replacing && this.isSlashEntry(e)) {
-        const text = input.value;
-        const cursor = input.selectionStart;
-        const word = getCurrentWord(text, cursor);
-        const newValue = slashifyAllOccurences(text, word.replaceAll("/", ""), word);
-        this.replaceUndoably(input, newValue);
-        const newCursor = slashifiedPosition(text, newValue, cursor);
-        input.setSelectionRange(newCursor, newCursor);
+      const value = input.value;
+      const after = this.selection();
+      const before = this.selectionBefore ?? after;
+      this.selectionBefore = null;
+      const inputType = e instanceof InputEvent ? e.inputType : "";
+      const isComposing = e instanceof InputEvent && e.isComposing;
+      const meta: EntryMeta = { label: "Typing", tab: "lyrics", selection: { before, after } };
+      const write = () => this.$emit("update:modelValue", value);
+
+      if (isComposing || (TYPING_INPUT_TYPES.has(inputType) && before[0] === before[1])) {
+        const now = Date.now();
+        const last = this.typing;
+        const continues =
+          isComposing ||
+          (last !== null &&
+            !last.ended &&
+            last.cursor === before[0] &&
+            now - last.at < TYPING_PAUSE);
+        this.history.recordTyping(meta, write, continues);
+        const typed = inputType === "insertLineBreak" ? "\n" : ((e as InputEvent).data ?? "");
+        this.typing = { cursor: after[0], at: now, ended: SEPARATOR.test(typed) };
+      } else {
+        this.typing = null;
+        // A paste or a cut can take a whole block of timed lyrics with it, unlike typing.
+        this.history.record({ ...meta, label: EDIT_LABELS[inputType] ?? "Typing" }, write, {
+          warnLoss: true,
+        });
       }
-      this.$emit("update:modelValue", input.value);
-    },
-    /**
-     * Holds back a paste that would remove timings until the user confirms it.
-     */
-    onPaste(e: ClipboardEvent) {
-      const pasted = e.clipboardData?.getData("text/plain");
-      if (!pasted) return;
-      const input = this.textarea();
-      const { selectionStart: start, selectionEnd: end, value } = input;
-      // The textarea normalizes line breaks as it inserts, so the count must too.
-      const text = pasted.replace(/\r\n?/g, "\n");
-      const lost = useTimingsStore().timingsLostBy(value.slice(0, start) + text + value.slice(end));
-      if (lost === 0) return;
-      e.preventDefault();
-      this.pendingPaste = { start, end, text, lost };
-      this.isConfirmingPaste = true;
-    },
-    confirmPaste() {
-      const paste = this.pendingPaste;
-      if (!paste) return;
-      const input = this.textarea();
-      const { value } = input;
-      this.replaceUndoably(
-        input,
-        value.slice(0, paste.start) + paste.text + value.slice(paste.end),
-      );
-      const cursor = paste.start + paste.text.length;
-      input.setSelectionRange(cursor, cursor);
-      this.$emit("update:modelValue", input.value);
-    },
-    onPasteModalToggle(open: boolean) {
-      if (open) return;
-      // The modal took the focus, and the user was typing here.
-      this.$nextTick(() => this.textarea().focus());
+
+      if (this.magicSlashes && this.isSlashEntry(e)) {
+        const cursor = after[0];
+        const word = getCurrentWord(value, cursor);
+        const newValue = slashifyAllOccurences(value, word.replaceAll("/", ""), word);
+        const newCursor = slashifiedPosition(value, newValue, cursor);
+        this.replace(newValue, "Magic slashes", [newCursor, newCursor]);
+      }
     },
     isSlashEntry(e: Event) {
       // Return true if event is a user typing a slash
       return e instanceof InputEvent && e.inputType == "insertText" && e.data == "/";
     },
     convertSpaces() {
-      const input = this.textarea();
-      const { selectionStart, selectionEnd } = input;
-      this.replaceUndoably(input, convertSpacesToUnderscores(input.value));
-      input.setSelectionRange(selectionStart, selectionEnd);
-      this.$emit("update:modelValue", input.value);
+      const selection = this.selection();
+      this.replace(convertSpacesToUnderscores(this.textarea().value), "Add underscores", selection);
     },
     /**
-     * Replaces the textarea's text through the editing API so that native undo reverts it.
-     * Only the span that differs is replaced, so the undo step stays small.
+     * Replaces the whole text as one undo step, and leaves `selection` selected.
      */
-    replaceUndoably(input: HTMLTextAreaElement, newValue: string) {
-      const oldValue = input.value;
-      let start = 0;
-      while (start < oldValue.length && oldValue[start] == newValue[start]) start++;
-      if (start == oldValue.length && start == newValue.length) return;
-      let oldEnd = oldValue.length;
-      let newEnd = newValue.length;
-      while (oldEnd > start && newEnd > start && oldValue[oldEnd - 1] == newValue[newEnd - 1]) {
-        oldEnd--;
-        newEnd--;
-      }
-      const scrollTop = input.scrollTop;
-      // execCommand acts on the focused element, and a toolbar button click takes the focus.
-      input.focus();
-      input.setSelectionRange(start, oldEnd);
-      // insertText fires a synchronous input event, which must not slashify again.
-      this.replacing = true;
-      const inserted = document.execCommand("insertText", false, newValue.slice(start, newEnd));
-      this.replacing = false;
-      if (!inserted) {
+    replace(newValue: string, label: string, selection: Selection) {
+      const input = this.textarea();
+      if (newValue === input.value) return;
+      const meta: EntryMeta = {
+        label,
+        tab: "lyrics",
+        selection: { before: this.selection(), after: selection },
+      };
+      this.typing = null;
+      this.history.record(meta, () => {
+        const scrollTop = input.scrollTop;
         input.value = newValue;
-      }
-      input.scrollTop = scrollTop;
+        input.setSelectionRange(...selection);
+        input.scrollTop = scrollTop;
+        this.$emit("update:modelValue", newValue);
+      });
     },
   },
 });

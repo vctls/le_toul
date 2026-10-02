@@ -8,6 +8,7 @@ import {
   LyricsProviderInfo,
   LyricsQuery,
 } from "@/lib/lyricsLookup";
+import { useHistoryStore } from "@/stores/history";
 import { useLyricsStore } from "@/stores/lyrics";
 import { useMediaStore } from "@/stores/media";
 
@@ -109,7 +110,9 @@ export const useLyricsLookupStore = defineStore("lyricsLookup", () => {
         status.value = { kind: "notFound" };
       } else {
         fetchedText = text;
-        lyrics.setLyrics(text);
+        useHistoryStore().record({ label: "Fetched lyrics", tab: "lyrics" }, () =>
+          lyrics.setLyrics(text),
+        );
         status.value = { kind: "found", match: result.match };
       }
     } catch (error) {

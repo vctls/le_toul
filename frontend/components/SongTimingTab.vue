@@ -180,6 +180,7 @@ import LyricDisplay from "@/components/LyricDisplay.vue";
 import TimingButtons from "@/components/TimingButtons.vue";
 import VoiceSelector from "@/components/VoiceSelector.vue";
 import { useTimingsStore } from "@/stores/timings";
+import { useHistoryStore } from "@/stores/history";
 import { useLyricsStore } from "@/stores/lyrics";
 import { useMediaStore } from "@/stores/media";
 import { useLegacyTimingStore } from "@/stores/legacyTiming";
@@ -207,6 +208,7 @@ export default defineComponent({
     const settingsStore = useSettingsStore();
     const { lyricSegments } = storeToRefs(lyricsStore);
     return {
+      historyStore: useHistoryStore(),
       timingsStore,
       lyricsStore,
       lyricSegments,
@@ -402,7 +404,9 @@ export default defineComponent({
     },
     addTimingEvent(marker: number, currentSongTime: number) {
       if (marker == LYRIC_MARKERS.SEGMENT_END) {
-        this.timingsStore.add(this.currentSegment - 1, marker, currentSongTime);
+        this.recordTap(() =>
+          this.timingsStore.add(this.currentSegment - 1, marker, currentSongTime),
+        );
       } else if (marker == LYRIC_MARKERS.SEGMENT_START) {
         this.advanceToNextSegment(marker, currentSongTime);
       }
@@ -411,8 +415,11 @@ export default defineComponent({
       if (this.currentSegment >= this.segments.length) {
         return;
       }
-      this.timingsStore.add(this.currentSegment, marker, currentSongTime);
+      this.recordTap(() => this.timingsStore.add(this.currentSegment, marker, currentSongTime));
       this.currentSegment += 1;
+    },
+    recordTap(write: () => void) {
+      this.historyStore.record({ label: "Tap", tab: "timing" }, write);
     },
     playPause() {
       this.isPlaying = !this.isPlaying;
@@ -457,7 +464,9 @@ export default defineComponent({
       if (audio) {
         audio.currentTime = this.secondsBeforeSegment(firstSegmentInScreen, 5);
       }
-      this.timingsStore.setCurrentSegment(firstSegmentInScreen);
+      this.historyStore.record({ label: "Redo screen", tab: "timing" }, () =>
+        this.timingsStore.setCurrentSegment(firstSegmentInScreen),
+      );
       this.currentSegment = firstSegmentInScreen;
     },
     firstSegmentOfScreen(screenNum: number) {

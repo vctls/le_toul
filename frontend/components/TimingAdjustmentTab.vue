@@ -13,8 +13,8 @@
         <b-button
           icon-left="arrow-rotate-left"
           aria-label="Undo"
-          :title="`Undo (${undoShortcut})`"
-          :disabled="!pass?.previous && !timingsStore.canUndo"
+          :title="undoTitle"
+          :disabled="!canStep('undo')"
           @click="stepHistory('undo')"
         />
         <span
@@ -68,20 +68,6 @@
           :type="showTapButtons ? 'is-primary' : ''"
           title="Show or hide buttons for tapping without a keyboard"
           @click="showTapButtons = !showTapButtons"
-        />
-        <b-button
-          icon-left="arrow-rotate-left"
-          aria-label="Undo"
-          :title="`Undo (${undoShortcut})`"
-          :disabled="!pass?.previous && !timingsStore.canUndo"
-          @click="stepHistory('undo')"
-        />
-        <b-button
-          icon-left="arrow-rotate-right"
-          aria-label="Redo"
-          :title="`Redo (${redoShortcut})`"
-          :disabled="!!pass || !timingsStore.canRedo"
-          @click="stepHistory('redo')"
         />
         <b-button
           icon-left="eraser"
@@ -152,17 +138,16 @@
           <kbd>Ctrl</kbd>. Scroll up and down on the waveform to zoom.
         </p>
         <p>
-          <kbd>{{ undoShortcut }}</kbd> and <kbd>{{ redoShortcut }}</kbd> undo and redo your edits.
-          Each voice has its own history, which is lost if its timings change in another tab. The
-          eraser clears every timing of this voice, which you can undo too. Press <kbd>T</kbd> to
-          switch to Tap mode.
+          <kbd>{{ undoShortcut }}</kbd> and <kbd>{{ redoShortcut }}</kbd> undo and redo your edits,
+          including those made to the lyrics and in other tabs. The eraser clears every timing of
+          this voice, which you can undo too. Press <kbd>T</kbd> to switch to Tap mode.
         </p>
         <p v-if="advancedStore.isAdvanced">
           With <strong>Line display times</strong> on, each line gets a frame for the time it's on
           screen. Drag its edges to change when the line appears and disappears, or double-click an
           edge to go back to the automatic time. Dashed edges are automatic, and solid ones were set
-          by hand. <strong>Reset</strong> puts every line of every voice back on automatic times.
-          Undoing it restores only the voice you're looking at.
+          by hand. <strong>Reset</strong> puts every line of every voice back on automatic times,
+          and one undo brings them all back.
         </p>
       </template>
     </help-section>
@@ -416,6 +401,8 @@ import { TimingKeys, eventMatchesKey, keyLabel } from "@/lib/timingKeys";
 import KeyCaptureInput from "@/components/KeyCaptureInput.vue";
 import { QueueItem } from "@/components/TapQueue.vue";
 import { displayText, resolveStarts } from "@/lib/timing";
+import { REDO_SHORTCUT, UNDO_SHORTCUT, historyStepFor, historyTitle } from "@/lib/history";
+import { useHistoryStore } from "@/stores/history";
 import { DisplayBand, displayBands } from "@/lib/displayBands";
 import { resolveThemeColor } from "@/lib/themeColor";
 import { onSchemeChange } from "@/lib/colorScheme";
@@ -430,22 +417,6 @@ import { DEFAULT_OUTLINE_WIDTH } from "@/constants";
 // so stepping and the preview jump after a drag agree on what one step is worth.
 // Shift takes five of them.
 const COARSE_STEP_MULTIPLIER = 5;
-
-const IS_MAC = /Mac|iPhone|iPad/.test(navigator.platform);
-const SHORTCUT_MODIFIER = IS_MAC ? "Cmd" : "Ctrl";
-
-/**
- * The history step a shortcut asks for.
- * Ctrl+Z undoes, and Ctrl+Shift+Z or Ctrl+Y redo, with Cmd in place of Ctrl on macOS.
- */
-function historyStepFor(event: KeyboardEvent): "undo" | "redo" | null {
-  if (!(IS_MAC ? event.metaKey : event.ctrlKey) || event.altKey) return null;
-  // The key is read by its character rather than its position, so that Z follows the layout.
-  const key = event.key.toLowerCase();
-  if (key === "z") return event.shiftKey ? "redo" : "undo";
-  if (key === "y" && !event.shiftKey) return "redo";
-  return null;
-}
 
 // The preview here is a working view of the timings, not a proxy for the final video,
 // so it uses the app's own palette, font and size rather than the video settings.
@@ -569,6 +540,7 @@ export default defineComponent({
     const fallbackFontsStore = useFallbackFontsStore();
     const { subtitles } = storeToRefs(timingsStore);
     return {
+      historyStore: useHistoryStore(),
       advancedStore: useAdvancedStore(),
       legacyTimingStore: useLegacyTimingStore(),
       mediaStore,
@@ -642,11 +614,18 @@ export default defineComponent({
   },
   computed: {
     undoShortcut(): string {
-      return `${SHORTCUT_MODIFIER}+Z`;
+      return UNDO_SHORTCUT;
     },
     redoShortcut(): string {
-      return `${SHORTCUT_MODIFIER}+Shift+Z`;
+      return REDO_SHORTCUT;
     },
+    undoTitle(): string {
+      return historyTitle(
+        "undo",
+        this.pass?.previous ? { label: "Tap", tab: "adjust" } : this.historyStore.nextUndo,
+      );
+    },
+
     // Each mode has its own preroll, set in the same field.
     prerollSeconds: {
       get(): number {
@@ -797,6 +776,12 @@ export default defineComponent({
     this.segmentsVoice = this.activeVoice;
   },
   mounted() {
+    // The navbar's Undo and Redo come through here while this tab is shown, as the shortcuts do.
+    this.historyStore.setTabStepper({
+      tab: "adjust",
+      canStep: (step) => this.canStep(step),
+      step: (step) => this.stepHistory(step),
+    });
     // Capture phase: the audio element's built-in controls handle these same keys when they have focus,
     // so we have to get in ahead of them and cancel the native behavior.
     // A bubble-phase listener runs too late and both act.
@@ -809,6 +794,7 @@ export default defineComponent({
     this._unsubscribeScheme = onSchemeChange(this.applyPreviewColors);
   },
   beforeUnmount() {
+    this.historyStore.setTabStepper(null);
     window.removeEventListener("keydown", this.onKeyDown, true);
     window.removeEventListener("pagehide", this.saveBeforeLeaving);
     document.removeEventListener("fullscreenchange", this.onFullScreenChange);
@@ -1041,6 +1027,15 @@ export default defineComponent({
       this.mode = mode;
     },
     /**
+     * Whether an undo or a redo has anything to do. A staged tap can be taken back, but nothing
+     * can be redone during a pass.
+     */
+    canStep(step: "undo" | "redo"): boolean {
+      return step === "undo"
+        ? !!this.pass?.previous || this.historyStore.canUndo
+        : !this.pass && this.historyStore.canRedo;
+    },
+    /**
      * Undo or redo one tap, or one edit made in Adjust mode. In Tap mode the head goes back to where
      * the tap was, and the playhead to the preroll before it, playing on if it was playing.
      */
@@ -1058,7 +1053,10 @@ export default defineComponent({
       }
       this.endPass();
       const before = this.tapSegments;
-      this.timingsStore[step]();
+      const voice = this.activeVoice;
+      this.historyStore[step]();
+      // The step may have switched to another voice, whose taps the head doesn't follow.
+      if (this.activeVoice !== voice) return;
       const tap = steppedTap(before, this.tapSegments, step);
       if (!tap) return;
       this.tapHead = tap.head;
@@ -1171,7 +1169,7 @@ export default defineComponent({
       if (!pass || !passVoice) return;
       this.pass = null;
       this.passVoice = null;
-      this.timingsStore.applyVoiceEdits(passVoice, tapSteps(pass));
+      this.timingsStore.applyVoiceEdits(passVoice, tapSteps(pass), "Tap");
       this.tapHead = pass.head;
     },
     /**
@@ -1183,6 +1181,7 @@ export default defineComponent({
       this.timingsStore.applyVoiceEdit(
         this.activeVoice,
         this.tapSegments.map(({ start, end, displayStart, displayEnd, ...segment }) => segment),
+        "Clear timings",
       );
       this.tapHead = 0;
       this.cueHead();
@@ -1196,22 +1195,22 @@ export default defineComponent({
         start: shift(segment.start),
         end: shift(segment.end),
       }));
-      this.timingsStore.applyAdjustEdit(clampSegmentOverlaps(shifted));
+      this.timingsStore.applyAdjustEdit(clampSegmentOverlaps(shifted), "Shift");
     },
     onBandUpdated(segmentIndex: number, side: "start" | "end", time: number) {
       const segments = this.timingsStore.activeSegments.map((segment) => ({ ...segment }));
       const bound = side === "start" ? "displayStart" : "displayEnd";
       segments[segmentIndex] = { ...segments[segmentIndex], [bound]: time };
-      this.timingsStore.applyAdjustEdit(segments);
+      this.timingsStore.applyAdjustEdit(segments, "Display time");
     },
     onBandReset(segmentIndex: number, side: "start" | "end") {
       const segments = this.timingsStore.activeSegments.map((segment) => ({ ...segment }));
       delete segments[segmentIndex][side === "start" ? "displayStart" : "displayEnd"];
-      this.timingsStore.applyAdjustEdit(segments);
+      this.timingsStore.applyAdjustEdit(segments, "Display time");
     },
     onSegmentsChange(newSegments: Array<TimedSegment>) {
       // Guard against a committed overlap (an end past the next segment's start).
-      this.timingsStore.applyAdjustEdit(clampSegmentOverlaps(newSegments));
+      this.timingsStore.applyAdjustEdit(clampSegmentOverlaps(newSegments), "Drag");
     },
     onPlayheadUpdate(newPlayhead: number) {
       if (newPlayhead !== this.playhead) {

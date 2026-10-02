@@ -35,6 +35,11 @@
           <pre>{{ multiVoiceExample }}</pre>
         </div>
       </div>
+      <p>
+        <kbd>{{ undoShortcut }}</kbd> and <kbd>{{ redoShortcut }}</kbd> undo and redo your changes
+        to the lyrics and the timings, whichever tab you made them in. If an edit here removes
+        timings, a message says how many, and offers to undo it.
+      </p>
     </help-section>
     <p v-if="statusMessage" class="lyrics-lookup-status" role="status">
       {{ statusMessage.text }}
@@ -78,6 +83,7 @@ import LyricEditor from "@/components/LyricEditor.vue";
 import HelpSection from "@/components/HelpSection.vue";
 import SongPlayer from "@/components/SongPlayer.vue";
 import { useMediaStore } from "@/stores/media";
+import { REDO_SHORTCUT, UNDO_SHORTCUT } from "@/lib/history";
 import { useLyricsLookupStore } from "@/stores/lyricsLookup";
 import { formatDuration } from "@/lib/lyricsLookup";
 import { appName } from "@/constants";
@@ -109,6 +115,8 @@ export default defineComponent({
       provider,
       status,
       appName: appName(),
+      undoShortcut: UNDO_SHORTCUT,
+      redoShortcut: REDO_SHORTCUT,
     };
   },
   data() {

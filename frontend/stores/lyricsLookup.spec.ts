@@ -17,6 +17,7 @@ vi.mock("@/lib/persistence", () => ({
   persistJsonRef: vi.fn(),
   persistBlobRef: vi.fn().mockResolvedValue(undefined),
   clearPersistence: vi.fn().mockResolvedValue(undefined),
+  loadJsonFromStorage: <T>(_key: string, defaultValue: T) => defaultValue,
 }));
 
 const PROVIDER = { id: "fake", name: "Fake Lyrics", url: "https://lyrics.test" };

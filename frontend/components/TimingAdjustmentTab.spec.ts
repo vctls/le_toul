@@ -6,6 +6,7 @@ import TimingAdjustmentTab from "@/components/TimingAdjustmentTab.vue";
 import { useLyricsStore } from "@/stores/lyrics";
 import { useMediaStore } from "@/stores/media";
 import { useTimingsStore } from "@/stores/timings";
+import { useHistoryStore } from "@/stores/history";
 import { useSettingsStore } from "@/stores/settings";
 import { useLegacyTimingStore } from "@/stores/legacyTiming";
 import { useAdvancedStore } from "@/stores/advanced";
@@ -332,21 +333,22 @@ describe("TimingAdjustmentTab shortcuts", () => {
       expect(useTimingsStore().activeSegments[0].start).toBe(0.8);
     });
 
-    it("enables each button while there is something to undo or redo", async () => {
+    it("steps the history for the navbar's buttons while it is mounted", () => {
       const wrapper = mountTab();
-      const undoButton = wrapper.find('b-button-stub[aria-label="Undo"]');
-      const redoButton = wrapper.find('b-button-stub[aria-label="Redo"]');
-      expect(undoButton.attributes("disabled")).toBe("true");
+      const stepper = useHistoryStore().tabStepper!;
+      expect(stepper.tab).toBe("adjust");
+      expect(stepper.canStep("undo")).toBe(false);
 
       dragStart(wrapper);
-      await nextTick();
-      expect(undoButton.attributes("disabled")).toBe("false");
-      expect(redoButton.attributes("disabled")).toBe("true");
+      expect(stepper.canStep("undo")).toBe(true);
+      expect(stepper.canStep("redo")).toBe(false);
 
-      undoButton.trigger("click");
-      await nextTick();
-      expect(undoButton.attributes("disabled")).toBe("true");
-      expect(redoButton.attributes("disabled")).toBe("false");
+      stepper.step("undo");
+      expect(stepper.canStep("undo")).toBe(false);
+      expect(stepper.canStep("redo")).toBe(true);
+
+      wrapper.unmount();
+      expect(useHistoryStore().tabStepper).toBeNull();
     });
   });
 
