@@ -1,5 +1,12 @@
 import { describe, expect, it } from "vitest";
-import { DisplayBand, displayBands, nearestTarget, snapTargets } from "./displayBands";
+import {
+  clampBandShift,
+  clampEdgeShift,
+  DisplayBand,
+  displayBands,
+  nearestTarget,
+  snapTargets,
+} from "./displayBands";
 import { DEFAULT_KARAOKE_OPTIONS, KaraokeOptions } from "./timing";
 
 const options: KaraokeOptions = {
@@ -131,6 +138,10 @@ describe("snapTargets", () => {
   it("has no next line after the last one", () => {
     expect(snapTargets(bands, bands[3])).toEqual([3, 8, 6, 11]);
   });
+
+  it("leaves out the lines moving along with the band", () => {
+    expect(snapTargets(bands, bands[1], [bands[1], bands[2]])).toEqual([1, 5, 9, 14, 7]);
+  });
 });
 
 describe("nearestTarget", () => {
@@ -145,5 +156,81 @@ describe("nearestTarget", () => {
   it("skips a target the edge can't reach", () => {
     expect(nearestTarget(10, [10.1, 9.8], 0.5, 0, 10)).toBe(9.8);
     expect(nearestTarget(10, [10.1], 0.5, 0, 10)).toBeUndefined();
+  });
+});
+
+describe("clampEdgeShift", () => {
+  const DURATION = 100;
+  // A line sung from 10 to 12 s and shown from 8 to 15 s, between lines at its height that hold
+  // on to 5 s and from 20 s.
+  const band = (overrides: Partial<DisplayBand> = {}): DisplayBand => ({
+    segmentIndex: 0,
+    row: 0,
+    text: "",
+    syllables: [],
+    start: 8,
+    end: 15,
+    startStored: false,
+    endStored: false,
+    latestStart: 10,
+    earliestEnd: 12,
+    placement: {
+      top: 0,
+      bottom: 1,
+      overlaps: false,
+      earliestStart: 5,
+      latestEnd: 20,
+    },
+    ...overrides,
+  });
+
+  it("passes a shift through when nothing is in the way", () => {
+    expect(clampEdgeShift([band()], "start", -1, DURATION)).toBe(-1);
+    expect(clampEdgeShift([band()], "end", 2, DURATION)).toBe(2);
+  });
+
+  it("stops a start at the line's first syllable and at the line before at its height", () => {
+    expect(clampEdgeShift([band()], "start", 5, DURATION)).toBe(2);
+    expect(clampEdgeShift([band()], "start", -5, DURATION)).toBe(-3);
+  });
+
+  it("stops an end at the line's last syllable and at the line after at its height", () => {
+    expect(clampEdgeShift([band()], "end", -5, DURATION)).toBe(-3);
+    expect(clampEdgeShift([band()], "end", 10, DURATION)).toBe(5);
+  });
+
+  it("stops every band where the first of them is stopped", () => {
+    const roomy = band();
+    const tight = band({ start: 9.5, end: 12.5 });
+    expect(clampEdgeShift([roomy, tight], "start", 2, DURATION)).toBe(0.5);
+    expect(clampEdgeShift([roomy, tight], "end", -2, DURATION)).toBe(-0.5);
+  });
+
+  it("keeps an edge already past a line at its height from going further in", () => {
+    const overlapping = band({ start: 4 });
+    expect(clampEdgeShift([overlapping], "start", -1, DURATION)).toBe(0);
+    expect(clampEdgeShift([overlapping], "start", 3, DURATION)).toBe(3);
+  });
+
+  it("falls back to the song's bounds without a placement", () => {
+    const unplaced = band({ placement: undefined });
+    expect(clampEdgeShift([unplaced], "start", -20, DURATION)).toBe(-8);
+    expect(clampEdgeShift([unplaced], "end", 200, DURATION)).toBe(85);
+  });
+});
+
+describe("clampBandShift", () => {
+  const band = (start: number, end: number, latestStart: number, earliestEnd: number) =>
+    ({ start, end, latestStart, earliestEnd }) as DisplayBand;
+
+  it("stops a band at whichever of its edges is stopped first", () => {
+    // The start can go 3 s back and 1 s on, the end 6 s back and 2 s on.
+    const shown = band(3, 8, 4, 2);
+    expect(clampBandShift([shown], -5, 10)).toBe(-3);
+    expect(clampBandShift([shown], 5, 10)).toBe(1);
+  });
+
+  it("stops every band where the first of them is stopped", () => {
+    expect(clampBandShift([band(3, 8, 4, 2), band(1, 6, 5, 4)], -5, 10)).toBe(-1);
   });
 });

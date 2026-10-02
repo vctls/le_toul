@@ -77,6 +77,33 @@ async function dragFirstEndEdgeBack(page: Page) {
   await page.mouse.up();
 }
 
+function segments(page: Page) {
+  return page.evaluate(
+    (voice) => JSON.parse(localStorage.getItem("timings._segments")!)[voice],
+    DEFAULT_VOICE_ID,
+  );
+}
+
+/**
+ * A point on the waveform, at a time in seconds and in the middle of one of the five rows.
+ */
+async function waveformPoint(page: Page, time: number, row: number) {
+  const wrapper = (await page
+    .locator('.timing-adjustment-tab .wavesurfer-container [part~="wrapper"]')
+    .boundingBox())!;
+  return {
+    x: wrapper.x + time * (await waveformPixelsPerSecond(page)),
+    y: wrapper.y + ((row + 0.5) * wrapper.height) / 5,
+  };
+}
+
+async function drag(page: Page, from: { x: number; y: number }, to: { x: number; y: number }) {
+  await page.mouse.move(from.x, from.y);
+  await page.mouse.down();
+  await page.mouse.move(to.x, to.y, { steps: 10 });
+  await page.mouse.up();
+}
+
 function playhead(page: Page) {
   return page.locator(".timing-adjustment-tab audio[controls]").evaluate((audio) => {
     return (audio as HTMLAudioElement).currentTime;
@@ -266,5 +293,72 @@ test.describe("Adjust tab display mode", () => {
     await page.mouse.move(x - 10 * pixelsPerSecond, y, { steps: 10 });
     await page.mouse.up();
     await expect.poll(() => firstSegment(page)).toMatchObject({ displayEnd: 2 });
+  });
+
+  test("moves every frame of a box selection together", async ({ page }) => {
+    await setupDisplayMode(page);
+    const frames = page.locator('[part="display-band"]');
+    const pixelsPerSecond = await waveformPixelsPerSecond(page);
+    const wrapperX = (await page
+      .locator('.timing-adjustment-tab .wavesurfer-container [part~="wrapper"]')
+      .boundingBox())!.x;
+    const spans = () =>
+      frames.evaluateAll((all) =>
+        all.map((frame) => {
+          const { left, right } = frame.getBoundingClientRect();
+          return [left, right];
+        }),
+      );
+    const before = await spans();
+
+    // The four lines take the first four rows, which leaves the last one bare.
+    await drag(page, await waveformPoint(page, 4, 4), await waveformPoint(page, 3, 2));
+    const from = await waveformPoint(page, 4, 2);
+    await drag(page, from, { x: from.x + 0.5 * pixelsPerSecond, y: from.y });
+
+    const seconds = (x: number) => (x - wrapperX) / pixelsPerSecond;
+    const moved = ([left, right]: number[]) => ({
+      displayStart: expect.closeTo(seconds(left) + 0.5, 1),
+      displayEnd: expect.closeTo(seconds(right) + 0.5, 1),
+    });
+    await expect
+      .poll(() => segments(page))
+      .toMatchObject([{}, {}, moved(before[2]), moved(before[3])]);
+    const [one, two] = await segments(page);
+    expect(one.displayStart).toBeUndefined();
+    expect(two.displayStart).toBeUndefined();
+    expect(await spans()).toEqual([before[0], before[1], expect.anything(), expect.anything()]);
+  });
+
+  test("moves the same edge of every selected frame, as far as the first can go", async ({
+    page,
+  }) => {
+    await setupDisplayMode(page);
+    const frames = page.locator('[part="display-band"]');
+    const borderColor = (line: number) =>
+      frames.nth(line).evaluate((frame) => getComputedStyle(frame).borderTopColor);
+    const unselected = await borderColor(0);
+    for (const line of [0, 1]) {
+      const { x, y } = await waveformPoint(page, 4, line);
+      await page.mouse.click(x, y);
+    }
+    expect(await borderColor(1)).not.toBe(unselected);
+
+    // Two is sung until 5 s, which stops both ends there, three seconds after One's own end.
+    await dragFirstEndEdgeBack(page);
+
+    await expect
+      .poll(() => segments(page).then((all) => all.slice(0, 2)))
+      .toMatchObject([{ displayEnd: expect.closeTo(5, 5) }, { displayEnd: expect.closeTo(5, 5) }]);
+    const [one, two, three] = await segments(page);
+    expect(one.displayStart).toBeUndefined();
+    expect(two.displayStart).toBeUndefined();
+    expect(three.displayEnd).toBeUndefined();
+
+    // A click on the bare last row clears the selection.
+    const bare = await waveformPoint(page, 4, 4);
+    await page.mouse.click(bare.x, bare.y);
+    await expect.poll(() => borderColor(0)).toBe(unselected);
+    await expect.poll(() => borderColor(1)).toBe(unselected);
   });
 });

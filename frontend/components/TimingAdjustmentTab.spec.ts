@@ -422,8 +422,8 @@ describe("TimingAdjustmentTab shortcuts", () => {
 
     it("stores a dragged edge on the line's first segment", () => {
       const wrapper = mountTab();
-      adjuster(wrapper).vm.$emit("band-updated", 0, "start", 0.25);
-      adjuster(wrapper).vm.$emit("band-updated", 0, "end", 3);
+      adjuster(wrapper).vm.$emit("bands-updated", [{ segmentIndex: 0, start: 0.25 }]);
+      adjuster(wrapper).vm.$emit("bands-updated", [{ segmentIndex: 0, end: 3 }]);
 
       expect(useTimingsStore().activeSegments[0]).toMatchObject({
         start: 0.5,
@@ -432,10 +432,34 @@ describe("TimingAdjustmentTab shortcuts", () => {
       });
     });
 
+    it("stores the edges of several lines as one edit, leaving out the others", () => {
+      const wrapper = mountTab();
+      useLyricsStore().setLyrics("hello\nworld");
+      useTimingsStore().setAllSegments({
+        [DEFAULT_VOICE_ID]: [
+          { text: "hello\n", start: 1, end: 2 },
+          { text: "world", start: 3, end: 4 },
+        ],
+      });
+      adjuster(wrapper).vm.$emit("bands-updated", [
+        { segmentIndex: 0, end: 2.5 },
+        { segmentIndex: 1, end: 4.5 },
+      ]);
+
+      const [first, second] = useTimingsStore().activeSegments;
+      expect(first).toMatchObject({ displayEnd: 2.5 });
+      expect(second).toMatchObject({ displayEnd: 4.5 });
+      expect(first.displayStart).toBeUndefined();
+      expect(second.displayStart).toBeUndefined();
+
+      pressKey("KeyZ", { key: "z", ctrlKey: true });
+      expect(useTimingsStore().hasDisplayPeriods).toBe(false);
+    });
+
     it("clears only the double-clicked edge", () => {
       const wrapper = mountTab();
-      adjuster(wrapper).vm.$emit("band-updated", 0, "start", 0.25);
-      adjuster(wrapper).vm.$emit("band-updated", 0, "end", 3);
+      adjuster(wrapper).vm.$emit("bands-updated", [{ segmentIndex: 0, start: 0.25 }]);
+      adjuster(wrapper).vm.$emit("bands-updated", [{ segmentIndex: 0, end: 3 }]);
       adjuster(wrapper).vm.$emit("band-reset", 0, "start");
 
       const [segment] = useTimingsStore().activeSegments;
@@ -455,7 +479,7 @@ describe("TimingAdjustmentTab shortcuts", () => {
       });
       wrapper.vm.showDisplayBands = true;
       await nextTick();
-      adjuster(wrapper).vm.$emit("band-updated", 0, "end", 3.5);
+      adjuster(wrapper).vm.$emit("bands-updated", [{ segmentIndex: 0, end: 3.5 }]);
       await nextTick();
 
       expect(adjuster(wrapper).vm.$attrs.bands).toMatchObject([
@@ -475,7 +499,7 @@ describe("TimingAdjustmentTab shortcuts", () => {
       await nextTick();
       expect(resetButton(wrapper).attributes("disabled")).toBe("true");
 
-      adjuster(wrapper).vm.$emit("band-updated", 0, "start", 0.25);
+      adjuster(wrapper).vm.$emit("bands-updated", [{ segmentIndex: 0, start: 0.25 }]);
       await nextTick();
       expect(resetButton(wrapper).attributes("disabled")).toBe("false");
     });
@@ -483,8 +507,8 @@ describe("TimingAdjustmentTab shortcuts", () => {
     it("clears every stored bound on Reset, which can be undone", async () => {
       const wrapper = mountTab();
       wrapper.vm.showDisplayBands = true;
-      adjuster(wrapper).vm.$emit("band-updated", 0, "start", 0.25);
-      adjuster(wrapper).vm.$emit("band-updated", 0, "end", 3);
+      adjuster(wrapper).vm.$emit("bands-updated", [{ segmentIndex: 0, start: 0.25 }]);
+      adjuster(wrapper).vm.$emit("bands-updated", [{ segmentIndex: 0, end: 3 }]);
       await nextTick();
 
       await resetButton(wrapper).trigger("click");
