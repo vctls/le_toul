@@ -58,7 +58,7 @@ test.describe("Global undo", () => {
     await page.evaluate(() => navigator.clipboard.writeText("la_li"));
     await page.keyboard.press("ControlOrMeta+V");
     await expect(lyrics).toHaveValue(original.slice(0, -2) + "la_li");
-    await expect(page.getByText("This paste lost the timings of 2 syllables.")).toBeVisible();
+    await expect(page.getByText("This paste moved 1 timing to replaced words.")).toBeVisible();
 
     await navigateToTab(page, TabId.TimingAdjustment);
     await page.getByRole("button", { name: "Reset timings" }).click();

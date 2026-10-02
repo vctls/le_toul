@@ -171,7 +171,7 @@ describe("History", () => {
       const { timings, lyrics, history } = load("one_two_three", threeWords());
 
       pasteLyrics("one_new_words_three");
-      expect(timings.activeSegments[1]).toEqual({ text: "new_", review: "lost" });
+      expect(timings.activeSegments[1]).toEqual({ text: "new_", start: 2, review: "moved" });
 
       history.undo();
       expect(lyrics.lyricText).toBe("one_two_three");
@@ -202,11 +202,12 @@ describe("History", () => {
     });
 
     test("reports the timings a paste removed", () => {
-      const { history } = load("one_two_three", threeWords());
+      const { timings, history } = load("one_two_three", threeWords());
 
-      pasteLyrics("one_new_words_three");
+      pasteLyrics("xa_ya_za_three");
 
-      expect(history.lastLoss).toMatchObject({ lost: 2, entry: { label: "Paste" } });
+      expect(history.lastLoss).toMatchObject({ lost: 1, moved: 2, entry: { label: "Paste" } });
+      expect(timings.activeSegments.at(-1)).toEqual({ text: "three", start: 3, end: 3.5 });
     });
 
     test("reports the timings a paste moved to replaced words", () => {
@@ -232,7 +233,7 @@ describe("History", () => {
         { text: "three", start: 3 },
       ]);
       pasteLyrics("one\nnew_words\nthree");
-      expect(history.lastLoss).toMatchObject({ lost: 2 });
+      expect(history.lastLoss).toMatchObject({ lost: 0, moved: 1 });
       history.lastLoss = null;
 
       pasteLyrics("one\nnew_words\nthree\nfour");

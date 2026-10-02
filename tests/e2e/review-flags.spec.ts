@@ -61,28 +61,25 @@ test.describe("Timings to review after a lyric edit", () => {
     await expect(lyrics).toHaveValue(pasted);
 
     const toast = page.getByRole("alertdialog");
-    await expect(toast).toContainText(
-      "This paste lost the timings of 2 syllables, and moved 1 to replaced words.",
-    );
+    await expect(toast).toContainText("This paste moved 2 timings to replaced words.");
     await toast.getByRole("button", { name: "Show" }).click();
 
     await scrollWaveformIntoView(page);
     await expectRegionSelected(page, 1);
-    for (const index of [1, 2, 3]) {
+    for (const index of [1, 2]) {
       await expect(regionLocator(page, index)).toBeVisible();
     }
     const markers = page.locator('[part="review-marker"]');
-    await expect(markers).toHaveCount(3);
+    await expect(markers).toHaveCount(2);
     for (const marker of await markers.all()) {
       await expect(marker).toBeVisible();
     }
-    await expect(page.getByTitle("3 syllables to review")).toBeVisible();
+    await expect(page.getByTitle("2 syllables to review")).toBeVisible();
 
-    // The lost syllables stack against its end, so it moves left.
     await dragRegionBody(page, 1, -20);
 
     await expect.poll(async () => (await savedSegments(page))[1].review).toBeUndefined();
-    await expect(markers).toHaveCount(2);
-    await expect(page.getByTitle("2 syllables to review")).toBeVisible();
+    await expect(markers).toHaveCount(1);
+    await expect(page.getByTitle("1 syllable to review")).toBeVisible();
   });
 });
