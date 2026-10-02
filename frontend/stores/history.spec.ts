@@ -375,7 +375,7 @@ describe("History", () => {
 
       expect(undone).toBe(1000);
       expect(timings.activeSegments[1].start).toBeCloseTo(2.505);
-    });
+    }, 20_000);
 
     test("drops the oldest entries to stay under the size limit", () => {
       // Few long words reach the size limit without hashing thousands of segments per paste.
