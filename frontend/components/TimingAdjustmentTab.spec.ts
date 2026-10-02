@@ -1224,6 +1224,19 @@ describe("TimingAdjustmentTab shortcuts", () => {
       expect(selectSegment).toHaveBeenLastCalledWith(3);
     });
 
+    it("moves the playhead to the preroll before the one it goes to", async () => {
+      const wrapper = mountFlagged();
+      wrapper.vm.prerollSeconds = 0.5;
+      await nextTick();
+
+      pressKey("KeyN", { key: "n" });
+      expect(setAudioPlayhead).toHaveBeenLastCalledWith(1.5);
+      select(wrapper, [1]);
+      pressKey("KeyN", { key: "n" });
+      // The lost syllable has no place in time, so its preroll counts back from the one before.
+      expect(setAudioPlayhead).toHaveBeenLastCalledWith(2.5);
+    });
+
     it("counts them by the heading", async () => {
       const wrapper = mountFlagged();
       await nextTick();
