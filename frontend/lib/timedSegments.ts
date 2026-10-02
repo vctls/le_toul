@@ -19,6 +19,94 @@ export interface TimedSegment {
   // They come from the lyrics, like the text.
   spacersBefore?: number;
   spacersAfter?: number;
+  // A lyric edit changed this segment's timing, and nobody has retimed or checked it since.
+  // "lost": the segment took the place of timed words, and their timings were dropped.
+  // "moved": the segment's start or end came from a different word.
+  review?: ReviewFlag;
+}
+
+export type ReviewFlag = "lost" | "moved";
+
+/**
+ * The flag that asks for more attention, since a lost timing is worse than a moved one.
+ */
+function strongerFlag(a?: ReviewFlag, b?: ReviewFlag): ReviewFlag | undefined {
+  return a === "lost" || b === "lost" ? "lost" : (a ?? b);
+}
+
+function flagged(segment: TimedSegment, review?: ReviewFlag): TimedSegment {
+  const stronger = strongerFlag(segment.review, review);
+  return stronger ? { ...segment, review: stronger } : segment;
+}
+
+/**
+ * The segment without its review flag.
+ */
+export function unflagged({ review: _review, ...segment }: TimedSegment): TimedSegment {
+  return segment;
+}
+
+export function reviewCounts(segments: TimedSegment[]): { lost: number; moved: number } {
+  return {
+    lost: segments.filter(({ review }) => review === "lost").length,
+    moved: segments.filter(({ review }) => review === "moved").length,
+  };
+}
+
+function isTimedSegment({ start, end }: TimedSegment): boolean {
+  return start !== undefined || end !== undefined;
+}
+
+/**
+ * The word compared without case or punctuation.
+ */
+function spellingKey(word: string): string[] {
+  return [...word.toLowerCase().replace(/[^\p{L}\p{N}]/gu, "")];
+}
+
+/**
+ * The optimal string alignment distance:
+ * the Levenshtein distance, with a swap of two neighbouring letters counted as one edit.
+ */
+function alignmentDistance(a: string[], b: string[]): number {
+  const d = Array.from({ length: a.length + 1 }, (_, i) =>
+    Array.from({ length: b.length + 1 }, (_, j) => (i === 0 ? j : j === 0 ? i : 0)),
+  );
+  for (let i = 1; i <= a.length; i++) {
+    for (let j = 1; j <= b.length; j++) {
+      const cost = a[i - 1] === b[j - 1] ? 0 : 1;
+      d[i][j] = Math.min(d[i - 1][j] + 1, d[i][j - 1] + 1, d[i - 1][j - 1] + cost);
+      if (i > 1 && j > 1 && a[i - 1] === b[j - 2] && a[i - 2] === b[j - 1]) {
+        d[i][j] = Math.min(d[i][j], d[i - 2][j - 2] + 1);
+      }
+    }
+  }
+  return d[a.length][b.length];
+}
+
+/**
+ * Whether replacing one word with the other corrects its spelling rather than changing the word.
+ * A short word changed by one letter is usually a different word, such as `cat` and `cut`.
+ */
+export function isSpellingFix(from: string, to: string): boolean {
+  const a = spellingKey(from);
+  const b = spellingKey(to);
+  if (a.join("") === b.join("")) {
+    return true;
+  }
+  return Math.min(a.length, b.length) >= 4 && alignmentDistance(a, b) <= 1;
+}
+
+/**
+ * The segments of `after`, without the flags of those the user has retimed:
+ * those whose start or end differs from the segment at the same index in `before`.
+ */
+export function clearRetimedFlags(before: TimedSegment[], after: TimedSegment[]): TimedSegment[] {
+  return after.map((segment, i) =>
+    segment.review && (segment.start !== before[i]?.start || segment.end !== before[i]?.end)
+      ? unflagged(segment)
+      : segment,
+  );
 }
 
 /**
@@ -38,6 +126,20 @@ export function fromLyric({ text, spacersBefore, spacersAfter }: Segment): Timed
 function relabel(stored: TimedSegment, lyric: Segment): TimedSegment {
   const { spacersBefore: _before, spacersAfter: _after, ...timings } = stored;
   return { ...timings, ...fromLyric(lyric) };
+}
+
+/**
+ * Relabel a stored segment that may now hold a different word, and flag its timing as moved if so.
+ */
+function relabelInPlace(stored: TimedSegment, lyric: Segment): TimedSegment {
+  const segment = relabel(stored, lyric);
+  const word = segmentWord(stored.text);
+  // A textless segment holds a timing tapped before the lyrics existed,
+  // so it had no word to move from.
+  if (word === "" || !isTimedSegment(stored) || isSpellingFix(word, segmentWord(lyric.text))) {
+    return segment;
+  }
+  return flagged(segment, "moved");
 }
 
 /**
@@ -95,13 +197,17 @@ export function segmentWord(text: string): string {
  * 3. window text unchanged -> a pure split or join, so keep the window's outer bounds
  * 4. anything else         -> keep the window's unchanged lines, and un-time the rest
  *
+ * The result flags the timings the user should check (see `TimedSegment.review`):
+ * a timing that rule 1 puts on a different word is moved,
+ * and segments that replace lost timings are lost.
+ *
  * This is deliberately not an LCS over segments.
  * An LCS would read a one-character typo as a delete plus an insert, and drop a timing that the first rule keeps.
  * Rule 4 runs one over the window's lines instead, where a typo changes one line, which still goes through rule 1.
  */
 export function reconcile(stored: TimedSegment[], current: Segment[]): TimedSegment[] {
   if (stored.length === current.length) {
-    return current.map((lyric, i) => relabel(stored[i], lyric));
+    return current.map((lyric, i) => relabelInPlace(stored[i], lyric));
   }
 
   const matches = (a: { text: string }, b: { text: string }) =>
@@ -133,34 +239,6 @@ export function reconcile(stored: TimedSegment[], current: Segment[]): TimedSegm
       .slice(stored.length - tail)
       .map((segment, i) => relabel(segment, current[current.length - tail + i])),
   ];
-}
-
-/**
- * How many `start` and `end` values of `before` that `after` no longer holds.
- * Display periods don't count, since a line without one falls back to the automatic display rules.
- */
-export function lostTimings(before: TimedSegment[], after: TimedSegment[]): number {
-  let lost = 0;
-  for (const bound of ["start", "end"] as const) {
-    const remaining = new Map<number, number>();
-    for (const segment of after) {
-      const time = segment[bound];
-      if (time !== undefined) {
-        remaining.set(time, (remaining.get(time) ?? 0) + 1);
-      }
-    }
-    for (const segment of before) {
-      const time = segment[bound];
-      if (time === undefined) continue;
-      const count = remaining.get(time) ?? 0;
-      if (count > 0) {
-        remaining.set(time, count - 1);
-      } else {
-        lost++;
-      }
-    }
-  }
-  return lost;
 }
 
 /**
@@ -263,18 +341,24 @@ function reconcileWindow(stored: TimedSegment[], current: Segment[]): TimedSegme
 /**
  * Rules 3 and 4 for a span of segments with no line to match: keep its outer bounds if its words
  * are unchanged, or un-time it.
+ * The new segments take the old ones' flags, and are flagged lost if they replace a lost timing.
  */
 function reconcileSpan(stored: TimedSegment[], current: Segment[]): TimedSegment[] {
   const segments: TimedSegment[] = current.map(fromLyric);
   if (segments.length === 0 || stored.length === 0) {
     return segments;
   }
+  const inherited = stored.reduce<ReviewFlag | undefined>(
+    (flag, { review }) => strongerFlag(flag, review),
+    undefined,
+  );
 
   // Compared as drawn, not as stored: a split inserts the very `/` or `_` being compared, so the
   // raw texts always differ. Only the words have to match.
   const drawn = (list: { text: string }[]) => list.map(({ text }) => displayText(text)).join("");
   if (drawn(stored) !== drawn(current)) {
-    return segments;
+    const lost = stored.some(isTimedSegment) ? "lost" : undefined;
+    return segments.map((segment) => flagged(segment, strongerFlag(inherited, lost)));
   }
 
   // The words are unchanged, so the window's own start and end still hold.
@@ -287,7 +371,13 @@ function reconcileSpan(stored: TimedSegment[], current: Segment[]): TimedSegment
   if (end !== undefined) {
     segments[segments.length - 1].end = end;
   }
-  return segments;
+  const timingCount = (list: TimedSegment[]) =>
+    list.filter(({ start }) => start !== undefined).length +
+    list.filter(({ end }) => end !== undefined).length;
+  const lost = timingCount(stored) > timingCount(segments) ? "lost" : undefined;
+  return segments.map((segment, i) =>
+    flagged(segment, i > 0 && i < segments.length - 1 ? strongerFlag(inherited, lost) : inherited),
+  );
 }
 
 /**

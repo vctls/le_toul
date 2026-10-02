@@ -20,6 +20,7 @@ import { LinePlacement, placeLines } from "@/lib/linePlacements";
 import { songOffset } from "@/lib/screenSlots";
 import {
   TimedSegment,
+  clearRetimedFlags,
   fromEvents,
   fromLyric,
   hasDisplayPeriod,
@@ -51,6 +52,7 @@ type VideoSettingsOverride = Partial<Omit<VideoSettings, "font" | "color">> & {
   color?: Partial<VideoSettings["color"]>;
 };
 type TimingsByVoice = Record<VoiceId, Timings>;
+type EditOptions = { keepReview?: boolean };
 type SegmentsByVoice = Record<VoiceId, TimedSegment[]>;
 
 /**
@@ -180,6 +182,8 @@ export const useTimingsStore = defineStore("timings", {
       // The lyrics the segments were last carried across to.
       // The watchers skip a lyric write that was already reconciled, or restored by an undo.
       _reconciledLyricText: null as string | null,
+      // Bumped to ask the Timing tab to go to the active voice's first segment to review.
+      reviewRequest: 0,
     };
   },
 
@@ -317,6 +321,18 @@ export const useTimingsStore = defineStore("timings", {
     hasDisplayPeriods(state): boolean {
       return Object.values(state._segmentsByVoice).some((segments) =>
         segments.some(hasDisplayPeriod),
+      );
+    },
+
+    /**
+     * How many segments each voice has to review after a lyric edit.
+     */
+    reviewCountByVoice(state): Record<VoiceId, number> {
+      return Object.fromEntries(
+        Object.entries(state._segmentsByVoice).map(([voice, segments]) => [
+          voice,
+          segments.filter(({ review }) => review).length,
+        ]),
       );
     },
 
@@ -480,16 +496,26 @@ export const useTimingsStore = defineStore("timings", {
     /**
      * Replace the active voice's segments with an edit made in the Adjust tab, which can be undone.
      */
-    applyAdjustEdit(segments: TimedSegment[], label = "Timing edit") {
-      this.applyVoiceEdit(this.activeVoice, segments, label);
+    applyAdjustEdit(segments: TimedSegment[], label = "Timing edit", options: EditOptions = {}) {
+      this.applyVoiceEdit(this.activeVoice, segments, label, options);
     },
 
     /**
      * Replace one voice's segments with an edit that can be undone, whichever voice is active.
+     * A segment whose start or end the edit changes loses its review flag,
+     * unless `keepReview` is set for an edit that moves timings without the user checking them.
      */
-    applyVoiceEdit(voice: VoiceId, segments: TimedSegment[], label = "Timing edit") {
+    applyVoiceEdit(
+      voice: VoiceId,
+      segments: TimedSegment[],
+      label = "Timing edit",
+      { keepReview = false }: EditOptions = {},
+    ) {
       useHistoryStore().record({ label, tab: "adjust" }, () => {
-        this._segmentsByVoice = { ...this._segmentsByVoice, [voice]: copySegments(segments) };
+        const written = keepReview
+          ? segments
+          : clearRetimedFlags(this._segmentsByVoice[voice] ?? [], segments);
+        this._segmentsByVoice = { ...this._segmentsByVoice, [voice]: copySegments(written) };
         this.normalizeDisplayPeriods();
         this.commitBaseline();
       });
@@ -520,6 +546,17 @@ export const useTimingsStore = defineStore("timings", {
     },
 
     /**
+     * Ask the Timing tab to go to the first segment to review, in the active voice if it has one.
+     */
+    requestReview() {
+      const voice = [this.activeVoice, ...useLyricsStore().voices].find(
+        (voice) => this.reviewCountByVoice[voice] > 0,
+      );
+      if (voice) this.setActiveVoice(voice);
+      this.reviewRequest++;
+    },
+
+    /**
      * Reassigning the map (vs mutating in place) keeps a newly-added voice key reactive.
      */
     ensureActiveSegments(): TimedSegment[] {
@@ -546,6 +583,7 @@ export const useTimingsStore = defineStore("timings", {
       if (marker == LYRIC_MARKERS.SEGMENT_START) {
         this.handleConflictWithPreviousSegment(timestamp);
         segments[currentSegmentNum].start = timestamp;
+        delete segments[currentSegmentNum].review;
         this.normalizeDisplayPeriods();
         this.commitBaseline();
         return;
@@ -560,6 +598,7 @@ export const useTimingsStore = defineStore("timings", {
       );
       if (started >= 0) {
         segments[started].end = timestamp;
+        delete segments[started].review;
       }
       this.normalizeDisplayPeriods();
       this.commitBaseline();
@@ -597,6 +636,7 @@ export const useTimingsStore = defineStore("timings", {
       for (const segment of segments.slice(segmentNum)) {
         segment.start = undefined;
         segment.end = undefined;
+        delete segment.review;
       }
       this.normalizeDisplayPeriods();
       this.commitBaseline();

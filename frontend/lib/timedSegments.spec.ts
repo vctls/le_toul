@@ -3,7 +3,8 @@ import {
   fromEvents,
   toEvents,
   reconcile,
-  lostTimings,
+  ReviewFlag,
+  isSpellingFix,
   clampDisplayPeriods,
   normalizeDisplayPeriods,
   TimedSegment,
@@ -136,39 +137,6 @@ describe("round trip", () => {
   });
 });
 
-describe("lostTimings", () => {
-  it("counts each start and end that no segment holds any more", () => {
-    const before: TimedSegment[] = [
-      { text: "one_", start: 1, end: 1.5 },
-      { text: "two_", start: 2 },
-      { text: "three", start: 3, end: 3.5 },
-    ];
-    const after: TimedSegment[] = [
-      { text: "one_", start: 1, end: 1.5 },
-      { text: "too_" },
-      { text: "tree" },
-      { text: "three", start: 3 },
-    ];
-
-    expect(lostTimings(before, after)).toBe(2);
-  });
-
-  it("counts a time held twice once per segment", () => {
-    const before: TimedSegment[] = [
-      { text: "a_", end: 2 },
-      { text: "b", start: 2, end: 2 },
-    ];
-
-    expect(lostTimings(before, [{ text: "a_", end: 2 }, { text: "b" }])).toBe(2);
-  });
-
-  it("ignores display periods", () => {
-    const before: TimedSegment[] = [{ text: "one", start: 1, displayStart: 0, displayEnd: 4 }];
-
-    expect(lostTimings(before, [{ text: "one", start: 1 }])).toBe(0);
-  });
-});
-
 describe("reconcile", () => {
   const lyrics = (text: string) => parseLyrics(text, true);
   const timed = (text: string, start?: number, end?: number): TimedSegment => {
@@ -177,6 +145,10 @@ describe("reconcile", () => {
     if (end !== undefined) segment.end = end;
     return segment;
   };
+  const flag = (segment: TimedSegment, review: ReviewFlag): TimedSegment => ({
+    ...segment,
+    review,
+  });
 
   it("rule 1: a typo keeps every timing, because the count is unchanged", () => {
     const stored = [timed("recieve_", 1.0, 1.5), timed("the_", 2.0), timed("call", 3.0)];
@@ -247,8 +219,8 @@ describe("reconcile", () => {
 
     expect(reconcile(stored, lyrics("one_bravo_charlie_three"))).toEqual([
       timed("one_", 1.0),
-      timed("bravo_"),
-      timed("charlie_"),
+      flag(timed("bravo_"), "lost"),
+      flag(timed("charlie_"), "lost"),
       timed("three", 3.0),
     ]);
   });
@@ -290,8 +262,8 @@ describe("reconcile", () => {
 
     expect(reconcile(stored, lyrics("ka_dun_po\nlu_mo\nri/sa"))).toEqual([
       timed("ka_", 1),
-      timed("dun_"),
-      timed("po\n"),
+      flag(timed("dun_"), "lost"),
+      flag(timed("po\n"), "lost"),
       timed("lu_", 3),
       timed("mo\n", 4),
       timed("ri/", 5),
@@ -310,8 +282,8 @@ describe("reconcile", () => {
 
     expect(reconcile(stored, lyrics("ka_dun_xo_lu\nmo_ri_zu"))).toEqual([
       timed("ka_", 1),
-      timed("dun_"),
-      timed("xo_"),
+      flag(timed("dun_"), "lost"),
+      flag(timed("xo_"), "lost"),
       timed("lu\n", 3),
       timed("mo_", 4),
       timed("ri_", 5),
@@ -323,7 +295,7 @@ describe("reconcile", () => {
     const stored = [timed("ka\n", 1), timed("den\n", 2), timed("lu\n", 3), timed("mo", 4)];
 
     expect(reconcile(stored, lyrics("kaa\nden\nxo\nlu\nmo"))).toEqual([
-      timed("kaa\n", 1),
+      flag(timed("kaa\n", 1), "moved"),
       timed("den\n", 2),
       timed("xo\n"),
       timed("lu\n", 3),
@@ -335,10 +307,10 @@ describe("reconcile", () => {
     const stored = [timed("ka\n", 1), timed("den\n", 2), timed("lu\n", 3), timed("mo", 4)];
 
     expect(reconcile(stored, lyrics("xo\nden\npi\nzu\nmo"))).toEqual([
-      timed("xo\n", 1),
+      flag(timed("xo\n", 1), "moved"),
       timed("den\n", 2),
-      timed("pi\n"),
-      timed("zu\n"),
+      flag(timed("pi\n"), "lost"),
+      flag(timed("zu\n"), "lost"),
       timed("mo", 4),
     ]);
   });
@@ -435,6 +407,109 @@ describe("reconcile", () => {
       expect(result.map((s) => s.text)).toEqual(current.map((s) => s.text));
     }
   });
+
+  describe("review flags", () => {
+    it("rule 1: flags a timing relabelled onto a different word as moved", () => {
+      const stored = [timed("cat_", 1.0, 1.5), timed("sat_", 2.0), timed("down")];
+
+      expect(reconcile(stored, lyrics("cut_sit_dawn"))).toEqual([
+        flag(timed("cut_", 1.0, 1.5), "moved"),
+        flag(timed("sit_", 2.0), "moved"),
+        timed("dawn"),
+      ]);
+    });
+
+    it("rule 1: doesn't flag a spelling fix", () => {
+      const stored = [timed("Wonder,_", 1.0), timed("colour_", 2.0), timed("recieve", 3.0)];
+
+      expect(reconcile(stored, lyrics("wander_color_receive"))).toEqual([
+        timed("wander_", 1.0),
+        timed("color_", 2.0),
+        timed("receive", 3.0),
+      ]);
+    });
+
+    it("rule 1: doesn't flag a timing tapped before the lyrics existed", () => {
+      expect(reconcile([timed("", 1.0)], lyrics("one"))).toEqual([timed("one", 1.0)]);
+    });
+
+    it("rule 3: flags the untimed middle of a join that lost timings", () => {
+      const stored = [timed("al/", 2.0), timed("chemy", 2.4, 2.9)];
+
+      expect(reconcile(stored, lyrics("a/lche/my"))).toEqual([
+        timed("a/", 2.0),
+        flag(timed("lche/"), "lost"),
+        timed("my", undefined, 2.9),
+      ]);
+    });
+
+    it("rule 3: doesn't flag a split that keeps every timing", () => {
+      const stored = [timed("one_", 1.0), timed("alchemy", 2.0, 2.9)];
+
+      expect(reconcile(stored, lyrics("one_al/chem/y"))).toEqual([
+        timed("one_", 1.0),
+        timed("al/", 2.0),
+        timed("chem/"),
+        timed("y", undefined, 2.9),
+      ]);
+    });
+
+    it("flags nothing for a deleted run", () => {
+      const stored = [timed("one_", 1.0), flag(timed("two_", 2.0), "moved"), timed("three", 3.0)];
+
+      expect(reconcile(stored, lyrics("one_three"))).toEqual([
+        timed("one_", 1.0),
+        timed("three", 3.0),
+      ]);
+    });
+
+    it("keeps the flags of segments that only get relabelled", () => {
+      const stored = [flag(timed("one_", 1.0), "moved"), flag(timed("two"), "lost")];
+
+      expect(reconcile(stored, lyrics("one_two_three"))).toEqual([
+        flag(timed("one_", 1.0), "moved"),
+        flag(timed("two_"), "lost"),
+        timed("three"),
+      ]);
+    });
+
+    it("gives a replaced run the old segments' flags", () => {
+      const stored = [timed("one_", 1.0), flag(timed("two_"), "lost"), timed("three", 3.0)];
+
+      expect(reconcile(stored, lyrics("one_bravo_charlie_three"))).toEqual([
+        timed("one_", 1.0),
+        flag(timed("bravo_"), "lost"),
+        flag(timed("charlie_"), "lost"),
+        timed("three", 3.0),
+      ]);
+    });
+
+    it("gives a split the old segment's flag", () => {
+      const stored = [timed("one_", 1.0), flag(timed("alchemy", 2.0, 2.9), "moved")];
+
+      expect(reconcile(stored, lyrics("one_al/chem/y"))).toEqual([
+        timed("one_", 1.0),
+        flag(timed("al/", 2.0), "moved"),
+        flag(timed("chem/"), "moved"),
+        flag(timed("y", undefined, 2.9), "moved"),
+      ]);
+    });
+
+    it("prefers lost over moved", () => {
+      const stored = [
+        timed("one_", 1.0),
+        flag(timed("two_", 2.0), "moved"),
+        timed("three_", 3.0),
+        timed("four", 4.0),
+      ];
+
+      expect(reconcile(stored, lyrics("one_bravo_four"))).toEqual([
+        timed("one_", 1.0),
+        flag(timed("bravo_"), "lost"),
+        timed("four", 4.0),
+      ]);
+    });
+  });
 });
 
 describe("clampDisplayPeriods", () => {
@@ -486,5 +561,34 @@ describe("normalizeDisplayPeriods", () => {
       { text: "b" },
     ];
     expect(normalizeDisplayPeriods(untimed)).toEqual(untimed);
+  });
+});
+
+describe("isSpellingFix", () => {
+  it("accepts a change of case or punctuation at any length", () => {
+    expect(isSpellingFix("Star,", "star")).toBe(true);
+    expect(isSpellingFix("I", "i!")).toBe(true);
+  });
+
+  it("accepts one letter added, removed or replaced in words of four letters or more", () => {
+    expect(isSpellingFix("fire", "fires")).toBe(true);
+    expect(isSpellingFix("colour", "color")).toBe(true);
+    expect(isSpellingFix("wonder", "wander")).toBe(true);
+  });
+
+  it("accepts two neighbouring letters swapped in words of four letters or more", () => {
+    expect(isSpellingFix("recieve", "receive")).toBe(true);
+  });
+
+  it("rejects the same edits in shorter words", () => {
+    expect(isSpellingFix("a", "an")).toBe(false);
+    expect(isSpellingFix("cat", "cut")).toBe(false);
+    expect(isSpellingFix("cat", "cta")).toBe(false);
+    expect(isSpellingFix("fir", "fire")).toBe(false);
+  });
+
+  it("rejects two edits in any word", () => {
+    expect(isSpellingFix("colour", "colors")).toBe(false);
+    expect(isSpellingFix("wonderful", "wanderfull")).toBe(false);
   });
 });

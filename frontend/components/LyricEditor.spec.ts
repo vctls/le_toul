@@ -138,7 +138,7 @@ describe("LyricEditor", () => {
 
     edit(textarea, "insertFromPaste", [4, 7], "and_a_half");
 
-    expect(useHistoryStore().lastLoss).toMatchObject({ lost: 1 });
+    expect(useHistoryStore().lastLoss).toMatchObject({ lost: 3 });
   });
 
   it("sends the browser's own undo to the history", async () => {

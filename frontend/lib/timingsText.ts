@@ -107,6 +107,26 @@ export function parseVoiceTimingsText(input: string): ParsedVoiceTimingsText {
   return { segments, warnings: warnings.list() };
 }
 
+/**
+ * The parsed segments with the review flags of the stored segments that the text left unchanged.
+ * The text has no place for the flags,
+ * so a segment keeps its flag when its text and its times, to the centisecond,
+ * match the stored segment at the same index.
+ */
+export function keepReviewFlags(stored: TimedSegment[], parsed: TimedSegment[]): TimedSegment[] {
+  const sameTime = (a?: number, b?: number) =>
+    a === undefined || b === undefined ? a === b : Math.round(a * 100) === Math.round(b * 100);
+  return parsed.map((segment, i) => {
+    const { review, text, start, end } = stored[i] ?? {};
+    return review &&
+      text === segment.text &&
+      sameTime(start, segment.start) &&
+      sameTime(end, segment.end)
+      ? { ...segment, review }
+      : segment;
+  });
+}
+
 function voiceSegments(pages: ParsedPage[], warnings: Warnings): TimedSegment[] {
   validateTimes(pages);
   const clamped = clampDisplayPeriods(toSegments(pages, warnings));
