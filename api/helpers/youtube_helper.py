@@ -38,7 +38,8 @@ def get_youtube_streams(
 
     try:
         youtube = pytube.YouTube(youtube_url, proxies=proxy_options)
-        audio_stream = youtube.streams.filter(only_audio=True).first()
+        # The stream order is YouTube's, and it can list 48 kbps HE-AAC first.
+        audio_stream = youtube.streams.get_audio_only()
         video_stream = youtube.streams.filter(only_video=True, res="1080p").first()
         if not video_stream:
             video_stream = youtube.streams.filter(only_video=True).first()
