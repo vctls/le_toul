@@ -180,7 +180,7 @@
           the heading, or <kbd>N</kbd> and <kbd>Shift</kbd>+<kbd>N</kbd>, go from one to the next
           and move the playhead to the preroll before it. Moving a syllable clears its mark, and
           <strong>Mark as checked</strong>, or <kbd>C</kbd>, clears it on the selected syllables
-          without moving them.
+          without moving them, then goes to the next one.
         </p>
         <p v-if="advancedStore.isAdvanced">
           With <strong>Line display times</strong> on, each line gets a frame for the time it's on
@@ -1305,7 +1305,8 @@ export default defineComponent({
       }
     },
     /**
-     * Clear the review flag of the selected segments, keeping their timings.
+     * Clear the review flag of the selected segments, keeping their timings, and go to the next
+     * segment to review.
      */
     markChecked() {
       if (!this.canMarkChecked) return;
@@ -1316,6 +1317,7 @@ export default defineComponent({
         ),
         "Mark as checked",
       );
+      this.goToReview(1);
     },
     applyShift() {
       const deltaSeconds = this.shiftMs / 1000;
