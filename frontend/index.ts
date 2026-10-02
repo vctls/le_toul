@@ -4,6 +4,7 @@ import { createPinia } from "pinia";
 import { setupErrorHandling } from "@/lib/util";
 import App from "@/App.vue";
 import "@/main.scss";
+import { useHistoryStore } from "@/stores/history";
 import { useTimingsStore } from "@/stores/timings";
 import { useLyricsLookupStore } from "@/stores/lyricsLookup";
 import { applyThemePreference, loadThemePreference } from "@/lib/colorScheme";
@@ -37,6 +38,7 @@ window.addEventListener("load", function () {
   // Same for the watchers that carry timings across voice renames and lyric edits.
   useTimingsStore().setupVoiceReconciliation();
   useTimingsStore().setupSegmentReconciliation();
+  useHistoryStore().setupPersistence();
 
   void useLyricsLookupStore().loadProvider();
 

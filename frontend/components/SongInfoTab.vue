@@ -346,6 +346,7 @@ import {
   NO_VOCALS_HQ_SEPARATOR_MODEL,
 } from "@/stores/media";
 import { useTimingsStore } from "@/stores/timings";
+import { useHistoryStore } from "@/stores/history";
 import { useAdvancedStore } from "@/stores/advanced";
 import { useLyricsStore } from "@/stores/lyrics";
 import { useLyricsLookupStore } from "@/stores/lyricsLookup";
@@ -432,6 +433,7 @@ export default defineComponent({
       lyricsStore,
       lyricsLookupStore: useLyricsLookupStore(),
       advancedStore: useAdvancedStore(),
+      historyStore: useHistoryStore(),
     };
   },
   data() {
@@ -660,6 +662,13 @@ export default defineComponent({
      */
     async applyTimingsFile(file: File): Promise<string[]> {
       const text = await file.text();
+      let warnings: string[] = [];
+      this.historyStore.record({ label: "Timings file", tab: "song" }, () => {
+        warnings = this.writeTimingsFile(text);
+      });
+      return warnings;
+    },
+    writeTimingsFile(text: string): string[] {
       if (isTimingsText(text)) {
         const { voices, warnings } = parseTimingsText(text);
         // Each syllable in a timings.txt carries its text, so the file brings its lyrics along.
@@ -766,6 +775,8 @@ export default defineComponent({
       const converted = kbpToProjectFiles(await file.text(), { fonts: Object.keys(BUNDLED_FONTS) });
       this.lyricsStore.setLyrics(converted.lyrics);
       this.timingsStore.setAllSegments(converted.timings);
+      // The import also changes the settings, which the history doesn't cover.
+      this.historyStore.clear();
       const settingsWarnings = await this.applySettingsFile(
         new File([converted.settings], "settings.yaml"),
       );
@@ -802,7 +813,9 @@ export default defineComponent({
     },
     async onTimingsFileChange(file: File | null) {
       if (!file) {
-        this.timingsStore.resetTimings([]);
+        this.historyStore.record({ label: "Clear timings file", tab: "song" }, () =>
+          this.timingsStore.resetTimings([]),
+        );
         return;
       }
       try {
@@ -832,7 +845,12 @@ export default defineComponent({
         return;
       }
       try {
-        this.lyricsStore.setLyrics(await this.readLyricsFile(file));
+        const text = await this.readLyricsFile(file);
+        this.historyStore.record(
+          { label: "Lyrics file", tab: "song" },
+          () => this.lyricsStore.setLyrics(text),
+          { warnLoss: true },
+        );
         this.$buefy.toast.open({ message: "Lyrics loaded!", type: "is-success", duration: 2000 });
       } catch (e) {
         console.error(e);
@@ -961,6 +979,8 @@ export default defineComponent({
           await apply("the font", font, () => this.settingsStore.setCustomFont(font));
         }
 
+        // The folder brings a song and settings, which the history doesn't cover.
+        this.historyStore.clear();
         if (project.ignored.length) {
           console.warn(`Not loaded from the project folder: ${project.ignored.join(", ")}`);
         }

@@ -79,6 +79,7 @@ import { BButton, BMessage } from "buefy";
 import HelpSection from "@/components/HelpSection.vue";
 import VoiceSelector from "@/components/VoiceSelector.vue";
 import { useTimingsStore } from "@/stores/timings";
+import { useHistoryStore } from "@/stores/history";
 import { useAdvancedStore } from "@/stores/advanced";
 import { useLyricsStore } from "@/stores/lyrics";
 import { TimingsTextError, parseVoiceTimingsText, writeVoiceTimingsText } from "@/lib/timingsText";
@@ -90,7 +91,12 @@ export default defineComponent({
   setup() {
     const timingsStore = useTimingsStore();
     const lyricsStore = useLyricsStore();
-    return { timingsStore, lyricsStore, advancedStore: useAdvancedStore() };
+    return {
+      timingsStore,
+      lyricsStore,
+      advancedStore: useAdvancedStore(),
+      historyStore: useHistoryStore(),
+    };
   },
   data() {
     return {
@@ -164,10 +170,12 @@ export default defineComponent({
           return;
         }
 
-        this.timingsStore.resetSegments(parsed);
-        if (lyricsChanged) {
-          this.lyricsStore.setLyrics(edited);
-        }
+        this.historyStore.record({ label: "Edit", tab: "edit" }, () => {
+          this.timingsStore.resetSegments(parsed);
+          if (lyricsChanged) {
+            this.lyricsStore.setLyrics(edited);
+          }
+        });
         // A rewrite that only drops comments leaves `current` as it was, so its watcher won't fire.
         this.draft = this.current;
         this.error = "";

@@ -6,13 +6,13 @@ import { findLastIndex } from "lodash-es";
 import { useLyricsStore } from "./lyrics";
 import { useMediaStore } from "./media";
 import { useSettingsStore } from "./settings";
+import { useHistoryStore } from "./history";
 import {
   createAssFile,
   createMultiVoiceAssFile,
   layOutVoices,
   resolveStarts,
   DEFAULT_KARAOKE_OPTIONS,
-  parseLyrics,
   Segment,
   VoiceTrack,
 } from "@/lib/timing";
@@ -23,7 +23,6 @@ import {
   fromEvents,
   fromLyric,
   hasDisplayPeriod,
-  lostTimings,
   normalizeDisplayPeriods,
   reconcile,
   toEvents,
@@ -40,9 +39,8 @@ const SEGMENTS_STORAGE_KEY = "timings._segments";
 // left in place so a failed migration can't destroy a user's timings.
 const LEGACY_TIMINGS_STORAGE_KEY = "timings._timings";
 const ACTIVE_VOICE_STORAGE_KEY = "timings._activeVoice";
-// Each step of the history holds only what it changed, so it fits in localStorage, which is saved
-// at once when the page unloads.
-const HISTORY_STORAGE_KEY = "timings._history";
+// The undo history restores the baseline with the segments, so it must survive a reload with them.
+const BASELINE_STORAGE_KEY = "timings._baseline";
 
 type Timings = Array<[number, number]>;
 
@@ -54,24 +52,6 @@ type VideoSettingsOverride = Partial<Omit<VideoSettings, "font" | "color">> & {
 };
 type TimingsByVoice = Record<VoiceId, Timings>;
 type SegmentsByVoice = Record<VoiceId, TimedSegment[]>;
-
-// What turns one list of segments into another: the new length, and the segments that differ.
-// A tap changes a segment or two, so this keeps a long history small.
-type SegmentsPatch = {
-  length: number;
-  changes: Record<number, TimedSegment>;
-};
-
-// One voice's Adjust tab edits, as the patch that takes back each one.
-type AdjustHistory = {
-  undo: SegmentsPatch[];
-  redo: SegmentsPatch[];
-  // The voice's segments as this history last wrote them, serialized.
-  // Any other write makes the current segments differ, and the stacks no longer apply to them.
-  head: string;
-};
-
-const ADJUST_HISTORY_LIMIT = 1000;
 
 /**
  * The lyrics as persisted, split per voice.
@@ -124,43 +104,6 @@ function copySegmentsByVoice(byVoice: SegmentsByVoice): SegmentsByVoice {
   return Object.fromEntries(
     Object.entries(byVoice).map(([voice, segments]) => [voice, copySegments(segments)]),
   );
-}
-
-/**
- * A form of the segments that compares equal whenever their values do.
- * Rebuilt segments list their fields in another order, and a field set to undefined counts as absent.
- */
-function serializeSegments(segments: TimedSegment[]): string {
-  return JSON.stringify(
-    segments.map((segment) =>
-      Object.entries(segment)
-        .filter(([, value]) => value !== undefined)
-        .sort(([a], [b]) => a.localeCompare(b)),
-    ),
-  );
-}
-
-/**
- * The patch that turns `from` into `to`.
- */
-function diffSegments(from: TimedSegment[], to: TimedSegment[]): SegmentsPatch {
-  const changes: Record<number, TimedSegment> = {};
-  to.forEach((segment, index) => {
-    if (index >= from.length || serializeSegments([segment]) !== serializeSegments([from[index]])) {
-      changes[index] = { ...segment };
-    }
-  });
-  return { length: to.length, changes };
-}
-
-function applyPatch(segments: TimedSegment[], patch: SegmentsPatch): TimedSegment[] {
-  return Array.from({ length: patch.length }, (_, index) => ({
-    ...(patch.changes[index] ?? segments[index]),
-  }));
-}
-
-function isCurrent(history: AdjustHistory | undefined, segments: TimedSegment[]): boolean {
-  return history !== undefined && history.head === serializeSegments(segments);
 }
 
 /**
@@ -230,9 +173,13 @@ export const useTimingsStore = defineStore("timings", {
       // This is the only data `reconcileSegments` works from.
       // Reconciliation is lossy, so feeding it its own output once per keystroke destroys timings
       // that the finished edit would have kept.
-      _baselineByVoice: copySegmentsByVoice(segments),
+      _baselineByVoice:
+        loadJsonFromStorage<SegmentsByVoice | null>(BASELINE_STORAGE_KEY, null) ??
+        copySegmentsByVoice(segments),
       _activeVoice: loadJsonFromStorage<VoiceId | null>(ACTIVE_VOICE_STORAGE_KEY, null),
-      _historyByVoice: loadJsonFromStorage<Record<VoiceId, AdjustHistory>>(HISTORY_STORAGE_KEY, {}),
+      // The lyrics the segments were last carried across to.
+      // The watchers skip a lyric write that was already reconciled, or restored by an undo.
+      _reconciledLyricText: null as string | null,
     };
   },
 
@@ -371,46 +318,6 @@ export const useTimingsStore = defineStore("timings", {
       return Object.values(state._segmentsByVoice).some((segments) =>
         segments.some(hasDisplayPeriod),
       );
-    },
-
-    /**
-     * How many timings replacing the lyrics with `lyricText` would remove, without writing anything.
-     * It follows what the reconciliation watchers do after a lyric edit.
-     */
-    timingsLostBy(state) {
-      return (lyricText: string): number => {
-        const { voices, lyricTextByVoice } = parseAnnotatedLyrics(lyricText);
-        let segmentsByVoice = state._segmentsByVoice;
-        let baselineByVoice = state._baselineByVoice;
-        // The rename watcher only runs when the voices change.
-        const rename =
-          voices.join("\n") === useLyricsStore().voices.join("\n")
-            ? null
-            : findVoiceRename(segmentsByVoice, voices);
-        if (rename) {
-          segmentsByVoice = renameVoice(segmentsByVoice, rename.from, rename.to);
-          if (baselineByVoice[rename.from]) {
-            baselineByVoice = renameVoice(baselineByVoice, rename.from, rename.to);
-          }
-        }
-        const after = reconcileByVoice(segmentsByVoice, baselineByVoice, voices, (voice) =>
-          parseLyrics(lyricTextByVoice[voice] ?? "", true),
-        );
-        return Object.entries(state._segmentsByVoice).reduce((lost, [voice, before]) => {
-          const renamed = voice === rename?.from ? rename.to : voice;
-          return lost + lostTimings(before, after[renamed] ?? []);
-        }, 0);
-      };
-    },
-
-    canUndo(state): boolean {
-      const history = state._historyByVoice[this.activeVoice];
-      return isCurrent(history, this.activeSegments) && history.undo.length > 0;
-    },
-
-    canRedo(state): boolean {
-      const history = state._historyByVoice[this.activeVoice];
-      return isCurrent(history, this.activeSegments) && history.redo.length > 0;
     },
 
     hasAnyTimings(state): boolean {
@@ -555,11 +462,11 @@ export const useTimingsStore = defineStore("timings", {
     },
 
     /**
-     * Put every line of every voice back on the automatic display rules.
-     * Each voice this changes can undo it on its own.
+     * Put every line of every voice back on the automatic display rules, as one edit that can be
+     * undone.
      */
     clearDisplayPeriods() {
-      this.recordAdjustEdit(Object.keys(this._segmentsByVoice), () => {
+      useHistoryStore().record({ label: "Reset display periods", tab: "adjust" }, () => {
         this._segmentsByVoice = Object.fromEntries(
           Object.entries(this._segmentsByVoice).map(([voice, segments]) => [
             voice,
@@ -573,15 +480,15 @@ export const useTimingsStore = defineStore("timings", {
     /**
      * Replace the active voice's segments with an edit made in the Adjust tab, which can be undone.
      */
-    applyAdjustEdit(segments: TimedSegment[]) {
-      this.applyVoiceEdit(this.activeVoice, segments);
+    applyAdjustEdit(segments: TimedSegment[], label = "Timing edit") {
+      this.applyVoiceEdit(this.activeVoice, segments, label);
     },
 
     /**
      * Replace one voice's segments with an edit that can be undone, whichever voice is active.
      */
-    applyVoiceEdit(voice: VoiceId, segments: TimedSegment[]) {
-      this.recordAdjustEdit([voice], () => {
+    applyVoiceEdit(voice: VoiceId, segments: TimedSegment[], label = "Timing edit") {
+      useHistoryStore().record({ label, tab: "adjust" }, () => {
         this._segmentsByVoice = { ...this._segmentsByVoice, [voice]: copySegments(segments) };
         this.normalizeDisplayPeriods();
         this.commitBaseline();
@@ -591,74 +498,21 @@ export const useTimingsStore = defineStore("timings", {
     /**
      * Replace one voice's segments with each of `steps` in turn, as one edit per step.
      */
-    applyVoiceEdits(voice: VoiceId, steps: TimedSegment[][]) {
+    applyVoiceEdits(voice: VoiceId, steps: TimedSegment[][], label = "Timing edit") {
       for (const segments of steps) {
-        this.applyVoiceEdit(voice, segments);
+        this.applyVoiceEdit(voice, segments, label);
       }
     },
 
     /**
-     * Run a write and push what takes it back onto each voice's undo stack.
-     * A voice the write leaves unchanged records nothing.
+     * Write a state that the undo history restores. It is already reconciled, so the watchers
+     * leave it alone.
      */
-    recordAdjustEdit(voices: VoiceId[], write: () => void) {
-      const before = voices.map((voice) => ({
-        voice,
-        history: this.currentHistory(voice),
-        segments: copySegments(this._segmentsByVoice[voice] ?? []),
-      }));
-      write();
-      for (const { voice, history, segments } of before) {
-        const after = this._segmentsByVoice[voice] ?? [];
-        const head = serializeSegments(after);
-        if (head === serializeSegments(segments)) {
-          continue;
-        }
-        history.undo.push(diffSegments(after, segments));
-        if (history.undo.length > ADJUST_HISTORY_LIMIT) {
-          history.undo.shift();
-        }
-        history.redo = [];
-        history.head = head;
-      }
-    },
-
-    /**
-     * The voice's history, replaced by an empty one if a write from outside the Adjust tab has made
-     * it stale. Restoring a stale snapshot would undo that write too.
-     */
-    currentHistory(voice: VoiceId): AdjustHistory {
-      if (!isCurrent(this._historyByVoice[voice], this._segmentsByVoice[voice] ?? [])) {
-        this._historyByVoice = {
-          ...this._historyByVoice,
-          [voice]: { undo: [], redo: [], head: "" },
-        };
-      }
-      return this._historyByVoice[voice];
-    },
-
-    undo() {
-      this.stepHistory("undo", "redo");
-    },
-
-    redo() {
-      this.stepHistory("redo", "undo");
-    },
-
-    /**
-     * Apply the active voice's latest patch from one stack, and push what takes it back on the other.
-     */
-    stepHistory(from: "undo" | "redo", to: "undo" | "redo") {
-      const history = this.currentHistory(this.activeVoice);
-      const patch = history[from].pop();
-      if (!patch) {
-        return;
-      }
-      const current = this.activeSegments;
-      const restored = applyPatch(current, patch);
-      history[to].push(diffSegments(restored, current));
-      this.resetSegments(restored);
-      history.head = serializeSegments(this.activeSegments);
+    restoreHistoryState(lyricText: string, segments: SegmentsByVoice, baseline: SegmentsByVoice) {
+      useLyricsStore().setLyrics(lyricText);
+      this._segmentsByVoice = segments;
+      this._baselineByVoice = baseline;
+      this._reconciledLyricText = lyricText;
     },
 
     setActiveVoice(voice: VoiceId) {
@@ -828,7 +682,6 @@ export const useTimingsStore = defineStore("timings", {
     clear() {
       this._segmentsByVoice = {};
       this._baselineByVoice = {};
-      this._historyByVoice = {};
     },
 
     /**
@@ -840,7 +693,11 @@ export const useTimingsStore = defineStore("timings", {
       const lyricsStore = useLyricsStore();
       watch(
         () => lyricsStore.voices.join("\n"),
-        () => this.reconcileVoices(),
+        () => {
+          if (lyricsStore.lyricText !== this._reconciledLyricText) {
+            this.reconcileVoices();
+          }
+        },
         { immediate: true },
       );
     },
@@ -869,19 +726,36 @@ export const useTimingsStore = defineStore("timings", {
       const lyricsStore = useLyricsStore();
       watch(
         () => lyricsStore.lyricText,
-        () => this.reconcileSegments(),
+        (lyricText) => {
+          if (lyricText !== this._reconciledLyricText) {
+            this.reconcileSegments();
+            this._reconciledLyricText = lyricText;
+          }
+        },
       );
     },
 
     /**
-     * Write the timings and their history to localStorage now, rather than after the change that
+     * Carry the timings across a lyric write at once, rather than when the watchers run, so that
+     * the undo history records what the reconciliation changed.
+     */
+    reconcileLyricEdit(voicesChanged: boolean) {
+      if (voicesChanged) {
+        this.reconcileVoices();
+      }
+      this.reconcileSegments();
+      this._reconciledLyricText = useLyricsStore().lyricText;
+    },
+
+    /**
+     * Write the timings and their baseline to localStorage now, rather than after the change that
      * asked for it.
      */
     saveToStorage() {
       try {
         localStorage.setItem(SEGMENTS_STORAGE_KEY, JSON.stringify(this._segmentsByVoice));
         localStorage.setItem(ACTIVE_VOICE_STORAGE_KEY, JSON.stringify(this._activeVoice));
-        localStorage.setItem(HISTORY_STORAGE_KEY, JSON.stringify(this._historyByVoice));
+        localStorage.setItem(BASELINE_STORAGE_KEY, JSON.stringify(this._baselineByVoice));
       } catch (e) {
         console.error("Failed to save the timings to localStorage", e);
       }

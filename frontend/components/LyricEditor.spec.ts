@@ -1,27 +1,36 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import { mount, VueWrapper } from "@vue/test-utils";
+import { defineComponent, h } from "vue";
 import { createPinia, setActivePinia } from "pinia";
-import Buefy from "buefy";
+import { nextTick } from "vue";
 import LyricEditor from "@/components/LyricEditor.vue";
 import { useLyricsStore } from "@/stores/lyrics";
 import { useTimingsStore } from "@/stores/timings";
+import { useHistoryStore } from "@/stores/history";
 import { LYRIC_MARKERS } from "@/constants";
 
 const { SEGMENT_START } = LYRIC_MARKERS;
 
-let wrapper: VueWrapper<InstanceType<typeof LyricEditor>> | null = null;
+let wrapper: VueWrapper | null = null;
+
+// The editor as the Lyrics tab binds it, so a history step reaches the textarea.
+const Host = defineComponent({
+  setup() {
+    const lyrics = useLyricsStore();
+    return () =>
+      h(LyricEditor, {
+        ref: "editor",
+        modelValue: lyrics.lyricText,
+        "onUpdate:modelValue": (value: string) => lyrics.setLyrics(value),
+      });
+  },
+});
 
 function mountEditor(lyrics: string) {
   useLyricsStore().setLyrics(lyrics);
-  wrapper = mount(LyricEditor, {
-    props: {
-      modelValue: lyrics,
-      "onUpdate:modelValue": (value: string) => wrapper?.setProps({ modelValue: value }),
-    },
-    global: { plugins: [Buefy] },
-    attachTo: document.body,
-  });
-  return wrapper;
+  wrapper = mount(Host, { attachTo: document.body });
+  const editor = wrapper.findComponent(LyricEditor);
+  return { editor, textarea: wrapper.find("textarea").element };
 }
 
 function timeWords(...starts: number[]) {
@@ -30,13 +39,38 @@ function timeWords(...starts: number[]) {
 }
 
 /**
- * Pastes `text` over the selection, as the browser would unless the paste is cancelled.
+ * Edits the textarea as the browser would: `beforeinput`, the change, then `input`.
  */
-function paste(textarea: HTMLTextAreaElement, text: string, start: number, end = start) {
+function edit(
+  textarea: HTMLTextAreaElement,
+  inputType: string,
+  [start, end]: [number, number],
+  inserted = "",
+) {
   textarea.setSelectionRange(start, end);
-  const event = new Event("paste", { bubbles: true, cancelable: true });
-  Object.defineProperty(event, "clipboardData", {
-    value: { getData: (type: string) => (type === "text/plain" ? text : "") },
+  textarea.dispatchEvent(new InputEvent("beforeinput", { inputType, data: inserted }));
+  const deleteStart = inputType === "deleteContentBackward" && start === end ? start - 1 : start;
+  const value = textarea.value;
+  textarea.value = value.slice(0, deleteStart) + inserted + value.slice(end);
+  const cursor = deleteStart + inserted.length;
+  textarea.setSelectionRange(cursor, cursor);
+  textarea.dispatchEvent(new InputEvent("input", { inputType, data: inserted || null }));
+}
+
+function type(textarea: HTMLTextAreaElement, text: string) {
+  for (const char of text) {
+    const at = textarea.selectionStart;
+    edit(textarea, "insertText", [at, at], char);
+  }
+}
+
+function pressUndo(textarea: HTMLTextAreaElement, init: KeyboardEventInit = {}) {
+  const event = new KeyboardEvent("keydown", {
+    key: "z",
+    ctrlKey: true,
+    bubbles: true,
+    cancelable: true,
+    ...init,
   });
   textarea.dispatchEvent(event);
   return event.defaultPrevented;
@@ -46,8 +80,6 @@ describe("LyricEditor", () => {
   beforeEach(() => {
     localStorage.clear();
     setActivePinia(createPinia());
-    // happy-dom has no editing commands, so the editor falls back to setting the value.
-    document.execCommand = vi.fn(() => false);
   });
 
   afterEach(() => {
@@ -55,59 +87,103 @@ describe("LyricEditor", () => {
     wrapper = null;
   });
 
-  it("lets a paste through when the lyrics have no timings", () => {
-    const textarea = mountEditor("one_two_three").find("textarea").element;
+  it("undoes a typed word as one step", async () => {
+    const { textarea } = mountEditor("one");
+    textarea.setSelectionRange(3, 3);
 
-    expect(paste(textarea, "four_five", 0, 13)).toBe(false);
+    type(textarea, "_two_three");
+    expect(useLyricsStore().lyricText).toBe("one_two_three");
+
+    pressUndo(textarea);
+    await nextTick();
+    expect(textarea.value).toBe("one_two_");
+    pressUndo(textarea);
+    await nextTick();
+    expect(textarea.value).toBe("one_");
   });
 
-  it("lets a paste through when it keeps every timing", () => {
-    const textarea = mountEditor("one_two_three").find("textarea").element;
-    timeWords(1, 2, 3);
+  it("starts a new step after a pause", () => {
+    vi.useFakeTimers();
+    try {
+      const { textarea } = mountEditor("");
+      type(textarea, "on");
+      vi.advanceTimersByTime(1500);
+      type(textarea, "e");
 
-    expect(paste(textarea, "too", 4, 7)).toBe(false);
+      useHistoryStore().undo();
+      expect(useLyricsStore().lyricText).toBe("on");
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
-  it("asks before a paste that removes timings, and cancelling keeps the lyrics", async () => {
-    const editor = mountEditor("one_two_three");
-    const textarea = editor.find("textarea").element;
-    timeWords(1, 2, 3);
+  it("gives a paste its own step, and restores the selection on undo", async () => {
+    const { textarea } = mountEditor("one_two_three");
 
-    expect(paste(textarea, "and_a_half", 4, 7)).toBe(true);
-    await editor.vm.$nextTick();
-    expect(document.body.textContent).toContain("This paste removes 1 timing.");
+    edit(textarea, "insertFromPaste", [4, 7], "pasted");
+    expect(useHistoryStore().nextUndo).toMatchObject({ label: "Paste" });
 
-    const cancel = [...document.querySelectorAll("button")].find((b) => b.textContent === "Cancel");
-    cancel!.click();
-    await editor.vm.$nextTick();
-
+    // The browser renders between the paste and the key press.
+    await nextTick();
+    pressUndo(textarea);
+    await nextTick();
+    await nextTick();
     expect(textarea.value).toBe("one_two_three");
-    expect(editor.emitted("update:modelValue")).toBeUndefined();
+    expect([textarea.selectionStart, textarea.selectionEnd]).toEqual([4, 7]);
   });
 
-  it("pastes once confirmed", async () => {
-    const editor = mountEditor("one_two_three");
-    const textarea = editor.find("textarea").element;
+  it("reports the timings a paste removes", () => {
+    const { textarea } = mountEditor("one_two_three");
     timeWords(1, 2, 3);
 
-    paste(textarea, "and_a_half", 4, 7);
-    await editor.vm.$nextTick();
-    const confirm = [...document.querySelectorAll("button")].find(
-      (b) => b.textContent === "Paste anyway",
-    );
-    confirm!.click();
-    await editor.vm.$nextTick();
+    edit(textarea, "insertFromPaste", [4, 7], "and_a_half");
 
-    expect(textarea.value).toBe("one_and_a_half_three");
-    expect(textarea.selectionStart).toBe(14);
-    expect(editor.emitted("update:modelValue")!.at(-1)).toEqual(["one_and_a_half_three"]);
+    expect(useHistoryStore().lastLoss).toMatchObject({ lost: 1 });
   });
 
-  it("counts against the lyrics with Windows line breaks normalized", async () => {
-    const editor = mountEditor("one\ntwo");
-    const textarea = editor.find("textarea").element;
-    timeWords(1, 2);
+  it("sends the browser's own undo to the history", async () => {
+    const { textarea } = mountEditor("one");
+    edit(textarea, "insertFromPaste", [3, 3], "_two");
 
-    expect(paste(textarea, "one\r\ntwo", 0, 7)).toBe(false);
+    const event = new InputEvent("beforeinput", { inputType: "historyUndo", cancelable: true });
+    textarea.dispatchEvent(event);
+    await nextTick();
+
+    expect(event.defaultPrevented).toBe(true);
+    expect(useLyricsStore().lyricText).toBe("one");
+  });
+
+  it("redoes with Ctrl+Shift+Z", async () => {
+    const { textarea } = mountEditor("one");
+    edit(textarea, "insertFromPaste", [3, 3], "_two");
+    pressUndo(textarea);
+
+    expect(pressUndo(textarea, { shiftKey: true })).toBe(true);
+    await nextTick();
+
+    expect(useLyricsStore().lyricText).toBe("one_two");
+  });
+
+  it("undoes magic slashes before the slash that was typed", async () => {
+    const { textarea } = mountEditor("hello_hello");
+    textarea.setSelectionRange(3, 3);
+
+    type(textarea, "/");
+    expect(useLyricsStore().lyricText).toBe("hel/lo_hel/lo");
+
+    useHistoryStore().undo();
+    expect(useLyricsStore().lyricText).toBe("hel/lo_hello");
+    useHistoryStore().undo();
+    expect(useLyricsStore().lyricText).toBe("hello_hello");
+  });
+
+  it("undoes Add Underscores in one step", () => {
+    const { editor } = mountEditor("one two three");
+
+    editor.vm.convertSpaces();
+    expect(useLyricsStore().lyricText).toBe("one_two_three");
+
+    useHistoryStore().undo();
+    expect(useLyricsStore().lyricText).toBe("one two three");
   });
 });
