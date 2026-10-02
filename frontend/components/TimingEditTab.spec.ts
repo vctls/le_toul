@@ -54,6 +54,24 @@ describe("TimingEditTab", () => {
     expect(wrapper.vm.draft).toBe(wrapper.vm.current);
   });
 
+  it("keeps the review flags of the segments it leaves unchanged", () => {
+    const wrapper = mountTab();
+    const timings = useTimingsStore();
+    timings.resetSegments([
+      { text: "hel/", start: 0.5001, review: "moved" },
+      { text: "lo_", start: 1, review: "moved" },
+      { text: "world", start: 1.5, end: 2, review: "lost" },
+    ]);
+    wrapper.vm.draft = wrapper.vm.current.replace("00:01.00", "00:01.20");
+    wrapper.vm.apply();
+
+    expect(timings.activeSegments.map(({ review }) => review)).toEqual([
+      "moved",
+      undefined,
+      "lost",
+    ]);
+  });
+
   it("names the row of an error, and keeps the timings", () => {
     const wrapper = mountTab();
     wrapper.vm.draft = wrapper.vm.draft.replace("00:01.00", "00:00.20");

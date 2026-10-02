@@ -82,7 +82,12 @@ import { useTimingsStore } from "@/stores/timings";
 import { useHistoryStore } from "@/stores/history";
 import { useAdvancedStore } from "@/stores/advanced";
 import { useLyricsStore } from "@/stores/lyrics";
-import { TimingsTextError, parseVoiceTimingsText, writeVoiceTimingsText } from "@/lib/timingsText";
+import {
+  TimingsTextError,
+  keepReviewFlags,
+  parseVoiceTimingsText,
+  writeVoiceTimingsText,
+} from "@/lib/timingsText";
 import { joinLyrics } from "@/lib/timing";
 import { VoiceId } from "@/lib/voices";
 
@@ -171,7 +176,9 @@ export default defineComponent({
         }
 
         this.historyStore.record({ label: "Edit", tab: "edit" }, () => {
-          this.timingsStore.resetSegments(parsed);
+          this.timingsStore.resetSegments(
+            keepReviewFlags(this.timingsStore.activeSegments, parsed),
+          );
           if (lyricsChanged) {
             this.lyricsStore.setLyrics(edited);
           }

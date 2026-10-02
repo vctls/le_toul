@@ -276,8 +276,8 @@ describe("Timings Store", () => {
 
       expect(timings.activeSegments).toEqual([
         { text: "one_", start: 1.0 },
-        { text: "bravo_" },
-        { text: "charlie_" },
+        { text: "bravo_", review: "lost" },
+        { text: "charlie_", review: "lost" },
         { text: "three", start: 3.0 },
       ]);
     });
@@ -379,6 +379,84 @@ describe("Timings Store", () => {
   // A timings.json exported by any earlier version has to keep loading,
   // and what we export has to keep loading into those versions.
   // Both directions are the [time, marker] event form.
+  describe("review flags", () => {
+    const flagged = (): TimedSegment[] => [
+      { text: "one_", start: 1, end: 1.5 },
+      { text: "two_", start: 2, end: 2.5, review: "moved" },
+      { text: "three", review: "lost" },
+    ];
+    const load = () => {
+      const timings = useTimingsStore();
+      useLyricsStore().setLyrics("one_two_three");
+      timings.setAllSegments({ [DEFAULT_VOICE_ID]: flagged() });
+      return timings;
+    };
+    const withSegment = (index: number, fields: Partial<TimedSegment>) =>
+      flagged().map((segment, i) => (i === index ? { ...segment, ...fields } : segment));
+
+    test("a drag of a flagged segment clears its flag", () => {
+      const timings = load();
+
+      timings.applyAdjustEdit(withSegment(1, { end: 2.7 }), "Drag");
+
+      expect(timings.activeSegments[1]).toEqual({ text: "two_", start: 2, end: 2.7 });
+    });
+
+    test("a drag of a neighbour keeps the flag", () => {
+      const timings = load();
+
+      timings.applyAdjustEdit(withSegment(0, { start: 0.5 }), "Drag");
+
+      expect(timings.activeSegments[1].review).toBe("moved");
+    });
+
+    test("Shift keeps every flag", () => {
+      const timings = load();
+      const shifted = flagged().map((segment) => ({
+        ...segment,
+        ...(segment.start !== undefined && { start: segment.start + 1 }),
+        ...(segment.end !== undefined && { end: segment.end + 1 }),
+      }));
+
+      timings.applyAdjustEdit(shifted, "Shift", { keepReview: true });
+
+      expect(timings.activeSegments.map(({ review }) => review)).toEqual([
+        undefined,
+        "moved",
+        "lost",
+      ]);
+    });
+
+    test("a tap clears the flag of the segment it times", () => {
+      const timings = load();
+
+      timings.add(2, LYRIC_MARKERS.SEGMENT_START, 3);
+
+      expect(timings.activeSegments[2]).toEqual({ text: "three", start: 3 });
+      expect(timings.activeSegments[1].review).toBe("moved");
+    });
+
+    test("a tapped end clears the flag of the segment it ends", () => {
+      const timings = load();
+
+      timings.add(1, LYRIC_MARKERS.SEGMENT_END, 2.8);
+
+      expect(timings.activeSegments[1]).toEqual({ text: "two_", start: 2, end: 2.8 });
+    });
+
+    test("resuming the timing from a segment clears the flags from there on", () => {
+      const timings = load();
+
+      timings.setCurrentSegment(1);
+
+      expect(timings.activeSegments.map(({ review }) => review)).toEqual([
+        undefined,
+        undefined,
+        undefined,
+      ]);
+    });
+  });
+
   describe("display periods", () => {
     const periodsOf = (timings: ReturnType<typeof useTimingsStore>) =>
       timings.activeSegments.map(({ text, displayStart, displayEnd }) => [

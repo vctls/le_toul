@@ -11,7 +11,7 @@ import {
   hashState,
   isEmptyPatch,
 } from "@/lib/history";
-import { TimedSegment, lostTimings } from "@/lib/timedSegments";
+import { TimedSegment, reviewCounts } from "@/lib/timedSegments";
 import { VoiceId } from "@/lib/voices";
 import { TabId } from "@/lib/tabRoute";
 import { loadJsonFromStorage } from "@/lib/persistence";
@@ -64,9 +64,9 @@ export const useHistoryStore = defineStore("history", () => {
   let group: TypingGroup | null = null;
   const isTyping = ref(false);
 
-  // The last step taken, and the last edit that removed timings, for the UI to report.
+  // The last step taken, and the last edit that flagged timings to review, for the UI to report.
   const lastStep = shallowRef<{ entry: HistoryEntry; step: Step } | null>(null);
-  const lastLoss = shallowRef<{ entry: HistoryEntry; lost: number } | null>(null);
+  const lastLoss = shallowRef<{ entry: HistoryEntry; lost: number; moved: number } | null>(null);
   const tabStepper = shallowRef<TabStepper | null>(null);
 
   function liveState(): HistoryState {
@@ -157,16 +157,20 @@ export const useHistoryStore = defineStore("history", () => {
     head.value = hashState(after);
     save();
     if (warnLoss) {
-      const lost = lostTimings(allSegments(before.segments), allSegments(after.segments));
-      if (lost > 0) {
-        lastLoss.value = { entry, lost };
+      const counts = reviewCounts(allSegments(after.segments));
+      const previous = reviewCounts(allSegments(before.segments));
+      const lost = Math.max(0, counts.lost - previous.lost);
+      const moved = Math.max(0, counts.moved - previous.moved);
+      if (lost + moved > 0) {
+        lastLoss.value = { entry, lost, moved };
       }
     }
   }
 
   /**
    * Run a write and record it as one entry.
-   * `warnLoss` reports the timings it removed, for edits that aren't expected to remove any.
+   * `warnLoss` reports the segments it flagged for review,
+   * for edits that aren't expected to change any timing.
    */
   function record(meta: EntryMeta, write: () => void, { warnLoss = false } = {}) {
     closeGroup();

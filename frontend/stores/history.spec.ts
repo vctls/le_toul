@@ -171,7 +171,7 @@ describe("History", () => {
       const { timings, lyrics, history } = load("one_two_three", threeWords());
 
       pasteLyrics("one_new_words_three");
-      expect(timings.activeSegments[1]).toEqual({ text: "new_" });
+      expect(timings.activeSegments[1]).toEqual({ text: "new_", review: "lost" });
 
       history.undo();
       expect(lyrics.lyricText).toBe("one_two_three");
@@ -207,6 +207,49 @@ describe("History", () => {
       pasteLyrics("one_new_words_three");
 
       expect(history.lastLoss).toMatchObject({ lost: 2, entry: { label: "Paste" } });
+    });
+
+    test("reports the timings a paste moved to replaced words", () => {
+      const { history } = load("one_two_three", threeWords());
+
+      pasteLyrics("one_too_three");
+
+      expect(history.lastLoss).toMatchObject({ lost: 0, moved: 1 });
+    });
+
+    test("doesn't count deleted words", () => {
+      const { history } = load("one_two_three", threeWords());
+
+      pasteLyrics("one_three");
+
+      expect(history.lastLoss).toBeNull();
+    });
+
+    test("only counts the segments that an edit newly flagged", () => {
+      const { history } = load("one\ntwo\nthree", [
+        { text: "one\n", start: 1 },
+        { text: "two\n", start: 2 },
+        { text: "three", start: 3 },
+      ]);
+      pasteLyrics("one\nnew_words\nthree");
+      expect(history.lastLoss).toMatchObject({ lost: 2 });
+      history.lastLoss = null;
+
+      pasteLyrics("one\nnew_words\nthree\nfour");
+
+      expect(history.lastLoss).toBeNull();
+    });
+
+    test("clearing flags without moving a timing can be undone", () => {
+      const { timings, history } = load("one_two_three", threeWords());
+      pasteLyrics("one_too_three");
+      const checked = timings.activeSegments.map(({ review: _review, ...segment }) => segment);
+
+      timings.applyAdjustEdit(checked, "Mark as checked");
+      expect(timings.activeSegments[1].review).toBeUndefined();
+      history.undo();
+
+      expect(timings.activeSegments[1].review).toBe("moved");
     });
 
     test("reports nothing for a paste that keeps every timing", () => {
