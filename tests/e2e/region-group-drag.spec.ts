@@ -163,4 +163,25 @@ test.describe("Adjust tab region selection", () => {
     await expectRegionSelected(page, 0, false);
     await expectRegionSelected(page, 2, false);
   });
+
+  test("clicking the waveform outside the rectangles clears the selection", async ({ page }) => {
+    await setupAdjustTab(page);
+    await clickRegion(page, 1);
+    await clickRegion(page, 3);
+    await expectRegionSelected(page, 2);
+
+    // Nothing is drawn between segment 2's end at 6 s and segment 3's start at 7 s.
+    const wrapper = await page
+      .locator('.timing-adjustment-tab .wavesurfer-container [part~="wrapper"]')
+      .boundingBox();
+    const row = await regionLocator(page, 0).boundingBox();
+    await page.mouse.click(
+      wrapper!.x + 6.5 * (await waveformPixelsPerSecond(page)),
+      row!.y + row!.height / 2,
+    );
+
+    await expectRegionSelected(page, 1, false);
+    await expectRegionSelected(page, 2, false);
+    await expectRegionSelected(page, 3, false);
+  });
 });
