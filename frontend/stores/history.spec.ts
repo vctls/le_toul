@@ -378,7 +378,8 @@ describe("History", () => {
     });
 
     test("drops the oldest entries to stay under the size limit", () => {
-      const words = Array.from({ length: 6000 }, (_, i) => `word${i}`).join("_");
+      // Few long words reach the size limit without hashing thousands of segments per paste.
+      const words = Array.from({ length: 600 }, (_, i) => `word${i}`.padEnd(90, "x")).join("_");
       const { history } = load(words, []);
       for (let i = 0; i < 40; i++) {
         pasteLyrics(i % 2 === 0 ? "" : words);
