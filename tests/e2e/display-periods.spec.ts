@@ -18,14 +18,8 @@ import { DEFAULT_VOICE_ID } from "../../frontend/lib/voices";
 const FIXTURE_TIMINGS = "timings-adjust-group.json";
 const LYRICS = "One\nTwo\nThree\nFour";
 
-/**
- * The Adjust tab's switch field.
- * The Submit tab has a field with the same words once a bound is stored.
- */
-function displayTimesField(page: Page) {
-  return page.locator(".timing-adjustment-tab .field.is-horizontal", {
-    hasText: "Line display times",
-  });
+function modeButton(page: Page, mode: "Adjust" | "Lines") {
+  return page.getByRole("button", { name: mode, exact: true });
 }
 
 async function setupDisplayMode(page: Page, lyrics = LYRICS, timings = FIXTURE_TIMINGS) {
@@ -41,8 +35,10 @@ async function setupDisplayMode(page: Page, lyrics = LYRICS, timings = FIXTURE_T
   await navigateToTab(page, TabId.SongInfo);
   await uploadTimingsFile(page, timings);
   await navigateToTab(page, TabId.TimingAdjustment);
-  await displayTimesField(page).locator(".switch").click();
+  await modeButton(page, "Lines").click();
   await scrollWaveformIntoView(page);
+  // The scroll can bring a frame under the pointer, which tints it.
+  await page.mouse.move(0, 0);
   await expect(page.locator('[part="display-band"]')).toHaveCount(lyrics.split(/\n+/).length);
 }
 
@@ -110,7 +106,7 @@ function playhead(page: Page) {
   });
 }
 
-test.describe("Adjust tab display mode", () => {
+test.describe("Timing tab Lines mode", () => {
   test.describe.configure({ timeout: 60000 });
 
   test.beforeEach(async ({ page }) => {
@@ -144,12 +140,9 @@ test.describe("Adjust tab display mode", () => {
     expect(await playhead(page)).toBe(before);
   });
 
-  test("puts every line back on the automatic times on Reset", async ({ page }) => {
+  test("puts every line back on the automatic times with the eraser", async ({ page }) => {
     await setupDisplayMode(page);
-    const reset = displayTimesField(page).getByRole("button", {
-      name: "Reset",
-      exact: true,
-    });
+    const reset = page.getByRole("button", { name: "Reset line display times" });
     await expect(reset).toBeDisabled();
 
     await dragFirstEndEdgeBack(page);
@@ -172,8 +165,7 @@ test.describe("Adjust tab display mode", () => {
     await dragFirstEndEdgeBack(page);
     await expect.poll(() => firstSegment(page)).toMatchObject({ displayEnd: 2 });
 
-    const displayTimes = displayTimesField(page).locator(".switch");
-    await displayTimes.click();
+    await modeButton(page, "Adjust").click();
     // The next line starts at 3 s, which leaves room to end the first one half a second later.
     await adjustTiming(page, 0, 0, 0.5 * (await waveformPixelsPerSecond(page)));
 
@@ -183,7 +175,7 @@ test.describe("Adjust tab display mode", () => {
     const { end, displayEnd } = await firstSegment(page);
     expect(displayEnd).toBeCloseTo(end, 5);
 
-    await displayTimes.click();
+    await modeButton(page, "Lines").click();
     await scrollWaveformIntoView(page);
     const frame = page.locator('[part="display-band"]').first();
     const wrapper = page.locator('.timing-adjustment-tab .wavesurfer-container [part~="wrapper"]');

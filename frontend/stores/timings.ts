@@ -478,19 +478,17 @@ export const useTimingsStore = defineStore("timings", {
     },
 
     /**
-     * Put every line of every voice back on the automatic display rules, as one edit that can be
+     * Put every line of one voice back on the automatic display rules, as one edit that can be
      * undone.
      */
-    clearDisplayPeriods() {
-      useHistoryStore().record({ label: "Reset display periods", tab: "adjust" }, () => {
-        this._segmentsByVoice = Object.fromEntries(
-          Object.entries(this._segmentsByVoice).map(([voice, segments]) => [
-            voice,
-            segments.map(({ displayStart: _start, displayEnd: _end, ...segment }) => segment),
-          ]),
-        );
-        this.commitBaseline();
-      });
+    clearDisplayPeriods(voice: VoiceId) {
+      this.applyVoiceEdit(
+        voice,
+        (this._segmentsByVoice[voice] ?? []).map(
+          ({ displayStart: _start, displayEnd: _end, ...segment }) => segment,
+        ),
+        "Reset display periods",
+      );
     },
 
     /**

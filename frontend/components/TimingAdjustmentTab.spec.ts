@@ -383,36 +383,37 @@ describe("TimingAdjustmentTab shortcuts", () => {
     });
   });
 
-  describe("display mode", () => {
+  describe("lines mode", () => {
     const adjuster = (wrapper: ReturnType<typeof mountTab>) =>
       wrapper.findComponent({ name: "TimingAdjuster" });
+    const linesButton = (wrapper: ReturnType<typeof mountTab>) =>
+      wrapper.find('b-button-stub[title^="Drag when each line"]');
 
     beforeEach(() => {
       useAdvancedStore().isAdvanced = true;
     });
 
-    it("stays off, with its switch hidden, outside advanced mode, and comes back with it", async () => {
-      useAdvancedStore().isAdvanced = false;
+    it("is Adjust mode, with its button hidden, outside advanced mode, and comes back with it", async () => {
       const wrapper = mountTab();
-      wrapper.vm.showDisplayBands = true;
+      wrapper.vm.setMode("lines");
+      useAdvancedStore().isAdvanced = false;
       await nextTick();
 
       expect(adjuster(wrapper).vm.$attrs.displayMode).toBe(false);
       expect(adjuster(wrapper).vm.$attrs.bands).toEqual([]);
-      // Only the pitch switch is left.
-      expect(wrapper.findAllComponents({ name: "BSwitch" })).toHaveLength(1);
+      expect(linesButton(wrapper).exists()).toBe(false);
       useAdvancedStore().isAdvanced = true;
       await nextTick();
-      expect(wrapper.findAllComponents({ name: "BSwitch" })).toHaveLength(2);
+      expect(linesButton(wrapper).attributes("aria-pressed")).toBe("true");
       expect(adjuster(wrapper).vm.$attrs.displayMode).toBe(true);
     });
 
-    it("hands the adjuster the line frames only while it is on", async () => {
+    it("hands the adjuster the line frames only in Lines mode", async () => {
       const wrapper = mountTab();
       expect(adjuster(wrapper).vm.$attrs.displayMode).toBe(false);
       expect(adjuster(wrapper).vm.$attrs.bands).toEqual([]);
 
-      wrapper.vm.showDisplayBands = true;
+      wrapper.vm.setMode("lines");
       await nextTick();
 
       expect(adjuster(wrapper).vm.$attrs.displayMode).toBe(true);
@@ -478,7 +479,7 @@ describe("TimingAdjustmentTab shortcuts", () => {
           { text: "world", start: 3, end: 4 },
         ],
       });
-      wrapper.vm.showDisplayBands = true;
+      wrapper.vm.setMode("lines");
       await nextTick();
       adjuster(wrapper).vm.$emit("bands-updated", [{ segmentIndex: 0, end: 3.5 }]);
       await nextTick();
@@ -490,14 +491,15 @@ describe("TimingAdjustmentTab shortcuts", () => {
     });
 
     const resetButton = (wrapper: ReturnType<typeof mountTab>) =>
-      wrapper.find(".reset-display-periods");
+      wrapper.find('b-button-stub[aria-label="Reset line display times"]');
 
-    it("offers Reset in display mode only, once a bound is stored", async () => {
+    it("turns the eraser into a reset of the line display times, enabled once a bound is stored", async () => {
       const wrapper = mountTab();
       expect(resetButton(wrapper).exists()).toBe(false);
 
-      wrapper.vm.showDisplayBands = true;
+      wrapper.vm.setMode("lines");
       await nextTick();
+      expect(wrapper.find('b-button-stub[aria-label="Reset timings"]').exists()).toBe(false);
       expect(resetButton(wrapper).attributes("disabled")).toBe("true");
 
       adjuster(wrapper).vm.$emit("bands-updated", [{ segmentIndex: 0, start: 0.25 }]);
@@ -505,9 +507,9 @@ describe("TimingAdjustmentTab shortcuts", () => {
       expect(resetButton(wrapper).attributes("disabled")).toBe("false");
     });
 
-    it("clears every stored bound on Reset, which can be undone", async () => {
+    it("clears every stored bound of the voice with the eraser, which can be undone", async () => {
       const wrapper = mountTab();
-      wrapper.vm.showDisplayBands = true;
+      wrapper.vm.setMode("lines");
       adjuster(wrapper).vm.$emit("bands-updated", [{ segmentIndex: 0, start: 0.25 }]);
       adjuster(wrapper).vm.$emit("bands-updated", [{ segmentIndex: 0, end: 3 }]);
       await nextTick();
@@ -520,6 +522,41 @@ describe("TimingAdjustmentTab shortcuts", () => {
         displayStart: 0.25,
         displayEnd: 3,
       });
+    });
+
+    it("leaves out the timing shift", async () => {
+      const wrapper = mountTab();
+      const shift = () => wrapper.find('[label="Shift all timings (ms)"]');
+      expect(shift().exists()).toBe(true);
+
+      wrapper.vm.setMode("lines");
+      await nextTick();
+      expect(shift().exists()).toBe(false);
+    });
+
+    it("comes back on T after Tap mode, as Adjust mode does", () => {
+      const wrapper = mountTab();
+      wrapper.vm.setMode("lines");
+
+      pressKey("KeyT", { key: "t" });
+      expect(wrapper.vm.isTapMode).toBe(true);
+      pressKey("KeyT", { key: "t" });
+      expect(wrapper.vm.displayMode).toBe(true);
+
+      wrapper.vm.setMode("adjust");
+      pressKey("KeyT", { key: "t" });
+      pressKey("KeyT", { key: "t" });
+      expect(wrapper.vm.isAdjustMode).toBe(true);
+    });
+
+    it("opens a save from when it was a switch on Adjust mode", () => {
+      localStorage.setItem(
+        "adjust.state",
+        JSON.stringify({ voiceState: {}, preservePitch: false, showDisplayBands: true }),
+      );
+      const wrapper = mountTab();
+
+      expect(wrapper.vm.displayMode).toBe(true);
     });
   });
 
