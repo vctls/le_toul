@@ -15,6 +15,7 @@
 
 <script lang="ts">
 import { defineComponent, PropType } from "vue";
+import { ReviewFlag } from "@/lib/timedSegments";
 
 export interface QueueItem {
   index: number;
@@ -25,6 +26,7 @@ export interface QueueItem {
   endsLine: boolean;
   // How much of the segment is timed: its start and what closes it, its start alone, or nothing.
   timing: "full" | "start" | "none";
+  review?: ReviewFlag;
 }
 
 export default defineComponent({
@@ -52,6 +54,8 @@ export default defineComponent({
             "is-start-timed": item.timing === "start",
             "joins-next": item.joinsNext,
             "joins-previous": !!this.items[i - 1]?.joinsNext,
+            "is-review-lost": item.review === "lost",
+            "is-review-moved": item.review === "moved",
           },
         };
         if (!item.endsLine) return [segment];
@@ -128,6 +132,24 @@ export default defineComponent({
   border-color: var(--bulma-primary);
   background: var(--bulma-primary);
   color: var(--bulma-primary-invert);
+}
+
+/* The tint shows how much is timed, so a segment to review is marked by its outline instead. */
+.queue-item.is-review-lost,
+.queue-item.is-review-moved {
+  border-width: 2px;
+  border-color: var(--review-color);
+  box-shadow:
+    inset 0 -4px 0 var(--review-color),
+    0 0.1rem 0.4rem rgb(0 0 0 / 35%);
+}
+
+.queue-item.is-review-lost {
+  --review-color: var(--region-review-lost);
+}
+
+.queue-item.is-review-moved {
+  --review-color: var(--region-review-moved);
 }
 
 /* The syllables of one word touch, so the word reads as one block cut into pieces.

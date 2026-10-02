@@ -30,6 +30,7 @@
         @band-reset="(...args: unknown[]) => $emit('band-reset', ...args)"
         @seeking="onWavesurferSeeking"
         @region-clicked="onRegionClicked"
+        @selection-change="onSelectionChange"
         @scrub="seekBy"
         @zoom-change="$emit('zoom-change', $event)"
         @zoom-by="$emit('zoom-by', $event)"
@@ -47,6 +48,7 @@ import Wavesurfer from "@/components/Wavesurfer.vue";
 import SmoothAudioPlayer from "./SmoothAudioPlayer.vue";
 import TapQueue, { QueueItem } from "./TapQueue.vue";
 
+import { findLastIndex } from "lodash-es";
 import { displayText, resolveStarts } from "@/lib/timing";
 import { TimedSegment } from "@/lib/timedSegments";
 import { DisplayBand } from "@/lib/displayBands";
@@ -66,6 +68,34 @@ const CLOCK_SETTLE_SECONDS = 0.3;
 // A seek this far before a range's start still counts as inside it, since the audio may land a
 // little off the time it was sent to.
 const RANGE_SEEK_SLACK = 0.05;
+
+// An open-ended last segment is drawn up to the song's end,
+// so the lost segments after it stack this long after its start instead.
+const UNPLACED_AFTER_OPEN_END = 1;
+// The lost segments before the first timed one stack this far before its start,
+// so that they come first in the plugin's order.
+const UNPLACED_BEFORE_FIRST = 0.001;
+
+/**
+ * Where to draw the lost segments that interpolation can't place,
+ * since no timed segment lies on one side of them:
+ * just before the first timed segment's start, or just after the last one's end.
+ */
+function unplacedStarts(segments: TimedSegment[], resolved: TimedSegment[]): Map<number, number> {
+  const starts = new Map<number, number>();
+  const first = resolved.findIndex((segment) => segment.start !== undefined);
+  if (first === -1) return starts;
+  const last = findLastIndex(resolved, (segment) => segment.start !== undefined);
+  const { start: lastStart, end: lastEnd } = segments[last];
+  const before = Math.max(0, (resolved[first].start as number) - UNPLACED_BEFORE_FIRST);
+  const after = lastEnd ?? (lastStart as number) + UNPLACED_AFTER_OPEN_END;
+  segments.forEach((segment, index) => {
+    if (segment.review !== "lost") return;
+    if (index < first) starts.set(index, before);
+    if (index > last) starts.set(index, after);
+  });
+  return starts;
+}
 
 function createLyricRegion(
   id: number,
@@ -90,6 +120,7 @@ export default defineComponent({
     "play",
     "pause",
     "segment-picked",
+    "selection-change",
     "zoom-change",
     "zoom-by",
     "scroll-change",
@@ -237,21 +268,25 @@ export default defineComponent({
     /**
      * There is one region per segment, indexed the same way, so a region id names its segment directly.
      * An untimed segment gets a shaded region at its interpolated position. Dragging it sets a real start.
+     * A lost segment that has no interpolated position is drawn at the nearest timed edge.
      */
     createRegions(segments: Array<TimedSegment>): Array<RegionParams> {
       if (!segments) {
         return [];
       }
       const resolved = resolveStarts(segments);
+      const unplaced = unplacedStarts(segments, resolved);
       const regions: RegionParams[] = [];
       resolved.forEach((segment, index) => {
-        if (segment.start === undefined) {
+        const start = segment.start ?? unplaced.get(index);
+        if (start === undefined) {
           return;
         }
         regions.push(
           createLyricRegion(index, {
-            start: segment.start,
+            start,
             end: segment.end,
+            review: segments[index].review,
             content: displayText(segment.text),
             resize: !this.tapMode,
             highlighted: this.tapMode && index === this.head,
@@ -353,6 +388,20 @@ export default defineComponent({
     },
     clearSelection() {
       this.wavesurferRef()?.clearSelection();
+    },
+    /**
+     * Select a segment's region alone and scroll it into view, as a click on it would select it.
+     */
+    selectSegment(index: number) {
+      const id = `segment_${index}`;
+      const region = this.regions.find((params) => params.id === id);
+      if (region) this.wavesurferRef()?.selectRegion(id, region.start);
+    },
+    onSelectionChange(ids: string[]) {
+      this.$emit(
+        "selection-change",
+        ids.map((id) => parseInt(id.split("_")[1])),
+      );
     },
     audioElement(): HTMLAudioElement | undefined {
       return this.audioPlayerRef()?.audioPlayer as HTMLAudioElement | undefined;

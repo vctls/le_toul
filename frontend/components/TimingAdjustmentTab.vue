@@ -61,6 +61,33 @@
       </div>
       <div class="title-actions">
         <b-button
+          v-if="canMarkChecked"
+          icon-left="check"
+          label="Mark as checked"
+          title="Clear the review flag of the selected syllables (C)"
+          @click="markChecked"
+        />
+        <div v-if="reviewIndices.length > 0" class="buttons has-addons review-nav">
+          <b-button
+            icon-left="angle-left"
+            aria-label="Previous syllable to review"
+            :title="
+              isTapMode ? 'Previous syllable to review' : 'Previous syllable to review (Shift+N)'
+            "
+            @click="goToReview(-1)"
+          />
+          <span class="button is-static review-count" :title="reviewCountTitle">
+            <b-icon icon="flag" size="is-small" />
+            <span>{{ reviewIndices.length }}</span>
+          </span>
+          <b-button
+            icon-left="angle-right"
+            aria-label="Next syllable to review"
+            :title="isTapMode ? 'Next syllable to review' : 'Next syllable to review (N)'"
+            @click="goToReview(1)"
+          />
+        </div>
+        <b-button
           v-if="isTapMode"
           icon-left="keyboard"
           aria-label="Timing buttons"
@@ -141,6 +168,14 @@
           <kbd>{{ undoShortcut }}</kbd> and <kbd>{{ redoShortcut }}</kbd> undo and redo your edits,
           including those made to the lyrics and in other tabs. The eraser clears every timing of
           this voice, which you can undo too. Press <kbd>T</kbd> to switch to Tap mode.
+        </p>
+        <p v-if="reviewIndices.length > 0">
+          A lyric edit changed the timings of the syllables drawn in red or orange, with a line
+          across the waveform at each. Red ones lost their timing and sit where the syllables around
+          them put them. Orange ones took their timing from a word that was replaced. The arrows by
+          the heading, or <kbd>N</kbd> and <kbd>Shift</kbd>+<kbd>N</kbd>, go from one to the next.
+          Moving a syllable clears its mark, and <strong>Mark as checked</strong>, or <kbd>C</kbd>,
+          clears it on the selected syllables without moving them.
         </p>
         <p v-if="advancedStore.isAdvanced">
           With <strong>Line display times</strong> on, each line gets a frame for the time it's on
@@ -341,6 +376,7 @@
       @timeupdate="onPlayheadUpdate"
       @seeking="onSeek"
       @segment-picked="onSegmentPicked"
+      @selection-change="(indices: number[]) => (selectedSegments = indices)"
       @play="isPlaying = true"
       @pause="onPlaybackPause"
     />
@@ -380,7 +416,7 @@ import TapButtons from "@/components/TapButtons.vue";
 import { VoiceId } from "@/lib/voices";
 import { clampSegmentOverlaps } from "@/lib/timingValidation";
 import { isDragging } from "@/lib/wavesurferPlugins/OpenEndedRegionPlugin";
-import { TimedSegment, fromLyric } from "@/lib/timedSegments";
+import { TimedSegment, fromLyric, unflagged } from "@/lib/timedSegments";
 import {
   TapPass,
   followHead,
@@ -407,7 +443,7 @@ import { DisplayBand, displayBands } from "@/lib/displayBands";
 import { resolveThemeColor } from "@/lib/themeColor";
 import { onSchemeChange } from "@/lib/colorScheme";
 import { loadJsonFromStorage } from "@/lib/persistence";
-import { findLastIndex, pick, throttle } from "lodash-es";
+import { findLast, findLastIndex, pick, throttle } from "lodash-es";
 import { CJK_FONT, SYMBOL_FONT } from "@/lib/fonts";
 import { useFallbackFontsStore } from "@/stores/fallbackFonts";
 import { default as BuefyColor } from "buefy/src/utils/color";
@@ -610,6 +646,7 @@ export default defineComponent({
       passVoice: null as VoiceId | null,
       // The voice the segments last seen belong to, so a voice switch isn't read as a lyrics edit.
       segmentsVoice: null as VoiceId | null,
+      selectedSegments: [] as number[],
     };
   },
   computed: {
@@ -711,6 +748,7 @@ export default defineComponent({
           joinsNext: segment.text.endsWith("/"),
           endsLine: segment.text.endsWith("\n"),
           timing: segment.start === undefined ? "none" : closed ? "full" : "start",
+          review: segment.review,
         };
       });
     },
@@ -736,6 +774,19 @@ export default defineComponent({
     },
     statusTitle(): string {
       return this.timingStatus === "done" ? "Done" : "Almost done";
+    },
+    reviewIndices(): number[] {
+      return this.timingsStore.activeSegments.flatMap(({ review }, index) =>
+        review ? [index] : [],
+      );
+    },
+    reviewCountTitle(): string {
+      const count = this.reviewIndices.length;
+      return `${count} syllable${count === 1 ? "" : "s"} to review`;
+    },
+    canMarkChecked(): boolean {
+      const segments = this.timingsStore.activeSegments;
+      return !this.isTapMode && this.selectedSegments.some((index) => segments[index]?.review);
     },
     tappedSegments(): number[] {
       return this.pass ? [...this.pass.tapped] : [];
@@ -815,6 +866,10 @@ export default defineComponent({
     },
     playhead(newPlayhead: number) {
       this.subtitleDisplayRef()?.setPlayhead(newPlayhead);
+    },
+    "timingsStore.reviewRequest"() {
+      const [first] = this.reviewIndices;
+      if (first !== undefined) this.goToSegment(first);
     },
     // An edit to the lyrics shifts the segments, and the head has to follow the one it was on.
     tapSegments(after: TimedSegment[], before: TimedSegment[]) {
@@ -944,7 +999,10 @@ export default defineComponent({
       const hasModifier = event.ctrlKey || event.metaKey || event.altKey;
       const timingKey = this.isTapMode && !hasModifier ? this.timingKeyFor(event) : null;
       // The letter, wherever the keyboard layout puts it, so the shortcut matches its name.
-      const isModeKey = event.key.toLowerCase() === "t" && !hasModifier;
+      const letter = hasModifier ? "" : event.key.toLowerCase();
+      const isModeKey = letter === "t";
+      // The tap keys only apply in Tap mode, so these letters are free in Adjust mode.
+      const isReviewKey = !this.isTapMode && (letter === "n" || letter === "c");
       if (
         event.code !== "Space" &&
         !isEnter &&
@@ -953,7 +1011,8 @@ export default defineComponent({
         !isViewEdge &&
         !historyStep &&
         !timingKey &&
-        !isModeKey
+        !isModeKey &&
+        !isReviewKey
       ) {
         return;
       }
@@ -979,6 +1038,10 @@ export default defineComponent({
         }
       } else if (isModeKey) {
         this.setMode(this.isTapMode ? "adjust" : "tap");
+      } else if (isReviewKey && letter === "c") {
+        this.markChecked();
+      } else if (isReviewKey) {
+        this.goToReview(event.shiftKey ? -1 : 1);
       } else if (historyStep) {
         this.stepHistory(historyStep);
       } else if (isEscape && this.isTapMode) {
@@ -1180,11 +1243,51 @@ export default defineComponent({
       this.endPass();
       this.timingsStore.applyVoiceEdit(
         this.activeVoice,
-        this.tapSegments.map(({ start, end, displayStart, displayEnd, ...segment }) => segment),
+        this.tapSegments.map(
+          ({ start, end, displayStart, displayEnd, review, ...segment }) => segment,
+        ),
         "Clear timings",
       );
       this.tapHead = 0;
       this.cueHead();
+    },
+    /**
+     * Go to the next or previous segment to review, wrapping around.
+     * It counts from the selection in Adjust mode, and from the head in Tap mode.
+     */
+    goToReview(direction: 1 | -1) {
+      const flagged = this.reviewIndices;
+      if (flagged.length === 0) return;
+      const selected = this.isTapMode ? [this.tapHead] : this.selectedSegments;
+      const target =
+        direction === 1
+          ? (flagged.find((index) => index > Math.max(-1, ...selected)) ?? flagged[0])
+          : (findLast(flagged, (index) => index < Math.min(Infinity, ...selected)) ??
+            flagged[flagged.length - 1]);
+      this.goToSegment(target);
+    },
+    /**
+     * Select a segment's region and scroll it into view, or make it the head in Tap mode.
+     */
+    goToSegment(index: number) {
+      if (this.isTapMode) {
+        this.onSegmentPicked(index);
+      } else {
+        this.timingAdjusterRef()?.selectSegment(index);
+      }
+    },
+    /**
+     * Clear the review flag of the selected segments, keeping their timings.
+     */
+    markChecked() {
+      if (!this.canMarkChecked) return;
+      const selected = new Set(this.selectedSegments);
+      this.timingsStore.applyAdjustEdit(
+        this.timingsStore.activeSegments.map((segment, index) =>
+          selected.has(index) ? unflagged(segment) : segment,
+        ),
+        "Mark as checked",
+      );
     },
     applyShift() {
       const deltaSeconds = this.shiftMs / 1000;
@@ -1195,7 +1298,10 @@ export default defineComponent({
         start: shift(segment.start),
         end: shift(segment.end),
       }));
-      this.timingsStore.applyAdjustEdit(clampSegmentOverlaps(shifted), "Shift");
+      // A shift moves every timing without checking any of them.
+      this.timingsStore.applyAdjustEdit(clampSegmentOverlaps(shifted), "Shift", {
+        keepReview: true,
+      });
     },
     onBandUpdated(segmentIndex: number, side: "start" | "end", time: number) {
       const segments = this.timingsStore.activeSegments.map((segment) => ({ ...segment }));
@@ -1302,10 +1408,27 @@ The row owns the spacing instead. */
 }
 
 /* Bulma's button group pulls itself up by the margin it leaves under each button for wrapping.
-The two buttons never wrap, so neither margin is wanted. */
+The buttons never wrap, so neither margin is wanted. */
 .mode-switch,
-.mode-switch :deep(.button) {
+.mode-switch :deep(.button),
+.review-nav,
+.review-nav :deep(.button) {
   margin-bottom: 0;
+}
+
+/* Bulma also spaces a button group from whatever follows it,
+which in the title row would lift the group above the other buttons.
+Its rule ties on specificity with the one above. */
+.title-actions .review-nav {
+  flex-wrap: nowrap;
+  margin-bottom: 0;
+}
+
+/* Bulma greys out a static button's text with a more specific rule. */
+.review-nav .review-count {
+  gap: 0.25em;
+  color: var(--region-review-lost);
+  font-weight: var(--bulma-weight-semibold);
 }
 
 .mode-switch {
