@@ -389,6 +389,9 @@ export default defineComponent({
     clearSelection() {
       this.wavesurferRef()?.clearSelection();
     },
+    anchorZoomOnPlayhead() {
+      this.wavesurferRef()?.anchorZoomOnPlayhead();
+    },
     /**
      * Select a segment's region alone and scroll it into view, as a click on it would select it.
      */

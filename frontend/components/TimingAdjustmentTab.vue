@@ -162,10 +162,11 @@
         </p>
         <p>
           <kbd>Space</kbd> plays and pauses. <kbd>Enter</kbd> replays from the last spot you picked
-          by clicking the waveform, using the arrow keys or dragging a timing. The arrow keys step
-          by the preroll set below, five times as far with <kbd>Shift</kbd>. <kbd>Home</kbd> and
-          <kbd>End</kbd> jump to the edges of the view, or to the start and end of the song with
-          <kbd>Ctrl</kbd>. Scroll up and down on the waveform to zoom.
+          by clicking the waveform, using the arrow keys or dragging a timing. <kbd>&larr;</kbd> and
+          <kbd>&rarr;</kbd> step by the preroll set below, five times as far with <kbd>Shift</kbd>.
+          <kbd>Home</kbd> and <kbd>End</kbd> jump to the edges of the view, or to the start and end
+          of the song with <kbd>Ctrl</kbd>. Scroll up and down on the waveform, or press
+          <kbd>&uarr;</kbd> and <kbd>&darr;</kbd>, to zoom.
         </p>
         <p>
           <kbd>{{ undoShortcut }}</kbd> and <kbd>{{ redoShortcut }}</kbd> undo and redo your edits,
@@ -991,12 +992,26 @@ export default defineComponent({
       this.zoom = Math.min(MAX_ZOOM, Math.max(MIN_ZOOM, Math.round(this.zoom * ratio)));
     },
     onZoomChange(direction: number) {
+      this.zoom = this.steppedZoom(direction);
+    },
+    /**
+     * Zoom in or out by one wheel step, around the playhead.
+     */
+    zoomAroundPlayhead(direction: 1 | -1) {
+      const zoom = this.steppedZoom(direction);
+      // An anchor left unused would be taken up by the next resize.
+      if (zoom === this.zoom) return;
+      this.timingAdjusterRef()?.anchorZoomOnPlayhead();
+      this.zoom = zoom;
+    },
+    steppedZoom(direction: number): number {
       const zoom = Math.round(this.zoom * ZOOM_WHEEL_FACTOR ** direction);
-      this.zoom = Math.min(MAX_ZOOM, Math.max(MIN_ZOOM, zoom));
+      return Math.min(MAX_ZOOM, Math.max(MIN_ZOOM, zoom));
     },
     onKeyDown(event: KeyboardEvent) {
       const isEnter = event.code === "Enter" || event.code === "NumpadEnter";
       const isArrow = event.code === "ArrowLeft" || event.code === "ArrowRight";
+      const isZoomKey = !this.isTapMode && (event.code === "ArrowUp" || event.code === "ArrowDown");
       const isEscape = event.code === "Escape";
       const isViewEdge = event.code === "Home" || event.code === "End";
       const historyStep = historyStepFor(event);
@@ -1012,6 +1027,7 @@ export default defineComponent({
         event.code !== "Space" &&
         !isEnter &&
         !isArrow &&
+        !isZoomKey &&
         !isEscape &&
         !isViewEdge &&
         !historyStep &&
@@ -1063,6 +1079,8 @@ export default defineComponent({
         }
       } else if (isEnter) {
         this.timingAdjusterRef()?.restartAt(this.manualPlayhead);
+      } else if (isZoomKey) {
+        this.zoomAroundPlayhead(event.code === "ArrowUp" ? 1 : -1);
       } else if (isArrow) {
         const direction = event.code === "ArrowLeft" ? -1 : 1;
         const step = event.shiftKey

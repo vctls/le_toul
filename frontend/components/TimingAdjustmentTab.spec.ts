@@ -27,6 +27,7 @@ const seekToViewEdge = vi.fn();
 const seekToTrackEdge = vi.fn();
 const setAudioPlayhead = vi.fn();
 const selectSegment = vi.fn();
+const anchorZoomOnPlayhead = vi.fn();
 // The tab reads the playback clock through the adjuster.
 const playback = { paused: true, time: 0 };
 const pause = vi.fn(() => {
@@ -47,6 +48,7 @@ const timingAdjusterStub = {
     pause,
     setAudioPlayhead,
     selectSegment,
+    anchorZoomOnPlayhead,
     isPaused: () => playback.paused,
     currentTime: () => playback.time,
   },
@@ -111,6 +113,7 @@ describe("TimingAdjustmentTab shortcuts", () => {
     pause.mockClear();
     setAudioPlayhead.mockClear();
     selectSegment.mockClear();
+    anchorZoomOnPlayhead.mockClear();
     playback.paused = true;
     playback.time = 0;
   });
@@ -214,6 +217,30 @@ describe("TimingAdjustmentTab shortcuts", () => {
     expect(seekBy).toHaveBeenLastCalledWith(10);
     pressKey("ArrowLeft", { shiftKey: true });
     expect(seekBy).toHaveBeenLastCalledWith(-10);
+  });
+
+  it("zooms in and out around the playhead with the up and down arrows", () => {
+    const wrapper = mountTab();
+    pressKey("ArrowUp");
+    expect(wrapper.vm.zoom).toBe(125);
+    expect(anchorZoomOnPlayhead).toHaveBeenCalledOnce();
+    pressKey("ArrowDown");
+    expect(wrapper.vm.zoom).toBe(100);
+    expect(anchorZoomOnPlayhead).toHaveBeenCalledTimes(2);
+  });
+
+  it("leaves no zoom anchor behind when the zoom is already at its limit", () => {
+    const wrapper = mountTab();
+    pressKey("ArrowDown");
+    expect(wrapper.vm.zoom).toBe(100);
+    expect(anchorZoomOnPlayhead).not.toHaveBeenCalled();
+  });
+
+  it("doesn't zoom with the up and down arrows in Tap mode", () => {
+    const wrapper = mountTab();
+    wrapper.vm.setMode("tap");
+    pressKey("ArrowUp");
+    expect(wrapper.vm.zoom).toBe(100);
   });
 
   it("keeps a preroll for each mode, of 2 s in Tap mode at first", () => {

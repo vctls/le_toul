@@ -445,6 +445,22 @@ export default defineComponent({
         this.wavesurfer.pause();
       }
     },
+    /**
+     * Keep the playhead where it is on screen through the next zoom, or the middle of the view
+     * when the playhead is out of it.
+     */
+    anchorZoomOnPlayhead() {
+      const scrollEl = this.scrollElement();
+      const range = this.visibleTimeRange();
+      if (!scrollEl || !range) return;
+      const playhead = this.wavesurfer?.getCurrentTime() ?? 0;
+      const time =
+        playhead >= range.start && playhead <= range.end ? playhead : (range.start + range.end) / 2;
+      this._zoomAnchor = {
+        time,
+        cursorX: time * this.pixelsPerSecond(scrollEl) - scrollEl.scrollLeft,
+      };
+    },
     // The stretch of the track currently scrolled into view, in seconds.
     visibleTimeRange(): { start: number; end: number } | null {
       const scrollEl = this.scrollElement();
