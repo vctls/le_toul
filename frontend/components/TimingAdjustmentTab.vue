@@ -130,8 +130,9 @@
           of this voice, which you can undo too.
         </p>
         <p>
-          The arrow keys move the playhead by the preroll, and so does scrolling sideways on the
-          waveform. Scroll up and down to zoom. Press <kbd>T</kbd> to switch to Adjust mode.
+          <kbd>&larr;</kbd> and <kbd>&rarr;</kbd> move the playhead by the preroll, and so does
+          scrolling sideways on the waveform. Scroll up and down, or press <kbd>&uarr;</kbd> and
+          <kbd>&darr;</kbd>, to zoom. Press <kbd>T</kbd> to switch to Adjust mode.
         </p>
         <p v-if="reviewIndices.length > 0">
           A lyric edit changed the timings of the syllables outlined in red or orange. The arrows by
@@ -1016,7 +1017,7 @@ export default defineComponent({
     onKeyDown(event: KeyboardEvent) {
       const isEnter = event.code === "Enter" || event.code === "NumpadEnter";
       const isArrow = event.code === "ArrowLeft" || event.code === "ArrowRight";
-      const isZoomKey = !this.isTapMode && (event.code === "ArrowUp" || event.code === "ArrowDown");
+      const isZoomKey = event.code === "ArrowUp" || event.code === "ArrowDown";
       const isEscape = event.code === "Escape";
       const isViewEdge = event.code === "Home" || event.code === "End";
       const historyStep = historyStepFor(event);

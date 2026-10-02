@@ -236,11 +236,12 @@ describe("TimingAdjustmentTab shortcuts", () => {
     expect(anchorZoomOnPlayhead).not.toHaveBeenCalled();
   });
 
-  it("doesn't zoom with the up and down arrows in Tap mode", () => {
+  it("zooms with the up and down arrows in Tap mode too", () => {
     const wrapper = mountTab();
     wrapper.vm.setMode("tap");
     pressKey("ArrowUp");
-    expect(wrapper.vm.zoom).toBe(100);
+    expect(wrapper.vm.zoom).toBe(125);
+    expect(anchorZoomOnPlayhead).toHaveBeenCalledOnce();
   });
 
   it("keeps a preroll for each mode, of 2 s in Tap mode at first", () => {
