@@ -3,7 +3,7 @@
 
 import { findLast } from "lodash-es";
 import { resolveStarts } from "@/lib/timing";
-import { TimedSegment, segmentWord } from "@/lib/timedSegments";
+import { TimedSegment, clearRetimedFlags, segmentWord } from "@/lib/timedSegments";
 import { clampSegmentOverlaps } from "@/lib/timingValidation";
 
 export interface TapPass {
@@ -155,7 +155,9 @@ export function tapStart(pass: TapPass, time: number): TapPass {
   });
   tapped.add(head);
   return {
-    staged: clampSegmentOverlaps(next),
+    // The store writes a pass as one snapshot per tap, so a flag left on a segment the pass has
+    // retimed would come back with every later snapshot.
+    staged: clearRetimedFlags(staged, clampSegmentOverlaps(next)),
     head: head + 1,
     growing: head,
     tapped,
@@ -176,7 +178,7 @@ export function tapEnd(pass: TapPass, time: number): TapPass {
   );
   return {
     ...pass,
-    staged: clampSegmentOverlaps(next),
+    staged: clearRetimedFlags(staged, clampSegmentOverlaps(next)),
     growing: undefined,
     previous: pass,
     lastTap: time,

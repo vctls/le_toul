@@ -189,6 +189,47 @@ describe("a pass", () => {
     expect(pass.staged[3]).toEqual({ text: "ve_", start: 5.2, end: undefined });
   });
 
+  describe("clears the review flag of every segment a tap retimes", () => {
+    const flagged = () => timedSong().map((segment) => ({ ...segment, review: "moved" as const }));
+    const reviews = (pass: ReturnType<typeof startPass>) => pass.staged.map((s) => s.review);
+
+    it("on the tapped segment, and on the one before it when its end is pulled back", () => {
+      const segments = flagged();
+      segments[2].end = 5.5;
+      const pass = tapStart(startPass(segments, 3), 5.2);
+      expect(reviews(pass)).toEqual([
+        "moved",
+        "moved",
+        undefined,
+        undefined,
+        "moved",
+        "moved",
+        "moved",
+        "moved",
+      ]);
+    });
+
+    it("on a segment whose old start the tap passes", () => {
+      const pass = tapStart(startPass(flagged(), 3), 6.5);
+      expect(reviews(pass)).toEqual([
+        "moved",
+        "moved",
+        "moved",
+        undefined,
+        undefined,
+        "moved",
+        "moved",
+        "moved",
+      ]);
+    });
+
+    it("on the segment an end tap ends", () => {
+      const pass = tapEnd(startPass(flagged(), 1), 1.5);
+      expect(pass.staged[0].review).toBeUndefined();
+      expect(pass.staged[1].review).toBe("moved");
+    });
+  });
+
   it("ends the growing segment on an end tap", () => {
     let pass = tapStart(startPass(timedSong(), 3), 5.2);
     pass = tapEnd(pass, 5.7);
