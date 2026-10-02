@@ -80,12 +80,19 @@
                 <b-icon size="is-small" icon="circle-question"></b-icon>
               </b-tooltip>
             </template>
-            <b-input
-              :model-value="videoOptions.countInText"
-              @update:model-value="
-                (v: string | number | undefined) => (videoOptions.countInText = String(v ?? ''))
-              "
-            ></b-input>
+            <b-field>
+              <b-input
+                ref="countInInput"
+                expanded
+                :model-value="videoOptions.countInText"
+                @update:model-value="
+                  (v: string | number | undefined) => (videoOptions.countInText = String(v ?? ''))
+                "
+              ></b-input>
+              <p class="control">
+                <SymbolPicker :groups="countInSymbols" @pick="insertCountInSymbol" />
+              </p>
+            </b-field>
           </b-field>
           <b-field horizontal>
             <template #label>
@@ -567,6 +574,7 @@ import VideoCreationProgressIndicator from "@/components/VideoCreationProgressIn
 import VoiceStyleSettings from "@/components/VoiceStyleSettings.vue";
 import ColorField from "@/components/ColorField.vue";
 import FileUpload from "@/components/FileUpload.vue";
+import SymbolPicker from "@/components/SymbolPicker.vue";
 import jszip from "jszip";
 import video from "@/lib/video";
 import { CreationPhase } from "@/types";
@@ -578,7 +586,7 @@ import { useLyricsStore } from "@/stores/lyrics";
 import { useFallbackFontsStore } from "@/stores/fallbackFonts";
 import { abortable } from "@/lib/util";
 import { projectSongEntryName } from "@/lib/projectFolder";
-import { BUNDLED_FONTS as fonts } from "@/lib/fonts";
+import { BUNDLED_FONTS as fonts, COUNT_IN_SYMBOLS } from "@/lib/fonts";
 import { projectFilesToKbp } from "@/lib/kbpConvert";
 import { applyVoiceStyle } from "@/lib/voiceStyle";
 import { extensionForBlob } from "@/lib/audio";
@@ -600,6 +608,7 @@ export default defineComponent({
     VoiceStyleSettings,
     ColorField,
     FileUpload,
+    SymbolPicker,
   },
   setup() {
     const mediaStore = useMediaStore();
@@ -626,6 +635,7 @@ export default defineComponent({
       // What the last KBP download couldn't carry over.
       kbpExportWarnings: [] as string[],
       fonts,
+      countInSymbols: COUNT_IN_SYMBOLS,
       outputFormatLabels,
       VerticalAlignment,
       isSubmitting: false,
@@ -784,6 +794,19 @@ export default defineComponent({
     },
   },
   methods: {
+    /**
+     * Put a symbol into the count-in text where the cursor was, replacing any selection.
+     */
+    insertCountInSymbol(symbol: string) {
+      const input = (this.$refs.countInInput as { $refs: { input: HTMLInputElement } }).$refs.input;
+      const text = this.videoOptions.countInText;
+      const start = input.selectionStart ?? text.length;
+      const end = input.selectionEnd ?? text.length;
+      this.videoOptions.countInText = text.slice(0, start) + symbol + text.slice(end);
+      const cursor = start + symbol.length;
+      // The input has lost focus to the picker but still keeps its cursor for the next pick.
+      this.$nextTick(() => input.setSelectionRange(cursor, cursor));
+    },
     updateScrollHints() {
       const el = this.$refs.settingsColumn as HTMLElement | undefined;
       // Sub-pixel leftovers are rounding, not content.

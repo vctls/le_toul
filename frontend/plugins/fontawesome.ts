@@ -42,6 +42,7 @@ import {
   faPause,
   faExpand,
   faCompress,
+  faShapes,
 } from "@fortawesome/free-solid-svg-icons";
 
 // Import from brands
@@ -89,6 +90,7 @@ library.add(
   faPause,
   faExpand,
   faCompress,
+  faShapes,
 
   // Brand icons
   faGithub,
