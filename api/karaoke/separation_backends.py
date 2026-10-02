@@ -26,7 +26,7 @@ import httpx
 import structlog
 
 from api import settings
-from api.karaoke import music_separation, separation_progress
+from api.karaoke import audio_input, music_separation, separation_progress
 from api.karaoke.music_separation import (
     SeparationMethod,
     SeparationResult,
@@ -231,10 +231,10 @@ def _raised_exception(stderr: str) -> str:
 class RemoteBackend:
     """Separates on a host that speaks the job protocol of api/separation_tasks.py.
 
-    The song is uploaded, the task polled until it ends, and the stems
-    downloaded under the names the server gives them. Every poll passes through
-    on_progress, whose cancel check is the only place a cancelled job unwinds,
-    and the remote task is cancelled on the way out.
+    The song is uploaded, as FLAC if it was PCM, the task polled until it ends,
+    and the stems downloaded under the names the server gives them. Every poll
+    passes through on_progress, whose cancel check is the only place a cancelled
+    job unwinds, and the remote task is cancelled on the way out.
     """
 
     name = "remote"
@@ -261,17 +261,7 @@ class RemoteBackend:
         )
         with owned as client:
             report(None, separation_progress.UPLOADING_STAGE)
-            try:
-                with songfile.open("rb") as song:
-                    response = client.post(
-                        "/tasks",
-                        data={"modelName": model_name},
-                        files={"songFile": (songfile.name, song)},
-                    )
-            except httpx.TransportError as e:
-                raise RuntimeError(
-                    f"The separation service at {client.base_url} is unreachable: {e}"
-                ) from e
+            response = _upload(client, songfile, song_dir, model_name)
             _raise_for_status(response)
             task_id = response.json()["task_id"]
             logger.info("remote_task_submitted", task_id=task_id)
@@ -358,6 +348,24 @@ class RemoteBackend:
                     status["stage"] or separation_progress.LOADING_STAGE,
                 )
             time.sleep(REMOTE_POLL_INTERVAL_SECONDS)
+
+
+def _upload(
+    client: httpx.Client, songfile: Path, song_dir: Path, model_name: str
+) -> httpx.Response:
+    with tempfile.TemporaryDirectory(dir=song_dir) as compression_dir:
+        upload = audio_input.compress_pcm(songfile, Path(compression_dir))
+        try:
+            with upload.open("rb") as song:
+                return client.post(
+                    "/tasks",
+                    data={"modelName": model_name},
+                    files={"songFile": (upload.name, song)},
+                )
+        except httpx.TransportError as e:
+            raise RuntimeError(
+                f"The separation service at {client.base_url} is unreachable: {e}"
+            ) from e
 
 
 def _remote_client() -> httpx.Client:
