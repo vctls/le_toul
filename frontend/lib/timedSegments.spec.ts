@@ -253,6 +253,96 @@ describe("reconcile", () => {
     ]);
   });
 
+  it("rule 4: keeps the timings of the lines that edits on either side leave unchanged", () => {
+    const stored = [
+      timed("ka_", 1),
+      timed("den\n", 2),
+      timed("lu_", 3),
+      timed("mo\n", 4),
+      timed("ri_", 5),
+      timed("sa\n", 6),
+      timed("te_", 7),
+      timed("vo", 8, 8.5),
+    ];
+
+    expect(reconcile(stored, lyrics("ka_den_xo\nlu_mo\nri_sa\nte_vo_zu"))).toEqual([
+      timed("ka_", 1),
+      timed("den_", 2),
+      timed("xo\n"),
+      timed("lu_", 3),
+      timed("mo\n", 4),
+      timed("ri_", 5),
+      timed("sa\n", 6),
+      timed("te_", 7),
+      timed("vo_", 8, 8.5),
+      timed("zu"),
+    ]);
+  });
+
+  it("rule 4: a matched line that only gained a split keeps its outer bounds", () => {
+    const stored = [
+      timed("ka_", 1),
+      timed("den\n", 2),
+      timed("lu_", 3),
+      timed("mo\n", 4),
+      timed("risa", 5, 5.5),
+    ];
+
+    expect(reconcile(stored, lyrics("ka_dun_po\nlu_mo\nri/sa"))).toEqual([
+      timed("ka_", 1),
+      timed("dun_"),
+      timed("po\n"),
+      timed("lu_", 3),
+      timed("mo\n", 4),
+      timed("ri/", 5),
+      timed("sa", undefined, 5.5),
+    ]);
+  });
+
+  it("rule 4: reconciles a gap of as many lines on each side pair by pair", () => {
+    const stored = [
+      timed("ka_", 1),
+      timed("den_", 2),
+      timed("lu\n", 3),
+      timed("mo_", 4),
+      timed("ri", 5),
+    ];
+
+    expect(reconcile(stored, lyrics("ka_dun_xo_lu\nmo_ri_zu"))).toEqual([
+      timed("ka_", 1),
+      timed("dun_"),
+      timed("xo_"),
+      timed("lu\n", 3),
+      timed("mo_", 4),
+      timed("ri_", 5),
+      timed("zu"),
+    ]);
+  });
+
+  it("rule 4: a line inserted inside the window un-times nothing else", () => {
+    const stored = [timed("ka\n", 1), timed("den\n", 2), timed("lu\n", 3), timed("mo", 4)];
+
+    expect(reconcile(stored, lyrics("kaa\nden\nxo\nlu\nmo"))).toEqual([
+      timed("kaa\n", 1),
+      timed("den\n", 2),
+      timed("xo\n"),
+      timed("lu\n", 3),
+      timed("mo", 4),
+    ]);
+  });
+
+  it("rule 4: un-times a gap whose line count changed", () => {
+    const stored = [timed("ka\n", 1), timed("den\n", 2), timed("lu\n", 3), timed("mo", 4)];
+
+    expect(reconcile(stored, lyrics("xo\nden\npi\nzu\nmo"))).toEqual([
+      timed("xo\n", 1),
+      timed("den\n", 2),
+      timed("pi\n"),
+      timed("zu\n"),
+      timed("mo", 4),
+    ]);
+  });
+
   it("rule 1: adding or removing a spacer keeps every timing and display period", () => {
     const stored: TimedSegment[] = [
       { text: "one\n", start: 1.0, displayStart: 0.5 },
