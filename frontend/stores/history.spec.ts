@@ -129,12 +129,12 @@ describe("History", () => {
   });
 
   describe("voices", () => {
-    const loadTwoVoices = (extra: Partial<TimedSegment> = {}) => {
+    const loadTwoVoices = () => {
       const timings = useTimingsStore();
       useLyricsStore().setLyrics("[Anna] hello\n[Ben] world");
       timings.setAllSegments({
-        Anna: [{ text: "hello", start: 1, ...extra }],
-        Ben: [{ text: "world", start: 5, ...extra }],
+        Anna: [{ text: "hello", start: 1 }],
+        Ben: [{ text: "world", start: 5 }],
       });
       return { timings, history: useHistoryStore() };
     };
@@ -152,17 +152,6 @@ describe("History", () => {
       history.undo();
       expect(timings.segmentsByVoice.Anna[0].start).toBe(1);
       expect(timings.activeVoice).toBe("Anna");
-    });
-
-    test("one undo of Reset restores every voice's periods", () => {
-      const { timings, history } = loadTwoVoices({ displayStart: 0.5 });
-
-      timings.clearDisplayPeriods();
-      expect(timings.segmentsByVoice.Ben[0].displayStart).toBeUndefined();
-      history.undo();
-
-      expect(timings.segmentsByVoice.Anna[0].displayStart).toBe(0.5);
-      expect(timings.segmentsByVoice.Ben[0].displayStart).toBe(0.5);
     });
   });
 

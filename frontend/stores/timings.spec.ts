@@ -546,7 +546,7 @@ describe("Timings Store", () => {
       ]);
     });
 
-    test("clearing the periods drops every voice's bounds and keeps its timings", () => {
+    test("clearing a voice's periods drops its bounds, keeps its timings and leaves the others", () => {
       const timings = useTimingsStore();
       useLyricsStore().setLyrics("[Anna] hello\n[Ben] world");
       timings.setAllSegments({
@@ -554,12 +554,11 @@ describe("Timings Store", () => {
         Ben: [{ text: "world", start: 5, displayEnd: 7 }],
       });
 
-      timings.clearDisplayPeriods();
+      timings.clearDisplayPeriods("Anna");
 
-      expect(timings.hasDisplayPeriods).toBe(false);
       expect(timings.segmentsByVoice).toEqual({
         Anna: [{ text: "hello", start: 1, end: 2 }],
-        Ben: [{ text: "world", start: 5 }],
+        Ben: [{ text: "world", start: 5, displayEnd: 7 }],
       });
     });
 

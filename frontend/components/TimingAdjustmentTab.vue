@@ -95,6 +95,15 @@
           @click="showTapButtons = !showTapButtons"
         />
         <b-button
+          v-if="displayMode"
+          icon-left="eraser"
+          aria-label="Reset line display times"
+          title="Put every line of this voice back on its automatic display times"
+          :disabled="!activeVoiceHasDisplayPeriods"
+          @click="timingsStore.clearDisplayPeriods(activeVoice)"
+        />
+        <b-button
+          v-else
           icon-left="eraser"
           aria-label="Reset timings"
           title="Clear every timing of this voice"
@@ -132,7 +141,7 @@
         <p>
           <kbd>&larr;</kbd> and <kbd>&rarr;</kbd> move the playhead by the preroll, and so does
           scrolling sideways on the waveform. Scroll up and down, or press <kbd>&uarr;</kbd> and
-          <kbd>&darr;</kbd>, to zoom. Press <kbd>T</kbd> to switch to Adjust mode.
+          <kbd>&darr;</kbd>, to zoom. Press <kbd>T</kbd> to switch to {{ editModeName }} mode.
         </p>
         <p v-if="reviewIndices.length > 0">
           A lyric edit changed the timings of the syllables outlined in red or orange. The arrows by
@@ -145,23 +154,41 @@
         </p>
       </template>
       <template v-else>
-        <p>
-          Drag the left edge of a rectangle to change when a syllable starts, and the right edge to
-          change when it ends. Drag an end onto the next start to join the two. Once they're joined,
-          dragging that start moves the end before it too. When you let go of an edge, the syllable
-          plays.
-        </p>
-        <p>
-          Click a rectangle to select it, then click another to select everything in between. You
-          can also drag across the waveform from a bare spot to select every rectangle in that
-          stretch of time. Click a selected rectangle or a bare spot on the waveform, or press
-          <kbd>Esc</kbd>, to clear the selection. Each click plays the syllable you clicked.
-        </p>
-        <p>
-          Drag a rectangle to move it, or a selected one to move the whole selection. What you moved
-          plays when you let go. Once a syllable or selection has played, the playhead goes back to
-          the preroll before it.
-        </p>
+        <template v-if="displayMode">
+          <p>
+            Each line gets a frame for the time it's on screen. Drag its edges to change when the
+            line appears and disappears, or double-click an edge to go back to the automatic time.
+            Drag a frame to move both its edges. A frame always keeps its line's syllables inside
+            it, and stops at the lines shown at the same height. Dashed edges are automatic, and
+            solid ones were set by hand.
+          </p>
+          <p>
+            Click a frame to select it, then click another to select everything in between. You can
+            also drag a box across the waveform from a bare spot to select every frame it touches.
+            Click a selected frame or a bare spot on the waveform, or press <kbd>Esc</kbd>, to clear
+            the selection. Dragging a selected frame moves the whole selection, and dragging an edge
+            of one moves that edge of every selected frame.
+          </p>
+        </template>
+        <template v-else>
+          <p>
+            Drag the left edge of a rectangle to change when a syllable starts, and the right edge
+            to change when it ends. Drag an end onto the next start to join the two. Once they're
+            joined, dragging that start moves the end before it too. When you let go of an edge, the
+            syllable plays.
+          </p>
+          <p>
+            Click a rectangle to select it, then click another to select everything in between. You
+            can also drag across the waveform from a bare spot to select every rectangle in that
+            stretch of time. Click a selected rectangle or a bare spot on the waveform, or press
+            <kbd>Esc</kbd>, to clear the selection. Each click plays the syllable you clicked.
+          </p>
+          <p>
+            Drag a rectangle to move it, or a selected one to move the whole selection. What you
+            moved plays when you let go. Once a syllable or selection has played, the playhead goes
+            back to the preroll before it.
+          </p>
+        </template>
         <p>
           <kbd>Space</kbd> plays and pauses. <kbd>Enter</kbd> replays from the last spot you picked
           by clicking the waveform, using the arrow keys or dragging a timing. <kbd>&larr;</kbd> and
@@ -172,10 +199,17 @@
         </p>
         <p>
           <kbd>{{ undoShortcut }}</kbd> and <kbd>{{ redoShortcut }}</kbd> undo and redo your edits,
-          including those made to the lyrics and in other tabs. The eraser clears every timing of
-          this voice, which you can undo too. Press <kbd>T</kbd> to switch to Tap mode.
+          including those made to the lyrics and in other tabs.
+          <template v-if="displayMode">
+            The eraser puts every line of this voice back on automatic times, which you can undo
+            too.
+          </template>
+          <template v-else>
+            The eraser clears every timing of this voice, which you can undo too.
+          </template>
+          Press <kbd>T</kbd> to switch to Tap mode.
         </p>
-        <p v-if="reviewIndices.length > 0">
+        <p v-if="reviewIndices.length > 0 && !displayMode">
           A lyric edit changed the timings of the syllables drawn in red or orange, with a line
           across the waveform at each. Red ones lost their timing and sit where the syllables around
           them put them. Orange ones took their timing from a word that was replaced. The arrows by
@@ -183,17 +217,6 @@
           and move the playhead to the preroll before it. Moving a syllable clears its mark, and
           <strong>Mark as checked</strong>, or <kbd>C</kbd>, clears it on the selected syllables
           without moving them, then goes to the next one.
-        </p>
-        <p v-if="advancedStore.isAdvanced">
-          With <strong>Line display times</strong> on, each line gets a frame for the time it's on
-          screen. Drag its edges to change when the line appears and disappears, or double-click an
-          edge to go back to the automatic time. Drag a frame to move both its edges. Frames are
-          selected like rectangles, except that the box you drag follows the pointer up and down and
-          selects only the frames it touches. Dragging a selected frame moves the whole selection,
-          and dragging an edge of one moves that edge of every selected frame. A frame always keeps
-          its line's syllables inside it, and stops at the lines shown at the same height. Dashed
-          edges are automatic, and solid ones were set by hand. <strong>Reset</strong> puts every
-          line of every voice back on automatic times, and one undo brings them all back.
         </p>
       </template>
     </help-section>
@@ -244,13 +267,23 @@
                 Tap
               </b-button>
               <b-button
-                :type="isTapMode ? '' : 'is-primary'"
-                :aria-pressed="!isTapMode"
+                :type="isAdjustMode ? 'is-primary' : ''"
+                :aria-pressed="isAdjustMode"
                 :disabled="!hasTimings"
                 title="Drag the timings into place (T)"
                 @click="setMode('adjust')"
               >
                 Adjust
+              </b-button>
+              <b-button
+                v-if="advancedStore.isAdvanced"
+                :type="displayMode ? 'is-primary' : ''"
+                :aria-pressed="displayMode"
+                :disabled="!hasTimings"
+                title="Drag when each line is on screen (T)"
+                @click="setMode('lines')"
+              >
+                Lines
               </b-button>
             </div>
           </b-field>
@@ -309,7 +342,7 @@
               "
             />
           </template>
-          <b-field v-if="!isTapMode" label="Shift all timings (ms)" horizontal>
+          <b-field v-if="isAdjustMode" label="Shift all timings (ms)" horizontal>
             <b-numberinput
               expanded
               :model-value="shiftMs"
@@ -320,25 +353,6 @@
               controls-position="compact"
             />
             <b-button class="field-action" label="Apply" @click="applyShift" />
-          </b-field>
-          <b-field v-if="advancedStore.isAdvanced && !isTapMode" horizontal>
-            <template #label>
-              Line display times
-              <b-tooltip
-                multilined
-                label="Edit when each line is on screen, instead of its timings."
-              >
-                <b-icon size="is-small" icon="circle-question"></b-icon>
-              </b-tooltip>
-            </template>
-            <b-switch v-model="showDisplayBands"></b-switch>
-            <b-button
-              v-if="displayMode"
-              class="reset-display-periods field-action"
-              label="Reset"
-              :disabled="!timingsStore.hasDisplayPeriods"
-              @click="timingsStore.clearDisplayPeriods()"
-            />
           </b-field>
         </div>
       </div>
@@ -427,7 +441,7 @@ import TapButtons from "@/components/TapButtons.vue";
 import { VoiceId } from "@/lib/voices";
 import { clampSegmentOverlaps } from "@/lib/timingValidation";
 import { isDragging } from "@/lib/wavesurferPlugins/OpenEndedRegionPlugin";
-import { TimedSegment, fromLyric, unflagged } from "@/lib/timedSegments";
+import { TimedSegment, fromLyric, hasDisplayPeriod, unflagged } from "@/lib/timedSegments";
 import {
   TapPass,
   followHead,
@@ -505,7 +519,8 @@ interface AdjustVoiceState {
   acknowledgedStatus?: TimingStatus | null;
 }
 
-type AdjustMode = "tap" | "adjust";
+// Lines mode edits when each line is on screen.
+type AdjustMode = "tap" | "adjust" | "lines";
 
 // How far the voice is timed: every segment has a start, and the last one an end too.
 type TimingStatus = "almost" | "done";
@@ -534,6 +549,7 @@ const ZOOM_WHEEL_FACTOR = 1.25;
 interface PersistedAdjust {
   voiceState: Record<VoiceId, AdjustVoiceState>;
   preservePitch: boolean;
+  // Older saves have Lines mode as a switch on Adjust mode.
   showDisplayBands?: boolean;
   mode?: AdjustMode;
   showTapButtons?: boolean;
@@ -545,6 +561,11 @@ function writeAdjustState(value: PersistedAdjust) {
   } catch (e) {
     console.error(`Failed to save ${ADJUST_STORAGE_KEY} to localStorage`, e);
   }
+}
+
+function restoredMode(restored: PersistedAdjust | null): AdjustMode {
+  const mode = restored?.mode ?? "adjust";
+  return mode === "adjust" && restored?.showDisplayBands ? "lines" : mode;
 }
 
 function defaultAdjustState(): AdjustVoiceState {
@@ -600,6 +621,7 @@ export default defineComponent({
   },
   data() {
     const restored = loadJsonFromStorage<PersistedAdjust | null>(ADJUST_STORAGE_KEY, null);
+    const mode = restoredMode(restored);
     return {
       // Controls playhead in video and adjuster (in seconds)
       playhead: 0.0,
@@ -617,8 +639,6 @@ export default defineComponent({
       // Default off: the browser's stretcher warbles at slow rates,
       // and a dropped key costs nothing while tapping timings.
       preservePitch: restored?.preservePitch ?? false,
-      // Off by default, since most users never set display times.
-      showDisplayBands: restored?.showDisplayBands ?? false,
       // On by default where there is likely no keyboard to tap with.
       showTapButtons: restored?.showTapButtons ?? isMobile(),
       isPlaying: false,
@@ -649,7 +669,9 @@ export default defineComponent({
       // Whether the settings column is scrolled down, which fades out its top edge.
       settingsScrolled: false,
       _unsubscribeScheme: null as (() => void) | null,
-      mode: restored?.mode ?? ("adjust" as AdjustMode),
+      mode,
+      // The mode T switches to from Tap mode.
+      lastEditMode: (mode === "tap" ? "adjust" : mode) as Exclude<AdjustMode, "tap">,
       // The active voice's head, the first segment the next start tap times.
       tapHead: 0,
       // The pass being tapped, and the voice it belongs to. Nothing is written before it ends.
@@ -695,7 +717,6 @@ export default defineComponent({
       return {
         voiceState: { ...this.voiceState, [this.activeVoice]: this.snapshotState() },
         preservePitch: this.preservePitch,
-        showDisplayBands: this.showDisplayBands,
         showTapButtons: this.showTapButtons,
         mode: this.mode,
       };
@@ -805,9 +826,18 @@ export default defineComponent({
     timingKeys(): TimingKeys {
       return this.settingsStore.timingKeys;
     },
-    // The switch keeps its position while advanced mode is off, so it comes back as it was.
+    // Lines mode is Adjust mode while advanced mode is off, and comes back with it.
     displayMode(): boolean {
-      return this.advancedStore.isAdvanced && this.showDisplayBands && !this.isTapMode;
+      return this.advancedStore.isAdvanced && this.mode === "lines" && !this.isTapMode;
+    },
+    isAdjustMode(): boolean {
+      return !this.isTapMode && !this.displayMode;
+    },
+    editModeName(): string {
+      return this.lastEditMode === "lines" && this.advancedStore.isAdvanced ? "Lines" : "Adjust";
+    },
+    activeVoiceHasDisplayPeriods(): boolean {
+      return this.timingsStore.activeSegments.some(hasDisplayPeriod);
     },
     displayBands(): DisplayBand[] {
       if (!this.displayMode) return [];
@@ -1064,7 +1094,7 @@ export default defineComponent({
           this.onTimingKey(timingKey);
         }
       } else if (isModeKey) {
-        this.setMode(this.isTapMode ? "adjust" : "tap");
+        this.setMode(this.isTapMode ? this.lastEditMode : "tap");
       } else if (isReviewKey && letter === "c") {
         this.markChecked();
       } else if (isReviewKey) {
@@ -1109,13 +1139,14 @@ export default defineComponent({
       return keys.find((key) => eventMatchesKey(event.code, this.timingKeys[key])) ?? null;
     },
     setMode(mode: AdjustMode) {
-      if (mode === "adjust" && !this.hasTimings) return;
+      if (mode !== "tap" && !this.hasTimings) return;
       if ((mode === "tap") !== this.isTapMode) {
         this.endPass();
         if (mode === "tap") {
           this.tapHead = segmentHeadAt(this.tapSegments, this.playhead);
         }
       }
+      if (mode !== "tap") this.lastEditMode = mode;
       this.mode = mode;
     },
     /**
@@ -1469,6 +1500,7 @@ Its rule ties on specificity with the one above. */
   font-weight: var(--bulma-weight-semibold);
 }
 
+/* Bulma's padding would push three buttons past the 10em of the other controls. */
 .mode-switch {
   flex-wrap: nowrap;
   width: 10em;
@@ -1476,6 +1508,7 @@ Its rule ties on specificity with the one above. */
 
 .mode-switch :deep(.button) {
   flex: 1 1 0;
+  padding-inline: 0.4em;
 }
 
 /* Two columns for as long as they fit,
