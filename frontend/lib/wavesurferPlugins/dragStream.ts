@@ -40,6 +40,8 @@ export interface DragOptions {
   mouseButton?: number;
   // On a touch screen, a drag waits this long in ms so that scrolling the page doesn't start one.
   touchDelay?: number;
+  // Whether a press may start a drag. A refused press is ignored altogether.
+  canStart?: (event: PointerEvent) => boolean;
 }
 
 /**
@@ -51,13 +53,14 @@ export function listenForDrags(
   handlers: DragHandlers,
   options: DragOptions = {},
 ): () => void {
-  const { threshold = 3, mouseButton = 0, touchDelay = 100 } = options;
+  const { threshold = 3, mouseButton = 0, touchDelay = 100, canStart } = options;
   const activePointers = new Map<number, PointerEvent>();
   const isTouchDevice = matchMedia("(pointer: coarse)").matches;
   let unsubscribeDocument = () => {};
 
   const onPointerDown = (event: PointerEvent) => {
     if (event.button !== mouseButton) return;
+    if (canStart && !canStart(event)) return;
     if (activePointers.has(event.pointerId)) return;
     activePointers.set(event.pointerId, event);
     // A second finger doesn't start a drag of its own.

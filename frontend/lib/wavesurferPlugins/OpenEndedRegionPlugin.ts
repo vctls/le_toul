@@ -12,6 +12,7 @@ import EventEmitter from "wavesurfer.js/dist/event-emitter.js";
 import createElement from "wavesurfer.js/dist/dom.js";
 import { groupBy, sortBy } from "lodash-es";
 import { listenForDrags } from "./dragStream";
+import { listenForMarquee, MarqueeArea } from "./marquee";
 
 // Every drag in progress, in any plugin instance.
 const activeDrags = new Set<object>();
@@ -916,8 +917,18 @@ class RegionsPlugin extends BasePlugin<RegionsPluginEvents, RegionsPluginOptions
     if (!this.wavesurfer) {
       throw Error("WaveSurfer is not initialized");
     }
-    this.wavesurfer.getWrapper().appendChild(this.regionsContainer);
-    this.wavesurfer.getWrapper().appendChild(this.markersContainer);
+    const wrapper = this.wavesurfer.getWrapper();
+    wrapper.appendChild(this.regionsContainer);
+    wrapper.appendChild(this.markersContainer);
+
+    this.subscriptions.push(
+      listenForMarquee(this.wavesurfer, {
+        canStart: () => this.selectable && this.regions.length > 0,
+        // A selection is a run of consecutive regions, which only a box across every row shows.
+        fullHeight: true,
+        onChange: (area) => this.selectWithin(area),
+      }),
+    );
 
     // A zoom moves every region without necessarily scrolling, so redraw has to drive the pass too.
     this.subscriptions.push(
@@ -1159,6 +1170,20 @@ class RegionsPlugin extends BasePlugin<RegionsPluginEvents, RegionsPluginOptions
     this.groupDrag = undefined;
     if (!selection?.length) return;
     this.emit("regions-updated", selection);
+  }
+
+  /**
+   * Select the regions that overlap the stretch of time the box spans.
+   */
+  private selectWithin({ start, end, forward }: MarqueeArea) {
+    const ids = this.orderedRegions()
+      .filter((region) => region.start < end && region.end > start)
+      .map((region) => region.id);
+    // A click after the drag extends the selection from the side the drag started on.
+    this.anchorId = forward ? ids[0] : ids[ids.length - 1];
+    if (ids.length !== this.selectedIds.size || ids.some((id) => !this.selectedIds.has(id))) {
+      this.setSelection(ids);
+    }
   }
 
   private adjustScroll(region: Region) {
