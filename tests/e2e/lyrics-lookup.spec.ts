@@ -7,6 +7,7 @@ import {
   loadAndEnterLyrics,
   mockLyricsLookup,
   defaultTestConfig,
+  expectLyricsText,
 } from "./utils";
 
 const PROVIDER = { id: "fake", name: "Fake Lyrics", url: "https://lyrics.test" };
@@ -43,9 +44,7 @@ test.describe("Lyrics lookup", () => {
     );
 
     await navigateToTab(page, TabId.LyricInput);
-    await expect(page.locator(".lyric-input-tab .lyric-editor-textarea")).toHaveValue(
-      "Vel oma trin\nSossa lein",
-    );
+    await expectLyricsText(page, "Vel oma trin\nSossa lein");
     await expect(page.getByRole("status")).toContainText(
       "Lyrics from Fake Lyrics: The Wendels – Glim Tovar (Pellow, 3:21).",
     );
@@ -74,6 +73,6 @@ test.describe("Lyrics lookup", () => {
 
     expect(lookups).toEqual([]);
     await navigateToTab(page, TabId.LyricInput);
-    await expect(page.locator(".lyric-input-tab .lyric-editor-textarea")).toHaveValue("Prel dova");
+    await expectLyricsText(page, "Prel dova");
   });
 });

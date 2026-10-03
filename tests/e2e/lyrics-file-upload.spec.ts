@@ -5,6 +5,7 @@ import {
   TabId,
   getFixturePath,
   loadFixtureFile,
+  expectLyricsText,
 } from "./utils";
 
 test.describe("Lyrics File Upload", () => {
@@ -21,8 +22,6 @@ test.describe("Lyrics File Upload", () => {
     await expect(page.locator('.toast:has-text("Lyrics loaded!")')).toBeVisible();
 
     await navigateToTab(page, TabId.LyricInput);
-    await expect(page.locator(".lyric-input-tab .lyric-editor-textarea")).toHaveValue(
-      await loadFixtureFile("lyrics.txt"),
-    );
+    await expectLyricsText(page, await loadFixtureFile("lyrics.txt"));
   });
 });

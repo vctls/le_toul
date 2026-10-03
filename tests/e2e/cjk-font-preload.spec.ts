@@ -7,6 +7,7 @@ import {
   uploadAudioFile,
   loadAndEnterLyrics,
   uploadTimingsFile,
+  lyricsEditor,
 } from "./utils";
 
 // The fixture lyrics with lines 2 and 3 in Japanese,
@@ -63,7 +64,7 @@ test.describe("CJK font", () => {
     expect(requests).toHaveLength(0);
 
     const download = page.waitForResponse((r) => r.url().includes(CJK_FONT_FILE));
-    await page.locator(".lyric-input-tab .lyric-editor-textarea").pressSequentially("残酷");
+    await lyricsEditor(page).pressSequentially("残酷");
 
     expect((await download).status()).toBe(200);
   });

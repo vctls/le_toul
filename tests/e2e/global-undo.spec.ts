@@ -6,6 +6,9 @@ import {
   setupTestEnvironment,
   TabId,
   uploadAudioFile,
+  expectLyricsText,
+  lyricsEditor,
+  lyricsText,
 } from "./utils";
 
 // Two lines, "ka den" and "lu". A timings.txt holds its syllables' text, so it carries its lyrics.
@@ -48,16 +51,15 @@ test.describe("Global undo", () => {
   }) => {
     const timed = await savedSegments(page);
     await navigateToTab(page, TabId.LyricInput);
-    const lyrics = page.getByRole("textbox", { name: "Lyrics" });
-    const original = await lyrics.inputValue();
+    const original = await lyricsText(page);
 
-    await lyrics.evaluate((textarea: HTMLTextAreaElement) => {
-      textarea.focus();
-      textarea.setSelectionRange(textarea.value.length - 2, textarea.value.length);
-    });
+    await lyricsEditor(page).focus();
+    await page.keyboard.press("ControlOrMeta+End");
+    await page.keyboard.press("Shift+ArrowLeft");
+    await page.keyboard.press("Shift+ArrowLeft");
     await page.evaluate(() => navigator.clipboard.writeText("la_li"));
     await page.keyboard.press("ControlOrMeta+V");
-    await expect(lyrics).toHaveValue(original.slice(0, -2) + "la_li");
+    await expectLyricsText(page, original.slice(0, -2) + "la_li");
     await expect(page.getByText("This paste moved 1 timing to replaced words.")).toBeVisible();
 
     await navigateToTab(page, TabId.TimingAdjustment);
@@ -71,22 +73,21 @@ test.describe("Global undo", () => {
     await undo.click();
     await undo.click();
 
-    await expect(lyrics).toHaveValue(original);
+    await expectLyricsText(page, original);
     await expect.poll(() => savedSegments(page)).toEqual(timed);
   });
 
   test("undoes a lyric edit with the shortcut from the Timing tab", async ({ page }) => {
     await navigateToTab(page, TabId.LyricInput);
-    const lyrics = page.getByRole("textbox", { name: "Lyrics" });
-    const original = await lyrics.inputValue();
-    await lyrics.press("End");
-    await lyrics.pressSequentially(" again");
+    const original = await lyricsText(page);
+    await lyricsEditor(page).press("ControlOrMeta+End");
+    await lyricsEditor(page).pressSequentially(" again");
 
     await navigateToTab(page, TabId.TimingAdjustment);
     await page.keyboard.press("ControlOrMeta+Z");
     await expect(page.getByText("Undid Typing (Lyrics)")).toBeVisible();
 
     await navigateToTab(page, TabId.LyricInput);
-    await expect(lyrics).toHaveValue(original + " ");
+    await expectLyricsText(page, original + " ");
   });
 });

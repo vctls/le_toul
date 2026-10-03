@@ -10,6 +10,9 @@ import {
   setupTestEnvironment,
   TabId,
   uploadAudioFile,
+  expectLyricsText,
+  lyricsEditor,
+  lyricsText,
 } from "./utils";
 
 // Two lines, "ka den" and "lu". A timings.txt holds its syllables' text, so it carries its lyrics.
@@ -50,15 +53,15 @@ test.describe("Timings to review after a lyric edit", () => {
     page,
   }) => {
     await navigateToTab(page, TabId.LyricInput);
-    const lyrics = page.getByRole("textbox", { name: "Lyrics" });
-    const original = await lyrics.inputValue();
+    const original = await lyricsText(page);
     // One word replaced by another, and one by two.
     const pasted = original.replace("den", "ben").replace(/lu$/, "la_li");
 
-    await lyrics.evaluate((textarea: HTMLTextAreaElement) => textarea.select());
+    await lyricsEditor(page).focus();
+    await page.keyboard.press("ControlOrMeta+A");
     await page.evaluate((text) => navigator.clipboard.writeText(text), pasted);
     await page.keyboard.press("ControlOrMeta+V");
-    await expect(lyrics).toHaveValue(pasted);
+    await expectLyricsText(page, pasted);
 
     const toast = page.getByRole("alertdialog");
     await expect(toast).toContainText("This paste moved 2 timings to replaced words.");
