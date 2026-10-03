@@ -481,8 +481,12 @@
       >
         There was a problem generating the video: {{ submitError }}
       </b-message>
-      <video-creation-progress-indicator
-        v-if="isSubmitting"
+      <b-message v-if="!canCreateVideo" type="is-info" :closable="false">
+        {{ missingStepsMessage }}
+      </b-message>
+      <create-video-button
+        :submitting="isSubmitting"
+        :disabled="!canCreateVideo"
         :song-duration="songDuration ?? undefined"
         :phase="creationPhase"
         :progress="videoProgress"
@@ -492,30 +496,9 @@
         :separation-stage="mediaStore.separationStage"
         :separation-songs-ahead="mediaStore.separationSongsAhead"
         :waiting-for-separation="waitingForSeparation"
+        @create="createVideo"
+        @cancel="cancelCreation"
       />
-      <b-message v-if="!canCreateVideo" type="is-info" :closable="false">
-        {{ missingStepsMessage }}
-      </b-message>
-      <div class="buttons">
-        <b-button
-          :expanded="!isSubmitting"
-          size="is-large"
-          type="is-primary"
-          :loading="isSubmitting"
-          @click="createVideo"
-          :disabled="!canCreateVideo && !isSubmitting"
-        >
-          Create Video
-        </b-button>
-        <b-button
-          v-if="isSubmitting"
-          size="is-large"
-          type="is-danger is-light"
-          @click="cancelCreation"
-        >
-          Cancel
-        </b-button>
-      </div>
       <div class="download-links">
         <source-file-download-links
           :lyrics="lyricText"
@@ -570,7 +553,7 @@ import { storeToRefs } from "pinia";
 import { OutputFormat, VerticalAlignment } from "@/lib/timing";
 import VideoPreview from "@/components/VideoPreview.vue";
 import SourceFileDownloadLinks from "@/components/SourceFileDownloadLinks.vue";
-import VideoCreationProgressIndicator from "@/components/VideoCreationProgressIndicator.vue";
+import CreateVideoButton from "@/components/CreateVideoButton.vue";
 import VoiceStyleSettings from "@/components/VoiceStyleSettings.vue";
 import ColorField from "@/components/ColorField.vue";
 import FileUpload from "@/components/FileUpload.vue";
@@ -604,7 +587,7 @@ export default defineComponent({
   components: {
     VideoPreview,
     SourceFileDownloadLinks,
-    VideoCreationProgressIndicator,
+    CreateVideoButton,
     VoiceStyleSettings,
     ColorField,
     FileUpload,

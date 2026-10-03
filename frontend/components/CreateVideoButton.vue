@@ -1,6 +1,7 @@
 <template>
-  <div class="video-creation-progress-indicator">
+  <div class="create-video-button">
     <b-message
+      v-if="submitting"
       :type="messageType"
       has-icon
       :icon="messageIcon"
@@ -9,24 +10,42 @@
     >
       {{ message }}
     </b-message>
-    <b-progress
-      :type="messageType"
-      size="is-medium"
-      :rounded="false"
-      :value="progressValue"
-      show-value
+    <button
+      type="button"
+      class="button is-large is-fullwidth"
+      :class="
+        submitting
+          ? {
+              'is-progress': true,
+              'is-separating': isSeparating,
+              'is-indeterminate': progressValue === undefined,
+              'is-cancellable': isCancellable,
+            }
+          : 'is-primary'
+      "
+      :style="{ '--progress': `${progressValue ?? 0}%` }"
+      :disabled="disabled && !submitting"
+      :aria-label="submitting ? `Cancel video creation (${progressMessage})` : undefined"
+      @click="onClick"
     >
-      {{ progressMessage }}
-    </b-progress>
+      <span v-if="submitting" class="labels">
+        <span class="progress-label">{{ progressMessage }}</span>
+        <span class="cancel-label">Cancel</span>
+      </span>
+      <template v-else>Create Video</template>
+    </button>
   </div>
 </template>
 
 <script lang="ts">
 import { defineComponent, PropType } from "vue";
 import { CreationPhase } from "@/types";
+import { CANCEL_ARMING_DELAY_MS } from "@/constants";
 
 export default defineComponent({
   props: {
+    submitting: Boolean,
+    disabled: Boolean,
     // Progress of CreatingVideo phase, from 0 to 1
     progress: Number,
     // Millis elapsed since submission start
@@ -45,10 +64,29 @@ export default defineComponent({
     // Whether the separation was already running when the video was requested
     waitingForSeparation: Boolean,
   },
+  emits: ["create", "cancel"],
   data() {
     return {
-      CreationPhase,
+      isCancellable: false,
+      armingTimeout: undefined as ReturnType<typeof setTimeout> | undefined,
     };
+  },
+  watch: {
+    submitting: {
+      handler(submitting: boolean) {
+        clearTimeout(this.armingTimeout);
+        this.isCancellable = false;
+        if (submitting) {
+          this.armingTimeout = setTimeout(() => {
+            this.isCancellable = true;
+          }, CANCEL_ARMING_DELAY_MS);
+        }
+      },
+      immediate: true,
+    },
+  },
+  beforeUnmount() {
+    clearTimeout(this.armingTimeout);
   },
   computed: {
     isSeparating(): boolean {
@@ -111,11 +149,85 @@ export default defineComponent({
       return this.phaseProgress * 100;
     },
   },
+  methods: {
+    onClick() {
+      if (!this.submitting) {
+        this.$emit("create");
+      } else if (this.isCancellable) {
+        this.$emit("cancel");
+      }
+    },
+  },
 });
 </script>
 
 <style scoped>
-.video-creation-progress-indicator {
-  padding: 0.5rem;
+.button.is-progress {
+  --tone-h: var(--bulma-success-h);
+  --tone-s: var(--bulma-success-s);
+  --tone-l: var(--bulma-success-l);
+  position: relative;
+  overflow: hidden;
+  border-color: hsl(var(--tone-h), var(--tone-s), var(--tone-l));
+  background-color: hsla(var(--tone-h), var(--tone-s), var(--tone-l), 0.12);
+  color: var(--bulma-text-strong);
+}
+
+.button.is-progress.is-separating {
+  --tone-h: var(--bulma-info-h);
+  --tone-s: var(--bulma-info-s);
+  --tone-l: var(--bulma-info-l);
+}
+
+.button.is-progress::before {
+  content: "";
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: var(--progress);
+  background-color: hsla(var(--tone-h), var(--tone-s), var(--tone-l), 0.4);
+  transition: width 0.3s ease-out;
+}
+
+.button.is-progress.is-indeterminate::before {
+  width: 30%;
+  transition: none;
+  animation: sweep 1.5s ease-in-out infinite;
+}
+
+@keyframes sweep {
+  from {
+    left: -30%;
+  }
+  to {
+    left: 100%;
+  }
+}
+
+.button.is-progress.is-cancellable:is(:hover, :focus-visible) {
+  --tone-h: var(--bulma-danger-h);
+  --tone-s: var(--bulma-danger-s);
+  --tone-l: var(--bulma-danger-l);
+}
+
+/* Both labels share one cell, so the button keeps its size when they swap. */
+.labels {
+  position: relative;
+  display: grid;
+  min-width: 0;
+}
+
+.labels > span {
+  grid-area: 1 / 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.cancel-label,
+.is-cancellable:is(:hover, :focus-visible) .progress-label {
+  visibility: hidden;
+}
+
+.is-cancellable:is(:hover, :focus-visible) .cancel-label {
+  visibility: visible;
 }
 </style>

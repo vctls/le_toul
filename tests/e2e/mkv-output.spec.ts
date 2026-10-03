@@ -46,7 +46,7 @@ test.describe("MKV Output", () => {
       (window as any).__progressSteps = seen;
       const record = () => {
         const shown = document
-          .querySelector(".video-creation-progress-indicator")
+          .querySelector(".create-video-button .progress-label")
           ?.textContent?.match(/([A-Za-z ]+): \d+%/);
         if (shown && seen[seen.length - 1] !== shown[1]) seen.push(shown[1]);
       };

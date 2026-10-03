@@ -58,3 +58,7 @@ export const DEFAULT_COUNT_IN_TEXT = "";
 export const DEFAULT_DYNAMIC_COUNT_INS = true;
 export const DEFAULT_COUNT_IN_THRESHOLD = 3.0;
 export const DEFAULT_COUNT_IN_DURATION = 2.0;
+
+// A button that turns into Cancel under the pointer that just clicked it ignores clicks this long,
+// so a double click doesn't call off what it started.
+export const CANCEL_ARMING_DELAY_MS = 600;
