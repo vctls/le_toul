@@ -246,6 +246,7 @@ class SingleRegion extends EventEmitter<RegionEvents> implements Region {
   private labelMaxWidth = "";
 
   private _explicitEnd?: number;
+  private resizeDrag?: { side: "start" | "end"; origin: number; dx: number };
   private _nextRegion?: Region;
   private _prevRegion?: Region;
 
@@ -372,7 +373,7 @@ class SingleRegion extends EventEmitter<RegionEvents> implements Region {
       makeDraggable(
         leftHandle,
         (dx) => this.onResize(dx, "start"),
-        () => null,
+        () => (this.resizeDrag = undefined),
         () => this.onEndResizing(),
         resizeThreshold,
       ),
@@ -441,6 +442,7 @@ class SingleRegion extends EventEmitter<RegionEvents> implements Region {
   }
 
   private onStartRightResize() {
+    this.resizeDrag = undefined;
     // If this is a ghost handle, materialize the implicit end so the standard end-resize math works
     // for the rest of the drag. Loose equality so we catch both `undefined` and `null`.
     // Regions are commonly constructed with `end: null`.
@@ -574,34 +576,47 @@ class SingleRegion extends EventEmitter<RegionEvents> implements Region {
     }
   }
 
+  /**
+   * Move one edge by the pointer's travel since the resize began, stopping at the nearest limit.
+   * Measuring from the start of the resize, rather than step by step,
+   * keeps the edge under the pointer once the pointer comes back from past a limit.
+   */
   public _onUpdate(dx: number, side: "start" | "end") {
     if (!this.element.parentElement) return;
     const { width } = this.element.parentElement.getBoundingClientRect();
-    const deltaSeconds = pixelsToSeconds(dx, width, this.totalDuration);
-    const newStart = side === "start" ? this.start + deltaSeconds : this.start;
-    const newEnd = side === "end" ? (this._explicitEnd ?? this.end) + deltaSeconds : this.end;
-    const length = newEnd - newStart;
-
-    // If previous region is open-ended, we can't resize past its start. Otherwise, we can't resize past its end.
-    const hasBadOverlap =
-      this.prevRegion &&
-      ((newStart < this.prevRegion.end && !this.prevRegion.isOpenEnded) ||
-        (this.prevRegion.isOpenEnded && newStart < this.prevRegion.start));
-    if (
-      !hasBadOverlap &&
-      newStart >= 0 &&
-      newEnd <= this.totalDuration &&
-      (this.nextRegion ? newEnd <= this.nextRegion.start : true) &&
-      newStart <= newEnd &&
-      length >= this.minLength &&
-      length <= this.maxLength
-    ) {
-      this.start = newStart;
-      this._explicitEnd = this._explicitEnd && newEnd;
-
-      this.renderPosition();
-      this.emit("update", side);
+    if (this.resizeDrag?.side !== side) {
+      this.resizeDrag = { side, origin: side === "start" ? this.start : this.end, dx: 0 };
     }
+    this.resizeDrag.dx += dx;
+    const target =
+      this.resizeDrag.origin + pixelsToSeconds(this.resizeDrag.dx, width, this.totalDuration);
+    const [lower, upper] = side === "start" ? this.startLimits() : this.endLimits();
+    if (lower > upper) return;
+    const time = Math.min(upper, Math.max(lower, target));
+    if (time === (side === "start" ? this.start : this.end)) return;
+
+    if (side === "start") {
+      this.start = time;
+    } else {
+      this._explicitEnd = time;
+    }
+    this.renderPosition();
+    this.emit("update", side);
+  }
+
+  /**
+   * The range the start can be dragged in.
+   * An open-ended previous region gives way down to its own start, and any other stops at its end.
+   */
+  private startLimits(): [number, number] {
+    const prev = this.prevRegion;
+    const floor = prev ? (prev.isOpenEnded ? prev.start : prev.end) : 0;
+    return [Math.max(0, floor, this.end - this.maxLength), this.end - this.minLength];
+  }
+
+  private endLimits(): [number, number] {
+    const ceiling = Math.min(this.totalDuration, this.nextRegion?.start ?? Infinity);
+    return [this.start + this.minLength, Math.min(ceiling, this.start + this.maxLength)];
   }
 
   private onNeighborMoved(side: "prev" | "next") {
@@ -620,6 +635,7 @@ class SingleRegion extends EventEmitter<RegionEvents> implements Region {
 
   private onEndResizing() {
     if (!this.resize) return;
+    this.resizeDrag = undefined;
 
     // If the user dragged the end up against the next region's start (or the end of the audio),
     // drop the explicit end and revert to open-ended.
