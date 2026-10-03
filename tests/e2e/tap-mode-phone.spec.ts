@@ -8,6 +8,7 @@ import {
   loadAndEnterLyrics,
   uploadTimingsFile,
   savedSegments,
+  playbackPosition,
 } from "./utils";
 
 // A phone held sideways, which gives the Timing tab's waveform the whole screen.
@@ -29,9 +30,7 @@ async function loadSong(page: Page, lyrics: string, timings?: string) {
 }
 
 function songTime(page: Page): Promise<number> {
-  return page
-    .locator(".timing-adjustment-tab audio[controls]")
-    .evaluate((audio: HTMLAudioElement) => audio.currentTime);
+  return playbackPosition(page);
 }
 
 async function touch(

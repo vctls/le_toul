@@ -10,11 +10,12 @@ import {
   regionLocator,
   scrollWaveformIntoView,
   zoomWaveformIn,
+  playbackPosition,
+  seekPlayback,
 } from "./utils";
 
 const FIXTURE_TIMINGS = "timings-adjust-group.json";
 const LYRICS = "One\nTwo\nThree\nFour";
-const PLAYER = ".timing-adjustment-tab audio[controls]";
 const WAVEFORM = ".timing-adjustment-tab .wavesurfer-container";
 // Enough that the waveform has to scroll to show the playhead.
 const ZOOM_NOTCHES = 5;
@@ -74,9 +75,7 @@ test.describe("Adjust tab playhead", () => {
 
     await zoomWaveformIn(page, ZOOM_NOTCHES);
 
-    await page.locator(PLAYER).evaluate((el: HTMLAudioElement, time) => {
-      el.currentTime = time;
-    }, SEEK_SECONDS);
+    await seekPlayback(page, SEEK_SECONDS);
     await expect.poll(() => waveformView(page).then((v) => v.scrollLeft)).toBeGreaterThan(0);
     const before = await waveformView(page);
 
@@ -90,8 +89,6 @@ test.describe("Adjust tab playhead", () => {
     const after = await waveformView(page);
     expect(after.scrollLeft).toBeGreaterThan(0);
     expect(after.cursorLeft).toBe(before.cursorLeft);
-    expect(
-      await page.locator(PLAYER).evaluate((el: HTMLAudioElement) => el.currentTime),
-    ).toBeCloseTo(SEEK_SECONDS, 1);
+    expect(await playbackPosition(page)).toBeCloseTo(SEEK_SECONDS, 1);
   });
 });

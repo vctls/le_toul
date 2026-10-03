@@ -13,6 +13,7 @@ import {
   savedSegments,
   pressAtSongTime,
   SavedSegment,
+  waitForPlayback,
 } from "./utils";
 
 // One segment per line, each starting on an odd second and ending a second later.
@@ -145,17 +146,9 @@ test.describe("Tap mode", () => {
     await buttons.scrollIntoViewIfNeeded();
 
     await buttons.getByRole("button", { name: "Play" }).click();
-    await page.waitForFunction(
-      () =>
-        document.querySelector<HTMLAudioElement>(".timing-adjustment-tab audio[controls]")!
-          .currentTime >= 0.5,
-    );
+    await waitForPlayback(page, 0.5);
     await buttons.getByRole("button", { name: /^Start/ }).click();
-    await page.waitForFunction(
-      () =>
-        document.querySelector<HTMLAudioElement>(".timing-adjustment-tab audio[controls]")!
-          .currentTime >= 1.2,
-    );
+    await waitForPlayback(page, 1.2);
     await buttons.getByRole("button", { name: /^Start/ }).click();
     await buttons.getByRole("button", { name: "Pause" }).click();
 

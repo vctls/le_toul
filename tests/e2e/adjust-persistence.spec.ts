@@ -9,6 +9,8 @@ import {
   mockSeparateTrackApi,
   enterTimings,
   zoomWaveformIn,
+  playbackPosition,
+  seekPlayback,
 } from "./utils";
 
 // The Adjust view is where the slow work happens, so a reload has to put you back where you were
@@ -39,15 +41,7 @@ test.describe("Adjust tab persistence", () => {
     ]);
 
     await navigateToTab(page, TabId.TimingAdjustment);
-    const audio = page.locator(".timing-adjustment-tab audio[controls]");
-    await audio.waitFor({ state: "attached" });
-    await expect
-      .poll(async () => audio.evaluate((el: HTMLAudioElement) => el.readyState), { timeout: 15000 })
-      .toBeGreaterThanOrEqual(1);
-
-    await audio.evaluate((el: HTMLAudioElement) => {
-      el.currentTime = 2.75;
-    });
+    await seekPlayback(page, 2.75);
 
     // Zoom in far enough that the waveform overflows its viewport.
     await zoomWaveformIn(page, 5);
@@ -74,13 +68,7 @@ test.describe("Adjust tab persistence", () => {
     await page.reload();
     await navigateToTab(page, TabId.TimingAdjustment);
 
-    const restored = page.locator(".timing-adjustment-tab audio[controls]");
-    await restored.waitFor({ state: "attached" });
-    await expect
-      .poll(async () => restored.evaluate((el: HTMLAudioElement) => el.currentTime), {
-        timeout: 15000,
-      })
-      .toBeCloseTo(2.75, 1);
+    await expect.poll(() => playbackPosition(page), { timeout: 15000 }).toBeCloseTo(2.75, 1);
 
     const restoredScroller = page
       .locator(".timing-adjustment-tab .wavesurfer-container div.scroll")

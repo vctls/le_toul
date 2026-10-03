@@ -11,6 +11,7 @@ import {
   scrollWaveformIntoView,
   waveformPixelsPerSecond,
   adjustTiming,
+  playbackPosition,
 } from "./utils";
 import { DEFAULT_VOICE_ID } from "../../frontend/lib/voices";
 
@@ -101,9 +102,7 @@ async function drag(page: Page, from: { x: number; y: number }, to: { x: number;
 }
 
 function playhead(page: Page) {
-  return page.locator(".timing-adjustment-tab audio[controls]").evaluate((audio) => {
-    return (audio as HTMLAudioElement).currentTime;
-  });
+  return playbackPosition(page);
 }
 
 test.describe("Timing tab Lines mode", () => {

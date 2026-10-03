@@ -1,15 +1,6 @@
 <template>
   <div class="timing-adjuster">
-    <smooth-audio-player
-      ref="audioPlayer"
-      controls
-      :src="audioSource ?? undefined"
-      @timeupdate="onAudioTimeUpdate"
-      @seeking="onAudioSeeking"
-      @play="$emit('play')"
-      @pause="onAudioPause"
-      @error="onAudioError"
-    />
+    <playback-transport :player="player" />
     <div class="waveform-stage">
       <!-- Display only. It loads its own copy of the audio, so playing it would double up
          with the player above; the playhead is driven by setTime instead. -->
@@ -45,13 +36,13 @@
 import { defineComponent, markRaw, PropType } from "vue";
 import { RegionParams, Region } from "@/lib/wavesurferPlugins/OpenEndedRegionPlugin";
 import Wavesurfer from "@/components/Wavesurfer.vue";
-import SmoothAudioPlayer from "./SmoothAudioPlayer.vue";
+import PlaybackTransport from "./PlaybackTransport.vue";
 import TapQueue, { QueueItem } from "./TapQueue.vue";
 
 import { findLastIndex } from "lodash-es";
 import { displayText, resolveStarts } from "@/lib/timing";
-import { playableTrack } from "@/lib/audio";
-import { outputLatency, refreshOutputLatency } from "@/lib/outputLatency";
+import { registerPlayer } from "@/lib/exclusivePlayback";
+import { WebAudioPlayer } from "@/lib/webAudioPlayer";
 import { TimedSegment } from "@/lib/timedSegments";
 import { DisplayBand } from "@/lib/displayBands";
 
@@ -59,17 +50,6 @@ import { DisplayBand } from "@/lib/displayBands";
 // An even number of channels leaves the middle between two of them.
 const TAP_CHANNELS = 4;
 const ADJUST_CHANNELS = 5;
-
-// A jump of the audio clock larger than this is a seek, which the smoothed time follows at once.
-const SEEK_JUMP = 0.25;
-
-// How long the shown time takes to settle on the audio's. The audio reports its time every few
-// frames, each report up to a frame late, and following every one made the waveform judder.
-const CLOCK_SETTLE_SECONDS = 0.3;
-
-// A seek this far before a range's start still counts as inside it, since the audio may land a
-// little off the time it was sent to.
-const RANGE_SEEK_SLACK = 0.05;
 
 // An open-ended last segment is drawn up to the song's end,
 // so the lost segments after it stack this long after its start instead.
@@ -129,7 +109,7 @@ export default defineComponent({
   ],
   components: {
     Wavesurfer,
-    SmoothAudioPlayer,
+    PlaybackTransport,
     TapQueue,
   },
   props: {
@@ -167,31 +147,29 @@ export default defineComponent({
   data() {
     return {
       regions: [] as RegionParams[],
-      audioSource: null as string | null,
-      // The track last asked to play, whose WAV copy may still be on its way.
-      requestedTrack: null as Blob | null,
-      // Object URLs keyed by source blob. URLs live until unmount so an in-use URL is never revoked (revoking
-      // one mid-playback aborts the media fetch and wedges the <audio> element, notably in Firefox).
-      // Nothing here is rendered, hence markRaw.
-      trackUrls: markRaw(new Map<Blob, string>()),
+      player: markRaw(new WebAudioPlayer()),
+      unregisterPlayer: null as (() => void) | null,
       _playheadRestored: false,
       // The seek under way is the one that restores the playhead.
       restoringPlayhead: false,
       clockFrame: 0,
-      // The audio clock only moves in steps, so the view runs its own clock between them and pulls
-      // it gently toward each one.
-      // Nothing here is rendered, hence markRaw.
-      clock: markRaw({ base: -1, at: 0, shown: -1, lastFrame: 0 }),
+      // The time the Tap mode clock last showed. Nothing here is rendered, hence markRaw.
+      clock: markRaw({ shown: -1 }),
       // The span being played by playRange, which pauses at its end and goes back to the preroll
       // before its start.
       playingRange: null as { start: number; end: number } | null,
-      rangeTimer: undefined as ReturnType<typeof setTimeout> | undefined,
     };
   },
   mounted() {
     this.regions = this.createRegions(this.segments ?? []);
-    const playbackBlob = this.playbackTrack || this.audioData;
-    if (playbackBlob) this.loadPlaybackSource(playbackBlob);
+    const { player } = this;
+    player.addEventListener("timeupdate", this.onAudioTimeUpdate);
+    player.addEventListener("seeking", this.onAudioSeeking);
+    player.addEventListener("play", this.onAudioPlay);
+    player.addEventListener("pause", this.onAudioPause);
+    player.addEventListener("ended", this.onAudioEnded);
+    this.unregisterPlayer = registerPlayer(player, { mediaKeys: false });
+    this.loadPlaybackSource(this.playbackTrack || this.audioData);
     this.applyPlaybackSettings();
     this.restorePlayhead();
     if (this.tapMode) this.startClock();
@@ -211,6 +189,7 @@ export default defineComponent({
     },
     tapMode(tapMode: boolean) {
       this.playingRange = null;
+      this.player.clearRange();
       this.regions = this.createRegions(this.segments ?? []);
       if (tapMode) {
         this.startClock();
@@ -229,44 +208,28 @@ export default defineComponent({
     },
   },
   methods: {
-    audioPlayerRef() {
-      return this.$refs.audioPlayer as
-        | (InstanceType<typeof SmoothAudioPlayer> & {
-            currentTime: number;
-            playbackRate: number;
-            preservesPitch: boolean;
-          })
-        | undefined;
-    },
     /**
-     * Assigning currentTime before the media has metadata is silently dropped, so this waits for it.
-     * This runs only once. Later track swaps have their own resume logic.
+     * Move the playhead to where it was left, once the track is decoded and its duration known.
+     * This runs only once.
      */
     restorePlayhead() {
       if (this._playheadRestored || !this.initialPlayhead) return;
       this._playheadRestored = true;
       const time = this.initialPlayhead;
-      this.$nextTick(() => {
-        const audio = this.audioPlayerRef()?.audioPlayer as HTMLAudioElement | undefined;
-        if (!audio) return;
-        // Seeking emits `seeking`, which updates the waveform and the caller.
-        const seek = () => {
-          this.restoringPlayhead = true;
-          audio.currentTime = time;
-        };
-        // readyState 1 is HAVE_METADATA, the point at which a seek sticks.
-        if (audio.readyState >= 1) {
-          seek();
-        } else {
-          audio.addEventListener("loadedmetadata", seek, { once: true });
-        }
-      });
+      // Seeking emits `seeking`, which updates the waveform and the caller.
+      const seek = () => {
+        this.restoringPlayhead = true;
+        this.player.currentTime = time;
+      };
+      if (this.player.loading) {
+        this.player.addEventListener("loadeddata", seek, { once: true });
+      } else {
+        seek();
+      }
     },
     applyPlaybackSettings() {
-      const player = this.audioPlayerRef();
-      if (!player) return;
-      player.preservesPitch = this.preservePitch;
-      player.playbackRate = this.playbackRate;
+      this.player.preservesPitch = this.preservePitch;
+      this.player.playbackRate = this.playbackRate;
     },
     wavesurferRef() {
       return this.$refs.wavesurfer as InstanceType<typeof Wavesurfer> | undefined;
@@ -315,51 +278,11 @@ export default defineComponent({
       });
       return regions;
     },
-    trackUrl(blob: Blob): string {
-      let url = this.trackUrls.get(blob);
-      if (!url) {
-        url = URL.createObjectURL(blob);
-        this.trackUrls.set(blob, url);
-      }
-      return url;
-    },
-    /**
-     * Play `blob` once its WAV copy is ready, unless another track was asked for in the meantime.
-     */
-    async loadPlaybackSource(blob: Blob | undefined) {
+    loadPlaybackSource(blob: Blob | undefined) {
       if (!blob) return;
-      this.requestedTrack = blob;
-      const playable = await playableTrack(blob);
-      if (this.requestedTrack !== blob) return;
-      // The first source must not go through the swap, whose restore would seek back over the
-      // restored playhead.
-      if (this.audioSource) {
-        this.swapPlaybackSource(playable);
-      } else {
-        this.audioSource = this.trackUrl(playable);
-      }
-    },
-    swapPlaybackSource(newBlob: Blob) {
-      if (!newBlob) return;
-      const url = this.trackUrl(newBlob);
-      if (url === this.audioSource) return;
-      const audio = this.audioPlayerRef()?.audioPlayer as HTMLAudioElement | undefined;
-      // Changing the <audio> src resets currentTime to 0 and pauses playback,
-      // so capture the playhead/play state and restore them once the new
-      // source has loaded enough metadata to be seekable.
-      const resumeTime = audio ? audio.currentTime : 0;
-      const wasPlaying = audio ? !audio.paused : false;
-      this.audioSource = url;
-      if (!audio) return;
-      const restore = () => {
-        audio.currentTime = resumeTime;
-        if (wasPlaying) {
-          audio.play().catch((error) => {
-            console.error("Could not resume playback:", error);
-          });
-        }
-      };
-      audio.addEventListener("loadedmetadata", restore, { once: true });
+      this.player.load(blob).catch((error) => {
+        console.error("Could not decode the track:", error);
+      });
     },
     onRegionUpdated(region: Region) {
       this.onRegionsUpdated([region]);
@@ -393,15 +316,13 @@ export default defineComponent({
       this.wavesurferRef()?.setTime(playhead);
     },
     setAudioPlayhead(playhead: number) {
-      const player = this.audioPlayerRef();
-      if (player) player.currentTime = playhead;
+      this.player.currentTime = playhead;
     },
     // Jump to whichever end of the track `edge` names.
     seekToTrackEdge(edge: "start" | "end") {
       if (edge === "start") return this.setAudioPlayhead(0);
-      const audio = this.audioPlayerRef()?.audioPlayer as HTMLAudioElement | undefined;
-      if (!audio || !Number.isFinite(audio.duration)) return;
-      this.setAudioPlayhead(audio.duration);
+      if (!Number.isFinite(this.player.duration)) return;
+      this.setAudioPlayhead(this.player.duration);
     },
     // Jump to whichever end of the scrolled-into-view waveform `edge` names.
     seekToViewEdge(edge: "start" | "end") {
@@ -429,113 +350,61 @@ export default defineComponent({
         ids.map((id) => parseInt(id.split("_")[1])),
       );
     },
-    audioElement(): HTMLAudioElement | undefined {
-      return this.audioPlayerRef()?.audioPlayer as HTMLAudioElement | undefined;
-    },
-    currentTime(): number {
-      return this.audioElement()?.currentTime ?? 0;
+    /**
+     * The song time being heard, or the one heard at `at`, a `performance.now()` time such as an
+     * event's `timeStamp`.
+     */
+    currentTime(at?: number): number {
+      return at === undefined ? this.player.currentTime : this.player.timeAt(at);
     },
     isPaused(): boolean {
-      return this.audioElement()?.paused ?? true;
+      return this.player.paused;
     },
     pause() {
-      this.audioElement()?.pause();
+      this.player.pause();
     },
     togglePlayPause() {
-      const audio = this.audioPlayerRef()?.audioPlayer as HTMLAudioElement | undefined;
-      if (!audio) return;
-      if (audio.paused) {
-        audio.play();
+      if (this.player.paused) {
+        this.play();
       } else {
-        audio.pause();
+        this.player.pause();
       }
+    },
+    play() {
+      this.player.play().catch((error) => {
+        console.error("Could not start playback:", error);
+      });
     },
     // Move the playhead by `seconds`, staying inside the track.
     seekBy(seconds: number) {
-      const audio = this.audioPlayerRef()?.audioPlayer as HTMLAudioElement | undefined;
-      if (!audio) return;
-      let time = audio.currentTime + seconds;
-      if (Number.isFinite(audio.duration)) {
-        time = Math.min(audio.duration, time);
-      }
-      this.setAudioPlayhead(Math.max(0, time));
+      this.setAudioPlayhead(this.player.currentTime + seconds);
     },
     // Jump to `time` and play from there, whether or not playback is running.
     restartAt(time: number) {
-      const audio = this.audioPlayerRef()?.audioPlayer as HTMLAudioElement | undefined;
-      if (!audio) return;
       this.setAudioPlayhead(time);
-      const play = () => {
-        if (!audio.paused) return;
-        audio.play().catch((error) => {
-          console.error("Could not start playback:", error);
-        });
-      };
-      // Chrome started during a seek plays the audio but holds currentTime back by up to 0.4 s,
-      // and it stays behind the sound until the next seek.
-      if (audio.seeking) {
-        audio.addEventListener("seeked", play, { once: true });
-      } else {
-        play();
-      }
+      if (this.player.paused) this.play();
     },
     /**
      * Play from `start`, whether or not playback is running. At `end`, pause and move the playhead
      * to the preroll before `start`.
      */
     playRange(start: number, end: number) {
-      // The seek to `start` would already be past `end` and drop the range,
-      // so playback would never stop.
       if (end <= start) return;
-      refreshOutputLatency().catch((error) => {
-        console.warn("Could not read the output latency:", error);
-      });
       this.playingRange = { start, end };
-      this.restartAt(start);
+      this.player.playRange(start, end);
     },
-    /**
-     * Stop the range being played, and move the playhead to the preroll before its start.
-     */
-    finishRange() {
-      clearTimeout(this.rangeTimer);
-      const range = this.playingRange;
-      if (!range) return;
-      this.playingRange = null;
-      this.pause();
-      this.setAudioPlayhead(Math.max(0, range.start - this.prerollSeconds));
-    },
-    onAudioTimeUpdate(event: Event) {
-      const audio = event.target as HTMLAudioElement;
-      const time = audio.currentTime;
-      const range = this.playingRange;
-      // Firefox holds currentTime at the seek target until the first audio reaches the output,
-      // so a stop scheduled from that reading can fire before any sound.
-      if (range && time > range.start) {
-        // The audio clock moves in steps of about 40 ms, so a timer set from each step stops
-        // closer to the end than waiting for the clock to pass it. A pause can't take back the
-        // audio already handed to the system, so the timer fires that much early.
-        const delay = (range.end - time) / (audio.playbackRate || 1) - outputLatency();
-        if (delay <= 0) {
-          // The seek updates the waveform itself. Sending it this time too would leave it stuck
-          // here, since wavesurfer drops a time set while its audio is still seeking.
-          this.finishRange();
-          return;
-        }
-        clearTimeout(this.rangeTimer);
-        this.rangeTimer = setTimeout(() => {
-          if (this.playingRange === range) this.finishRange();
-        }, delay * 1000);
-      }
-      // In Tap mode the clock moves the playhead on every frame, from a smoothed time.
+    onAudioTimeUpdate() {
+      const time = this.player.currentTime;
+      // In Tap mode the clock moves the playhead on every frame.
       if (!this.tapMode) this.setAdjusterPlayhead(time);
       this.$emit("timeupdate", time);
     },
     startClock() {
       if (this.clockFrame) return;
       this.clock.shown = -1;
-      const tick = (now: number) => {
+      const tick = () => {
         this.clockFrame = requestAnimationFrame(tick);
-        this.onClockFrame(now);
+        this.onClockFrame();
       };
       this.clockFrame = requestAnimationFrame(tick);
     },
@@ -546,45 +415,23 @@ export default defineComponent({
     /**
      * Keep the playhead in the middle of the view, and grow the region being tapped up to it.
      */
-    onClockFrame(now: number) {
-      const audio = this.audioElement();
+    onClockFrame() {
       const wavesurfer = this.wavesurferRef();
-      if (!audio || !wavesurfer) return;
-      const { clock } = this;
-      const reported = audio.currentTime;
-      const elapsed = clock.lastFrame ? (now - clock.lastFrame) / 1000 : 0;
-      let time = reported;
-      if (!audio.paused) {
-        if (reported !== clock.base) {
-          clock.base = reported;
-          // The report changed at some point since the last frame, so halfway is the best guess.
-          clock.at = clock.lastFrame ? (now + clock.lastFrame) / 2 : now;
-        }
-        const estimate = reported + ((now - clock.at) / 1000) * audio.playbackRate;
-        const predicted = clock.shown + elapsed * audio.playbackRate;
-        if (clock.shown < 0 || Math.abs(estimate - predicted) > SEEK_JUMP) {
-          time = estimate;
-        } else {
-          const pull = 1 - Math.exp(-elapsed / CLOCK_SETTLE_SECONDS);
-          // Only a seek may take the view back.
-          time = Math.max(clock.shown, predicted + (estimate - predicted) * pull);
-        }
-      }
-      clock.lastFrame = now;
-      if (time === clock.shown) return;
-      clock.shown = time;
+      if (!wavesurfer) return;
+      const time = this.player.currentTime;
+      if (time === this.clock.shown) return;
+      this.clock.shown = time;
       wavesurfer.setTime(time);
       wavesurfer.centerOn(time);
-      if (this.growing !== undefined && !audio.paused) {
+      if (this.growing !== undefined && !this.player.paused) {
         wavesurfer.growRegion(`segment_${this.growing}`, time);
       }
     },
-    onAudioSeeking(event: Event) {
-      const time = (event.target as HTMLAudioElement).currentTime;
-      // The clock never steps back by less than a seek's worth, so it is told of every seek.
+    onAudioSeeking() {
+      const time = this.player.currentTime;
       this.clock.shown = -1;
       const range = this.playingRange;
-      if (range && (time < range.start - RANGE_SEEK_SLACK || time >= range.end)) {
+      if (range && (time < range.start || time >= range.end)) {
         this.playingRange = null;
       }
       // The waveform restores its own scroll, which wins over a restored playhead outside it.
@@ -609,29 +456,27 @@ export default defineComponent({
     onWavesurferSeeked(time: number) {
       this.setAudioPlayhead(time);
     },
+    onAudioPlay() {
+      this.$emit("play");
+    },
     onAudioPause() {
       this.playingRange = null;
       this.wavesurferRef()?.pause();
       this.$emit("pause");
     },
-    onAudioError(event: Event) {
-      const audio = event.target as HTMLAudioElement;
-      console.error("Audio loading error:", {
-        error: audio.error,
-        currentSrc: audio.currentSrc,
-        readyState: audio.readyState,
-        networkState: audio.networkState,
-      });
+    /**
+     * A range that has played to its end moves the playhead to the preroll before its start.
+     */
+    onAudioEnded() {
+      const range = this.playingRange;
+      this.playingRange = null;
+      if (range) this.setAudioPlayhead(Math.max(0, range.start - this.prerollSeconds));
     },
   },
   beforeUnmount() {
     this.stopClock();
-    clearTimeout(this.rangeTimer);
-    this.requestedTrack = null;
-    for (const url of this.trackUrls.values()) {
-      URL.revokeObjectURL(url);
-    }
-    this.trackUrls.clear();
+    this.unregisterPlayer?.();
+    this.player.dispose();
   },
 });
 </script>
@@ -652,10 +497,5 @@ export default defineComponent({
 .waveform-stage > .wavesurfer-container {
   position: absolute;
   inset: 0;
-}
-
-audio {
-  width: 100%;
-  margin-bottom: 1em;
 }
 </style>
