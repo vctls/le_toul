@@ -527,7 +527,7 @@ interface AdjustVoiceState {
 // Lines mode edits when each line is on screen.
 type AdjustMode = "tap" | "adjust" | "lines";
 
-// How far the voice is timed: every segment has a start, and the last one an end too.
+// How far the voice is timed: every segment has an unflagged start, and the last one an end too.
 type TimingStatus = "almost" | "done";
 
 // A pass needs more of a run-up than a replay, to catch the beat before the first tap.
@@ -796,15 +796,17 @@ export default defineComponent({
     },
     isMobile,
     /**
-     * In Tap mode, whether every segment has a start, and whether the last one has its end too,
-     * counting the taps of a pass under way.
+     * Whether every segment has a start and none is flagged for review, and whether the last one
+     * has its end too, counting the taps of a pass under way.
      */
     timingStatus(): TimingStatus | null {
-      if (!this.isTapMode) return null;
       const segments = this.pass?.staged ?? this.tapSegments;
       if (segments.length === 0) return null;
+      if (segments.some((segment) => segment.review)) return null;
       if (resolveStarts(segments).some((segment) => segment.start === undefined)) return null;
-      return segments[segments.length - 1].end === undefined ? "almost" : "done";
+      if (segments[segments.length - 1].end !== undefined) return "done";
+      // The Almost done message asks for the end key, which only Tap mode answers.
+      return this.isTapMode ? "almost" : null;
     },
     statusTitle(): string {
       return this.timingStatus === "done" ? "Done" : "Almost done";
