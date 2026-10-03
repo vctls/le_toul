@@ -104,7 +104,7 @@
       type="is-boxed"
       class="main-tabs"
     >
-      <help-tab></help-tab>
+      <help-tab @show-tab="setActiveTab"></help-tab>
       <song-info-tab></song-info-tab>
       <lyric-input-tab></lyric-input-tab>
       <song-timing-tab></song-timing-tab>

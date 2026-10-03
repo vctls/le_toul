@@ -83,6 +83,24 @@ test.describe("Project Folder Upload", () => {
     await expectVideoCreationToBeEnabled(page);
   });
 
+  test("the Intro tab's example link loads the example project", async ({ page }) => {
+    await page.getByRole("link", { name: "Load an example song" }).click();
+
+    await expect(page.getByRole("heading", { name: "Get Your Song Ready" })).toBeVisible();
+    await expect(page.locator('.toast:has-text("Loaded")')).toBeVisible();
+    await expect(page.locator('[name="project-folder-upload"] .file-name')).toHaveText(
+      "Example project",
+    );
+    await expect(page.locator('[name="song-file-upload"] .file-name')).toHaveText("song.mp3");
+    await expect(page.locator('[name="backing-track-upload"] .file-name')).toHaveText(
+      "backing.mp3",
+    );
+    await expect(page.locator('[name="vocal-track-upload"] .file-name')).toHaveText("vocals.mp3");
+
+    await navigateToTab(page, TabId.Submit);
+    await expectVideoCreationToBeEnabled(page);
+  });
+
   test("a folder holding only some of the files loads just those", async ({ page }) => {
     const folder = await makeFolder("partial");
     await fs.copyFile(getFixturePath("lyrics.txt"), path.join(folder, "lyrics.txt"));

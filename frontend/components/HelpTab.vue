@@ -1,6 +1,6 @@
 <template>
   <b-tab-item value="help" label="Intro" icon="circle-info" class="scroll-wrapper">
-    <div class="content">
+    <div class="content" @click="onContentClick">
       <div v-if="custom" v-html="custom.before"></div>
       <template v-if="!custom || custom.showBuiltIn">
         <p>Make a karaoke video from any song, right in your browser.</p>
@@ -25,6 +25,10 @@
           </li>
         </ol>
         <p>
+          <a :href="EXAMPLE_PROJECT_HREF">Load an example song</a> to try it out with the lyrics and
+          timings already done.
+        </p>
+        <p>
           Click <b-icon icon="circle-question" size="is-small" /> at the top for help on each tab.
         </p>
       </template>
@@ -36,10 +40,54 @@
 <script lang="ts">
 import { defineComponent } from "vue";
 import customIntro from "virtual:custom-intro";
+import {
+  EXAMPLE_PROJECT_HREF,
+  EXAMPLE_PROJECT_NAME,
+  fetchExampleProject,
+} from "@/lib/exampleProject";
+import { useProjectFolderRequestStore } from "@/stores/projectFolderRequest";
 
 export default defineComponent({
+  emits: ["show-tab"],
   setup() {
-    return { custom: customIntro };
+    return {
+      custom: customIntro,
+      projectFolderRequestStore: useProjectFolderRequestStore(),
+      EXAMPLE_PROJECT_HREF,
+    };
+  },
+  data() {
+    return { isLoadingExample: false };
+  },
+  methods: {
+    /**
+     * Load the example project from its link, which may sit in the custom intro's rendered HTML.
+     */
+    async onContentClick(event: MouseEvent) {
+      const link = (event.target as Element).closest(`a[href="${EXAMPLE_PROJECT_HREF}"]`);
+      if (!link) {
+        return;
+      }
+      event.preventDefault();
+      if (this.isLoadingExample) {
+        return;
+      }
+      this.isLoadingExample = true;
+      try {
+        const files = await fetchExampleProject();
+        this.$emit("show-tab", "song");
+        this.projectFolderRequestStore.request(files, EXAMPLE_PROJECT_NAME);
+      } catch (e) {
+        console.error(e);
+        this.$buefy.toast.open({
+          message: `Couldn't load the example song: ${(e as Error).message}`,
+          type: "is-danger",
+          duration: 5000,
+        });
+      } finally {
+        this.isLoadingExample = false;
+      }
+    },
   },
 });
 </script>
