@@ -187,7 +187,7 @@ function cyrb53(text: string): number {
 
 const IS_MAC = typeof navigator !== "undefined" && /Mac|iPhone|iPad/.test(navigator.platform);
 
-const SHORTCUT_MODIFIER = IS_MAC ? "Cmd" : "Ctrl";
+export const SHORTCUT_MODIFIER = IS_MAC ? "Cmd" : "Ctrl";
 export const UNDO_SHORTCUT = `${SHORTCUT_MODIFIER}+Z`;
 export const REDO_SHORTCUT = `${SHORTCUT_MODIFIER}+Shift+Z`;
 

@@ -5,6 +5,7 @@ import {
   navigateToTab,
   setupTestEnvironment,
   TabId,
+  lyricsText,
 } from "./utils";
 
 const LYRICS_INPUT = '[name="lyrics-file-upload"] input[type="file"]';
@@ -40,7 +41,7 @@ const TIMINGS_TEXT = {
 
 async function lyricsEditorValue(page: Page): Promise<string> {
   await navigateToTab(page, TabId.LyricInput);
-  const value = await page.locator(".lyric-input-tab .lyric-editor-textarea").inputValue();
+  const value = await lyricsText(page);
   await navigateToTab(page, TabId.SongInfo);
   return value;
 }

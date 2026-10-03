@@ -36,6 +36,7 @@
         </div>
       </div>
       <p>
+        <kbd>{{ findShortcut }}</kbd> finds and replaces text in the lyrics.
         <kbd>{{ undoShortcut }}</kbd> and <kbd>{{ redoShortcut }}</kbd> undo and redo your changes
         to the lyrics and the timings, whichever tab you made them in. If an edit here removes
         timings, a message says how many, and offers to undo it.
@@ -51,6 +52,11 @@
       <div class="level-item">
         <b-tooltip position="is-right" label="Convert all spaces to underscores">
           <b-button @click="convertSpaces">Add Underscores</b-button></b-tooltip
+        >
+      </div>
+      <div class="level-item">
+        <b-tooltip position="is-right" :label="`Find and replace text (${findShortcut})`">
+          <b-button @click="openSearch">Find and Replace</b-button></b-tooltip
         >
       </div>
       <div class="level-item">
@@ -83,7 +89,7 @@ import LyricEditor from "@/components/LyricEditor.vue";
 import HelpSection from "@/components/HelpSection.vue";
 import SongPlayer from "@/components/SongPlayer.vue";
 import { useMediaStore } from "@/stores/media";
-import { REDO_SHORTCUT, UNDO_SHORTCUT } from "@/lib/history";
+import { REDO_SHORTCUT, SHORTCUT_MODIFIER, UNDO_SHORTCUT } from "@/lib/history";
 import { useLyricsLookupStore } from "@/stores/lyricsLookup";
 import { formatDuration } from "@/lib/lyricsLookup";
 import { appName } from "@/constants";
@@ -115,6 +121,7 @@ export default defineComponent({
       provider,
       status,
       appName: appName(),
+      findShortcut: `${SHORTCUT_MODIFIER}+F`,
       undoShortcut: UNDO_SHORTCUT,
       redoShortcut: REDO_SHORTCUT,
     };
@@ -155,6 +162,9 @@ export default defineComponent({
     },
     convertSpaces(e) {
       this.$refs.lyricEditor.convertSpaces();
+    },
+    openSearch() {
+      this.$refs.lyricEditor.openSearch();
     },
   },
 });

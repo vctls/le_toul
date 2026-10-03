@@ -7,6 +7,7 @@ import {
   navigateToTab,
   setupTestEnvironment,
   TabId,
+  lyricsText,
 } from "./utils";
 
 const KBP_INPUT = '[name="kbp-file-upload"] input[type="file"]';
@@ -21,7 +22,7 @@ const IMPORTED_LYRICS = [
 
 async function lyricsEditorValue(page: Page): Promise<string> {
   await navigateToTab(page, TabId.LyricInput);
-  const value = await page.locator(".lyric-input-tab .lyric-editor-textarea").inputValue();
+  const value = await lyricsText(page);
   await navigateToTab(page, TabId.SongInfo);
   return value;
 }

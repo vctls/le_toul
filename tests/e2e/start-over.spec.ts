@@ -6,6 +6,7 @@ import {
   navigateToTab,
   setupTestEnvironment,
   TabId,
+  expectLyricsText,
 } from "./utils";
 
 test.describe("Starting over", () => {
@@ -29,7 +30,7 @@ test.describe("Starting over", () => {
       "No file chosen",
     );
     await navigateToTab(page, TabId.LyricInput);
-    await expect(page.locator(".lyric-input-tab .lyric-editor-textarea")).toHaveValue("");
+    await expectLyricsText(page, "");
   });
 
   test("keeps everything when declined", async ({ page }) => {

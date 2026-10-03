@@ -4,14 +4,13 @@
 import { Page, expect } from "@playwright/test";
 import { TabId, isTabEnabled } from "./navigation";
 import { getCurrentTimings } from "./timings";
+import { lyricsText } from "./inputs";
 
 /**
  * Checks if lyrics have been successfully loaded
  */
 export async function expectLyricsToBeLoaded(page: Page): Promise<void> {
-  // Check if the lyrics textarea has content
-  const textArea = page.locator(".lyric-input-tab .lyric-editor-textarea");
-  await expect(textArea).not.toHaveValue("");
+  await expect.poll(() => lyricsText(page)).not.toBe("");
 }
 
 /**

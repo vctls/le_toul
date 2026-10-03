@@ -1,7 +1,7 @@
 /**
  * Input helpers for Playwright tests
  */
-import { Page, expect } from "@playwright/test";
+import { Locator, Page, expect } from "@playwright/test";
 import { getFixturePath, loadFixtureFile } from "./setupHelpers";
 import { TabId, navigateToTab } from "./navigation";
 
@@ -67,6 +67,29 @@ export async function enterYouTubeUrl(
 }
 
 /**
+ * The lyrics editor on the Lyrics tab
+ */
+export function lyricsEditor(page: Page): Locator {
+  return page.getByRole("textbox", { name: "Lyrics" });
+}
+
+/**
+ * The text in the lyrics editor, read from the lines it renders
+ */
+export async function lyricsText(page: Page): Promise<string> {
+  return lyricsEditor(page).evaluate((content) =>
+    Array.from(content.querySelectorAll(".cm-line"), (line) => line.textContent).join("\n"),
+  );
+}
+
+/**
+ * Waits for the lyrics editor to hold exactly `text`
+ */
+export async function expectLyricsText(page: Page, text: string): Promise<void> {
+  await expect.poll(() => lyricsText(page)).toBe(text);
+}
+
+/**
  * Loads lyrics from a fixture file or string and enters them in the lyrics editor
  */
 export async function loadAndEnterLyrics(
@@ -86,9 +109,9 @@ export async function loadAndEnterLyrics(
   }
 
   // Enter the lyrics content into the editor
-  const textAreaLocator = page.locator(".lyric-input-tab .lyric-editor-textarea");
-  await textAreaLocator.clear();
-  await textAreaLocator.pressSequentially(lyricsContent);
+  const editor = lyricsEditor(page);
+  await editor.clear();
+  await editor.pressSequentially(lyricsContent);
 }
 
 /**

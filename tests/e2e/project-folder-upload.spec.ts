@@ -9,6 +9,7 @@ import {
   getFixturePath,
   loadFixtureFile,
   expectVideoCreationToBeEnabled,
+  expectLyricsText,
 } from "./utils";
 
 // The title the folder's settings.yaml carries. Deliberately not the one in the song's own tags,
@@ -75,9 +76,7 @@ test.describe("Project Folder Upload", () => {
     await expect(page.locator('[name="song-file-upload"] .file-name')).toHaveText("song.mp3");
 
     await navigateToTab(page, TabId.LyricInput);
-    await expect(page.locator(".lyric-input-tab .lyric-editor-textarea")).toHaveValue(
-      await loadFixtureFile("lyrics.txt"),
-    );
+    await expectLyricsText(page, await loadFixtureFile("lyrics.txt"));
 
     // Song, lyrics and finished timings are all back, so the video can be built.
     await navigateToTab(page, TabId.Submit);
