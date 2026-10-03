@@ -52,7 +52,7 @@ test.describe("Cancelling a separation", () => {
 
     await page.click('button:has-text("Separate Track")');
     await expect(page.locator(".separation-progress")).toBeVisible();
-    await expect(page.locator('button:has-text("Separate Track")')).toBeDisabled();
+    await expect(page.locator('button:has-text("Separate Track")')).toBeHidden();
 
     await page.click('button:has-text("Cancel")');
 

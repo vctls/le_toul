@@ -118,12 +118,17 @@
               :always="isSeparatingTrack"
             >
               <b-button
+                v-if="isSeparatingTrack"
+                label="Cancel"
+                type="is-danger is-light"
+                :disabled="!canCancelSeparation"
+                @click="cancelSeparation"
+              />
+              <b-button
+                v-else
                 label="Separate Track"
                 type="is-primary"
-                :disabled="
-                  !mediaStore.songFile || isSeparatingTrack || !!mediaStore.songTooLargeMessage
-                "
-                :loading="isSeparatingTrack"
+                :disabled="!mediaStore.songFile || !!mediaStore.songTooLargeMessage"
                 @click="separateTrack"
               />
             </b-tooltip>
@@ -141,8 +146,6 @@
             >
               {{ separationProgressMessage }}
             </b-progress>
-            <!-- Beside the Separate Track button, its always-on tooltip would swallow the clicks. -->
-            <b-button label="Cancel" type="is-danger is-light" @click="cancelSeparation" />
           </div>
           <b-message
             v-if="mediaStore.songTooLargeMessage && !isSeparatingTrack"
@@ -363,6 +366,7 @@ import FolderUpload from "@/components/FolderUpload.vue";
 import CircularProgress from "@/components/CircularProgress.vue";
 import SourceFileDownloadLinks from "@/components/SourceFileDownloadLinks.vue";
 import ConfirmModal from "@/components/ConfirmModal.vue";
+import { CANCEL_ARMING_DELAY_MS } from "@/constants";
 
 function formatList(items: string[]): string {
   if (items.length < 2) {
@@ -438,6 +442,8 @@ export default defineComponent({
   },
   data() {
     return {
+      canCancelSeparation: false,
+      cancelArmingTimeout: undefined as ReturnType<typeof setTimeout> | undefined,
       isLoadingYouTube: false,
       youtubeError: null as string | null,
       BACKING_VOCALS_SEPARATOR_MODEL,
@@ -458,6 +464,18 @@ export default defineComponent({
     };
   },
   watch: {
+    isSeparatingTrack: {
+      handler(separating: boolean) {
+        clearTimeout(this.cancelArmingTimeout);
+        this.canCancelSeparation = false;
+        if (separating) {
+          this.cancelArmingTimeout = setTimeout(() => {
+            this.canCancelSeparation = true;
+          }, CANCEL_ARMING_DELAY_MS);
+        }
+      },
+      immediate: true,
+    },
     "mediaStore.kbpFile"(file: File | null) {
       if (!file) {
         this.kbpWarnings = [];
