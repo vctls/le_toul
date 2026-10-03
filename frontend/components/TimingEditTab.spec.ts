@@ -1,5 +1,7 @@
 import { describe, it, expect, beforeEach } from "vitest";
 import { shallowMount } from "@vue/test-utils";
+import { EditorView } from "@codemirror/view";
+import { undo } from "@codemirror/commands";
 import { createPinia, setActivePinia } from "pinia";
 import TimingEditTab from "@/components/TimingEditTab.vue";
 import { useLyricsStore } from "@/stores/lyrics";
@@ -21,6 +23,10 @@ function mountTab(lyrics = "hel/lo_world") {
     [2, SEGMENT_END],
   ]);
   return shallowMount(TimingEditTab);
+}
+
+function editorOf(wrapper: ReturnType<typeof mountTab>): EditorView {
+  return EditorView.findFromDOM(wrapper.find(".cm-editor").element as HTMLElement)!;
 }
 
 describe("TimingEditTab", () => {
@@ -89,9 +95,34 @@ describe("TimingEditTab", () => {
     wrapper.vm.apply();
     await wrapper.vm.$nextTick();
 
-    const numbers = wrapper.findAll(".gutter-rows > div");
+    // The line numbers' first element is a hidden one that only sets the gutter's width.
+    const numbers = wrapper.findAll(".cm-lineNumbers .cm-gutterElement").slice(1);
     expect(numbers.map((n) => n.text())).toEqual(["1", "2", "3", "4", "5", "6", "7", "8"]);
-    expect(wrapper.findAll(".gutter .is-error").map((n) => n.text())).toEqual(["5"]);
+    expect(wrapper.findAll(".cm-lineNumbers .is-error").map((n) => n.text())).toEqual(["5"]);
+  });
+
+  it("edits the draft in the editor, and shows a reloaded draft", () => {
+    const wrapper = mountTab();
+    const view = editorOf(wrapper);
+    const at = view.state.doc.toString().indexOf("00:01.00");
+
+    view.dispatch({ changes: { from: at, to: at + 8, insert: "00:01.20" }, userEvent: "input" });
+    expect(wrapper.vm.draft).toContain('"lo "    00:01.20');
+
+    wrapper.vm.reload();
+    expect(view.state.doc.toString()).toBe(wrapper.vm.current);
+  });
+
+  it("doesn't undo across a reload", () => {
+    const wrapper = mountTab();
+    const view = editorOf(wrapper);
+    const at = view.state.doc.toString().indexOf("00:01.00");
+    view.dispatch({ changes: { from: at, to: at + 8, insert: "00:01.20" }, userEvent: "input" });
+
+    wrapper.vm.reload();
+
+    expect(undo(view)).toBe(false);
+    expect(view.state.doc.toString()).toBe(wrapper.vm.current);
   });
 
   it("rejects the rows of a whole timings file", () => {
