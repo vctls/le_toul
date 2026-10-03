@@ -60,6 +60,8 @@ CLEANED_TOLERANCES = (2.0,)
 MIN_INTERVAL = 0.2
 # In seconds, when a 429 comes without a usable Retry-After.
 DEFAULT_RETRY_AFTER = 60.0
+# In seconds, before repeating a request that LRCLIB answered 503.
+UNAVAILABLE_RETRY_DELAY = 1.0
 
 Record = dict[str, Any]
 
@@ -196,27 +198,12 @@ class LrclibProvider:
     ) -> Any:
         """Return the decoded JSON body, or None for a 404."""
         async with self._lock:
-            if self._clock() < self._blocked_until:
-                raise LyricsProviderError(
-                    "LRCLIB asked to wait before the next request"
-                )
-            gap = self._last_request + MIN_INTERVAL - self._clock()
-            if gap > 0:
-                await self._sleep(gap)
-            try:
-                response = await client.get(path, params=params)
-            except httpx.HTTPError as e:
-                # The exception's message holds the URL, song names included.
-                raise LyricsProviderError(
-                    f"LRCLIB request failed: {type(e).__name__}"
-                ) from None
-            finally:
-                self._last_request = self._clock()
-            if response.status_code == 429:
-                wait = _retry_after(response)
-                self._blocked_until = self._clock() + wait
-                logger.warning("lrclib_rate_limited", retry_after=wait)
-                raise LyricsProviderError("LRCLIB answered 429")
+            response = await self._send(client, path, params)
+            if response.status_code == 503:
+                # LRCLIB answers 503 now and then, and the same request usually
+                # succeeds a moment later.
+                await self._sleep(UNAVAILABLE_RETRY_DELAY)
+                response = await self._send(client, path, params)
         if response.status_code == 404:
             return None
         if response.status_code == 503:
@@ -227,6 +214,31 @@ class LrclibProvider:
             return response.json()
         except ValueError:
             raise LyricsProviderError("LRCLIB answered with invalid JSON") from None
+
+    async def _send(
+        self, client: httpx.AsyncClient, path: str, params: dict[str, Any]
+    ) -> httpx.Response:
+        """Send one request, spaced from the last and refused while a 429 holds."""
+        if self._clock() < self._blocked_until:
+            raise LyricsProviderError("LRCLIB asked to wait before the next request")
+        gap = self._last_request + MIN_INTERVAL - self._clock()
+        if gap > 0:
+            await self._sleep(gap)
+        try:
+            response = await client.get(path, params=params)
+        except httpx.HTTPError as e:
+            # The exception's message holds the URL, song names included.
+            raise LyricsProviderError(
+                f"LRCLIB request failed: {type(e).__name__}"
+            ) from None
+        finally:
+            self._last_request = self._clock()
+        if response.status_code == 429:
+            wait = _retry_after(response)
+            self._blocked_until = self._clock() + wait
+            logger.warning("lrclib_rate_limited", retry_after=wait)
+            raise LyricsProviderError("LRCLIB answered 429")
+        return response
 
 
 def _retry_after(response: httpx.Response) -> float:

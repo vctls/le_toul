@@ -276,13 +276,31 @@ def test_a_503_from_get_falls_back_to_the_search():
     assert match is not None and match.url.endswith("/7")
 
 
-def test_a_503_from_the_search_still_raises():
+def test_a_503_is_retried_once_a_second_later():
+    clock = Clock()
+    lrclib = FakeLrclib(get={"Glim Tovar": record(7, 201.0, synced=True)})
+    answers = [httpx.Response(503)]
+
+    def handler(request):
+        return answers.pop() if answers else lrclib(request)
+
+    match = asyncio.run(provider_for(handler, clock).find(QUERY))
+
+    assert match.url.endswith("/7")
+    assert clock.sleeps == [pytest.approx(1.0)]
+
+
+def test_a_search_that_answers_503_twice_raises():
+    paths = []
+
+    def handler(request):
+        paths.append(request.url.path)
+        return httpx.Response(404 if request.url.path == "/api/get" else 503)
+
     with pytest.raises(LyricsProviderError):
-        find(
-            lambda request: httpx.Response(
-                404 if request.url.path == "/api/get" else 503
-            )
-        )
+        find(handler)
+
+    assert paths == ["/api/get", "/api/search", "/api/search"]
 
 
 def test_a_timeout_raises_without_the_song_names():
