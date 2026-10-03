@@ -89,6 +89,19 @@ describe("TimingEditTab", () => {
     expect(useTimingsStore().activeSegments[1].start).toBe(1);
   });
 
+  it("drops the error once the draft is back to the current timings", async () => {
+    const wrapper = mountTab();
+    wrapper.vm.draft = wrapper.vm.draft.replace("00:01.00", "00:00.20");
+    wrapper.vm.apply();
+    await wrapper.vm.$nextTick();
+
+    wrapper.vm.draft = wrapper.vm.current;
+    await wrapper.vm.$nextTick();
+
+    expect(wrapper.vm.error).toBe("");
+    expect(wrapper.findAll(".cm-lineNumbers .is-error")).toHaveLength(0);
+  });
+
   it("numbers the rows, and marks the row of an error", async () => {
     const wrapper = mountTab();
     wrapper.vm.draft = wrapper.vm.draft.replace("00:01.00", "00:00.20");
