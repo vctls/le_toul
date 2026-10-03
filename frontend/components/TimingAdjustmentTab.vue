@@ -412,8 +412,8 @@
       :redo-label="keyLabels.redo"
       :playing="isPlaying"
       :show-keys="!isMobile && !isImmersive"
-      @start="onTimingKey('start')"
-      @end="onTimingKey('end')"
+      @start="(at?: number) => onTimingKey('start', at)"
+      @end="(at?: number) => onTimingKey('end', at)"
       @redo="onTimingKey('redo')"
       @play-pause="timingAdjusterRef()?.togglePlayPause()"
     />
@@ -1084,7 +1084,7 @@ export default defineComponent({
         adjuster?.clearSelection();
       } else if (action && isTapAction(action)) {
         if (!event.repeat) {
-          this.onTimingKey(action);
+          this.onTimingKey(action, event.timeStamp);
         }
       } else if (action === "switchMode") {
         this.setMode(this.isTapMode ? this.lastEditMode : "tap");
@@ -1182,7 +1182,11 @@ export default defineComponent({
         adjuster?.setAudioPlayhead(at);
       }
     },
-    onTimingKey(key: TapAction) {
+    /**
+     * Act on a timing key. A tap is stamped with the song time heard at `at`, the
+     * `performance.now()` time of the key press.
+     */
+    onTimingKey(key: TapAction, at = performance.now()) {
       const adjuster = this.timingAdjusterRef();
       if (!adjuster) return;
       if (key === "redo") {
@@ -1205,7 +1209,7 @@ export default defineComponent({
         adjuster.togglePlayPause();
         return;
       }
-      const time = adjuster.currentTime();
+      const time = adjuster.currentTime(at);
       if (!this.pass) {
         const pass = startPass(this.tapSegments, this.tapHead);
         if (key === "end" && pass.growing === undefined) return;
