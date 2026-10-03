@@ -161,7 +161,7 @@ test.describe("Project Folder Upload", () => {
       "replace your song and backing track",
     );
     const links = page.locator(".modal-card-body .source-file-links");
-    await expect(links).toContainText("accompaniment.");
+    await expect(links).toContainText("backing.");
     await expect(links).not.toContainText(defaultTestConfig.audioFile);
     await page.click('.modal-card-foot button:has-text("Load folder")');
 

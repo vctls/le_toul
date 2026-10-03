@@ -41,7 +41,7 @@ export default defineComponent({
       type: Blob,
       required: true,
     },
-    // Backing (accompaniment) track, available once the song has been separated.
+    // Backing track, available once the song has been separated.
     // Lets the preview play the same audio the finished video will use.
     backingTrack: {
       type: Blob,

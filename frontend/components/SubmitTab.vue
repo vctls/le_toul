@@ -507,7 +507,7 @@
           :settings="settingsYaml"
           :font="customFont ?? undefined"
           :vocals="mediaStore.separatedTrack?.vocals"
-          :accompaniment="mediaStore.separatedTrack?.backing"
+          :backing="mediaStore.separatedTrack?.backing"
         />
         <div v-if="advancedStore.isAdvanced && lyricText.trim()" class="kbp-export is-size-7">
           <span>Karaoke Builder Studio</span>
@@ -859,7 +859,7 @@ export default defineComponent({
         this.waitingForSeparation = false;
         const videoOptions = { createTitleScreens: true, ...this.renderOptions };
         const videoFile: Uint8Array = await video.createVideo({
-          accompaniment: separatedTrack.backing,
+          backing: separatedTrack.backing,
           backgroundVideo: videoOptions.useBackgroundVideo ? this.videoBlob : null,
           subtitles: this.allVoicesSubtitles(),
           audioDelay: this.audioDelay,
@@ -943,7 +943,7 @@ export default defineComponent({
         zip.file(`vocals.${extensionForBlob(separated.vocals)}`, separated.vocals);
       }
       if (separated?.backing && separated.backing.size > 0) {
-        zip.file(`accompaniment.${extensionForBlob(separated.backing)}`, separated.backing);
+        zip.file(`backing.${extensionForBlob(separated.backing)}`, separated.backing);
       }
 
       this.creationStep = "packaging the files";

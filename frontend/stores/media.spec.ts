@@ -105,7 +105,7 @@ describe("Media Store separation", () => {
     store.startSeparation(SONG, BACKING_VOCALS_SEPARATOR_MODEL);
     const signal = await started;
     store.separatedTrack = TRACK;
-    store.backingTrackFile = new File(["backing"], "accompaniment.wav");
+    store.backingTrackFile = new File(["backing"], "backing.wav");
     store.vocalTrackFile = new File(["vocals"], "vocals.wav");
 
     store.discardSeparatedTrack();
@@ -132,7 +132,7 @@ describe("Media Store separation", () => {
     store.startSeparation(SONG, BACKING_VOCALS_SEPARATOR_MODEL);
     const signal = await started;
     store.separatedTrack = TRACK;
-    store.backingTrackFile = new File(["backing"], "accompaniment.wav");
+    store.backingTrackFile = new File(["backing"], "backing.wav");
     store.backgroundVideo = new Blob(["video"]);
 
     store.songFile = new File(["other audio"], "other.mp3");
@@ -158,7 +158,7 @@ describe("Media Store separation", () => {
     const store = useMediaStore();
 
     expect(store.hasSeparatedTrack).toBe(false);
-    await store.setBackingTrack(new File(["backing"], "accompaniment.wav"));
+    await store.setBackingTrack(new File(["backing"], "backing.wav"));
 
     expect(store.hasSeparatedTrack).toBe(true);
   });

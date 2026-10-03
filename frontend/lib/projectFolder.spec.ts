@@ -18,7 +18,7 @@ const EXPORTED_FOLDER = [
   "MetalMania.ttf",
   "song.mp4",
   "vocals.wav",
-  "accompaniment.wav",
+  "backing.wav",
 ].map((name) => file(`project/${name}`));
 
 describe("classifyProjectFolder", () => {
@@ -26,7 +26,7 @@ describe("classifyProjectFolder", () => {
     const project = classifyProjectFolder(EXPORTED_FOLDER);
 
     expect(project.song?.name).toBe("song.mp4");
-    expect(project.backing?.name).toBe("accompaniment.wav");
+    expect(project.backing?.name).toBe("backing.wav");
     expect(project.vocals?.name).toBe("vocals.wav");
     expect(project.lyrics?.name).toBe("lyrics.txt");
     expect(project.timings?.name).toBe("timings.txt");
@@ -105,11 +105,28 @@ describe("classifyProjectFolder", () => {
   });
 
   test("places the stems whatever container they were separated into", () => {
-    const project = classifyProjectFolder([file("accompaniment.flac"), file("vocals.flac")]);
+    const project = classifyProjectFolder([file("backing.flac"), file("vocals.flac")]);
 
-    expect(project.backing?.name).toBe("accompaniment.flac");
+    expect(project.backing?.name).toBe("backing.flac");
     expect(project.vocals?.name).toBe("vocals.flac");
     expect(project.song).toBeUndefined();
+  });
+
+  test("still loads the backing track an older export named accompaniment", () => {
+    expect(classifyProjectFolder([file("accompaniment.wav")]).backing?.name).toBe(
+      "accompaniment.wav",
+    );
+  });
+
+  test("prefers backing over accompaniment, whichever comes first", () => {
+    for (const files of [
+      [file("accompaniment.wav"), file("backing.mp3")],
+      [file("backing.mp3"), file("accompaniment.wav")],
+    ]) {
+      const project = classifyProjectFolder(files);
+      expect(project.backing?.name).toBe("backing.mp3");
+      expect(project.ignored).toEqual(["accompaniment.wav"]);
+    }
   });
 
   test("never loads a Karaoke Builder Studio project, whatever it is named", () => {
