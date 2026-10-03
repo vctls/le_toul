@@ -1041,6 +1041,7 @@ body > div:has(> .b-tooltip > .tooltip-content.wide-tooltip) {
   justify-content: center;
   align-items: center;
   row-gap: 0.25rem;
+  margin-top: 0.75rem;
 }
 
 .kbp-export {
