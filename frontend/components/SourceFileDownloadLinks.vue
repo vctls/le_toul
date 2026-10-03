@@ -106,13 +106,13 @@
         <b-icon icon="download" />
       </button>
     </span>
-    <span v-if="accompaniment && accompaniment.size > 0" class="file-item">
-      {{ accompanimentName }}
+    <span v-if="backing && backing.size > 0" class="file-item">
+      {{ backingName }}
       <button
         type="button"
         class="link-button"
-        @click="download(accompaniment, accompanimentName)"
-        title="download accompaniment"
+        @click="download(backing, backingName)"
+        title="download backing track"
       >
         <b-icon icon="download" />
       </button>
@@ -138,7 +138,7 @@ export default defineComponent({
     // More fonts, such as the ones uploaded for single voices.
     fonts: { type: Array as PropType<File[]>, default: () => [] },
     vocals: Blob,
-    accompaniment: Blob,
+    backing: Blob,
   },
   computed: {
     allFonts(): File[] {
@@ -147,8 +147,8 @@ export default defineComponent({
     vocalsName(): string {
       return `vocals.${extensionForBlob(this.vocals ?? new Blob())}`;
     },
-    accompanimentName(): string {
-      return `accompaniment.${extensionForBlob(this.accompaniment ?? new Blob())}`;
+    backingName(): string {
+      return `backing.${extensionForBlob(this.backing ?? new Blob())}`;
     },
     hasAnyFiles(): boolean {
       return Boolean(
@@ -159,7 +159,7 @@ export default defineComponent({
         this.settings ||
         this.allFonts.length > 0 ||
         (this.vocals && this.vocals.size > 0) ||
-        (this.accompaniment && this.accompaniment.size > 0),
+        (this.backing && this.backing.size > 0),
       );
     },
   },

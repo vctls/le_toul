@@ -283,7 +283,7 @@
         class="mt-4"
         label="Current tracks: "
         :vocals="mediaStore.separatedTrack?.vocals"
-        :accompaniment="mediaStore.separatedTrack?.backing"
+        :backing="mediaStore.separatedTrack?.backing"
       />
     </confirm-modal>
 
@@ -392,7 +392,7 @@ interface FolderLosses {
     settings?: string;
     font?: File;
     vocals?: Blob;
-    accompaniment?: Blob;
+    backing?: Blob;
   };
 }
 
@@ -902,7 +902,7 @@ export default defineComponent({
       // A new song discards the tracks separated from the old one, even when the folder has none.
       if ((project.backing || project.song) && track && track.backing.size > 0) {
         losses.labels.push("backing track");
-        losses.files.accompaniment = track.backing;
+        losses.files.backing = track.backing;
       }
       if ((project.vocals || project.song) && track && track.vocals.size > 0) {
         losses.labels.push("vocal track");

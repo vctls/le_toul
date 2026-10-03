@@ -271,7 +271,7 @@ function usableAlternates(tracks: AlternateAudioTracks | null): AlternateSource[
 }
 
 export interface CreateVideoOptions {
-  accompaniment: string | Blob;
+  backing: string | Blob;
   subtitles: string;
   videoOptions: KaraokeOptions;
   metadata: VideoMetadata;
@@ -285,7 +285,7 @@ export interface CreateVideoOptions {
 }
 
 async function createVideo({
-  accompaniment,
+  backing,
   subtitles,
   videoOptions,
   metadata,
@@ -366,7 +366,7 @@ async function createVideo({
     }
 
     // Write audio to ffmpeg filesystem
-    await ffmpeg.writeFile(songFileName, await fetchFile(accompaniment));
+    await ffmpeg.writeFile(songFileName, await fetchFile(backing));
 
     // The ass filter indexes fontsdir by the family name inside each file,
     // so the filename only has to be path-safe and unique, which a family name is not necessarily.

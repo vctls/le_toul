@@ -134,7 +134,7 @@
         :font="settingsStore.customFont ?? undefined"
         :fonts="voiceFonts"
         :vocals="mediaStore.separatedTrack?.vocals"
-        :accompaniment="mediaStore.separatedTrack?.backing"
+        :backing="mediaStore.separatedTrack?.backing"
       />
     </confirm-modal>
   </div>

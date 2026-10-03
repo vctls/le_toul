@@ -25,6 +25,7 @@ const SONG_STEM = "song";
 // than a fixed extension.
 const NAMED_STEMS: Record<string, Slot> = {
   [SONG_STEM]: "song",
+  backing: "backing",
   accompaniment: "backing",
   vocals: "vocals",
 };
@@ -37,8 +38,9 @@ const NAMED_SLOTS: Record<string, Slot> = {
   "settings.yml": "settings",
 };
 
-// The legacy name, which gives way to the current one whichever sorts first.
+// The legacy names, which give way to the current one whichever sorts first.
 const SUPERSEDED_BY: Record<string, string> = { "timings.json": "timings.txt" };
+const STEM_SUPERSEDED_BY: Record<string, string> = { accompaniment: "backing" };
 
 // Rebuilt from the lyrics and timings, so there is nothing to load back.
 const DERIVED_NAMES = ["subtitles.ass"];
@@ -69,6 +71,10 @@ function extensionOf(name: string): string {
 function stemOf(name: string): string {
   const dot = name.lastIndexOf(".");
   return (dot > 0 ? name.slice(0, dot) : name).toLowerCase();
+}
+
+function supersedes(name: string, taken: string): boolean {
+  return SUPERSEDED_BY[taken] === name || STEM_SUPERSEDED_BY[stemOf(taken)] === stemOf(name);
 }
 
 function pathOf(file: File): string {
@@ -102,7 +108,7 @@ export function classifyProjectFolder(files: File[]): ProjectFolder {
     const slot =
       NAMED_SLOTS[name] ?? NAMED_STEMS[stemOf(name)] ?? EXTENSION_SLOTS[extensionOf(name)];
     const taken = slot ? project[slot] : undefined;
-    if (slot && taken && SUPERSEDED_BY[taken.name.toLowerCase()] === name) {
+    if (slot && taken && supersedes(name, taken.name.toLowerCase())) {
       project.ignored.push(pathOf(taken));
       project[slot] = file;
       continue;
