@@ -465,10 +465,18 @@ export default defineComponent({
       const audio = this.audioPlayerRef()?.audioPlayer as HTMLAudioElement | undefined;
       if (!audio) return;
       this.setAudioPlayhead(time);
-      if (audio.paused) {
+      const play = () => {
+        if (!audio.paused) return;
         audio.play().catch((error) => {
           console.error("Could not start playback:", error);
         });
+      };
+      // Chrome started during a seek plays the audio but holds currentTime back by up to 0.4 s,
+      // and it stays behind the sound until the next seek.
+      if (audio.seeking) {
+        audio.addEventListener("seeked", play, { once: true });
+      } else {
+        play();
       }
     },
     /**
