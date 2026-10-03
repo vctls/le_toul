@@ -1,0 +1,124 @@
+// The CodeMirror editors, drawn as a Bulma textarea with a find and replace panel on top.
+
+// The element selector outweighs Bulma's own `.textarea:not([rows])` height caps.
+div.textarea.code-editor {
+  display: flex;
+  flex-direction: column;
+  // Bulma's controls centre their content, which would shrink the editor.
+  align-items: stretch;
+  max-height: none;
+  min-height: 12em;
+  padding: 0;
+  resize: none;
+  // The panel's square corners would otherwise cover the rounded border.
+  overflow: hidden;
+  // CodeMirror raises the panel to z-index 300, above Bulma's modals.
+  isolation: isolate;
+
+  .cm-editor {
+    flex: 1 1 0;
+    min-height: 0;
+
+    &.cm-focused {
+      outline: none;
+    }
+  }
+
+  .cm-scroller {
+    font-family: inherit;
+    line-height: inherit;
+  }
+
+  .cm-content {
+    padding: var(--bulma-textarea-padding) 0;
+    caret-color: currentColor;
+  }
+
+  .cm-line {
+    padding: 0 var(--bulma-textarea-padding);
+  }
+
+  .cm-searchMatch {
+    background-color: hsla(
+      var(--bulma-warning-h),
+      var(--bulma-warning-s),
+      var(--bulma-warning-l),
+      0.35
+    );
+  }
+
+  .cm-searchMatch-selected {
+    background-color: hsl(var(--bulma-warning-h), var(--bulma-warning-s), var(--bulma-warning-l));
+
+    // The highlighted markup inside the match would keep colours meant for the editor's background.
+    &,
+    * {
+      color: var(--bulma-warning-invert);
+    }
+  }
+
+  .cm-panels {
+    background-color: var(--bulma-scheme-main-bis);
+    color: inherit;
+    border-color: var(--bulma-border);
+  }
+
+  .cm-search {
+    padding: 0.25rem 2.25rem 0.5rem 0.5rem;
+    font-family: var(--bulma-family-primary);
+    font-size: 0.875rem;
+
+    > * {
+      margin: 0.25rem 0.5rem 0 0;
+    }
+
+    // Selecting every match needs multiple selections, which these editors don't allow.
+    button[name="select"] {
+      display: none;
+    }
+
+    .cm-textfield,
+    .cm-button {
+      font: inherit;
+      color: inherit;
+      background: var(--bulma-scheme-main);
+      border: 1px solid var(--bulma-border);
+      border-radius: var(--bulma-radius-small);
+    }
+
+    .cm-textfield {
+      padding: 0.25em 0.5em;
+
+      &:focus {
+        outline: none;
+        border-color: var(--bulma-link);
+      }
+    }
+
+    .cm-button {
+      padding: 0.25em 0.75em;
+      cursor: pointer;
+
+      &:hover {
+        border-color: var(--bulma-border-hover);
+      }
+    }
+
+    label {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.25em;
+      font-size: inherit;
+      white-space: nowrap;
+    }
+
+    button[name="close"] {
+      margin: 0;
+      top: 0.5rem;
+      right: 0.5rem;
+      font-size: 1.25rem;
+      line-height: 1;
+      color: var(--bulma-text-weak);
+    }
+  }
+}
