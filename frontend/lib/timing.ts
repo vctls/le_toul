@@ -359,6 +359,7 @@ function width(segment: TimedSegment): number {
  *
  * Only a hole timed on BOTH sides is filled. An untimed head or tail is work not done yet,
  * and filling it would spread an untimed second half of a song across the rest of the track.
+ * An end that comes before its segment's start is dropped, so the segment runs to the next start.
  *
  * This runs on the render path only.
  * Nothing is written back, so a hole stays a hole in Adjust and Edit.
@@ -381,31 +382,75 @@ export function resolveStarts(segments: TimedSegment[]): TimedSegment[] {
     const before = i > 0 ? resolved[i - 1] : undefined;
     const after = end < resolved.length ? resolved[end] : undefined;
     if (before?.start !== undefined && after?.start !== undefined) {
-      // A hole starts after the preceding segment has ended. Anchoring on that segment's start
-      // instead would put the hole inside it, which the region layer rejects as an overlap.
-      // The anchor is capped at the next start, or an end already dragged past it would move holes backwards.
-      const release = before.end === undefined ? undefined : Math.min(before.end, after.start);
-      const lower = release ?? before.start;
-      // With an explicit end the span belongs to the holes alone. Without one the preceding
-      // segment runs into them, so it takes a share too.
-      const share = [
-        release === undefined ? width(before) : 0,
-        ...resolved.slice(i, end).map(width),
-      ];
-      const total = share.reduce((sum, w) => sum + w, 0);
-      const span = after.start - lower;
-
-      let consumed = 0;
-      for (let k = i; k < end; k++) {
-        consumed += share[k - i];
-        resolved[k].start = lower + (span * consumed) / total;
+      // A hole with its own end must start before it,
+      // so the holes up to it are spread on their own.
+      // A split of a word that had an end leaves one on its last syllable.
+      let anchor = i - 1;
+      let first = i;
+      while (first < end) {
+        const floor = resolved[anchor].end ?? (resolved[anchor].start as number);
+        let last = first;
+        let ownEnd = resolved[last].end;
+        for (;;) {
+          if (ownEnd !== undefined && ownEnd <= floor) {
+            // The hole can't start before this end, so it would be drawn backwards.
+            delete resolved[last].end;
+            ownEnd = undefined;
+          }
+          if (ownEnd !== undefined || last === end - 1) break;
+          ownEnd = resolved[++last].end;
+        }
+        const upper = ownEnd === undefined ? after.start : Math.min(ownEnd, after.start);
+        spreadHoles(resolved, anchor, first, last + 1, upper);
+        anchor = last;
+        first = last + 1;
       }
     }
 
     i = end;
   }
 
+  for (const segment of resolved) {
+    if (segment.start !== undefined && segment.end !== undefined && segment.end < segment.start) {
+      delete segment.end;
+    }
+  }
+
   return resolved;
+}
+
+/**
+ * Spread the starts of the holes from `first` to `end` (excluded) between the timed segment at
+ * `anchor` and `upper`, by the text each one draws.
+ */
+function spreadHoles(
+  resolved: TimedSegment[],
+  anchor: number,
+  first: number,
+  end: number,
+  upper: number,
+) {
+  const before = resolved[anchor];
+  // A hole starts after the preceding segment has ended. Anchoring on that segment's start
+  // instead would put the hole inside it, which the region layer rejects as an overlap.
+  // The anchor is capped at the upper bound,
+  // or an end already dragged past it would move holes backwards.
+  const release = before.end === undefined ? undefined : Math.min(before.end, upper);
+  const lower = release ?? (before.start as number);
+  // With an explicit end the span belongs to the holes alone. Without one the preceding
+  // segment runs into them, so it takes a share too.
+  const share = [
+    release === undefined ? width(before) : 0,
+    ...resolved.slice(first, end).map(width),
+  ];
+  const total = share.reduce((sum, w) => sum + w, 0);
+  const span = upper - lower;
+
+  let consumed = 0;
+  for (let k = first; k < end; k++) {
+    consumed += share[k - first];
+    resolved[k].start = lower + (span * consumed) / total;
+  }
 }
 
 export class LyricSegmentIterator {

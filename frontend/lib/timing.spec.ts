@@ -1046,6 +1046,47 @@ describe("resolveStarts", () => {
     expect(resolved[3].start).toBeLessThan(5.0);
   });
 
+  it("starts a hole with its own end before that end", () => {
+    // Replacing a timed "if" with "whe/ther" leaves the end on "ther".
+    // Spread up to the next start, "ther" started after its own end.
+    const resolved = resolveStarts([
+      { text: "whe/", start: 32.31 },
+      { text: "ther\n", end: 32.87 },
+      { text: "You", start: 33.84 },
+    ]);
+
+    expect(resolved[1].start).toBeCloseTo(32.31 + (0.56 * 3) / 7, 5);
+  });
+
+  it("spreads the holes after a hole with its own end from that end", () => {
+    const resolved = resolveStarts([
+      { text: "one_", start: 1.0 },
+      { text: "two_", end: 2.0 },
+      { text: "three_" },
+      { text: "four", start: 4.0 },
+    ]);
+
+    expect(resolved[1].start).toBeCloseTo(1.5, 5);
+    expect(resolved[2].start).toBeCloseTo(2.0, 5);
+  });
+
+  it("drops a hole's own end that comes before the hole can start", () => {
+    const resolved = resolveStarts([
+      { text: "one_", start: 2.0 },
+      { text: "two_", end: 1.5 },
+      { text: "three", start: 3.0 },
+    ]);
+
+    expect(resolved[1].end).toBeUndefined();
+    expect(resolved[1].start).toBeCloseTo(2.5, 5);
+  });
+
+  it("drops an end before its own start", () => {
+    const resolved = resolveStarts([{ text: "one", start: 2.0, end: 1.5 }]);
+
+    expect(resolved[0].end).toBeUndefined();
+  });
+
   it("leaves an untimed tail alone, because that is work not yet done", () => {
     const resolved = resolveStarts([
       { text: "one_", start: 1.0 },
