@@ -343,7 +343,8 @@ class SingleRegion extends EventEmitter<RegionEvents> implements Region {
     const handleStyle = {
       position: "absolute",
       zIndex: "2",
-      width: "6px",
+      // The cap keeps the handles from overlapping on narrow regions.
+      width: "min(6px, 50%)",
       height: "100%",
       top: "0",
       cursor: "ew-resize",
