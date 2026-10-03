@@ -1041,6 +1041,31 @@ describe("TimingAdjustmentTab shortcuts", () => {
       expect(wrapper.find(".status-icon").exists()).toBe(false);
     });
 
+    it("keeps the message tucked away in Adjust mode, where only Done shows", async () => {
+      const wrapper = mountTapTab();
+      await nextTick();
+      wrapper.vm.tuckStatusMessage();
+      wrapper.vm.setMode("adjust");
+      await nextTick();
+      expect(wrapper.vm.timingStatus).toBeNull();
+
+      wrapper.vm.setMode("tap");
+      await nextTick();
+      expect(wrapper.find(".status-icon").attributes("aria-label")).toBe("Almost done");
+
+      pick(wrapper, 3);
+      playback.paused = false;
+      tap("Space", 6.2);
+      tap("Enter", 6.8);
+      pausePlayback(wrapper);
+      wrapper.vm.tuckStatusMessage();
+      wrapper.vm.setMode("adjust");
+      await nextTick();
+      expect(wrapper.vm.timingStatus).toBe("done");
+      expect(wrapper.findComponent({ name: "BMessage" }).exists()).toBe(false);
+      expect(wrapper.find(".status-icon").attributes("aria-label")).toBe("Done");
+    });
+
     it("shows a tucked-away message again once the status changes", async () => {
       const wrapper = mountTapTab();
       await nextTick();
@@ -1381,6 +1406,19 @@ describe("TimingAdjustmentTab shortcuts", () => {
       wrapper.findComponent({ name: "TimingAdjuster" }).vm.$emit("selection-change", indices);
     const markButton = (wrapper: ReturnType<typeof mountTab>) =>
       wrapper.find('[label="Mark as checked"]');
+
+    it("isn't done until the last flag is cleared", async () => {
+      const wrapper = mountTab();
+      useTimingsStore().resetSegments([
+        { text: "hello world", start: 0.5, end: 1.5, review: "moved" },
+      ]);
+      await nextTick();
+      expect(wrapper.vm.timingStatus).toBeNull();
+
+      useTimingsStore().resetSegments([{ text: "hello world", start: 0.5, end: 1.5 }]);
+      await nextTick();
+      expect(wrapper.vm.timingStatus).toBe("done");
+    });
 
     it("goes to the next and previous ones in order, wrapping around", async () => {
       const wrapper = mountFlagged();
