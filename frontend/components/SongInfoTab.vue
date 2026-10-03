@@ -1062,6 +1062,11 @@ export default defineComponent({
   overflow-y: auto;
 }
 
+.box {
+  border: 1px solid var(--bulma-border);
+  box-shadow: none;
+}
+
 .metadata-input :deep(.input) {
   width: auto;
   max-width: 100%;
