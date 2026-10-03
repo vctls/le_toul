@@ -110,6 +110,7 @@ export default defineComponent({
       _zoomAnchor: null as { time: number; cursorX: number } | null,
       _unsubscribeScheme: null as (() => void) | null,
       _savedScrollLeft: 0,
+      _stopKeepingScroll: null as (() => void) | null,
       _scrubSeconds: 0,
       _scrubFrame: 0,
       // The fingers on a centered view, by pointer id, where each was last seen.
@@ -529,10 +530,19 @@ export default defineComponent({
         .find((region) => region.id === id)
         ?.growTo(end);
     },
-    setTime(time: number) {
-      if (this.wavesurfer) {
-        this.wavesurfer.setTime(time);
-      }
+    /**
+     * Move the cursor to `time`. Wavesurfer scrolls a cursor that lands out of view back into it,
+     * unless `keepScroll` is set.
+     */
+    setTime(time: number, keepScroll = false) {
+      if (!this.wavesurfer) return;
+      this._stopKeepingScroll?.();
+      this._stopKeepingScroll = null;
+      this.wavesurfer.setTime(time);
+      if (!keepScroll) return;
+      this.restoreScroll();
+      // The seek's own timeupdate scrolls the cursor into view a second time.
+      this._stopKeepingScroll = this.wavesurfer.once("timeupdate", () => this.restoreScroll());
     },
     isReady() {
       return this.wavesurfer && this.wavesurfer.getDecodedData();

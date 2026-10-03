@@ -50,6 +50,7 @@ import TapQueue, { QueueItem } from "./TapQueue.vue";
 
 import { findLastIndex } from "lodash-es";
 import { displayText, resolveStarts } from "@/lib/timing";
+import { playableTrack } from "@/lib/audio";
 import { TimedSegment } from "@/lib/timedSegments";
 import { DisplayBand } from "@/lib/displayBands";
 
@@ -166,11 +167,15 @@ export default defineComponent({
     return {
       regions: [] as RegionParams[],
       audioSource: null as string | null,
+      // The track last asked to play, whose WAV copy may still be on its way.
+      requestedTrack: null as Blob | null,
       // Object URLs keyed by source blob. URLs live until unmount so an in-use URL is never revoked (revoking
       // one mid-playback aborts the media fetch and wedges the <audio> element, notably in Firefox).
       // Nothing here is rendered, hence markRaw.
       trackUrls: markRaw(new Map<Blob, string>()),
       _playheadRestored: false,
+      // The seek under way is the one that restores the playhead.
+      restoringPlayhead: false,
       clockFrame: 0,
       // The audio clock only moves in steps, so the view runs its own clock between them and pulls
       // it gently toward each one.
@@ -184,9 +189,7 @@ export default defineComponent({
   mounted() {
     this.regions = this.createRegions(this.segments ?? []);
     const playbackBlob = this.playbackTrack || this.audioData;
-    if (playbackBlob) {
-      this.audioSource = this.trackUrl(playbackBlob);
-    }
+    if (playbackBlob) this.loadPlaybackSource(playbackBlob);
     this.applyPlaybackSettings();
     this.restorePlayhead();
     if (this.tapMode) this.startClock();
@@ -220,7 +223,7 @@ export default defineComponent({
       this.applyPlaybackSettings();
     },
     playbackTrack(newTrack: Blob) {
-      this.swapPlaybackSource(newTrack || this.audioData);
+      this.loadPlaybackSource(newTrack || this.audioData);
     },
   },
   methods: {
@@ -246,6 +249,7 @@ export default defineComponent({
         if (!audio) return;
         // Seeking emits `seeking`, which updates the waveform and the caller.
         const seek = () => {
+          this.restoringPlayhead = true;
           audio.currentTime = time;
         };
         // readyState 1 is HAVE_METADATA, the point at which a seek sticks.
@@ -316,6 +320,22 @@ export default defineComponent({
         this.trackUrls.set(blob, url);
       }
       return url;
+    },
+    /**
+     * Play `blob` once its WAV copy is ready, unless another track was asked for in the meantime.
+     */
+    async loadPlaybackSource(blob: Blob | undefined) {
+      if (!blob) return;
+      this.requestedTrack = blob;
+      const playable = await playableTrack(blob);
+      if (this.requestedTrack !== blob) return;
+      // The first source must not go through the swap, whose restore would seek back over the
+      // restored playhead.
+      if (this.audioSource) {
+        this.swapPlaybackSource(playable);
+      } else {
+        this.audioSource = this.trackUrl(playable);
+      }
     },
     swapPlaybackSource(newBlob: Blob) {
       if (!newBlob) return;
@@ -532,7 +552,9 @@ export default defineComponent({
       if (range && (time < range.start - RANGE_SEEK_SLACK || time >= range.end)) {
         this.playingRange = null;
       }
-      this.setAdjusterPlayhead(time);
+      // The waveform restores its own scroll, which wins over a restored playhead outside it.
+      this.wavesurferRef()?.setTime(time, this.restoringPlayhead);
+      this.restoringPlayhead = false;
       this.$emit("seeking", time);
     },
     onRegionClicked(region: Region, event: MouseEvent) {
@@ -569,6 +591,7 @@ export default defineComponent({
   },
   beforeUnmount() {
     this.stopClock();
+    this.requestedTrack = null;
     for (const url of this.trackUrls.values()) {
       URL.revokeObjectURL(url);
     }
