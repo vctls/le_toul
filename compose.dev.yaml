@@ -1,14 +1,25 @@
 # Development stack. Run with:
 #   docker compose -f compose.dev.yaml up --build
 #
-# Open http://localhost:5173 in the browser. Vite serves the frontend with HMR
-# and proxies /separate_track, /download_video, /lyrics, /log_error, /health,
-# /static to the api service. Source code is bind-mounted into both containers so
-# edits trigger live reload.
+# Open http://localhost:5173 in the browser.
+# Vite serves the frontend with HMR and proxies /separate_track, /download_video,
+# /lyrics, /log_error, /health, /static to the api service.
+# Source code is bind-mounted into both containers so edits trigger live reload.
 
 services:
+  # Docker creates named volumes root-owned, and the services below run as the host user.
+  node-modules-owner:
+    image: node:22-slim
+    user: root
+    command: ["chown", "-R", "${UID:-1000}:${GID:-1000}", "/vite", "/playwright"]
+    volumes:
+      - vite-node-modules:/vite
+      - playwright-node-modules:/playwright
+
   vite:
     image: node:22-slim
+    # The host user, so files written into the bind mount aren't root-owned.
+    user: "${UID:-1000}:${GID:-1000}"
     working_dir: /app
     command: ["npm", "run", "dev", "--", "--host", "0.0.0.0"]
     environment:
@@ -16,8 +27,8 @@ services:
       TUUL_DONATE_URL: ${TUUL_DONATE_URL-}
       TUUL_API_PROXY: http://api:8000
       VITE_HOST: 0.0.0.0
-      # Force IPv4 lookups. The Docker embedded DNS resolver intermittently
-      # returns EAI_AGAIN on Node 17+ default (IPv6-first) lookups.
+      # Force IPv4 lookups.
+      # The Docker embedded DNS resolver intermittently returns EAI_AGAIN on Node 17+ default (IPv6-first) lookups.
       NODE_OPTIONS: --dns-result-order=ipv4first
     volumes:
       - .:/app
@@ -25,15 +36,16 @@ services:
       - vite-node-modules:/app/node_modules
     ports:
       - "5173:5173"
-      # Playwright shares this container's network namespace (see the playwright
-      # service below), so its HTML report server (port 9323) is also published
-      # here.
+      # Playwright shares this container's network namespace (see the playwright service below),
+      # so its HTML report server (port 9323) is also published here.
       - "9323:9323"
     # `npm clean-install` runs on first start; subsequent starts reuse the volume.
     entrypoint:
       ["sh", "-c", 'if [ ! -d node_modules/vite ]; then npm clean-install; fi && exec "$$@"', "--"]
     networks: [default]
     depends_on:
+      node-modules-owner:
+        condition: service_completed_successfully
       api:
         condition: service_healthy
 
@@ -76,13 +88,13 @@ services:
   #   docker compose -f compose.dev.yaml run --rm playwright
   # Pass extra args after the service name, e.g. `... playwright npx playwright test lyrics-tab-functionality`.
   #
-  # Shares the vite container's network namespace so the browser navigates to
-  # http://localhost:5173. Chromium treats loopback as a secure context, which
-  # is what exposes SharedArrayBuffer (needed by FFmpeg WASM) and the Clipboard
-  # API. Side effect: the HTML report at :9323 is published via the vite
-  # service's ports, not here.
+  # Shares the vite container's network namespace so the browser navigates to http://localhost:5173.
+  # Chromium treats loopback as a secure context,
+  # which is what exposes SharedArrayBuffer (needed by FFmpeg WASM) and the Clipboard API.
+  # Side effect: the HTML report at :9323 is published via the vite service's ports, not here.
   playwright:
     image: mcr.microsoft.com/playwright:v1.60.0-jammy
+    user: "${UID:-1000}:${GID:-1000}"
     working_dir: /app
     environment:
       BASE_URL: http://localhost:5173
@@ -100,6 +112,8 @@ services:
     network_mode: "service:vite"
     profiles: ["e2e"]
     depends_on:
+      node-modules-owner:
+        condition: service_completed_successfully
       vite:
         condition: service_started
       api:
