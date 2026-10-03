@@ -454,6 +454,9 @@ export default defineComponent({
      * to the preroll before `start`.
      */
     playRange(start: number, end: number) {
+      // The seek to `start` would already be past `end` and drop the range,
+      // so playback would never stop.
+      if (end <= start) return;
       this.playingRange = { start, end };
       this.restartAt(start);
     },
