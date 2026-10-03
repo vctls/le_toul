@@ -285,7 +285,8 @@ export default defineComponent({
         regions.push(
           createLyricRegion(index, {
             start,
-            end: segment.end,
+            // A lost segment placed at the nearest timed edge may start after its own end.
+            end: segment.end !== undefined && segment.end > start ? segment.end : undefined,
             review: segments[index].review,
             content: displayText(segment.text),
             resize: !this.tapMode,
