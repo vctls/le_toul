@@ -33,25 +33,7 @@
         timings again.
       </p>
     </help-section>
-    <div class="editor">
-      <div class="gutter" aria-hidden="true">
-        <div class="gutter-rows" :style="{ transform: `translateY(${-scrollTop}px)` }">
-          <div v-for="row in rowCount" :key="row" :class="{ 'is-error': row === errorRow }">
-            {{ row }}
-          </div>
-        </div>
-      </div>
-      <textarea
-        ref="textarea"
-        v-model="draft"
-        class="textarea timing-editor-textarea"
-        spellcheck="false"
-        autocorrect="off"
-        autocapitalize="off"
-        autocomplete="off"
-        @scroll="scrollTop = ($event.target as HTMLTextAreaElement).scrollTop"
-      />
-    </div>
+    <div ref="host" class="textarea code-editor timing-editor"></div>
     <p v-if="error" class="has-text-danger">{{ error }}</p>
     <b-message
       v-if="warnings.length"
@@ -74,7 +56,10 @@
 </template>
 
 <script lang="ts">
-import { defineComponent, markRaw } from "vue";
+import { defineComponent, shallowRef } from "vue";
+import { Compartment, EditorState, RangeSet, StateEffect, StateField } from "@codemirror/state";
+import { EditorView, GutterMarker, gutterLineClass, keymap, lineNumbers } from "@codemirror/view";
+import { defaultKeymap, history, historyKeymap } from "@codemirror/commands";
 import { BButton, BMessage } from "buefy";
 import HelpSection from "@/components/HelpSection.vue";
 import VoiceSelector from "@/components/VoiceSelector.vue";
@@ -90,6 +75,40 @@ import {
 } from "@/lib/timingsText";
 import { joinLyrics } from "@/lib/timing";
 import { VoiceId } from "@/lib/voices";
+import {
+  findAndReplace,
+  minimalChange,
+  programmatic,
+  restoreScrollWhenShown,
+} from "@/lib/codeEditor";
+import { timingsMarkup } from "@/lib/timingsMarkup";
+
+const undoHistory = new Compartment();
+
+const setErrorRow = StateEffect.define<number | undefined>();
+
+const errorMarker = new (class extends GutterMarker {
+  elementClass = "is-error";
+})();
+
+// Marks the number of the row that failed to apply, and follows that row as the text is edited.
+const errorRowField = StateField.define<RangeSet<GutterMarker>>({
+  create: () => RangeSet.empty,
+  update(markers, transaction) {
+    markers = markers.map(transaction.changes);
+    for (const effect of transaction.effects) {
+      if (!effect.is(setErrorRow)) continue;
+      const row = effect.value;
+      const { doc } = transaction.state;
+      markers =
+        row === undefined || row > doc.lines
+          ? RangeSet.empty
+          : RangeSet.of([errorMarker.range(doc.line(row).from)]);
+    }
+    return markers;
+  },
+  provide: (field) => gutterLineClass.from(field),
+});
 
 export default defineComponent({
   components: { BButton, BMessage, HelpSection, VoiceSelector },
@@ -101,6 +120,7 @@ export default defineComponent({
       lyricsStore,
       advancedStore: useAdvancedStore(),
       historyStore: useHistoryStore(),
+      view: shallowRef<EditorView | null>(null),
     };
   },
   data() {
@@ -109,24 +129,44 @@ export default defineComponent({
       error: "",
       errorRow: undefined as number | undefined,
       warnings: [] as string[],
-      scrollTop: 0,
-      resizeObserver: markRaw({ observer: null as ResizeObserver | null }),
+      stopRestoringScroll: null as (() => void) | null,
     };
   },
   mounted() {
-    // Hiding the tab resets the textarea's scroll without a scroll event, which would leave the gutter behind.
-    // Showing it again resizes it, so the resize restores the gutter's position.
-    const textarea = this.$refs.textarea as HTMLTextAreaElement;
-    this.resizeObserver.observer = new ResizeObserver(() => {
-      if (textarea.clientHeight > 0) {
-        textarea.scrollTop = this.scrollTop;
-        this.scrollTop = textarea.scrollTop;
-      }
+    const view = new EditorView({
+      parent: this.$refs.host as HTMLElement,
+      state: EditorState.create({
+        doc: this.draft,
+        extensions: [
+          findAndReplace(),
+          undoHistory.of(history()),
+          keymap.of([...historyKeymap, ...defaultKeymap]),
+          lineNumbers(),
+          errorRowField,
+          EditorView.contentAttributes.of({
+            "aria-label": "Timings",
+            spellcheck: "false",
+            autocorrect: "off",
+            autocapitalize: "off",
+          }),
+          EditorView.updateListener.of((update) => {
+            if (
+              update.docChanged &&
+              !update.transactions.some((tr) => tr.annotation(programmatic))
+            ) {
+              this.draft = update.state.doc.toString();
+            }
+          }),
+          timingsMarkup,
+        ],
+      }),
     });
-    this.resizeObserver.observer.observe(textarea);
+    this.view = view;
+    this.stopRestoringScroll = restoreScrollWhenShown(view);
   },
   beforeUnmount() {
-    this.resizeObserver.observer?.disconnect();
+    this.stopRestoringScroll?.();
+    this.view?.destroy();
   },
   computed: {
     activeVoice(): VoiceId {
@@ -141,11 +181,28 @@ export default defineComponent({
     hasChanges(): boolean {
       return this.draft !== this.current;
     },
-    rowCount(): number {
-      return this.draft.split("\n").length;
-    },
   },
   watch: {
+    draft: {
+      // A deferred watcher would miss an edit and a Reload made in the same tick.
+      flush: "sync",
+      handler(value: string) {
+        const view = this.view;
+        const shown = view?.state.doc.toString();
+        if (!view || value === shown) return;
+        // Undoing an edit across a replaced draft would garble it, so the replacement starts the
+        // editor's undo history over, as setting a textarea's value does.
+        view.dispatch({
+          changes: minimalChange(shown!, value),
+          annotations: programmatic.of(true),
+          effects: undoHistory.reconfigure([]),
+        });
+        view.dispatch({ effects: undoHistory.reconfigure(history()) });
+      },
+    },
+    errorRow(row: number | undefined) {
+      this.view?.dispatch({ effects: setErrorRow.of(row) });
+    },
     activeVoice() {
       this.error = "";
       this.errorRow = undefined;
@@ -210,13 +267,6 @@ export default defineComponent({
   height: 100%;
 }
 
-.editor {
-  display: flex;
-  flex: 1;
-  min-height: 0;
-  margin-bottom: 0.75rem;
-}
-
 .title-row {
   display: flex;
   flex-direction: row;
@@ -238,43 +288,47 @@ export default defineComponent({
   padding-left: 1.25em;
 }
 
-/* The gutter's font, line height and top padding match the textarea's, so each number sits on
-   its row. The textarea doesn't wrap, so a row is always one line tall. */
-.gutter,
-.timing-editor-textarea {
+.timing-editor {
+  flex: 1;
+  margin-bottom: 0.75rem;
   font-family: var(--bulma-family-code), monospace;
   font-size: var(--bulma-size-normal);
   line-height: 1.6;
 }
 
-.gutter {
-  overflow: hidden;
-  padding: var(--bulma-control-padding-horizontal) 0.5em;
-  border: var(--bulma-control-border-width) solid var(--bulma-border);
-  border-right: none;
-  border-radius: var(--bulma-radius) 0 0 var(--bulma-radius);
+.timing-editor :deep(.cm-gutters) {
   background-color: var(--bulma-background);
   color: var(--bulma-text-weak);
-  text-align: right;
-  user-select: none;
+  border-right: var(--bulma-control-border-width) solid var(--bulma-border);
 }
 
-.gutter .is-error {
+.timing-editor :deep(.cm-lineNumbers .cm-gutterElement) {
+  padding: 0 0.5em;
+}
+
+.timing-editor :deep(.cm-lineNumbers .cm-gutterElement.is-error) {
   color: var(--bulma-danger);
   font-weight: bold;
 }
 
-/* The editor class outranks Bulma's `.textarea:not([rows])` height limits. */
-.editor .timing-editor-textarea {
-  white-space: pre;
-  flex: 1;
-  min-width: 0;
-  /* Bulma gives every control a fixed height, which blocks the flex stretch. */
-  height: 100%;
-  min-height: 0;
-  max-height: none;
-  resize: none;
-  border-top-left-radius: 0;
-  border-bottom-left-radius: 0;
+.timing-editor :deep(.cm-markup-syllable) {
+  color: var(--bulma-link-text);
+}
+
+.timing-editor :deep(.cm-markup-time) {
+  color: var(--bulma-text-strong);
+}
+
+.timing-editor :deep(.cm-markup-placeholder),
+.timing-editor :deep(.cm-markup-comment) {
+  color: var(--bulma-text-weak);
+}
+
+.timing-editor :deep(.cm-markup-comment) {
+  font-style: italic;
+}
+
+.timing-editor :deep(.cm-markup-keyword) {
+  font-weight: bold;
 }
 </style>
