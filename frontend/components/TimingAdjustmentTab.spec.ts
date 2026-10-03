@@ -647,6 +647,30 @@ describe("TimingAdjustmentTab shortcuts", () => {
     });
   });
 
+  describe("Preserve pitch", () => {
+    it("is on for a first visit", () => {
+      expect(mountTab().vm.preservePitch).toBe(true);
+    });
+
+    it("turns on once for a save from when it was off by default", () => {
+      localStorage.setItem(
+        "adjust.state",
+        JSON.stringify({ voiceState: {}, preservePitch: false }),
+      );
+
+      expect(mountTab().vm.preservePitch).toBe(true);
+    });
+
+    it("stays off once turned off since", () => {
+      localStorage.setItem(
+        "adjust.state",
+        JSON.stringify({ version: 2, voiceState: {}, preservePitch: false }),
+      );
+
+      expect(mountTab().vm.preservePitch).toBe(false);
+    });
+  });
+
   describe("tap mode", () => {
     const adjuster = (wrapper: ReturnType<typeof mountTab>) =>
       wrapper.findComponent({ name: "TimingAdjuster" });

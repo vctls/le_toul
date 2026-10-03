@@ -314,7 +314,7 @@
               Preserve pitch
               <b-tooltip
                 multilined
-                label="Hold the original key at other speeds. The stretching it needs sounds rough well below 1x."
+                label="Hold the original key at other speeds. Turned off, a slower speed lowers the pitch too."
               >
                 <b-icon size="is-small" icon="circle-question"></b-icon>
               </b-tooltip>
@@ -538,6 +538,10 @@ const QUEUE_EXTRA_LINES = 2;
 
 const ADJUST_STORAGE_KEY = "adjust.state";
 
+// Version 2 made Preserve pitch the default. Older saves have it off whether or not the user
+// chose that, so they restore it on.
+const ADJUST_STATE_VERSION = 2;
+
 // Zoom is a percentage, where 100% fits the whole track in the waveform's width.
 const MIN_ZOOM = 100;
 const MAX_ZOOM = 10000;
@@ -546,6 +550,7 @@ const ZOOM_WHEEL_FACTOR = 1.25;
 // Everything the Adjust view restores on reload. It is per voice, except for the pitch toggle,
 // which is a property of playback.
 interface PersistedAdjust {
+  version?: number;
   voiceState: Record<VoiceId, AdjustVoiceState>;
   preservePitch: boolean;
   // Older saves have Lines mode as a switch on Adjust mode.
@@ -634,9 +639,8 @@ export default defineComponent({
       zoom: 100,
       waveformScroll: 0,
       playbackRate: 1,
-      // Default off: the browser's stretcher warbles at slow rates,
-      // and a dropped key costs nothing while tapping timings.
-      preservePitch: restored?.preservePitch ?? false,
+      preservePitch:
+        restored && (restored.version ?? 1) >= ADJUST_STATE_VERSION ? restored.preservePitch : true,
       // On by default where there is likely no keyboard to tap with.
       showTapButtons: restored?.showTapButtons ?? isMobile(),
       isPlaying: false,
@@ -713,6 +717,7 @@ export default defineComponent({
      */
     persistedState(): PersistedAdjust {
       return {
+        version: ADJUST_STATE_VERSION,
         voiceState: { ...this.voiceState, [this.activeVoice]: this.snapshotState() },
         preservePitch: this.preservePitch,
         showTapButtons: this.showTapButtons,
