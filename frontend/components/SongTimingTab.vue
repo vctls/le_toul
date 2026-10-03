@@ -217,7 +217,9 @@ export default defineComponent({
   mounted() {
     const audio = this.audioElement();
     if (audio) {
-      this.unregisterPlayer = registerPlayer(audio);
+      this.unregisterPlayer = registerPlayer(audio, {
+        isShown: () => (this.$el as HTMLElement).getClientRects().length > 0,
+      });
     }
   },
   beforeUnmount() {
