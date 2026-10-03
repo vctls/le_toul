@@ -57,7 +57,7 @@
                 append-to-body
                 content-class="wide-tooltip"
                 multilined
-                label="Split the count-in text into up to three marks: a long gap gets them all, shorter gaps get fewer, and a gap too short for one gets none. Turn this off to show the whole text for a fixed length instead"
+                label="Split the count-in text into up to three marks: a long gap gets them all and shorter gaps get fewer. A gap too short for one still gets the last mark, which starts while the previous line is being sung, as long as the line is already on screen. Turn this off to show the whole text for a fixed length instead"
               >
                 <b-icon size="is-small" icon="circle-question"></b-icon>
               </b-tooltip>
@@ -103,7 +103,7 @@
                 multilined
                 :label="
                   videoOptions.dynamicCountIns
-                    ? 'A line that starts this long after the previous one gets every mark, shorter gaps get fewer, and a gap too short for one gets none. A full count-in lasts this long, with its marks evenly spaced'
+                    ? 'A line that starts this long after the previous one gets every mark, and shorter gaps get fewer, down to the last mark alone. A full count-in lasts this long, with its marks evenly spaced'
                     : 'Add a count-in when a line starts more than this many seconds after the previous line ends'
                 "
               >
