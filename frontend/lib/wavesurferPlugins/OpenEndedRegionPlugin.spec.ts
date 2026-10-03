@@ -151,3 +151,47 @@ describe("regions to review", () => {
     expect(selections).toEqual([["b"]]);
   });
 });
+
+describe("resizing", () => {
+  /**
+   * Two regions on a 1000-pixel track of 100 seconds, so 10 pixels make a second.
+   */
+  function setUp() {
+    const wrapper = document.createElement("div");
+    const wavesurfer = {
+      getWrapper: () => wrapper,
+      getDuration: () => DURATION,
+      getScroll: () => 0,
+      getWidth: () => 1000,
+      on: () => () => {},
+      once: () => () => {},
+    };
+    const plugin = RegionsPlugin.create();
+    (plugin as unknown as { _init(ws: unknown): void })._init(wavesurfer);
+    const first = plugin.addRegion({ id: "a", start: 10, end: 11 });
+    plugin.addRegion({ id: "b", start: 12, end: 13 });
+    const track = document.createElement("div");
+    track.getBoundingClientRect = () => ({ width: 1000 }) as DOMRect;
+    track.appendChild(first.element);
+    return first;
+  }
+
+  it("stops an edge at the next region", () => {
+    const region = setUp();
+
+    region._onUpdate(50, "end");
+
+    expect(region.end).toBe(12);
+  });
+
+  it("keeps the edge under the pointer once it comes back from past a limit", () => {
+    const region = setUp();
+
+    region._onUpdate(50, "end");
+    region._onUpdate(-40, "end");
+    expect(region.end).toBe(12);
+
+    region._onUpdate(-5, "end");
+    expect(region.end).toBeCloseTo(11.5, 5);
+  });
+});
