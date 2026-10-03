@@ -44,12 +44,14 @@ test.describe("Cancelling video creation", () => {
     await expectVideoCreationToBeEnabled(page);
     await page.click('button:has-text("Create Video")');
 
-    const indicator = page.locator(".video-creation-progress-indicator");
-    await expect(indicator).toContainText("Rendering the video", { timeout: RENDER_START_TIMEOUT });
+    const button = page.locator(".create-video-button button");
+    await expect(button).toContainText("Rendering the video", { timeout: RENDER_START_TIMEOUT });
 
-    await page.click('button:has-text("Cancel")');
+    await button.hover();
+    await expect(button.getByText("Cancel")).toBeVisible();
+    await button.click();
 
-    await expect(indicator).toBeHidden();
+    await expect(button).toHaveText("Create Video");
     // A cancel is not a failure, so nothing is reported to the user.
     await expect(page.locator(".submit-button-container .message.is-danger")).toBeHidden();
 
