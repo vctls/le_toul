@@ -354,6 +354,7 @@ import { useAdvancedStore } from "@/stores/advanced";
 import { useLyricsStore } from "@/stores/lyrics";
 import { useLyricsLookupStore } from "@/stores/lyricsLookup";
 import { useSettingsStore } from "@/stores/settings";
+import { useProjectFolderRequestStore } from "@/stores/projectFolderRequest";
 import { parseSettingsYaml } from "@/lib/settingsFile";
 import { classifyProjectFolder, ProjectFolder } from "@/lib/projectFolder";
 import { kbpToProjectFiles, KbpImport } from "@/lib/kbpConvert";
@@ -438,6 +439,7 @@ export default defineComponent({
       lyricsLookupStore: useLyricsLookupStore(),
       advancedStore: useAdvancedStore(),
       historyStore: useHistoryStore(),
+      projectFolderRequestStore: useProjectFolderRequestStore(),
     };
   },
   data() {
@@ -472,6 +474,15 @@ export default defineComponent({
           this.cancelArmingTimeout = setTimeout(() => {
             this.canCancelSeparation = true;
           }, CANCEL_ARMING_DELAY_MS);
+        }
+      },
+      immediate: true,
+    },
+    "projectFolderRequestStore.pending": {
+      handler() {
+        const request = this.projectFolderRequestStore.take();
+        if (request) {
+          this.onProjectFolderSelect(request.files, request.name);
         }
       },
       immediate: true,
