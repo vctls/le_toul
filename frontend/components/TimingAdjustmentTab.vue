@@ -876,8 +876,8 @@ export default defineComponent({
       canStep: (step) => this.canStep(step),
       step: (step) => this.stepHistory(step),
     });
-    // Capture phase: the audio element's built-in controls handle these same keys when they have focus,
-    // so we have to get in ahead of them and cancel the native behavior.
+    // Capture phase: the playback slider handles these same keys when it has focus,
+    // so we have to get in ahead of it and cancel the native behavior.
     // A bubble-phase listener runs too late and both act.
     window.addEventListener("keydown", this.onKeyDown, true);
     window.addEventListener("pagehide", this.saveBeforeLeaving);
@@ -1052,8 +1052,15 @@ export default defineComponent({
       const isEscape = event.key === "Escape";
       if (!historyStep && !action && !isEscape) return;
       const target = event.target as HTMLElement | null;
-      // Form controls need these keys for themselves.
-      if (target && ["INPUT", "TEXTAREA", "SELECT"].includes(target.tagName)) return;
+      // Form controls need these keys for themselves, apart from the playback slider, which
+      // would otherwise take the shortcuts away once it has been dragged.
+      if (
+        target &&
+        ["INPUT", "TEXTAREA", "SELECT"].includes(target.tagName) &&
+        !target.matches(".transport-slider")
+      ) {
+        return;
+      }
       if (document.querySelector(".modal.is-active")) return;
       // Enter is also how a focused button or link is activated,
       // so leave those to the browser rather than hijacking the key.
@@ -1742,7 +1749,7 @@ buttons float over it, and the settings open in a drawer. */
 .is-immersive > .rotate-hint,
 .is-immersive > .adjust-top,
 .is-immersive .adjust-top > .subtitle-display,
-.is-immersive :deep(.timing-adjuster > audio) {
+.is-immersive :deep(.timing-adjuster > .playback-transport) {
   display: none;
 }
 

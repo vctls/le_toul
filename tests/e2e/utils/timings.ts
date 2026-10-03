@@ -169,18 +169,65 @@ export async function savedSegments(page: Page): Promise<SavedSegment[]> {
   );
 }
 
+const PLAYBACK_SLIDER = '.timing-adjustment-tab input[aria-label="Playback position"]';
+
+/**
+ * The Timing tab's playback position slider. The full-screen phone layout hides it, and it still
+ * reports the position there.
+ */
+export function playbackSlider(page: Page): Locator {
+  return page
+    .locator(".timing-adjustment-tab")
+    .getByRole("slider", { name: "Playback position", includeHidden: true });
+}
+
+/**
+ * The song time the Timing tab's playback is at.
+ */
+export async function playbackPosition(page: Page): Promise<number> {
+  return Number(await playbackSlider(page).inputValue());
+}
+
+/**
+ * The length of the Timing tab's track, once it is decoded.
+ */
+export async function playbackDuration(page: Page): Promise<number> {
+  await expect(playbackSlider(page)).toBeEnabled({ timeout: 15000 });
+  return Number(await playbackSlider(page).getAttribute("max"));
+}
+
+/**
+ * Moves the Timing tab's playhead to `seconds` as dragging the slider does, once the track is
+ * decoded.
+ */
+export async function seekPlayback(page: Page, seconds: number): Promise<void> {
+  const slider = playbackSlider(page);
+  await expect(slider).toBeEnabled({ timeout: 15000 });
+  await slider.evaluate((el: HTMLInputElement, time) => {
+    el.value = String(time);
+    el.dispatchEvent(new Event("input", { bubbles: true }));
+  }, seconds);
+}
+
+/**
+ * Waits for the Timing tab's playback to reach `seconds` of the song.
+ */
+export async function waitForPlayback(page: Page, seconds: number): Promise<void> {
+  await page.waitForFunction(
+    ([selector, time]) =>
+      Number(document.querySelector<HTMLInputElement>(selector as string)!.value) >=
+      (time as number),
+    [PLAYBACK_SLIDER, seconds],
+  );
+}
+
 /**
  * Waits for the Timing tab's playback to reach `seconds` of the song, then presses `key`.
  * Waiting on the song rather than the clock keeps the time it takes playback to start out of the
  * tap.
  */
 export async function pressAtSongTime(page: Page, seconds: number, key: string): Promise<void> {
-  await page.waitForFunction(
-    (time) =>
-      document.querySelector<HTMLAudioElement>(".timing-adjustment-tab audio[controls]")!
-        .currentTime >= time,
-    seconds,
-  );
+  await waitForPlayback(page, seconds);
   await page.keyboard.press(key);
 }
 
@@ -204,10 +251,7 @@ export async function waveformPixelsPerSecond(page: Page): Promise<number> {
   const width = await page
     .locator('.timing-adjustment-tab .wavesurfer-container [part~="wrapper"]')
     .evaluate((wrapper) => wrapper.clientWidth);
-  const duration = await page
-    .locator(".timing-adjustment-tab audio[controls]")
-    .evaluate((el: HTMLAudioElement) => el.duration);
-  return width / duration;
+  return width / (await playbackDuration(page));
 }
 
 /** The Adjust tab's rectangle for one lyric segment. */

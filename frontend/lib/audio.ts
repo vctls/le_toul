@@ -1,5 +1,4 @@
 import jszip from "jszip";
-import bufferToWav from "audiobuffer-to-wav";
 import { API_HOSTNAME } from "@/constants";
 import { SeparationModel } from "@/types";
 
@@ -269,41 +268,6 @@ export async function resumeSeparation(
 ): Promise<TrackSeparationResult> {
   const zipBlob = await pollForResult(pollUrl, onProgress, signal);
   return await processZipResponse(zipBlob);
-}
-
-// Most output devices run at this rate, so a track decoded at it plays without a second resampling.
-const PLAYBACK_SAMPLE_RATE = 48000;
-
-const playableTracks = new WeakMap<Blob, Promise<Blob>>();
-
-async function isWav(blob: Blob): Promise<boolean> {
-  const header = new TextDecoder("latin1").decode(await blob.slice(0, 12).arrayBuffer());
-  return header.startsWith("RIFF") && header.endsWith("WAVE");
-}
-
-async function decodeToWav(blob: Blob): Promise<Blob> {
-  const context = new OfflineAudioContext(1, 1, PLAYBACK_SAMPLE_RATE);
-  const buffer = await context.decodeAudioData(await blob.arrayBuffer());
-  return new Blob([bufferToWav(buffer)], { type: "audio/wav" });
-}
-
-/**
- * A WAV copy of `blob` for an <audio> element to play, or `blob` itself when it already is one.
- * Firefox and Chrome land a seek in an MP3 up to 0.1 s off, while `currentTime` reports the time
- * it was sent to. A seek in a WAV lands on the exact sample.
- */
-export function playableTrack(blob: Blob): Promise<Blob> {
-  let playable = playableTracks.get(blob);
-  if (!playable) {
-    playable = isWav(blob)
-      .then((wav) => (wav ? blob : decodeToWav(blob)))
-      .catch((error) => {
-        console.warn("Could not convert the track to WAV, so seeks in it may land early:", error);
-        return blob;
-      });
-    playableTracks.set(blob, playable);
-  }
-  return playable;
 }
 
 export default { separateTrack, resumeSeparation };

@@ -8,6 +8,7 @@ import {
   loadAndEnterLyrics,
   uploadTimingsFile,
   lyricsEditor,
+  seekPlayback,
 } from "./utils";
 
 // The fixture lyrics with lines 2 and 3 in Japanese,
@@ -19,7 +20,6 @@ const CJK_LYRICS = [
   "The_gal_I_was_with_was_gone",
 ].join("\n");
 const CJK_FONT_FILE = "NotoSansCJKjp-Regular.otf";
-const ADJUST_PLAYER = ".timing-adjustment-tab audio[controls]";
 const SUBMIT_PLAYER = ".preview-container audio";
 // Both previews show the Japanese lines here, the Submit one after its title screen.
 const CJK_LINE_SECONDS = 12;
@@ -88,7 +88,7 @@ test.describe("CJK font", () => {
     await navigateToTab(page, TabId.SongInfo);
     await uploadTimingsFile(page, defaultTestConfig.timingsFile);
     await navigateToTab(page, TabId.TimingAdjustment);
-    await seek(page, ADJUST_PLAYER, CJK_LINE_SECONDS);
+    await seekPlayback(page, CJK_LINE_SECONDS);
     await navigateToTab(page, TabId.Submit);
     await seek(page, SUBMIT_PLAYER, CJK_LINE_SECONDS);
     // Long enough for both previews to have drawn the Japanese lines.
