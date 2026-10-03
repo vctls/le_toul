@@ -1,12 +1,36 @@
-import { test, expect } from "@playwright/test";
+import { test, expect, Page } from "@playwright/test";
 import {
   setupTestEnvironment,
   navigateToTab,
   TabId,
   loadAndEnterLyrics,
+  loadFixtureFile,
   addUnderscoresToLyrics,
   toggleMagicSlashes,
+  expectLyricsText,
+  lyricsEditor,
 } from "./utils";
+
+// The fixture's last line holds this word twice, for magic slashes to copy a slash across.
+const REPEATED_WORD = "was";
+
+/**
+ * Replaces every whole `word` in underscored lyrics with `replacement`.
+ */
+function replaceWord(lyrics: string, word: string, replacement: string): string {
+  return lyrics.replace(new RegExp(`(?<=^|[_\\n])${word}(?=[_\\n]|$)`, "g"), replacement);
+}
+
+/**
+ * Puts the cursor `offset` characters into the last occurrence of `word` in the lyrics.
+ */
+async function moveIntoLastOccurrence(page: Page, lyrics: string, word: string, offset: number) {
+  await lyricsEditor(page).focus();
+  await page.keyboard.press("ControlOrMeta+End");
+  for (let i = 0; i < lyrics.length - lyrics.lastIndexOf(word) - offset; i++) {
+    await page.keyboard.press("ArrowLeft");
+  }
+}
 
 test.describe("Lyrics Tab Functionality", () => {
   test.beforeEach(async ({ page }) => {
@@ -14,78 +38,43 @@ test.describe("Lyrics Tab Functionality", () => {
   });
 
   test("Lyrics tab functionality - Add Underscore and Magic Slashes", async ({ page }) => {
-    // 1. Navigate directly to Lyrics tab
     await navigateToTab(page, TabId.LyricInput);
 
-    // 2. Add some test lyrics with repeated words
-    const testLyrics =
-      "Look at the stars look how they shine for you\nAnd everything you do yeah they were all yellow";
-    await loadAndEnterLyrics(page, testLyrics);
+    // The fixture's words, typed without its markup.
+    const fixture = await loadFixtureFile("lyrics.txt");
+    const underscored = fixture.replaceAll("/", "");
+    await loadAndEnterLyrics(page, underscored.replaceAll("_", " "));
 
-    // 3. Test Add Underscores button
     await addUnderscoresToLyrics(page);
+    await expectLyricsText(page, underscored);
 
-    // Verify spaces were converted to underscores
-    const textAreaLocator = page.locator(".lyric-input-tab .lyric-editor-textarea");
-    const convertedText = await textAreaLocator.inputValue();
-    expect(convertedText).toBe(
-      "Look_at_the_stars_look_how_they_shine_for_you\nAnd_everything_you_do_yeah_they_were_all_yellow",
-    );
-
-    // 4. Test Magic Slashes functionality
-    // Verify the Magic Slashes checkbox is checked by default
+    // Magic Slashes is on by default.
     await expect(page.locator('.lyric-input-tab input[type="checkbox"]')).toBeChecked();
 
-    // Add a slash in the word "Look" in the first occurrence
-    await textAreaLocator.focus();
-    await page.keyboard.press("Control+Home");
-    await page.keyboard.press("ArrowRight"); // Move to between 'L' and 'o'
-    await page.keyboard.press("ArrowRight"); // Move to between 'o' and 'o'
-    await page.keyboard.press("ArrowRight"); // Move to between 'o' and 'k'
+    // A slash typed into the last occurrence of the word lands in the other one too.
+    await moveIntoLastOccurrence(page, underscored, REPEATED_WORD, 2);
     await page.keyboard.type("/");
+    const oneSlash = replaceWord(underscored, REPEATED_WORD, "wa/s");
+    await expectLyricsText(page, oneSlash);
 
-    // Get the modified text to verify both instances of "look" have the slash
-    const textWithSlashes = await textAreaLocator.inputValue();
-
-    // Check that both instances of "look" have the slash in the same position
-    expect(textWithSlashes).toContain("Loo/k_at_the_stars_loo/k_how_they_shine_for_you");
-
-    // 5. Test adding a second slash to the same word
-    await textAreaLocator.focus();
-    await page.keyboard.press("Control+Home");
-    await page.keyboard.press("ArrowRight"); // Move to between 'L' and 'o'
-    await page.keyboard.press("ArrowRight"); // Move to between 'o' and 'o'
+    // So does a second slash in the same word.
+    await moveIntoLastOccurrence(page, oneSlash, "wa/s", 1);
     await page.keyboard.type("/");
+    await expectLyricsText(page, replaceWord(underscored, REPEATED_WORD, "w/a/s"));
 
-    // Get the modified text to verify both instances now have two slashes
-    const textWithTwoSlashes = await textAreaLocator.inputValue();
-
-    // Check that both instances of "look" have both slashes in the same positions
-    expect(textWithTwoSlashes).toContain("Lo/o/k_at_the_stars_lo/o/k_how_they_shine_for_you");
-
-    // 6. Test behavior when Magic Slashes is unchecked
-    // Create new lyrics for a clean test
+    // With Magic Slashes off, a slash stays in the word it was typed into.
     await loadAndEnterLyrics(page, "Hello hello hello");
-
-    // Convert spaces to underscores
     await addUnderscoresToLyrics(page);
-    expect(await textAreaLocator.inputValue()).toBe("Hello_hello_hello");
+    await expectLyricsText(page, "Hello_hello_hello");
 
-    // Uncheck the Magic Slashes checkbox
     await toggleMagicSlashes(page, false);
     await expect(page.locator('.lyric-input-tab input[type="checkbox"]')).not.toBeChecked();
 
-    // Add a slash to the first "Hello"
-    await textAreaLocator.focus();
+    await lyricsEditor(page).focus();
     await page.keyboard.press("Home");
-    await page.keyboard.press("ArrowRight"); // Move to between 'H' and 'e'
-    await page.keyboard.press("ArrowRight"); // Move to between 'e' and 'l'
+    await page.keyboard.press("ArrowRight");
+    await page.keyboard.press("ArrowRight");
     await page.keyboard.type("/");
-
-    // Get the modified text and verify the slash only appears in the first instance
-    const textWithoutMagicSlashes = await textAreaLocator.inputValue();
-
-    // Check that only the first "Hello" has a slash
-    expect(textWithoutMagicSlashes).toBe("He/llo_hello_hello");
+    await expectLyricsText(page, "He/llo_hello_hello");
   });
 });
