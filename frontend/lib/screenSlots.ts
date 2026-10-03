@@ -1,6 +1,13 @@
 import { GLYPH_BLOCK_RATIO } from "@/constants";
 import { displayEndOf, displayStartOf } from "./adjustments";
-import type { LyricsLine, LyricsScreen, Timestamp, VoiceTrackRender } from "./timing";
+import {
+  VerticalAlignment,
+  type LyricsLine,
+  type LyricsScreen,
+  type ScreenKind,
+  type Timestamp,
+  type VoiceTrackRender,
+} from "./timing";
 
 // A lyrics line where the video draws it, in subtitle canvas units, and when, in the render's time.
 export interface SlottedLine {
@@ -28,24 +35,31 @@ export function sameHeight(
 }
 
 /**
- * Every lyrics line of every voice, placed as the video draws it.
+ * Every line of every voice on screens of the given kinds, placed as the video draws it.
  */
-export function slotLines(renders: VoiceTrackRender[]): SlottedLine[] {
+export function slotLines(
+  renders: VoiceTrackRender[],
+  kinds: ScreenKind[] = ["lyrics"],
+): SlottedLine[] {
   return renders.flatMap((render, voice) => {
     const { size } = render.options.font;
     const stored = render.options.useStoredDisplayPeriods;
     return render.screens
-      .filter((screen) => screen.kind === "lyrics")
+      .filter((screen) => kinds.includes(screen.kind))
       .flatMap((screen) =>
         screen.lines.map((line, lineInScreen) => {
+          const title = screen.kind === "title";
           const top = screen.getLineY(
             screen.slotOf(lineInScreen),
             size,
-            render.options.verticalAlignment,
+            title ? VerticalAlignment.Middle : render.options.verticalAlignment,
             render.options,
           );
           const startStored = stored && line.storedDisplayStart !== undefined;
-          const endStored = stored && line.storedDisplayEnd !== undefined;
+          // The title's end is only set when a stored display period cuts it short.
+          const endStored = title
+            ? line.customDisplayEndTime !== undefined
+            : stored && line.storedDisplayEnd !== undefined;
           return {
             line,
             screen,
@@ -123,17 +137,20 @@ export function songOffset(render: VoiceTrackRender): Timestamp {
 
 /**
  * Fade every lyrics line in before it animates and out after it has been sung.
+ * The title lines only fade out.
  * A fade never overlaps the line's own animation, so it may be shorter than LINE_FADE, or absent.
  */
 export function fadeLines(renders: VoiceTrackRender[], songDuration: Timestamp): void {
-  const lines = slotLines(renders);
+  const lines = slotLines(renders, ["lyrics", "title"]);
   const songEnds = renders.map((render) => songDuration + songOffset(render));
   for (const slotted of lines) {
     makeRoomToFadeOut(slotted, lines, songEnds[slotted.voice]);
   }
   const fade = (room: Timestamp) => Math.min(LINE_FADE, Math.max(0, room));
   for (const { line, screen } of lines) {
-    line.fadeInDuration = fade(line.timestamp - displayStartOf(line, screen));
+    if (screen.kind === "lyrics") {
+      line.fadeInDuration = fade(line.timestamp - displayStartOf(line, screen));
+    }
     line.fadeOutDuration = fade(displayEndOf(line, screen) - line.endTimestamp);
   }
 }
