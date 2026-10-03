@@ -7,6 +7,10 @@
     @pointermove="onTouchMove"
     @pointerup="onTouchEnd"
     @pointercancel="onTouchEnd"
+    @pointerdown.capture="onPanStart"
+    @pointermove.capture="onPanMove"
+    @pointerup.capture="onPanEnd"
+    @pointercancel.capture="onPanEnd"
     @click.capture="onClickCapture"
   ></div>
 </template>
@@ -117,6 +121,8 @@ export default defineComponent({
       _touches: new Map<number, { x: number; y: number }>(),
       // How far the finger has slid, to tell a swipe from a tap.
       _swipeDistance: 0,
+      // The middle-button drag under way, and where the pointer was last seen.
+      _pan: null as { pointerId: number; x: number } | null,
       _zoomRatio: 1,
       _zoomFrame: 0,
       _initialScrollApplied: false,
@@ -307,19 +313,20 @@ export default defineComponent({
       this.wavesurfer?.setOptions(this.schemeColors());
     },
     onWheel(event: WheelEvent) {
-      // A centered view can't be scrolled by hand, so scrolling sideways moves the playhead instead.
-      if (this.centered && event.deltaX !== 0) {
+      // Shift turns the wheel sideways. Some browsers report that as deltaX already, others don't.
+      const sideways = event.shiftKey ? event.deltaX || event.deltaY : event.deltaX;
+      if (sideways !== 0 && (this.centered || event.shiftKey)) {
         event.preventDefault();
         const scrollEl = this.scrollElement();
-        this.queueScrub(
+        const pixels =
           event.deltaMode === WheelEvent.DOM_DELTA_LINE
-            ? event.deltaX * LINE_HEIGHT_PX
+            ? sideways * LINE_HEIGHT_PX
             : event.deltaMode === WheelEvent.DOM_DELTA_PAGE
-              ? event.deltaX * (scrollEl?.clientWidth ?? 0)
-              : event.deltaX,
-        );
+              ? sideways * (scrollEl?.clientWidth ?? 0)
+              : sideways;
+        this.panBy(pixels);
       }
-      if (event.deltaY === 0) return;
+      if (event.shiftKey || event.deltaY === 0) return;
       event.preventDefault();
       const scrollEl = this.scrollElement();
       if (scrollEl) {
@@ -329,6 +336,37 @@ export default defineComponent({
       }
       // Scrolling up zooms in, matching maps and image viewers.
       this.$emit("zoom-change", -Math.sign(event.deltaY));
+    },
+    /**
+     * Move the view `pixels` later in the track. A centered view can't be scrolled by hand, so the
+     * playhead moves instead.
+     */
+    panBy(pixels: number) {
+      if (this.centered) {
+        this.queueScrub(pixels);
+        return;
+      }
+      const scrollEl = this.scrollElement();
+      if (scrollEl) scrollEl.scrollLeft += pixels;
+    },
+    /**
+     * A middle-button press starts dragging the waveform sideways.
+     */
+    onPanStart(event: PointerEvent) {
+      if (event.pointerType !== "mouse" || event.button !== 1) return;
+      // This also keeps the browser from starting its own autoscroll.
+      event.preventDefault();
+      (this.$refs["wavesurfer-container"] as HTMLElement).setPointerCapture(event.pointerId);
+      this._pan = { pointerId: event.pointerId, x: event.clientX };
+    },
+    onPanMove(event: PointerEvent) {
+      if (this._pan?.pointerId !== event.pointerId) return;
+      // The waveform follows the pointer, so dragging to the right goes back in time.
+      this.panBy(this._pan.x - event.clientX);
+      this._pan.x = event.clientX;
+    },
+    onPanEnd(event: PointerEvent) {
+      if (this._pan?.pointerId === event.pointerId) this._pan = null;
     },
     /**
      * Add a sideways scroll of `pixels` to the distance the playhead moves on the next frame. A
