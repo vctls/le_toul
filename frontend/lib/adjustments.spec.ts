@@ -4,8 +4,10 @@ import {
   addInstrumentalScreens,
   addQuickStartCountIn,
   addGapCountIns,
+  addOverlappingCountIns,
   displayQuickLinesEarly,
   deferScreenStarts,
+  unstagger,
 } from "./adjustments";
 import {
   compileLyricTimings,
@@ -297,6 +299,94 @@ test("the number of marks follows the size of the gap", () => {
 
   // Whatever the mark count, the count-in never reaches back past the previous line's end.
   expect(countInFor(2.5)[0].timestamp).toBe(11.5);
+});
+
+describe("overlapping count-ins", () => {
+  // A full count-in of 3s puts the marks 1s apart, so a gap under 1s earns none from the gap alone.
+  const options: KaraokeOptions = {
+    ...DEFAULT_OPTIONS,
+    countInMode: "line",
+    dynamicCountIns: true,
+    countInThreshold: 3.0,
+  };
+  const marksOf = (line: LyricsLine) =>
+    line.segments.filter((s) => s.countIn).map((s) => [s.timestamp, s.endTimestamp]);
+  const counted = (screens: LyricsScreen[], countInMode: CountInMode = "line") => {
+    const modeOptions = { ...options, countInMode };
+    return addOverlappingCountIns(addGapCountIns(screens, modeOptions), modeOptions);
+  };
+  const compiled = (segments: TimedSegment[]) =>
+    denormalizeTimestamps(compileLyricTimings(segments), 60.0);
+  // An empty first screen stands in for the title screen, which the staggered-lines pass skips.
+  const staggered = (segments: TimedSegment[]) =>
+    displayQuickLinesEarly(
+      denormalizeTimestamps([new LyricsScreen(), ...compileLyricTimings(segments)], 60.0),
+      options,
+    );
+
+  it("give a line too close to the previous one its last mark", () => {
+    const [screen] = counted(
+      compiled([
+        { text: "first line\n", start: 10, end: 11 },
+        { text: "second line", start: 11.5, end: 12.5 },
+      ]),
+    );
+
+    expect(marksOf(screen.lines[1])).toEqual([[10.5, 11.5]]);
+    expect(screen.lines[1].segments[0].text).toMatch(/alpha&H00&/);
+  });
+
+  it("never start before the previous line is sung", () => {
+    const [screen] = counted(
+      compiled([
+        { text: "first line\n", start: 10, end: 10.3 },
+        { text: "second line", start: 10.5, end: 11.5 },
+      ]),
+    );
+
+    expect(marksOf(screen.lines[1])).toEqual([]);
+  });
+
+  it("leave out a screen's first line while the previous screen is shown", () => {
+    const [, second] = counted(
+      compiled([
+        { text: "one\n\n", start: 10, end: 11 },
+        { text: "two", start: 11.5, end: 12.5 },
+      ]),
+      "screen",
+    );
+
+    expect(marksOf(second.lines[0])).toEqual([]);
+  });
+
+  it("give a staggered line its mark when it is shown early enough", () => {
+    const [, , next] = counted(
+      staggered([
+        { text: "one\n", start: 1, end: 2 },
+        { text: "two\n\n", start: 2, end: 5 },
+        { text: "three", start: 5.5, end: 6 },
+      ]),
+      "screen",
+    );
+
+    expect(next.lines[0].customDisplayStartTime).toBe(4.25);
+    expect(marksOf(next.lines[0])).toEqual([[4.5, 5.5]]);
+  });
+
+  it("are dropped when a staggered line is shown at the usual time again", () => {
+    const [, previous, next] = counted(
+      staggered([
+        { text: "one\n", start: 1, end: 2 },
+        { text: "two\n\n", start: 2, end: 5 },
+        { text: "three", start: 5.5, end: 6 },
+      ]),
+      "screen",
+    );
+    unstagger(previous, next);
+
+    expect(marksOf(next.lines[0])).toEqual([]);
+    expect(next.lines[0].timestamp).toBe(5.5);
+  });
 });
 
 test("screen mode leaves a mid-screen line alone", () => {

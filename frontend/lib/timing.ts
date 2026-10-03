@@ -15,6 +15,7 @@ import {
 import {
   addQuickStartCountIn,
   addGapCountIns,
+  addOverlappingCountIns,
   addTitleScreen,
   addInstrumentalScreens,
   applyStoredDisplayPeriods,
@@ -1137,6 +1138,7 @@ function createAutomaticScreens(
     if (options.addStaggeredLines) {
       screens = displayQuickLinesEarly(screens, options);
     }
+    screens = addOverlappingCountIns(screens, options);
     if (options.addInstrumentalScreens) {
       screens = addInstrumentalScreens(screens, options);
     }

@@ -106,7 +106,8 @@ function countInMarks(
 }
 
 // Dynamic count-ins spend a fixed time per mark,
-// so they tick at the same rate whatever the gap and never reach back past the previous line.
+// so they tick at the same rate whatever the gap and fit inside it.
+// A gap too short for one mark gets one later, from addOverlappingCountIns.
 // Fixed ones are all or nothing: the text can't be shortened without misleading the singer,
 // so a gap too short for it gets none.
 function countInSegments(
@@ -200,6 +201,40 @@ export function addGapCountIns(screens: LyricsScreen[], options: KaraokeOptions)
         line.addSegmentsToFront(countInSegments(options, line.timestamp, line.timestamp - prevEnd));
       }
       prevEnd = line.endTimestamp;
+    }
+  }
+  return screens;
+}
+
+/**
+ * Give each line that addGapCountIns left without a count-in its last mark anyway,
+ * sweeping while the previous line is still being sung, but not before that line's singing starts.
+ * A mark is only added when the line is already shown by the time it starts,
+ * so this runs once the staggered-lines pass has set the display starts.
+ */
+export function addOverlappingCountIns(
+  screens: LyricsScreen[],
+  options: KaraokeOptions,
+): LyricsScreen[] {
+  if (options.countInMode === "none" || !options.dynamicCountIns) {
+    return screens;
+  }
+  const everyLine = options.countInMode === "line";
+  const marks = countInMarkTexts(options);
+  let prevSingStart: Timestamp = 0.0;
+  for (const screen of screens.filter(({ kind }) => kind === "lyrics")) {
+    for (const [index, line] of screen.lines.entries()) {
+      if (line.segments.length === 0) {
+        continue;
+      }
+      if ((everyLine || index === 0) && !line.segments[0].countIn) {
+        const mark = countInMarks(options, marks, 1, line.timestamp);
+        const start = mark[0].timestamp;
+        if (start >= prevSingStart && start >= displayStartOf(line, screen)) {
+          line.addSegmentsToFront(mark);
+        }
+      }
+      prevSingStart = line.singTimestamp;
     }
   }
   return screens;
@@ -414,6 +449,10 @@ export function unstagger(previous: LyricsScreen, screen: LyricsScreen): void {
   }
   for (const line of early(screen)) {
     line.customDisplayStartTime = undefined;
+    // An overlapping count-in may only have fit because the line was shown early.
+    if (line.timestamp < displayStartOf(line, screen)) {
+      line.segments = line.segments.filter((segment) => !segment.countIn);
+    }
   }
   screen.earlySlots = 0;
   screen.positionAsSlotCount = undefined;
