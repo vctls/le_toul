@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
-import { claimMediaKeys, registerPlayer } from "./exclusivePlayback";
+import { PlayerOptions, claimMediaKeys, registerPlayer } from "./exclusivePlayback";
 
 class FakeMedia extends EventTarget {
   paused = true;
@@ -32,8 +32,8 @@ Object.defineProperty(navigator, "mediaSession", { value: mediaSession, configur
 
 let unregisters: Array<() => void> = [];
 
-function register(media: HTMLMediaElement): HTMLMediaElement {
-  unregisters.push(registerPlayer(media));
+function register(media: HTMLMediaElement, options?: PlayerOptions): HTMLMediaElement {
+  unregisters.push(registerPlayer(media, options));
   return media;
 }
 
@@ -73,6 +73,29 @@ describe("registerPlayer", () => {
 
     expect(second.play).toHaveBeenCalledTimes(2);
     expect(first.play).toHaveBeenCalledTimes(1);
+  });
+
+  it("leaves the media keys where they were for a player that doesn't take them", async () => {
+    const lyrics = register(fakePlayer());
+    const timing = register(fakePlayer(), { mediaKeys: false });
+
+    await lyrics.play();
+    await timing.play();
+    actionHandlers.get("play")?.();
+
+    expect(lyrics.play).toHaveBeenCalledTimes(2);
+    expect(timing.paused).toBe(true);
+  });
+
+  it("doesn't let the media keys reach a player whose tab isn't shown", async () => {
+    let shown = true;
+    const player = register(fakePlayer(), { isShown: () => shown });
+
+    await player.play();
+    shown = false;
+    actionHandlers.get("pause")?.();
+
+    expect(player.paused).toBe(false);
   });
 
   it("leaves an unregistered player alone", async () => {

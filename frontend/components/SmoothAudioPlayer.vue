@@ -54,7 +54,10 @@ export default defineComponent({
       },
     });
     if (this.audioPlayer) {
-      this.unregisterPlayer = registerPlayer(this.audioPlayer);
+      const audio = this.audioPlayer;
+      this.unregisterPlayer = registerPlayer(audio, {
+        isShown: () => audio.getClientRects().length > 0,
+      });
     }
   },
   data() {
