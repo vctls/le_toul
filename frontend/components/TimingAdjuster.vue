@@ -508,7 +508,9 @@ export default defineComponent({
       const audio = event.target as HTMLAudioElement;
       const time = audio.currentTime;
       const range = this.playingRange;
-      if (range) {
+      // Firefox holds currentTime at the seek target until the first audio reaches the output,
+      // so a stop scheduled from that reading can fire before any sound.
+      if (range && time > range.start) {
         // The audio clock moves in steps of about 40 ms, so a timer set from each step stops
         // closer to the end than waiting for the clock to pass it. A pause can't take back the
         // audio already handed to the system, so the timer fires that much early.
