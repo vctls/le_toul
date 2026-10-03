@@ -9,7 +9,7 @@
       v-if="timingButtons"
       type="button"
       class="button tap-button"
-      @pointerdown.prevent="$emit('end')"
+      @pointerdown.prevent="$emit('end', $event.timeStamp)"
       @click="onClick($event, 'end')"
     >
       <span>End</span>
@@ -41,7 +41,7 @@
       v-if="timingButtons"
       type="button"
       class="button tap-button is-primary"
-      @pointerdown.prevent="$emit('start')"
+      @pointerdown.prevent="$emit('start', $event.timeStamp)"
       @click="onClick($event, 'start')"
     >
       <span>Start</span>
@@ -75,11 +75,12 @@ export default defineComponent({
   emits: ["start", "end", "redo", "play-pause"],
   methods: {
     /**
-     * A tap has to land when the finger does, so the buttons act on pointerdown. A click with no
-     * pointer behind it comes from a keyboard or assistive technology, and acts too.
+     * A tap has to land when the finger does, so the buttons act on pointerdown, and pass on when
+     * it happened. A click with no pointer behind it comes from a keyboard or assistive
+     * technology, and acts too.
      */
     onClick(event: MouseEvent, button: TapButton) {
-      if (event.detail === 0) this.$emit(button);
+      if (event.detail === 0) this.$emit(button, event.timeStamp);
     },
   },
 });
