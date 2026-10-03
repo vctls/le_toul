@@ -183,6 +183,13 @@ export default defineComponent({
     },
   },
   watch: {
+    hasChanges(changed: boolean) {
+      // A draft back to the current timings no longer holds what the error was about.
+      if (!changed) {
+        this.error = "";
+        this.errorRow = undefined;
+      }
+    },
     draft: {
       // A deferred watcher would miss an edit and a Reload made in the same tick.
       flush: "sync",
