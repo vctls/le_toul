@@ -51,6 +51,7 @@ import TapQueue, { QueueItem } from "./TapQueue.vue";
 import { findLastIndex } from "lodash-es";
 import { displayText, resolveStarts } from "@/lib/timing";
 import { playableTrack } from "@/lib/audio";
+import { outputLatency, refreshOutputLatency } from "@/lib/outputLatency";
 import { TimedSegment } from "@/lib/timedSegments";
 import { DisplayBand } from "@/lib/displayBands";
 
@@ -184,6 +185,7 @@ export default defineComponent({
       // The span being played by playRange, which pauses at its end and goes back to the preroll
       // before its start.
       playingRange: null as { start: number; end: number } | null,
+      rangeTimer: undefined as ReturnType<typeof setTimeout> | undefined,
     };
   },
   mounted() {
@@ -477,19 +479,42 @@ export default defineComponent({
       // The seek to `start` would already be past `end` and drop the range,
       // so playback would never stop.
       if (end <= start) return;
+      refreshOutputLatency().catch((error) => {
+        console.warn("Could not read the output latency:", error);
+      });
       this.playingRange = { start, end };
       this.restartAt(start);
     },
-    onAudioTimeUpdate(event: Event) {
-      const time = (event.target as HTMLAudioElement).currentTime;
+    /**
+     * Stop the range being played, and move the playhead to the preroll before its start.
+     */
+    finishRange() {
+      clearTimeout(this.rangeTimer);
       const range = this.playingRange;
-      if (range && time >= range.end) {
-        this.playingRange = null;
-        this.pause();
-        this.setAudioPlayhead(Math.max(0, range.start - this.prerollSeconds));
-        // The seek updates the waveform itself. Sending it this time too would leave it stuck
-        // here, since wavesurfer drops a time set while its audio is still seeking.
-        return;
+      if (!range) return;
+      this.playingRange = null;
+      this.pause();
+      this.setAudioPlayhead(Math.max(0, range.start - this.prerollSeconds));
+    },
+    onAudioTimeUpdate(event: Event) {
+      const audio = event.target as HTMLAudioElement;
+      const time = audio.currentTime;
+      const range = this.playingRange;
+      if (range) {
+        // The audio clock moves in steps of about 40 ms, so a timer set from each step stops
+        // closer to the end than waiting for the clock to pass it. A pause can't take back the
+        // audio already handed to the system, so the timer fires that much early.
+        const delay = (range.end - time) / (audio.playbackRate || 1) - outputLatency();
+        if (delay <= 0) {
+          // The seek updates the waveform itself. Sending it this time too would leave it stuck
+          // here, since wavesurfer drops a time set while its audio is still seeking.
+          this.finishRange();
+          return;
+        }
+        clearTimeout(this.rangeTimer);
+        this.rangeTimer = setTimeout(() => {
+          if (this.playingRange === range) this.finishRange();
+        }, delay * 1000);
       }
       // In Tap mode the clock moves the playhead on every frame, from a smoothed time.
       if (!this.tapMode) this.setAdjusterPlayhead(time);
@@ -591,6 +616,7 @@ export default defineComponent({
   },
   beforeUnmount() {
     this.stopClock();
+    clearTimeout(this.rangeTimer);
     this.requestedTrack = null;
     for (const url of this.trackUrls.values()) {
       URL.revokeObjectURL(url);
