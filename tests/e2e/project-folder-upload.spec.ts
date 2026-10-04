@@ -243,9 +243,7 @@ test.describe("Project Folder Upload", () => {
     ]);
     await navigateToTab(page, TabId.LyricInput);
     await expect(
-      page.locator(
-        'select[aria-label="Playback track"] optgroup[label="Vocals · uploaded"] option',
-      ),
+      page.getByLabel("Playback track").locator('optgroup[label="Vocals · uploaded"] option'),
     ).toHaveText(["A-vocals.mp3", "B-vocals.mp3", "C-vocals.mp3"]);
   });
 

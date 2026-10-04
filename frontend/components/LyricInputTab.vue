@@ -50,7 +50,10 @@
     </p>
     <div class="level is-mobile">
       <div v-if="vocalSources.length > 0" class="level-item">
-        <track-select kind="vocals" aria-label="Playback track" v-model="playerTrackChoice" />
+        <label class="playback-track-field">
+          <span class="label">Playback track</span>
+          <track-select kind="vocals" v-model="playerTrackChoice" />
+        </label>
       </div>
       <div class="level-item">
         <b-tooltip position="is-right" label="Convert all spaces to underscores">
@@ -195,6 +198,17 @@ export default defineComponent({
   display: flex;
   flex-direction: column;
   height: 100%;
+}
+
+.playback-track-field {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.playback-track-field .label {
+  margin: 0;
+  white-space: nowrap;
 }
 
 .lyrics-lookup-status {
