@@ -572,9 +572,6 @@ async def index(request: Request):
         "vite_assets": Markup(vite_assets.render_tags("index.ts")),
         "max_upload_bytes": settings.MAX_UPLOAD_BYTES,
         "default_separation_model": settings.DEFAULT_SEPARATION_MODEL,
-        "alignment_available": (
-            alignment_backends.configured_name() != alignment_backends.NONE
-        ),
         "app_name": settings.APP_NAME,
     }
     return templates.TemplateResponse("index.html", context)
@@ -821,6 +818,15 @@ async def align_track(
     )
     logger.info("local_alignment_queued", cache_hash=cache_hash)
     return JobPollResponse(finishedTrackURL=store.poll_url(cache_hash))
+
+
+# Declared before /alignment/{cache_hash}, which would otherwise take the path.
+@app.get("/alignment/available")
+async def alignment_available():
+    """Say whether this server can sync, which decides whether the page offers it."""
+    return {
+        "available": alignment_backends.configured_name() != alignment_backends.NONE
+    }
 
 
 @app.get("/alignment/{cache_hash}")

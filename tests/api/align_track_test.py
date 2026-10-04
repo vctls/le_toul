@@ -200,19 +200,6 @@ def test_syncing_off_refuses_a_sync(client, monkeypatch):
     assert post_sync(client).status_code == 404
 
 
-@pytest.mark.parametrize(
-    ("backend", "shown"), [("in_process", "true"), ("none", "false")]
-)
-def test_the_page_says_whether_syncing_is_available(
-    client, monkeypatch, backend, shown
-):
-    monkeypatch.setattr("api.settings.ALIGNMENT_BACKEND", backend)
-
-    page = client.get("/").text
-
-    assert f'<meta name="tuul-alignment-available" content="{shown}" />' in page
-
-
 def test_a_restart_fails_the_syncs_it_interrupted():
     job_store.alignments.mark_processing("c" * 64)
     job_store.alignments.store_result("d" * 64, _result_file())
@@ -230,3 +217,14 @@ def _result_file():
     path = job_store.alignments.job_dir() / "upload.json"
     path.write_text(json.dumps({"aligner": "fake@1", "segments": [{}]}))
     return path
+
+
+@pytest.mark.parametrize(
+    ("backend", "available"), [("in_process", True), ("none", False)]
+)
+def test_the_frontend_can_ask_whether_syncing_is_available(
+    client, monkeypatch, backend, available
+):
+    monkeypatch.setattr("api.settings.ALIGNMENT_BACKEND", backend)
+
+    assert client.get("/alignment/available").json() == {"available": available}
