@@ -1,6 +1,9 @@
 # Development stack. Run with:
 #   docker compose -f compose.dev.yaml up --build
 #
+# To separate and sync on an NVIDIA GPU instead, add compose.dev-gpu.yaml:
+#   docker compose -f compose.dev.yaml -f compose.dev-gpu.yaml up --build
+#
 # Open http://localhost:5173 in the browser.
 # Vite serves the frontend with HMR and proxies /separate_track, /align_track,
 # /alignment, /download_video, /lyrics, /log_error, /health, /static to the api service.

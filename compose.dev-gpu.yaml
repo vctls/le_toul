@@ -1,0 +1,69 @@
+# The development stack, separating and syncing on an NVIDIA GPU. Run with:
+#   docker compose -f compose.dev.yaml -f compose.dev-gpu.yaml up --build
+#
+# Open http://localhost:5173. Needs the NVIDIA Container Toolkit on the host.
+# Vite, the api service and the separator all reload on edits. The end-to-end tests
+# run against this stack too, with the same files given to `run --rm playwright`.
+#
+# The api service hands separations and syncs to the separator over the /tasks job
+# protocol, as compose.gpu.yaml does. The separator runs one task at a time, so a sync
+# never shares the GPU with a separation.
+
+services:
+  api:
+    environment:
+      SEPARATION_BACKEND: remote
+      ALIGNMENT_BACKEND: remote
+      SEPARATION_REMOTE_URL: http://separator:8001
+      SEPARATION_REMOTE_KEY: ${SEPARATOR_KEY:-wk-local}
+      SEPARATION_REMOTE_SECRET: ${SEPARATOR_SECRET:-ws-local}
+    depends_on:
+      separator:
+        condition: service_healthy
+
+  separator:
+    # The tag compose.gpu.yaml builds, from the same arguments.
+    image: the-tuul-separator:cuda
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: runner
+      args:
+        INSTALL_ML: "true"
+        SEPARATION_DEVICE: cuda
+    env_file:
+      - path: .env
+        required: false
+    environment:
+      PORT: 8001
+      # gunicorn reloads on edits when DEBUG is truthy (see gunicorn.conf.py).
+      DEBUG: "True"
+      WORKER_COUNT: 1
+      SEPARATION_OUTPUT_FORMAT: flac
+      SEPARATOR_SERVER_KEY: ${SEPARATOR_KEY:-wk-local}
+      SEPARATOR_SERVER_SECRET: ${SEPARATOR_SECRET:-ws-local}
+    command: ["gunicorn", "--config", "gunicorn.conf.py", "api.separator_server:app"]
+    # Models download into the host's api/pretrained_models, as the api service's do.
+    volumes:
+      - ./api:/app/api
+      - ./gunicorn.conf.py:/app/gunicorn.conf.py
+    networks: [default]
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "python",
+          "-c",
+          "import urllib.request; urllib.request.urlopen('http://localhost:8001/health').read()",
+        ]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+      start_period: 10s
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]

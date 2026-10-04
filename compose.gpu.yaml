@@ -1,4 +1,4 @@
-# Separation in its own service, on an NVIDIA GPU. Run with:
+# Separation and syncing in their own service, on an NVIDIA GPU. Run with:
 #   docker compose -f compose.yaml -f compose.gpu.yaml up --build
 #
 # Open http://localhost:8080. Needs the NVIDIA Container Toolkit on the host.
@@ -18,6 +18,8 @@ services:
     image: the-tuul:web
     environment:
       SEPARATION_BACKEND: remote
+      # Syncing never follows a remote separation, since not every host that separates syncs.
+      ALIGNMENT_BACKEND: remote
       SEPARATION_REMOTE_URL: http://separator:8001
       SEPARATION_REMOTE_KEY: ${SEPARATOR_KEY:-wk-local}
       SEPARATION_REMOTE_SECRET: ${SEPARATOR_SECRET:-ws-local}
