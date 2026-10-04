@@ -28,6 +28,11 @@
           No vocals track is loaded, so syncing listens to the whole song, which is less accurate.
           Separate the track in the Song Info tab for a better result.
         </b-message>
+        <b-message v-if="hasSeveralVoices" type="is-warning" class="is-small">
+          These lyrics have more than one voice, and syncing hears all of them at once. It often
+          places a voice on another singer's lines, especially one with a small part, and doesn't
+          mark those syllables in yellow. Check every line afterwards.
+        </b-message>
         <p v-if="untimedCount === 0" class="mb-4">
           Every syllable already has a timing, so syncing replaces them all.
         </p>
@@ -125,6 +130,9 @@ export default defineComponent({
     fillLabel(): string {
       const count = this.untimedCount;
       return `Only the lines around the ${count} syllable${count === 1 ? "" : "s"} without a timing`;
+    },
+    hasSeveralVoices(): boolean {
+      return this.lyricsStore.voices.length > 1;
     },
     // An empty Blob stands for a missing stem.
     vocals(): Blob | null {

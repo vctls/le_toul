@@ -861,9 +861,8 @@ export default defineComponent({
         TIMING_ACTIONS.map((action) => [action, bindingLabel(this.timingKeys[action])]),
       ) as Record<TimingAction, string>;
     },
-    // Syncing several voices against one vocals track puts each on the others' lines.
     canSync(): boolean {
-      return this.isSyncAvailable && this.lyricsStore.voices.length <= 1 && !this.displayMode;
+      return this.isSyncAvailable && !this.displayMode;
     },
     // Lines mode is Adjust mode while advanced mode is off, and comes back with it.
     displayMode(): boolean {
