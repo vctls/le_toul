@@ -1,8 +1,15 @@
 <template>
   <div class="song-player">
-    <b-button type="is-primary" @click="playPause" :disabled="!src" name="song-player-play-pause">
-      {{ isPlaying ? "Pause" : "Play" }}
-    </b-button>
+    <button
+      type="button"
+      class="button is-small"
+      name="song-player-play-pause"
+      :aria-label="isPlaying ? 'Pause' : 'Play'"
+      :disabled="!src"
+      @click="playPause"
+    >
+      <b-icon :icon="isPlaying ? 'pause' : 'play'" />
+    </button>
     <span class="seek-time">{{ formatTime(currentTime) }}</span>
     <input
       class="seek-slider"
