@@ -10,9 +10,12 @@ Every segment of every voice is synced, then compared with the hand timings.
 With --anchor-lines, each line's first syllable keeps its hand timing, as if a person
 had tapped only the line starts, and the rest of the line is synced around it.
 
-With --lrc, only the songs that have a synced LRCLIB record are measured, and each line
-that matches an LRC line is anchored on its start: softly, as a window to look in,
-or hard, as a kept start. The records are the ones scripts/lrc.py saved.
+With --lrc, each line that matches a line of the song's synced LRCLIB record is anchored
+on its start: softly, as a window to look in, or hard, as a kept start. The records are
+the ones scripts/lrc.py saved. --lrc-songs-only leaves out the songs without one.
+
+The rows hold every segment, anchors included, with its line, its doubtful flag and the
+start of the LRC line it matches. scripts/fix_cost.py reads them.
 
 A song's bias is the median of its signed start errors. It is reported apart from
 the rest of the error, since Shift all timings in Adjust removes it in one step.
@@ -86,7 +89,12 @@ def main() -> None:
         "--lrc",
         type=Path,
         metavar="CHECK_ROWS",
-        help="measure the songs with a synced record in these scripts/lrclib_check.py rows",
+        help="anchor on the synced records of the songs in these scripts/lrclib_check.py rows",
+    )
+    parser.add_argument(
+        "--lrc-songs-only",
+        action="store_true",
+        help="measure only the songs that have a synced record",
     )
     parser.add_argument(
         "--lrc-anchors",
@@ -105,6 +113,12 @@ def main() -> None:
         "--soft-margin", type=float, help="seconds a soft anchor is looked around"
     )
     parser.add_argument(
+        "--lead",
+        type=float,
+        help="seconds mms_fa starts a syllable ahead of its onset, to match a reference "
+        "timed at the onset (default: the aligner's own)",
+    )
+    parser.add_argument(
         "--rows", type=Path, help="write every compared segment to this JSON Lines file"
     )
     args = parser.parse_args()
@@ -115,14 +129,18 @@ def main() -> None:
 
     if args.soft_margin is not None:
         alignment.SOFT_ANCHOR_MARGIN_SECONDS = args.soft_margin
+    if args.lead is not None:
+        from api.karaoke.aligners import mms_fa
+
+        mms_fa._START_LAG_SECONDS = args.lead
     lrcs = synced_lyrics(args.lrc) if args.lrc else None
-    if lrcs is not None:
+    if lrcs is not None and args.lrc_songs_only:
         projects = [p for p in projects if p.name in lrcs]
     aligner = get_aligner(args.aligner)
     rows = args.rows.open("w") if args.rows else None
     results = []
     for project in projects:
-        lrc = parse(lrcs[project.name]) if lrcs is not None else None
+        lrc = parse(lrcs[project.name]) if lrcs and project.name in lrcs else None
         for result in measure(
             project,
             aligner,
@@ -205,7 +223,8 @@ def measure(
     audio = load_audio(vocals, aligner.sample_rate)
     results = []
     for voice, hand in voices.items():
-        lrc_starts = line_anchors(hand, lrc) if lrc is not None else {}
+        matched = line_anchors(hand, lrc) if lrc is not None else {}
+        lrc_starts = matched
         began = time.monotonic()
         if lrc_starts and lrc_offset != "none":
             first_pass = sync(aligner, audio, [to_sync(h) for h in hand])
@@ -233,33 +252,40 @@ def measure(
         elapsed = time.monotonic() - began
 
         starts, ends = [], []
+        line = 0
         for i, (h, segment, s) in enumerate(zip(hand, segments, synced, strict=True)):
-            if not segment.sync and i in lrc_starts and lrc_anchors == "hard":
-                # An LRC start kept as it is still lands in the result.
-                s = SyncedSegment(start=segment.start)
-            elif not segment.sync:
-                continue
-            if h["start"] is not None and s.start is not None:
-                starts.append(s.start - h["start"])
-            if h["end"] is not None and s.end is not None:
-                ends.append(s.end - h["end"])
+            anchor = None
+            if not segment.sync:
+                anchor = "hand" if anchor_lines and _starts_line(hand, i) else "lrc"
+                s = SyncedSegment(start=segment.start, end=segment.end)
+            # An LRC start kept as it is still lands in the result, and a hand one doesn't.
+            if anchor != "hand":
+                if h["start"] is not None and s.start is not None:
+                    starts.append(s.start - h["start"])
+                if h["end"] is not None and s.end is not None:
+                    ends.append(s.end - h["end"])
             if rows:
                 rows.write(
                     json.dumps(
                         {
                             "song": project.name,
                             "voice": voice,
+                            "line": line,
                             "text": h["text"],
+                            "endsLine": h["endsLine"],
                             "handStart": h["start"],
                             "handEnd": h["end"],
                             "start": s.start,
                             "end": s.end,
+                            "anchor": anchor,
                             "confidence": s.confidence,
-                            "lrcStart": lrc_starts.get(i),
+                            "doubtful": s.doubtful,
+                            "lrcStart": matched.get(i),
                         }
                     )
                     + "\n"
                 )
+            line += h["endsLine"]
         name = project.name if len(voices) == 1 else f"{project.name} [{voice}]"
         results.append(
             SongResult(
@@ -360,6 +386,8 @@ def print_summary(results: list[SongResult]) -> None:
 
 def print_lrc_summary(results: list[SongResult]) -> None:
     matched = [r for r in results if r.lrc_errors is not None and len(r.lrc_errors)]
+    if not matched:
+        return
     errors = np.concatenate([r.lrc_errors for r in matched])
     unbiased = np.concatenate([r.lrc_errors - np.median(r.lrc_errors) for r in matched])
     lines = sum(r.lines for r in results)
