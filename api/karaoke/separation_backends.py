@@ -34,6 +34,9 @@ logger = structlog.get_logger(__name__)
 
 # Matches the interval the browser polls the job store at.
 REMOTE_POLL_INTERVAL_SECONDS = 3
+# A network failure can be a blip on the way to a GPU host, so only a run of
+# them fails the job. At the poll interval, this is about a minute.
+MAX_CONSECUTIVE_POLL_FAILURES = 20
 
 
 # Called with the ID of a task that another host now runs, so a restart can find it again.
@@ -133,10 +136,6 @@ class RemoteBackend:
 
     name = "remote"
 
-    # A network failure can be a blip on the way to a GPU host, so only a run of
-    # them fails the job. At the poll interval, this is about a minute.
-    MAX_CONSECUTIVE_POLL_FAILURES = 20
-
     def __init__(self, client: httpx.Client | None = None):
         self._client = client
 
@@ -151,12 +150,12 @@ class RemoteBackend:
         report = on_progress or (lambda progress, stage: None)
         # An injected client belongs to the caller, so only one made here is closed.
         owned = (
-            contextlib.nullcontext(self._client) if self._client else _remote_client()
+            contextlib.nullcontext(self._client) if self._client else remote_client()
         )
         with owned as client:
             report(None, separation_progress.UPLOADING_STAGE)
             response = _upload(client, songfile, song_dir, model_name)
-            _raise_for_status(response)
+            raise_for_status(response)
             task_id = response.json()["task_id"]
             logger.info("remote_task_submitted", task_id=task_id)
             return self._follow(client, task_id, song_dir, report, on_submitted)
@@ -170,7 +169,7 @@ class RemoteBackend:
         """Follow a task submitted before this process started, through to its stems."""
         report = on_progress or (lambda progress, stage: None)
         owned = (
-            contextlib.nullcontext(self._client) if self._client else _remote_client()
+            contextlib.nullcontext(self._client) if self._client else remote_client()
         )
         with owned as client:
             logger.info("remote_task_resumed", task_id=task_id)
@@ -187,61 +186,61 @@ class RemoteBackend:
         try:
             if on_submitted:
                 on_submitted(task_id)
-            status = self._wait_for(client, task_id, report)
+            status = wait_for_task(client, task_id, report)
         except BaseException:
-            _cancel_quietly(client, task_id)
+            cancel_task_quietly(client, task_id)
             raise
 
         report(None, separation_progress.DOWNLOADING_STEMS_STAGE)
         stems = {
-            role: _download(client, task_id, name, song_dir)
+            role: download_task_file(client, task_id, name, song_dir)
             for role, name in status["files"].items()
         }
         return SeparationResult(
             accompaniment=stems["accompaniment"], vocals=stems["vocals"]
         )
 
-    def _wait_for(
-        self, client: httpx.Client, task_id: str, report: ProgressCallback
-    ) -> dict:
-        failures = 0
-        while True:
-            try:
-                response = client.get(f"/tasks/{task_id}")
-            except httpx.TransportError as e:
-                failures += 1
-                logger.warning("remote_poll_failed", task_id=task_id, error=str(e))
-                if failures >= self.MAX_CONSECUTIVE_POLL_FAILURES:
-                    raise RuntimeError(
-                        f"The separation service stopped answering: {e}"
-                    ) from e
-                time.sleep(REMOTE_POLL_INTERVAL_SECONDS)
-                continue
-            failures = 0
 
-            if response.status_code == 404:
+def wait_for_task(client: httpx.Client, task_id: str, report: ProgressCallback) -> dict:
+    """Poll a remote task until it ends, returning its status once it is done."""
+    failures = 0
+    while True:
+        try:
+            response = client.get(f"/tasks/{task_id}")
+        except httpx.TransportError as e:
+            failures += 1
+            logger.warning("remote_poll_failed", task_id=task_id, error=str(e))
+            if failures >= MAX_CONSECUTIVE_POLL_FAILURES:
                 raise RuntimeError(
-                    "The separation service no longer knows this task. "
-                    "It has probably restarted."
-                )
-            _raise_for_status(response)
-            status = response.json()
-
-            if status["status"] == "done":
-                return status
-            if status["status"] == "error":
-                raise RuntimeError(status["error"] or "The separation failed.")
-            if status["status"] == "cancelled":
-                raise RuntimeError("The separation service cancelled the task.")
-
-            if status["status"] == "queued":
-                report(None, separation_progress.WAITING_FOR_GPU_STAGE)
-            else:
-                report(
-                    status["progress"],
-                    status["stage"] or separation_progress.LOADING_STAGE,
-                )
+                    f"The separation service stopped answering: {e}"
+                ) from e
             time.sleep(REMOTE_POLL_INTERVAL_SECONDS)
+            continue
+        failures = 0
+
+        if response.status_code == 404:
+            raise RuntimeError(
+                "The separation service no longer knows this task. "
+                "It has probably restarted."
+            )
+        raise_for_status(response)
+        status = response.json()
+
+        if status["status"] == "done":
+            return status
+        if status["status"] == "error":
+            raise RuntimeError(status["error"] or "The separation failed.")
+        if status["status"] == "cancelled":
+            raise RuntimeError("The separation service cancelled the task.")
+
+        if status["status"] == "queued":
+            report(None, separation_progress.WAITING_FOR_GPU_STAGE)
+        else:
+            report(
+                status["progress"],
+                status["stage"] or separation_progress.LOADING_STAGE,
+            )
+        time.sleep(REMOTE_POLL_INTERVAL_SECONDS)
 
 
 def _upload(
@@ -262,7 +261,7 @@ def _upload(
             ) from e
 
 
-def _remote_client() -> httpx.Client:
+def remote_client() -> httpx.Client:
     headers = {}
     if settings.SEPARATION_REMOTE_KEY:
         headers = {
@@ -278,7 +277,7 @@ def _remote_client() -> httpx.Client:
     )
 
 
-def _raise_for_status(response: httpx.Response) -> None:
+def raise_for_status(response: httpx.Response) -> None:
     if response.status_code == 401:
         raise RuntimeError(
             "The separation service rejected this server's credentials. "
@@ -294,7 +293,9 @@ def _raise_for_status(response: httpx.Response) -> None:
         )
 
 
-def _download(client: httpx.Client, task_id: str, name: str, song_dir: Path) -> Path:
+def download_task_file(
+    client: httpx.Client, task_id: str, name: str, song_dir: Path
+) -> Path:
     # The name comes from the server, and only its last component is trusted.
     destination = song_dir / Path(name).name
     with client.stream(
@@ -302,14 +303,14 @@ def _download(client: httpx.Client, task_id: str, name: str, song_dir: Path) -> 
     ) as response:
         if response.is_error:
             response.read()
-        _raise_for_status(response)
+        raise_for_status(response)
         with destination.open("wb") as f:
             for chunk in response.iter_bytes():
                 f.write(chunk)
     return destination
 
 
-def _cancel_quietly(client: httpx.Client, task_id: str) -> None:
+def cancel_task_quietly(client: httpx.Client, task_id: str) -> None:
     """Ask the server to stop a task this side has given up on.
 
     Best effort: the job is already ending, and a failure here must not hide why.
@@ -355,7 +356,8 @@ _BACKENDS: dict[str, type[SeparationBackend]] = {
 }
 
 
-def _check_remote() -> str | None:
+def check_remote() -> str | None:
+    """Return what is wrong with the settings that reach the remote host, or None."""
     if not settings.SEPARATION_REMOTE_URL:
         return "requires SEPARATION_REMOTE_URL to be set"
     if bool(settings.SEPARATION_REMOTE_KEY) != bool(settings.SEPARATION_REMOTE_SECRET):
@@ -365,7 +367,7 @@ def _check_remote() -> str | None:
 
 # Each returns what is wrong with the backend's configuration, or None.
 _CHECKS: dict[str, Callable[[], str | None]] = {
-    RemoteBackend.name: _check_remote,
+    RemoteBackend.name: check_remote,
 }
 
 

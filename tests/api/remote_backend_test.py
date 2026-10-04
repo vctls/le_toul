@@ -23,8 +23,8 @@ from api.karaoke import separation_backends, separation_progress
 from api.karaoke.separation_backends import (
     PassthroughBackend,
     RemoteBackend,
-    _remote_client,
     get_backend,
+    remote_client,
 )
 from api.separation_tasks import LocalTaskRunner, create_router
 
@@ -219,7 +219,7 @@ def test_the_configured_credentials_are_sent():
         mock.patch("api.settings.SEPARATION_REMOTE_KEY", "wk-id"),
         mock.patch("api.settings.SEPARATION_REMOTE_SECRET", "ws-secret"),
     ):
-        client = _remote_client()
+        client = remote_client()
 
     assert str(client.base_url) == "http://separator:8001"
     assert client.headers["Modal-Key"] == "wk-id"
@@ -228,7 +228,7 @@ def test_the_configured_credentials_are_sent():
 
 def test_no_credentials_are_sent_when_none_are_configured():
     with mock.patch("api.settings.SEPARATION_REMOTE_URL", "http://separator:8001"):
-        client = _remote_client()
+        client = remote_client()
 
     assert "Modal-Key" not in client.headers
 
@@ -260,7 +260,7 @@ def test_a_run_of_failed_polls_fails_the_job(song, song_dir):
     client = scripted([httpx.ConnectError("refused")] * 3)
 
     with (
-        mock.patch.object(RemoteBackend, "MAX_CONSECUTIVE_POLL_FAILURES", 3),
+        mock.patch.object(separation_backends, "MAX_CONSECUTIVE_POLL_FAILURES", 3),
         pytest.raises(RuntimeError, match="stopped answering: refused"),
     ):
         RemoteBackend(client).separate(song, song_dir, MODEL_NAME)

@@ -1,8 +1,6 @@
-import gc
 import json
 import logging
 import subprocess
-import sys
 import tempfile
 import traceback
 from dataclasses import dataclass
@@ -10,7 +8,7 @@ from enum import Enum
 from pathlib import Path
 
 from api import settings
-from api.karaoke import audio_input, separation_progress
+from api.karaoke import audio_input, gpu, separation_progress
 from api.karaoke.separation_progress import ProgressCallback
 
 """
@@ -107,7 +105,7 @@ def _split_song_api(
             traceback.clear_frames(e.__traceback__)
             raise
         finally:
-            _release_gpu_memory()
+            gpu.release_memory()
 
     return get_output_paths(song_dir)
 
@@ -136,20 +134,6 @@ def _run_separator(
     # separate() logs and swallows any exception, a cancellation included,
     # and returns as if it had written the stems.
     separator._separate_file(str(songfile), output_names)
-
-
-def _release_gpu_memory() -> None:
-    """Hand back the GPU memory torch keeps reserved after a separation.
-
-    torch caches freed memory for its own reuse. In a process that outlives the
-    separation, ONNX Runtime then cannot allocate from it, and the next ONNX
-    model fails for lack of GPU memory.
-    """
-    torch = sys.modules.get("torch")
-    if torch is None or not torch.cuda.is_available():
-        return
-    gc.collect()
-    torch.cuda.empty_cache()
 
 
 def _split_song_cli(
