@@ -54,7 +54,7 @@ services:
       dockerfile: Dockerfile
       target: runner
       args:
-        INSTALL_SEPARATION: "true"
+        INSTALL_ML: "true"
     env_file: .env
     environment:
       PORT: 8000

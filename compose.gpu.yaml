@@ -12,7 +12,7 @@ services:
   api:
     build:
       args:
-        INSTALL_SEPARATION: "false"
+        INSTALL_ML: "false"
     # compose.yaml's image has torch, and a shared tag would let either build
     # overwrite the other.
     image: the-tuul:web
@@ -33,7 +33,7 @@ services:
       dockerfile: Dockerfile
       target: runner
       args:
-        INSTALL_SEPARATION: "true"
+        INSTALL_ML: "true"
         SEPARATION_DEVICE: cuda
     env_file:
       - path: .env

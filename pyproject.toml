@@ -17,13 +17,13 @@ structlog = "^25.5.0"
 # read the inference loop, so it is needed wherever the web tier runs.
 tqdm = "^4.67.1"
 
-# Everything torch. Optional because a deployment that separates on another host
-# has no use for 3.5 GB of it, and because the web tier under the subprocess
-# backend never imports it either.
-[tool.poetry.group.separation]
+# Everything torch, for separating and syncing. Optional because a deployment that
+# runs both on another host has no use for 3.5 GB of it, and because the web tier
+# under the subprocess backends never imports it either.
+[tool.poetry.group.ml]
 optional = true
 
-[tool.poetry.group.separation.dependencies]
+[tool.poetry.group.ml.dependencies]
 audio-separator = {extras = ["cpu"], version = "^0.44.2"}
 # Held at the minor this tree has separated with. audio-separator 0.44 asks only
 # for >=2.3, which resolves seven releases past anything it was tested against.

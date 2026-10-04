@@ -48,9 +48,7 @@ web_image = (
 gpu_image = (
     modal.Image.debian_slim(python_version="3.13")
     .apt_install("ffmpeg")
-    .poetry_install_from_file(
-        _PYPROJECT, _LOCKFILE, with_=["separation"], without=["dev"]
-    )
+    .poetry_install_from_file(_PYPROJECT, _LOCKFILE, with_=["ml"], without=["dev"])
     .pip_install(
         "torch==2.7.1+cu128",
         "torchvision==0.22.1+cu128",

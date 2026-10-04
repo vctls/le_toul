@@ -15,7 +15,7 @@ services:
   api:
     build:
       args:
-        INSTALL_SEPARATION: "false"
+        INSTALL_ML: "false"
     image: the-tuul:web
     environment:
       SEPARATION_BACKEND: remote

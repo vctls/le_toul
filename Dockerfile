@@ -46,12 +46,12 @@ RUN apt-get update \
 
 COPY ./poetry.lock ./pyproject.toml ./
 
-# Torch is roughly 2 GB of the image and is needed only where separation runs in
-# this container. A deployment that separates elsewhere leaves this false.
-ARG INSTALL_SEPARATION=false
+# Torch is roughly 2 GB of the image and is needed only where separation or syncing
+# runs in this container. A deployment that runs both elsewhere leaves this false.
+ARG INSTALL_ML=false
 
-RUN if [ "$INSTALL_SEPARATION" = "true" ]; then \
-        poetry install --without dev --with separation --no-root --no-interaction --no-ansi; \
+RUN if [ "$INSTALL_ML" = "true" ]; then \
+        poetry install --without dev --with ml --no-root --no-interaction --no-ansi; \
     else \
         poetry install --without dev --no-root --no-interaction --no-ansi; \
     fi
@@ -61,7 +61,7 @@ RUN if [ "$INSTALL_SEPARATION" = "true" ]; then \
 # the CUDA and cuDNN libraries that the torch wheels bring.
 ARG SEPARATION_DEVICE=cpu
 
-RUN if [ "$INSTALL_SEPARATION" = "true" ] && [ "$SEPARATION_DEVICE" = "cuda" ]; then \
+RUN if [ "$INSTALL_ML" = "true" ] && [ "$SEPARATION_DEVICE" = "cuda" ]; then \
         .venv/bin/python -m pip install --no-cache-dir \
             --index-url https://download.pytorch.org/whl/cu128 \
             --extra-index-url https://pypi.org/simple \

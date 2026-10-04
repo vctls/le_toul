@@ -17,7 +17,7 @@ services:
         TUUL_API_HOSTNAME: ""
         TUUL_DONATE_URL: ${TUUL_DONATE_URL:-}
         INTRO_MARKDOWN: ${INTRO_MARKDOWN:-}
-        INSTALL_SEPARATION: "true"
+        INSTALL_ML: "true"
     image: the-tuul:latest
     env_file:
       - path: .env
