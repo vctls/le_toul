@@ -7,17 +7,18 @@
 # Source code is bind-mounted into both containers so edits trigger live reload.
 
 services:
-  # Docker creates named volumes root-owned, and the services below run as the host user.
-  node-modules-owner:
-    image: node:22-slim
-    user: root
-    command: ["chown", "-R", "${UID:-1000}:${GID:-1000}", "/vite", "/playwright"]
-    volumes:
-      - vite-node-modules:/vite
-      - playwright-node-modules:/playwright
-
   vite:
-    image: node:22-slim
+    # An empty named volume takes the owner of the image's mountpoint,
+    # so the image creates node_modules owned by the host user.
+    build:
+      dockerfile_inline: |
+        FROM node:22-slim
+        ARG UID
+        ARG GID
+        RUN mkdir -p /app/node_modules && chown $$UID:$$GID /app/node_modules
+      args:
+        UID: ${UID:-1000}
+        GID: ${GID:-1000}
     # The host user, so files written into the bind mount aren't root-owned.
     user: "${UID:-1000}:${GID:-1000}"
     working_dir: /app
@@ -44,8 +45,6 @@ services:
       ["sh", "-c", 'if [ ! -d node_modules/vite ]; then npm clean-install; fi && exec "$$@"', "--"]
     networks: [default]
     depends_on:
-      node-modules-owner:
-        condition: service_completed_successfully
       api:
         condition: service_healthy
 
@@ -93,7 +92,15 @@ services:
   # which is what exposes SharedArrayBuffer (needed by FFmpeg WASM) and the Clipboard API.
   # Side effect: the HTML report at :9323 is published via the vite service's ports, not here.
   playwright:
-    image: mcr.microsoft.com/playwright:v1.60.0-jammy
+    build:
+      dockerfile_inline: |
+        FROM mcr.microsoft.com/playwright:v1.60.0-jammy
+        ARG UID
+        ARG GID
+        RUN mkdir -p /app/node_modules && chown $$UID:$$GID /app/node_modules
+      args:
+        UID: ${UID:-1000}
+        GID: ${GID:-1000}
     user: "${UID:-1000}:${GID:-1000}"
     working_dir: /app
     environment:
@@ -112,8 +119,6 @@ services:
     network_mode: "service:vite"
     profiles: ["e2e"]
     depends_on:
-      node-modules-owner:
-        condition: service_completed_successfully
       vite:
         condition: service_started
       api:
