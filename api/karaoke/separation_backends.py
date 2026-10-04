@@ -10,23 +10,19 @@ still reports its stage, and the client falls back to an elapsed-time estimate.
 """
 
 import contextlib
-import json
-import os
 import shutil
-import subprocess
-import sys
 import tempfile
 import time
 from collections.abc import Callable
 from pathlib import Path
-from typing import IO, Protocol, runtime_checkable
+from typing import Protocol, runtime_checkable
 from urllib.parse import quote
 
 import httpx
 import structlog
 
 from api import settings
-from api.karaoke import audio_input, music_separation, separation_progress
+from api.karaoke import audio_input, music_separation, separation_progress, worker
 from api.karaoke.music_separation import (
     SeparationMethod,
     SeparationResult,
@@ -36,13 +32,8 @@ from api.karaoke.separation_progress import ProgressCallback
 
 logger = structlog.get_logger(__name__)
 
-PROGRESS_FD_ENV = "TUUL_PROGRESS_FD"
-
 # Matches the interval the browser polls the job store at.
 REMOTE_POLL_INTERVAL_SECONDS = 3
-
-_WORKER_MODULE = "api.karaoke.separation_worker"
-_REPO_ROOT = Path(__file__).resolve().parents[2]
 
 
 # Called with the ID of a task that another host now runs, so a restart can find it again.
@@ -121,111 +112,14 @@ class SubprocessBackend:
         on_progress: ProgressCallback | None = None,
         on_submitted: SubmittedCallback | None = None,
     ) -> SeparationResult:
-        return _run_worker(self._inner, songfile, song_dir, model_name, on_progress)
-
-
-def _run_worker(
-    inner: str,
-    songfile: Path,
-    song_dir: Path,
-    model_name: str,
-    on_progress: ProgressCallback | None,
-) -> SeparationResult:
-    read_fd, write_fd = os.pipe()
-    command = [
-        sys.executable,
-        "-m",
-        _WORKER_MODULE,
-        inner,
-        str(songfile),
-        str(song_dir),
-        model_name,
-    ]
-
-    # A second pipe would need a select loop to drain, and a stderr buffer
-    # nobody reads fills up and blocks the child partway through.
-    with (
-        tempfile.TemporaryFile() as errors,
-        os.fdopen(read_fd, "r") as reports,
-    ):
-        try:
-            worker = subprocess.Popen(
-                command,
-                # `-m` resolves against the child's own sys.path, which starts at its cwd.
-                cwd=_REPO_ROOT,
-                env={**os.environ, PROGRESS_FD_ENV: str(write_fd)},
-                pass_fds=(write_fd,),
-                stdin=subprocess.DEVNULL,
-                stderr=errors,
-            )
-        finally:
-            # The parent's copy holds the pipe open, so the reads below would
-            # never reach the end of the reports.
-            os.close(write_fd)
-
-        try:
-            result = _forward_reports(reports, on_progress)
-        except BaseException:
-            # A cancelled job raises out of on_progress, and the child would
-            # otherwise separate on for another quarter of an hour.
-            worker.kill()
-            worker.wait()
-            raise
-
-        if worker.wait() != 0:
-            raise RuntimeError(_worker_error(worker.returncode, errors))
-
-        if result is None:
-            raise RuntimeError("The separation worker finished without a result.")
-
-        return result
-
-
-def _forward_reports(
-    reports: IO[str], on_progress: ProgressCallback | None
-) -> SeparationResult | None:
-    result = None
-
-    for line in reports:
-        try:
-            report = json.loads(line)
-        except json.JSONDecodeError:
-            # A child killed mid-write leaves a partial line,
-            # and its exit status is the better error anyway.
-            break
-
-        if "result" in report:
-            result = SeparationResult(
-                accompaniment=Path(report["result"]["accompaniment"]),
-                vocals=Path(report["result"]["vocals"]),
-            )
-        elif on_progress:
-            on_progress(report["progress"], report["stage"])
-
-    return result
-
-
-def _worker_error(returncode: int, errors: IO[bytes]) -> str:
-    errors.seek(0)
-    stderr = errors.read().decode("utf-8", "replace")
-    logger.error("separation_worker_failed", returncode=returncode, stderr=stderr)
-
-    message = f"The separation worker exited with code {returncode}."
-    raised = _raised_exception(stderr)
-    return f"{message} {raised}" if raised else message
-
-
-def _raised_exception(stderr: str) -> str:
-    """The exception a child died of, or empty if it did not die of one.
-
-    audio-separator logs at INFO and draws tqdm bars on stderr, so the last line
-    is the error only where the child raised one. A child that was killed — the
-    out-of-memory case — leaves whatever it happened to be drawing.
-    """
-    lines = [line for line in stderr.splitlines() if line.strip()]
-    if not any(line.startswith("Traceback (most recent call last):") for line in lines):
-        return ""
-    return lines[-1].strip()
+        result = worker.run(
+            "separate",
+            [self._inner, str(songfile), str(song_dir), model_name],
+            on_progress,
+        )
+        return SeparationResult(
+            accompaniment=Path(result["accompaniment"]), vocals=Path(result["vocals"])
+        )
 
 
 class RemoteBackend:

@@ -17,10 +17,9 @@ from api.karaoke.separation_backends import (
     InProcessBackend,
     PassthroughBackend,
     SubprocessBackend,
-    _forward_reports,
-    _worker_error,
     get_backend,
 )
+from api.karaoke.worker import _forward_reports, _worker_error
 
 MODEL_NAME = "UVR_MDXNET_KARA_2.onnx"
 
