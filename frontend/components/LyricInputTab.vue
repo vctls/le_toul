@@ -66,15 +66,12 @@
         >
       </div>
       <div class="level-item">
-        <b-checkbox type="is-primary" v-model="magicSlashes">
-          <b-tooltip
-            multilined
-            label="Adding a slash to a word will add the same slash to all instances of that word"
-            position="is-right"
-            dashed
-            >Magic Slashes</b-tooltip
-          ></b-checkbox
+        <b-checkbox type="is-primary" v-model="magicSlashes">Magic Slashes</b-checkbox>
+        <viewport-tooltip
+          label="Adding a slash to a word will add the same slash to all instances of that word"
         >
+          <b-icon size="is-small" icon="circle-question"></b-icon>
+        </viewport-tooltip>
       </div>
     </div>
     <!-- A new song starts the player over, while another track of the same song keeps its place. -->
@@ -96,6 +93,7 @@ import LyricEditor from "@/components/LyricEditor.vue";
 import HelpSection from "@/components/HelpSection.vue";
 import SongPlayer from "@/components/SongPlayer.vue";
 import TrackSelect from "@/components/TrackSelect.vue";
+import ViewportTooltip from "@/components/ViewportTooltip.vue";
 import { useMediaStore } from "@/stores/media";
 import { REDO_SHORTCUT, SHORTCUT_MODIFIER, UNDO_SHORTCUT } from "@/lib/history";
 import { useLyricsLookupStore } from "@/stores/lyricsLookup";
@@ -118,6 +116,7 @@ export default defineComponent({
     LyricEditor,
     SongPlayer,
     TrackSelect,
+    ViewportTooltip,
   },
   setup() {
     const lyricStore = useLyricsStore();
