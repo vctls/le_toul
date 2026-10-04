@@ -288,8 +288,9 @@ export default defineComponent({
       this.onRegionsUpdated([region]);
     },
     /**
-     * A handle or a selection was released, so the regions play through with their new timing.
-     * They come in time order.
+     * A handle or a selection was released. While the song is paused, the regions play through with
+     * their new timing. While it plays, the playhead moves to the preroll before them and playback
+     * goes on. They come in time order.
      */
     onRegionsUpdated(regions: Array<Region>) {
       if (regions.length === 0) return;
@@ -304,7 +305,13 @@ export default defineComponent({
         segment.end = region.isOpenEnded ? undefined : region.end;
       }
       this.$emit("segmentschange", updated);
-      this.$nextTick(() => this.playRange(start, end));
+      this.$nextTick(() => {
+        if (this.songIsPlaying()) {
+          this.setAudioPlayhead(Math.max(0, start - this.prerollSeconds));
+        } else {
+          this.playRange(start, end);
+        }
+      });
     },
     onTimeUpdate(time: number) {
       this.$emit("timeupdate", time);
@@ -359,6 +366,12 @@ export default defineComponent({
     },
     isPaused(): boolean {
       return this.player.paused;
+    },
+    /**
+     * Whether the song is playing on, as opposed to paused or playing a region through once.
+     */
+    songIsPlaying(): boolean {
+      return !this.player.paused && !this.playingRange;
     },
     pause() {
       this.player.pause();
@@ -445,7 +458,7 @@ export default defineComponent({
       event.stopPropagation();
       if (this.tapMode) {
         this.$emit("segment-picked", parseInt(region.id.split("_")[1]));
-      } else {
+      } else if (!this.songIsPlaying()) {
         this.playRange(region.start, region.end);
       }
     },

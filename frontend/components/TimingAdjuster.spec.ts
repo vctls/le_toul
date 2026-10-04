@@ -1,8 +1,8 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, vi } from "vitest";
 import { shallowMount } from "@vue/test-utils";
 import TimingAdjuster from "@/components/TimingAdjuster.vue";
 import { TimedSegment } from "@/lib/timedSegments";
-import { RegionParams } from "@/lib/wavesurferPlugins/OpenEndedRegionPlugin";
+import { Region, RegionParams } from "@/lib/wavesurferPlugins/OpenEndedRegionPlugin";
 
 /**
  * The regions the adjuster draws for `segments`, by segment index.
@@ -69,5 +69,57 @@ describe("TimingAdjuster regions", () => {
       "0",
     ]);
     expect(regionsFor([{ text: "one", review: "lost" }])).toEqual({});
+  });
+});
+
+describe("TimingAdjuster region playback", () => {
+  const region = { id: "segment_0", start: 10, end: 11, isOpenEnded: false } as Region;
+
+  /**
+   * An adjuster in Adjust mode whose player reports `paused`, with its range playback and seeks
+   * recorded.
+   */
+  function adjusterWhile(paused: boolean) {
+    const wrapper = shallowMount(TimingAdjuster, {
+      props: { segments: [{ text: "one", start: 9, end: 10 }], prerollSeconds: 2 },
+    });
+    const player = wrapper.vm.player;
+    vi.spyOn(player, "paused", "get").mockReturnValue(paused);
+    const playRange = vi.spyOn(player, "playRange").mockImplementation(() => {});
+    const seeks: number[] = [];
+    vi.spyOn(player, "currentTime", "set").mockImplementation((time) => seeks.push(time));
+    return { wrapper, playRange, seeks };
+  }
+
+  it("plays a released region through while paused", async () => {
+    const { wrapper, playRange, seeks } = adjusterWhile(true);
+
+    wrapper.vm.onRegionsUpdated([region]);
+    await wrapper.vm.$nextTick();
+
+    expect(playRange).toHaveBeenCalledWith(10, 11);
+    expect(seeks).toEqual([]);
+  });
+
+  it("moves the playhead to the preroll before a released region while playing", async () => {
+    const { wrapper, playRange, seeks } = adjusterWhile(false);
+
+    wrapper.vm.onRegionsUpdated([region]);
+    await wrapper.vm.$nextTick();
+
+    expect(playRange).not.toHaveBeenCalled();
+    expect(seeks).toEqual([8]);
+  });
+
+  it("plays a clicked region only while paused", () => {
+    const click = () => new MouseEvent("click");
+    const paused = adjusterWhile(true);
+    paused.wrapper.vm.onRegionClicked(region, click());
+    expect(paused.playRange).toHaveBeenCalledWith(10, 11);
+
+    const playing = adjusterWhile(false);
+    playing.wrapper.vm.onRegionClicked(region, click());
+    expect(playing.playRange).not.toHaveBeenCalled();
+    expect(playing.seeks).toEqual([]);
   });
 });

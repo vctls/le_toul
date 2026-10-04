@@ -177,19 +177,20 @@
           <p>
             Drag the left edge of a rectangle to change when a syllable starts, and the right edge
             to change when it ends. Drag an end onto the next start to join the two. Once they're
-            joined, dragging that start moves the end before it too. When you let go of an edge, the
-            syllable plays.
+            joined, dragging that start moves the end before it too.
           </p>
           <p>
             Click a rectangle to select it, then click another to select everything in between. You
             can also drag across the waveform from a bare spot to select every rectangle in that
             stretch of time. Click a selected rectangle or a bare spot on the waveform, or press
-            <kbd>Esc</kbd>, to clear the selection. Each click plays the syllable you clicked.
+            <kbd>Esc</kbd>, to clear the selection.
           </p>
           <p>
-            Drag a rectangle to move it, or a selected one to move the whole selection. What you
-            moved plays when you let go. Once a syllable or selection has played, the playhead goes
-            back to the preroll before it.
+            Drag a rectangle to move it, or a selected one to move the whole selection. While the
+            song is paused, clicking a syllable plays it, and so does letting go of what you
+            dragged. Once it has played, the playhead goes back to the preroll before it. While the
+            song plays, letting go moves the playhead to the preroll before what you dragged, and
+            the song plays on from there.
           </p>
         </template>
         <p>
