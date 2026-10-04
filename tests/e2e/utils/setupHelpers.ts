@@ -110,9 +110,9 @@ async function showLegacyTimingTab(page: Page): Promise<void> {
  * Installs an in-memory navigator.clipboard polyfill. The Clipboard API is
  * only exposed in secure contexts; when the tests run against a non-localhost
  * dev host (e.g. http://vite:5173 inside the docker stack) it is undefined,
- * breaking both the app's copy buttons and the tests that read the clipboard
- * back. The stub stores writes in a window-scoped buffer so writeText /
- * readText round-trip cleanly without needing OS clipboard access.
+ * breaking the tests that write to the clipboard. The stub stores writes in a
+ * window-scoped buffer so writeText / readText round-trip cleanly without
+ * needing OS clipboard access.
  */
 async function installClipboardStub(page: Page): Promise<void> {
   await page.addInitScript(() => {

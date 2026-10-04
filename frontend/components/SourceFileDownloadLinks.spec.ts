@@ -41,7 +41,7 @@ describe("SourceFileDownloadLinks", () => {
     expect(wrapper.find(".source-file-links").exists()).toBe(false);
   });
 
-  it("downloads the font under its own file name", async () => {
+  it("downloads the font when its file name is clicked", async () => {
     const font = new File(["font bytes"], "MyFont.ttf");
     const createObjectURL = vi.spyOn(URL, "createObjectURL").mockReturnValue("blob:font");
     vi.spyOn(URL, "revokeObjectURL").mockImplementation(() => {});

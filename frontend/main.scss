@@ -131,7 +131,12 @@
   top: calc((1ex - 1cap) / 2);
 }
 
-// Bulma already strips a button's own styling, so only the link colour is missing.
+// Bulma already strips a button's own styling, so only the link colours and underline are missing.
 .link-button {
   color: var(--bulma-link-text);
+}
+
+.link-button:hover {
+  color: var(--bulma-link-text-hover);
+  text-decoration: underline;
 }

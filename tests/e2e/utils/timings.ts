@@ -1,6 +1,7 @@
 /**
  * Timing helpers for Playwright tests
  */
+import { promises as fs } from "fs";
 import { Page, Locator, expect } from "@playwright/test";
 import { TabId, navigateToTab } from "./navigation";
 import { loadFixtureJson } from "./setupHelpers";
@@ -338,17 +339,15 @@ export async function adjustTiming(
 }
 
 /**
- * Gets the default voice's timings as events, by copying timings.txt from the Submit tab.
+ * Gets the default voice's timings as events, by downloading timings.txt from the Submit tab.
  */
 export async function getCurrentTimings(page: Page): Promise<any> {
   await navigateToTab(page, TabId.Submit);
 
-  const timingsClipboardButton = page.locator('button[title="copy timings to clipboard"]');
-  await timingsClipboardButton.click();
-  await page.locator(".toast.is-success").waitFor({ state: "visible" });
-
-  const clipboardContent = await page.evaluate(() => navigator.clipboard.readText());
-  return eventsFromTimingsText(clipboardContent, DEFAULT_VOICE_ID);
+  const downloading = page.waitForEvent("download");
+  await page.getByRole("button", { name: "timings.txt" }).click();
+  const timingsText = await fs.readFile((await (await downloading).path()) as string, "utf8");
+  return eventsFromTimingsText(timingsText, DEFAULT_VOICE_ID);
 }
 
 /**
