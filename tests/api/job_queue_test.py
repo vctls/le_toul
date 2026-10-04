@@ -4,7 +4,7 @@ import asyncio
 
 import pytest
 
-from api.helpers.separation_queue import SeparationQueue, Withdrawn
+from api.helpers.job_queue import JobQueue, Withdrawn
 
 
 async def settle():
@@ -31,7 +31,7 @@ def hold(queue, key, log, release, reports=None):
 
 def test_runs_no_more_than_the_slots_at_once():
     async def scenario():
-        queue = SeparationQueue(2)
+        queue = JobQueue(2)
         log, release = [], asyncio.Event()
         tasks = [hold(queue, key, log, release) for key in "abc"]
         await settle()
@@ -48,7 +48,7 @@ def test_runs_no_more_than_the_slots_at_once():
 
 def test_admits_in_arrival_order():
     async def scenario():
-        queue = SeparationQueue(1)
+        queue = JobQueue(1)
         log = []
         releases = {key: asyncio.Event() for key in "abcd"}
         tasks = [hold(queue, key, log, releases[key]) for key in "abcd"]
@@ -64,7 +64,7 @@ def test_admits_in_arrival_order():
 
 def test_reports_the_songs_ahead_as_the_line_moves():
     async def scenario():
-        queue = SeparationQueue(1)
+        queue = JobQueue(1)
         log, reports = [], []
         releases = {key: asyncio.Event() for key in "abc"}
         tasks = [hold(queue, key, log, releases[key], reports) for key in "abc"]
@@ -81,7 +81,7 @@ def test_reports_the_songs_ahead_as_the_line_moves():
 
 def test_withdrawn_song_leaves_the_line_and_the_rest_move_up():
     async def scenario():
-        queue = SeparationQueue(1)
+        queue = JobQueue(1)
         log, reports, release = [], [], asyncio.Event()
         tasks = [hold(queue, key, log, release, reports) for key in "abc"]
         await settle()
@@ -100,7 +100,7 @@ def test_withdrawn_song_leaves_the_line_and_the_rest_move_up():
 
 def test_withdrawing_a_song_not_in_line_is_harmless():
     async def scenario():
-        queue = SeparationQueue(1)
+        queue = JobQueue(1)
         log, release = [], asyncio.Event()
         task = hold(queue, "a", log, release)
         await settle()
@@ -114,7 +114,7 @@ def test_withdrawing_a_song_not_in_line_is_harmless():
 
 def test_a_failed_separation_frees_its_slot():
     async def scenario():
-        queue = SeparationQueue(1)
+        queue = JobQueue(1)
 
         async def fail():
             async with queue.slot("a"):
@@ -131,7 +131,7 @@ def test_a_failed_separation_frees_its_slot():
 
 def test_a_cancelled_waiter_gives_up_its_place():
     async def scenario():
-        queue = SeparationQueue(1)
+        queue = JobQueue(1)
         log, release = [], asyncio.Event()
         tasks = [hold(queue, key, log, release) for key in "abc"]
         await settle()
@@ -146,7 +146,7 @@ def test_a_cancelled_waiter_gives_up_its_place():
 
 def test_a_failing_report_does_not_stall_the_line():
     async def scenario():
-        queue = SeparationQueue(1)
+        queue = JobQueue(1)
         log, release = [], asyncio.Event()
 
         async def waiter():
@@ -169,4 +169,4 @@ def test_a_failing_report_does_not_stall_the_line():
 
 def test_needs_at_least_one_slot():
     with pytest.raises(ValueError):
-        SeparationQueue(0)
+        JobQueue(0)

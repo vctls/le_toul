@@ -34,8 +34,8 @@ from pydantic import BaseModel, ConfigDict, Field, StringConstraints
 from . import app_logging, lyrics, settings
 from .helpers import (
     cloud_storage,
+    job_queue,
     job_store,
-    separation_queue,
     youtube_helper,
     zip_helper,
 )
@@ -118,7 +118,7 @@ async def cache_fonts(request: Request, call_next):
 
 # Only the local job store queues. A GCS-backed deployment runs on Cloud Run,
 # which caps concurrency per instance itself.
-local_separations = separation_queue.SeparationQueue(settings.SEPARATION_CONCURRENCY)
+local_jobs = job_queue.JobQueue(settings.SEPARATION_CONCURRENCY)
 
 separation_starts = RateLimiter(
     [
@@ -205,7 +205,7 @@ class LyricsRequest(BaseModel):
     duration: float = Field(gt=0)
 
 
-class SeparationPollResponse(BaseModel):
+class JobPollResponse(BaseModel):
     finishedTrackURL: str
 
 
@@ -351,12 +351,12 @@ def process_track_separation_local(
             song_files_dir,
             cache_hash,
             on_progress=report,
-            on_submitted=lambda task_id: job_store.mark_submitted(
+            on_submitted=lambda task_id: job_store.separations.mark_submitted(
                 cache_hash, run_id, task_id
             ),
         )
 
-    _run_local_job(cache_hash, run_id, separate)
+    _run_local_job(job_store.separations, cache_hash, run_id, separate)
 
 
 def resume_track_separation_local(cache_hash: str, run_id: str, task_id: str):
@@ -368,38 +368,39 @@ def resume_track_separation_local(cache_hash: str, run_id: str, task_id: str):
         separated = backend.resume(task_id, song_files_dir, on_progress=report)
         return package_stems(separated, song_files_dir, cache_hash, report)
 
-    _run_local_job(cache_hash, run_id, follow)
+    _run_local_job(job_store.separations, cache_hash, run_id, follow)
 
 
 def _run_local_job(
+    store: job_store.JobStore,
     cache_hash: str,
     run_id: str,
     work: Callable[[Path, separation_progress.ProgressCallback], Path],
 ) -> None:
     """Run a job's work in a scratch directory, and record how it ended.
 
-    `work` gets the directory and a progress callback, and returns the zip.
+    `work` gets the directory and a progress callback, and returns the result file.
     """
 
     def report(progress: float | None, stage: str) -> None:
-        # The separation hands control back only to report,
+        # The job hands control back only to report,
         # so this is the one place a cancelled run can notice and unwind.
-        if not job_store.is_current_run(cache_hash, run_id):
+        if not store.is_current_run(cache_hash, run_id):
             raise job_store.JobCancelled()
-        job_store.mark_progress(cache_hash, progress, stage)
+        store.mark_progress(cache_hash, progress, stage)
 
     try:
         with tempfile.TemporaryDirectory() as song_files_dir:
-            zip_path = work(Path(song_files_dir), report)
-            job_store.store_result(cache_hash, zip_path)
+            result = work(Path(song_files_dir), report)
+            store.store_result(cache_hash, result)
     except job_store.JobCancelled:
-        logger.info("local_separation_cancelled", cache_hash=cache_hash)
-        job_store.mark_cancelled(cache_hash, run_id)
+        logger.info(f"local_{store.kind}_cancelled", cache_hash=cache_hash)
+        store.mark_cancelled(cache_hash, run_id)
     except Exception as e:
         # The client is polling for this hash, so the failure has to be recorded rather than only logged,
         # or it will poll forever.
-        logger.exception("local_separation_failed", cache_hash=cache_hash)
-        job_store.mark_failed(cache_hash, str(e), run_id)
+        logger.exception(f"local_{store.kind}_failed", cache_hash=cache_hash)
+        store.mark_failed(cache_hash, str(e), run_id)
 
 
 async def queue_track_separation_local(
@@ -410,25 +411,37 @@ async def queue_track_separation_local(
     song_filename: str,
 ):
     """Background task that waits its turn in line, then separates in a worker thread."""
+    await _queue_local_job(
+        job_store.separations,
+        cache_hash,
+        run_id,
+        process_track_separation_local,
+        model_name,
+        song_content,
+        song_filename,
+    )
+
+
+async def _queue_local_job(
+    store: job_store.JobStore,
+    cache_hash: str,
+    run_id: str,
+    process: Callable[..., None],
+    *args,
+) -> None:
+    """Wait in line, then run `process(cache_hash, run_id, *args)` in a thread."""
     try:
-        async with local_separations.slot(
+        async with local_jobs.slot(
             run_id,
-            on_wait=lambda ahead: job_store.mark_queued(cache_hash, run_id, ahead),
+            on_wait=lambda ahead: store.mark_queued(cache_hash, run_id, ahead),
         ):
-            if not job_store.mark_started(cache_hash, run_id):
-                logger.info("local_separation_superseded", cache_hash=cache_hash)
+            if not store.mark_started(cache_hash, run_id):
+                logger.info(f"local_{store.kind}_superseded", cache_hash=cache_hash)
                 return
-            await run_in_threadpool(
-                process_track_separation_local,
-                cache_hash,
-                run_id,
-                model_name,
-                song_content,
-                song_filename,
-            )
-    except separation_queue.Withdrawn:
-        logger.info("local_separation_withdrawn", cache_hash=cache_hash)
-        job_store.mark_cancelled(cache_hash, run_id)
+            await run_in_threadpool(process, cache_hash, run_id, *args)
+    except job_queue.Withdrawn:
+        logger.info(f"local_{store.kind}_withdrawn", cache_hash=cache_hash)
+        store.mark_cancelled(cache_hash, run_id)
 
 
 async def queue_resumed_separation_local(cache_hash: str, run_id: str, task_id: str):
@@ -438,19 +451,21 @@ async def queue_resumed_separation_local(cache_hash: str, run_id: str, task_id: 
     count towards the limit.
     """
     try:
-        async with local_separations.slot(
+        async with local_jobs.slot(
             run_id,
-            on_wait=lambda ahead: job_store.mark_queued(cache_hash, run_id, ahead),
+            on_wait=lambda ahead: job_store.separations.mark_queued(
+                cache_hash, run_id, ahead
+            ),
         ):
             # A run cancelled or superseded meanwhile still goes ahead: its first
             # report unwinds it, and calls off the remote task on the way out.
-            job_store.mark_started(cache_hash, run_id)
+            job_store.separations.mark_started(cache_hash, run_id)
             await run_in_threadpool(
                 resume_track_separation_local, cache_hash, run_id, task_id
             )
-    except separation_queue.Withdrawn:
+    except job_queue.Withdrawn:
         logger.info("local_separation_withdrawn", cache_hash=cache_hash)
-        job_store.mark_cancelled(cache_hash, run_id)
+        job_store.separations.mark_cancelled(cache_hash, run_id)
 
 
 def resume_remote_separations() -> None:
@@ -462,8 +477,8 @@ def resume_remote_separations() -> None:
         settings.SEPARATION_BACKEND
     ):
         return
-    for cache_hash, status in job_store.remote_jobs():
-        job_store.adopt(cache_hash, status["runId"])
+    for cache_hash, status in job_store.separations.remote_jobs():
+        job_store.separations.adopt(cache_hash, status["runId"])
         task = asyncio.get_running_loop().create_task(
             queue_resumed_separation_local(
                 cache_hash, status["runId"], status["taskId"]
@@ -538,7 +553,7 @@ async def separate_track(
                 blob_name=blob_name,
                 poll_url=cache_result,
             )
-            return SeparationPollResponse(finishedTrackURL=cache_result)
+            return JobPollResponse(finishedTrackURL=cache_result)
 
     # If no cache hit or caching is disabled, proceed with track separation
     if settings.SEPARATED_TRACKS_BUCKET:
@@ -559,7 +574,7 @@ async def separate_track(
 
             # Return URL immediately for client to poll
             logger.info("returning_poll_url", cache_hash=cache_hash, poll_url=poll_url)
-            return SeparationPollResponse(finishedTrackURL=poll_url)
+            return JobPollResponse(finishedTrackURL=poll_url)
         else:
             logger.warning("failed_to_create_placeholder", cache_hash=cache_hash)
     else:
@@ -567,13 +582,13 @@ async def separate_track(
         # a separation can take half an hour, far longer than a browser will hold a single request open.
         cache_hash = cloud_storage.get_cache_hash(modelName, song_content)
 
-        if job_store.result_path(cache_hash).exists():
+        if job_store.separations.result_path(cache_hash).exists():
             logger.info("local_cache_hit", cache_hash=cache_hash)
-            return SeparationPollResponse(
-                finishedTrackURL=job_store.poll_url(cache_hash)
+            return JobPollResponse(
+                finishedTrackURL=job_store.separations.poll_url(cache_hash)
             )
 
-        status = job_store.read_status(cache_hash)
+        status = job_store.separations.read_status(cache_hash)
         if (
             status
             and status.get("status") == job_store.STATUS_PROCESSING
@@ -582,17 +597,17 @@ async def separate_track(
         ):
             # Already being separated. Point the client at the running job rather than doing the same work twice.
             logger.info("local_job_already_running", cache_hash=cache_hash)
-            return SeparationPollResponse(
-                finishedTrackURL=job_store.poll_url(cache_hash)
+            return JobPollResponse(
+                finishedTrackURL=job_store.separations.poll_url(cache_hash)
             )
 
         # Anything else (a failed or cancelled job, or one whose worker died)
         # falls through to a fresh attempt,
         # so a single failure does not block the song forever.
         start_separation_or_refuse(request)
-        job_store.prune_expired_results()
+        job_store.separations.prune_expired_results()
 
-        run_id = job_store.mark_processing(cache_hash)
+        run_id = job_store.separations.mark_processing(cache_hash)
         background_tasks.add_task(
             queue_track_separation_local,
             cache_hash,
@@ -602,8 +617,10 @@ async def separate_track(
             songFile.filename or "uploaded_song",
         )
 
-        logger.info("local_separation_queued", cache_hash=cache_hash)
-        return SeparationPollResponse(finishedTrackURL=job_store.poll_url(cache_hash))
+        logger.info("local_job_queued", cache_hash=cache_hash)
+        return JobPollResponse(
+            finishedTrackURL=job_store.separations.poll_url(cache_hash)
+        )
 
 
 @app.get("/separated_track/{cache_hash}")
@@ -617,29 +634,7 @@ async def separated_track(
     and 404 for an unknown hash.
     The hash is constrained to a sha256 digest so it cannot escape the job directory.
     """
-    result = job_store.result_path(cache_hash)
-    if result.exists():
-        return FileResponse(result, media_type="application/zip")
-
-    status = job_store.read_status(cache_hash)
-    if status is None:
-        raise HTTPException(status_code=404, detail="Unknown separation job")
-
-    if job_store.is_stale(status):
-        logger.warning("local_job_stale", cache_hash=cache_hash)
-        return JSONResponse(
-            {
-                "status": job_store.STATUS_ERROR,
-                "error": "Track separation stopped unexpectedly. Please try again.",
-            }
-        )
-
-    if status.get("status") in (job_store.STATUS_ERROR, job_store.STATUS_CANCELLED):
-        return JSONResponse(status)
-
-    return JSONResponse(
-        {**status, "pollIntervalSeconds": job_store.POLL_INTERVAL_SECONDS}
-    )
+    return _poll_local_job(job_store.separations, cache_hash, "application/zip")
 
 
 @app.post("/separated_track/{cache_hash}/cancel")
@@ -653,12 +648,40 @@ async def cancel_separated_track(
     so a job still loading its model runs on until the separation itself starts.
     Reports whether there was a job to call off.
     """
-    status = job_store.read_status(cache_hash)
-    cancelled = job_store.request_cancel(cache_hash)
+    return _cancel_local_job(job_store.separations, cache_hash)
+
+
+def _poll_local_job(store: job_store.JobStore, cache_hash: str, media_type: str):
+    """Return a local job's result once it has one, and its status until then."""
+    result = store.result_path(cache_hash)
+    if result.exists():
+        return FileResponse(result, media_type=media_type)
+
+    status = store.read_status(cache_hash)
+    if status is None:
+        raise HTTPException(status_code=404, detail=f"Unknown {store.kind} job")
+
+    if job_store.is_stale(status):
+        logger.warning("local_job_stale", cache_hash=cache_hash, kind=store.kind)
+        return JSONResponse(
+            {"status": job_store.STATUS_ERROR, "error": store.stale_message}
+        )
+
+    if status.get("status") in (job_store.STATUS_ERROR, job_store.STATUS_CANCELLED):
+        return JSONResponse(status)
+
+    return JSONResponse(
+        {**status, "pollIntervalSeconds": job_store.POLL_INTERVAL_SECONDS}
+    )
+
+
+def _cancel_local_job(store: job_store.JobStore, cache_hash: str) -> dict:
+    status = store.read_status(cache_hash)
+    cancelled = store.request_cancel(cache_hash)
     if cancelled:
-        local_separations.withdraw(status["runId"])
+        local_jobs.withdraw(status["runId"])
     logger.info(
-        "local_separation_cancel_requested", cache_hash=cache_hash, running=cancelled
+        f"local_{store.kind}_cancel_requested", cache_hash=cache_hash, running=cancelled
     )
     return {"cancelled": cancelled}
 

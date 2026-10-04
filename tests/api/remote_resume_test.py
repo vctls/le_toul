@@ -74,8 +74,8 @@ def submit(host: TestClient) -> str:
 
 
 def job_waiting_on(task_id: str) -> str:
-    run_id = job_store.mark_processing(HASH)
-    job_store.mark_submitted(HASH, run_id, task_id)
+    run_id = job_store.separations.mark_processing(HASH)
+    job_store.separations.mark_submitted(HASH, run_id, task_id)
     return run_id
 
 
@@ -95,7 +95,7 @@ def restart(host: TestClient):
 def wait_for_outcome(client: TestClient) -> tuple[str, bytes | dict]:
     deadline = time.monotonic() + 5
     while time.monotonic() < deadline:
-        response = client.get(job_store.poll_url(HASH))
+        response = client.get(job_store.separations.poll_url(HASH))
         if response.headers["content-type"] == "application/zip":
             return "zip", response.content
         body = response.json()
@@ -135,7 +135,7 @@ def test_a_job_resumed_mid_separation_reports_its_progress(remote_settings):
 
     with restart(host), TestClient(main.app) as client:
         deadline = time.monotonic() + 5
-        while job_store.read_status(HASH).get("progress") != 0.25:
+        while job_store.separations.read_status(HASH).get("progress") != 0.25:
             assert time.monotonic() < deadline
             time.sleep(0.01)
         held.release.set()
@@ -152,7 +152,7 @@ def test_a_cancel_left_pending_by_the_restart_calls_off_the_remote_task(
     task_id = submit(host)
     job_waiting_on(task_id)
     assert held.started.wait(5)
-    job_store.request_cancel(HASH)
+    job_store.separations.request_cancel(HASH)
 
     with restart(host), TestClient(main.app) as client:
         outcome, _ = wait_for_outcome(client)
@@ -176,11 +176,13 @@ def test_a_task_the_remote_host_lost_fails_the_job(remote_settings):
 def test_the_worker_that_resumes_a_job_becomes_its_owner(remote_settings):
     host, _ = remote_host(PassthroughBackend())
     run_id = job_waiting_on(submit(host))
-    job_store._write_status(HASH, {**job_store.read_status(HASH), "pid": 1})
+    job_store.separations._write_status(
+        HASH, {**job_store.separations.read_status(HASH), "pid": 1}
+    )
 
-    job_store.adopt(HASH, run_id)
+    job_store.separations.adopt(HASH, run_id)
 
-    assert job_store.read_status(HASH)["pid"] == os.getpid()
+    assert job_store.separations.read_status(HASH)["pid"] == os.getpid()
 
 
 def test_a_backend_that_cannot_follow_a_task_fails_the_job_at_restart():
@@ -189,25 +191,31 @@ def test_a_backend_that_cannot_follow_a_task_fails_the_job_at_restart():
     with mock.patch("api.settings.SEPARATION_BACKEND", "subprocess"):
         restart(mock.Mock())
 
-    assert job_store.read_status(HASH)["error"] == job_store.INTERRUPTED_MESSAGE
+    assert (
+        job_store.separations.read_status(HASH)["error"]
+        == job_store.separations.interrupted_message
+    )
 
 
 def test_a_job_without_a_remote_task_is_still_failed_at_restart(remote_settings):
-    job_store.mark_processing(HASH)
+    job_store.separations.mark_processing(HASH)
 
     restart(mock.Mock())
 
-    assert job_store.read_status(HASH)["error"] == job_store.INTERRUPTED_MESSAGE
+    assert (
+        job_store.separations.read_status(HASH)["error"]
+        == job_store.separations.interrupted_message
+    )
 
 
 def test_only_the_current_run_records_its_task():
-    superseded = job_store.mark_processing(HASH)
-    job_store.mark_processing(HASH)
+    superseded = job_store.separations.mark_processing(HASH)
+    job_store.separations.mark_processing(HASH)
 
-    job_store.mark_submitted(HASH, superseded, "t1")
+    job_store.separations.mark_submitted(HASH, superseded, "t1")
 
-    assert "taskId" not in job_store.read_status(HASH)
-    assert job_store.remote_jobs() == []
+    assert "taskId" not in job_store.separations.read_status(HASH)
+    assert job_store.separations.remote_jobs() == []
 
 
 def test_the_remote_backend_hands_over_its_task_id(tmp_path):
@@ -233,7 +241,7 @@ def test_only_the_remote_backend_can_resume():
 def test_an_exited_worker_leaves_its_remote_jobs_to_its_replacement(remote_settings):
     job_waiting_on("t1")
     local = "b" * 64
-    job_store.mark_processing(local)
+    job_store.separations.mark_processing(local)
     spec = importlib.util.spec_from_file_location(
         "gunicorn_conf", Path(__file__).parents[2] / "gunicorn.conf.py"
     )
@@ -242,5 +250,10 @@ def test_an_exited_worker_leaves_its_remote_jobs_to_its_replacement(remote_setti
 
     gunicorn_conf.child_exit(mock.Mock(), mock.Mock(pid=os.getpid()))
 
-    assert job_store.read_status(HASH)["status"] == job_store.STATUS_PROCESSING
-    assert job_store.read_status(local)["error"] == job_store.WORKER_EXITED_MESSAGE
+    assert (
+        job_store.separations.read_status(HASH)["status"] == job_store.STATUS_PROCESSING
+    )
+    assert (
+        job_store.separations.read_status(local)["error"]
+        == job_store.separations.worker_exited_message
+    )

@@ -1,7 +1,7 @@
-"""Admits separations a few at a time, in the order they arrived.
+"""Admits separations and syncs a few at a time, in the order they arrived.
 
-Separations running together share one machine's CPU and memory, so each runs
-slower than it would alone, and enough of them exhaust the memory ceiling.
+Jobs running together share one machine's CPU and memory, so each runs slower
+than it would alone, and enough of them exhaust the memory ceiling.
 A waiting song is a future on the event loop rather than a blocked thread, so
 a long line cannot starve the thread pool that serves downloads.
 
@@ -32,10 +32,10 @@ class _Waiter:
         self.last_ahead: int | None = None
 
 
-class SeparationQueue:
+class JobQueue:
     def __init__(self, slots: int):
         if slots < 1:
-            raise ValueError(f"A separation queue needs at least one slot, not {slots}")
+            raise ValueError(f"A job queue needs at least one slot, not {slots}")
         self._slots = slots
         self._running = 0
         self._waiting: list[_Waiter] = []
@@ -100,7 +100,7 @@ class SeparationQueue:
             try:
                 waiter.on_wait(ahead)
             except Exception:
-                logger.exception("separation_queue_report_failed", key=waiter.key)
+                logger.exception("job_queue_report_failed", key=waiter.key)
 
 
 def _was_handed_a_slot(admitted: asyncio.Future[None]) -> bool:

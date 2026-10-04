@@ -18,7 +18,7 @@ import pytest
 from fastapi.testclient import TestClient
 
 from api import settings
-from api.helpers import cloud_storage, job_store, separation_queue
+from api.helpers import cloud_storage, job_queue, job_store
 from api.karaoke.music_separation import SeparationResult
 from api.main import app
 
@@ -92,7 +92,7 @@ def test_finished_job_serves_the_zip(client, no_bucket, song_files):
 
 def test_running_job_reports_processing_with_poll_interval(client):
     """A job still in flight reports its status and how long to wait."""
-    job_store.mark_processing("a" * 64)
+    job_store.separations.mark_processing("a" * 64)
 
     response = client.get(f"/separated_track/{'a' * 64}")
 
@@ -105,8 +105,8 @@ def test_running_job_reports_processing_with_poll_interval(client):
 
 def test_running_job_reports_its_progress(client):
     """A job in flight reports how far along it is, for the client's bar."""
-    job_store.mark_processing("e" * 64)
-    job_store.mark_progress("e" * 64, 0.42, "separating the vocals")
+    job_store.separations.mark_processing("e" * 64)
+    job_store.separations.mark_progress("e" * 64, 0.42, "separating the vocals")
 
     body = client.get(f"/separated_track/{'e' * 64}").json()
 
@@ -116,8 +116,8 @@ def test_running_job_reports_its_progress(client):
 
 def test_unmeasurable_stage_is_reported_without_a_figure(client):
     """Loading the model has no progress to read, but the client can name it."""
-    job_store.mark_processing("1" * 64)
-    job_store.mark_progress("1" * 64, None, "loading the separation model")
+    job_store.separations.mark_processing("1" * 64)
+    job_store.separations.mark_progress("1" * 64, None, "loading the separation model")
 
     body = client.get(f"/separated_track/{'1' * 64}").json()
 
@@ -127,9 +127,11 @@ def test_unmeasurable_stage_is_reported_without_a_figure(client):
 
 def test_unmeasurable_stage_keeps_the_last_figure(client):
     """The bar must not fall back to indeterminate once it has a figure."""
-    job_store.mark_processing("2" * 64)
-    job_store.mark_progress("2" * 64, 0.05, "downloading the separation model")
-    job_store.mark_progress("2" * 64, None, "reading the song")
+    job_store.separations.mark_processing("2" * 64)
+    job_store.separations.mark_progress(
+        "2" * 64, 0.05, "downloading the separation model"
+    )
+    job_store.separations.mark_progress("2" * 64, None, "reading the song")
 
     body = client.get(f"/separated_track/{'2' * 64}").json()
 
@@ -139,8 +141,8 @@ def test_unmeasurable_stage_keeps_the_last_figure(client):
 
 def test_progress_does_not_revive_a_finished_job(client):
     """A report arriving after a failure must not reopen the job."""
-    job_store.mark_failed("f" * 64, "boom")
-    job_store.mark_progress("f" * 64, 0.9, "separating the vocals")
+    job_store.separations.mark_failed("f" * 64, "boom")
+    job_store.separations.mark_progress("f" * 64, 0.9, "separating the vocals")
 
     body = client.get(f"/separated_track/{'f' * 64}").json()
 
@@ -169,8 +171,8 @@ def test_job_abandoned_by_a_dead_worker_reports_an_error(client, monkeypatch):
     Without this the client would poll forever for a job whose worker was killed.
     """
     monkeypatch.setattr(settings, "LOCAL_JOB_STALE_AFTER_SECONDS", 60)
-    job_store.mark_processing("b" * 64)
-    job_store._write_status(
+    job_store.separations.mark_processing("b" * 64)
+    job_store.separations._write_status(
         "b" * 64, {"status": "processing", "startTime": int(time.time()) - 3600}
     )
 
@@ -225,17 +227,19 @@ def test_request_for_a_running_job_does_not_start_a_second_one(
     client, no_bucket, song_files
 ):
     """A duplicate request joins the running job instead of separating again."""
-    job_store.mark_processing(cache_hash())
+    job_store.separations.mark_processing(cache_hash())
 
     response = post_song(client)
 
-    assert response.json()["finishedTrackURL"] == job_store.poll_url(cache_hash())
+    assert response.json()["finishedTrackURL"] == job_store.separations.poll_url(
+        cache_hash()
+    )
     song_files.assert_not_called()
 
 
 def test_request_after_a_failure_starts_a_fresh_job(client, no_bucket, song_files):
     """A failed job must not block later attempts at the same song."""
-    job_store.mark_failed(cache_hash(), "boom")
+    job_store.separations.mark_failed(cache_hash(), "boom")
 
     poll_url = post_song(client).json()["finishedTrackURL"]
 
@@ -248,7 +252,7 @@ def test_request_after_a_dead_worker_starts_a_fresh_job(
 ):
     """An abandoned processing marker must not block later attempts either."""
     monkeypatch.setattr(settings, "LOCAL_JOB_STALE_AFTER_SECONDS", 60)
-    job_store._write_status(
+    job_store.separations._write_status(
         cache_hash(), {"status": "processing", "startTime": int(time.time()) - 3600}
     )
 
@@ -260,15 +264,15 @@ def test_request_after_a_dead_worker_starts_a_fresh_job(
 
 def test_restart_fails_jobs_left_processing(client, no_bucket, song_files):
     """A job killed by a restart reports an error and stops blocking its song."""
-    job_store.mark_processing(cache_hash())
-    job_store.mark_failed("d" * 64, "boom")
+    job_store.separations.mark_processing(cache_hash())
+    job_store.separations.mark_failed("d" * 64, "boom")
 
     job_store.fail_interrupted_jobs()
 
-    body = client.get(job_store.poll_url(cache_hash())).json()
+    body = client.get(job_store.separations.poll_url(cache_hash())).json()
     assert body["status"] == "error"
-    assert body["error"] == job_store.INTERRUPTED_MESSAGE
-    assert job_store.read_status("d" * 64)["error"] == "boom"
+    assert body["error"] == job_store.separations.interrupted_message
+    assert job_store.separations.read_status("d" * 64)["error"] == "boom"
 
     post_song(client)
     song_files.assert_called_once()
@@ -276,18 +280,19 @@ def test_restart_fails_jobs_left_processing(client, no_bucket, song_files):
 
 def test_exited_worker_fails_only_its_own_jobs(client, no_bucket, song_files):
     """A killed worker's jobs fail at once, while its siblings' jobs run on."""
-    job_store.mark_processing(cache_hash())
-    sibling = job_store.mark_processing("e" * 64)
-    job_store._write_status(
-        "e" * 64, {**job_store.read_status("e" * 64), "pid": os.getpid() + 1}
+    job_store.separations.mark_processing(cache_hash())
+    sibling = job_store.separations.mark_processing("e" * 64)
+    job_store.separations._write_status(
+        "e" * 64,
+        {**job_store.separations.read_status("e" * 64), "pid": os.getpid() + 1},
     )
 
     job_store.fail_jobs_of_worker(os.getpid())
 
-    body = client.get(job_store.poll_url(cache_hash())).json()
+    body = client.get(job_store.separations.poll_url(cache_hash())).json()
     assert body["status"] == "error"
-    assert body["error"] == job_store.WORKER_EXITED_MESSAGE
-    assert job_store.is_current_run("e" * 64, sibling)
+    assert body["error"] == job_store.separations.worker_exited_message
+    assert job_store.separations.is_current_run("e" * 64, sibling)
 
     post_song(client)
     song_files.assert_called_once()
@@ -300,11 +305,11 @@ def test_gunicorn_fails_the_jobs_of_an_exited_worker():
     )
     gunicorn_conf = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(gunicorn_conf)
-    job_store.mark_processing(cache_hash())
+    job_store.separations.mark_processing(cache_hash())
 
     gunicorn_conf.child_exit(mock.Mock(), mock.Mock(pid=os.getpid()))
 
-    assert job_store.read_status(cache_hash())["status"] == "error"
+    assert job_store.separations.read_status(cache_hash())["status"] == "error"
 
 
 def test_restart_leaves_finished_results_alone(client, no_bucket, song_files):
@@ -319,12 +324,12 @@ def test_restart_leaves_finished_results_alone(client, no_bucket, song_files):
 def test_expired_results_are_pruned(client, monkeypatch, local_job_dir):
     """Old results are deleted so the job directory does not grow without bound."""
     monkeypatch.setattr(settings, "LOCAL_JOB_RESULT_TTL_SECONDS", 60)
-    stale = job_store.result_path("d" * 64)
+    stale = job_store.separations.result_path("d" * 64)
     stale.write_bytes(b"old result")
     old = time.time() - 3600
     os.utime(stale, (old, old))
 
-    job_store.prune_expired_results()
+    job_store.separations.prune_expired_results()
 
     assert not stale.exists()
 
@@ -333,7 +338,7 @@ def test_cancelled_job_stops_and_reports_cancelled(client, no_bucket, song_files
     """A cancelled job unwinds at its next progress report."""
 
     def cancel_then_report(*args, on_progress=None, **kwargs):
-        job_store.request_cancel(cache_hash())
+        job_store.separations.request_cancel(cache_hash())
         on_progress(0.5, "separating the vocals")
         raise AssertionError("the separation should have been called off")
 
@@ -346,7 +351,7 @@ def test_cancelled_job_stops_and_reports_cancelled(client, no_bucket, song_files
 
 def test_cancel_asks_a_running_job_to_stop(client):
     """The job keeps its processing status until its worker notices."""
-    job_store.mark_processing("9" * 64)
+    job_store.separations.mark_processing("9" * 64)
 
     response = client.post(f"/separated_track/{'9' * 64}/cancel")
 
@@ -364,21 +369,23 @@ def test_cancelling_a_job_that_is_not_running_is_harmless(client):
 
 def test_superseded_run_cannot_record_its_outcome(client):
     """A worker still running past a cancel must not bury the run that replaced it."""
-    superseded = job_store.mark_processing(cache_hash())
-    current = job_store.mark_processing(cache_hash())
+    superseded = job_store.separations.mark_processing(cache_hash())
+    current = job_store.separations.mark_processing(cache_hash())
 
-    job_store.mark_cancelled(cache_hash(), superseded)
+    job_store.separations.mark_cancelled(cache_hash(), superseded)
 
-    status = job_store.read_status(cache_hash())
+    status = job_store.separations.read_status(cache_hash())
     assert status["status"] == "processing"
     assert status["runId"] == current
 
 
 def test_request_after_a_cancel_starts_a_fresh_job(client, no_bucket, song_files):
     """A cancelled song can be separated again."""
-    job_store.mark_processing(cache_hash())
+    job_store.separations.mark_processing(cache_hash())
     client.post(f"/separated_track/{cache_hash()}/cancel")
-    job_store.mark_cancelled(cache_hash(), job_store.read_status(cache_hash())["runId"])
+    job_store.separations.mark_cancelled(
+        cache_hash(), job_store.separations.read_status(cache_hash())["runId"]
+    )
 
     poll_url = post_song(client).json()["finishedTrackURL"]
 
@@ -390,7 +397,7 @@ def test_request_while_a_cancel_is_pending_starts_a_fresh_job(
     client, no_bucket, song_files
 ):
     """A resubmitted song must not attach to the run that is about to unwind."""
-    job_store.mark_processing(cache_hash())
+    job_store.separations.mark_processing(cache_hash())
     client.post(f"/separated_track/{cache_hash()}/cancel")
 
     poll_url = post_song(client).json()["finishedTrackURL"]
@@ -401,8 +408,8 @@ def test_request_while_a_cancel_is_pending_starts_a_fresh_job(
 
 def test_queued_job_reports_the_songs_ahead(client):
     """A job waiting for a free slot tells the client where it stands."""
-    run_id = job_store.mark_processing("3" * 64)
-    job_store.mark_queued("3" * 64, run_id, 2)
+    run_id = job_store.separations.mark_processing("3" * 64)
+    job_store.separations.mark_queued("3" * 64, run_id, 2)
 
     body = client.get(f"/separated_track/{'3' * 64}").json()
 
@@ -413,34 +420,36 @@ def test_queued_job_reports_the_songs_ahead(client):
 
 def test_long_wait_in_line_is_not_mistaken_for_a_dead_worker(client, monkeypatch):
     monkeypatch.setattr(settings, "LOCAL_JOB_STALE_AFTER_SECONDS", 60)
-    run_id = job_store.mark_processing("4" * 64)
-    job_store.mark_queued("4" * 64, run_id, 1)
-    status = job_store.read_status("4" * 64)
-    job_store._write_status("4" * 64, {**status, "startTime": int(time.time()) - 3600})
+    run_id = job_store.separations.mark_processing("4" * 64)
+    job_store.separations.mark_queued("4" * 64, run_id, 1)
+    status = job_store.separations.read_status("4" * 64)
+    job_store.separations._write_status(
+        "4" * 64, {**status, "startTime": int(time.time()) - 3600}
+    )
 
     assert client.get(f"/separated_track/{'4' * 64}").json()["status"] == "processing"
 
 
 def test_leaving_the_line_restarts_the_clock(client):
     """Staleness counts from the start of the separation, not the wait before it."""
-    run_id = job_store.mark_processing("5" * 64)
-    job_store.mark_queued("5" * 64, run_id, 1)
-    status = job_store.read_status("5" * 64)
-    job_store._write_status("5" * 64, {**status, "startTime": 0})
+    run_id = job_store.separations.mark_processing("5" * 64)
+    job_store.separations.mark_queued("5" * 64, run_id, 1)
+    status = job_store.separations.read_status("5" * 64)
+    job_store.separations._write_status("5" * 64, {**status, "startTime": 0})
 
-    assert job_store.mark_started("5" * 64, run_id)
+    assert job_store.separations.mark_started("5" * 64, run_id)
 
-    status = job_store.read_status("5" * 64)
+    status = job_store.separations.read_status("5" * 64)
     assert "songsAhead" not in status
     assert "stage" not in status
     assert status["startTime"] > 0
 
 
 def test_superseded_run_does_not_start(client):
-    superseded = job_store.mark_processing("6" * 64)
-    job_store.mark_processing("6" * 64)
+    superseded = job_store.separations.mark_processing("6" * 64)
+    job_store.separations.mark_processing("6" * 64)
 
-    assert not job_store.mark_started("6" * 64, superseded)
+    assert not job_store.separations.mark_started("6" * 64, superseded)
 
 
 def test_cancelling_a_queued_job_takes_it_out_of_line(client, monkeypatch):
@@ -449,9 +458,9 @@ def test_cancelling_a_queued_job_takes_it_out_of_line(client, monkeypatch):
     async def scenario():
         from api import main
 
-        queue = separation_queue.SeparationQueue(1)
-        monkeypatch.setattr(main, "local_separations", queue)
-        run_id = job_store.mark_processing(cache_hash())
+        queue = job_queue.JobQueue(1)
+        monkeypatch.setattr(main, "local_jobs", queue)
+        run_id = job_store.separations.mark_processing(cache_hash())
 
         async with queue.slot("someone else"):
             waiting = asyncio.create_task(
@@ -460,11 +469,11 @@ def test_cancelling_a_queued_job_takes_it_out_of_line(client, monkeypatch):
                 )
             )
             await asyncio.sleep(0)
-            queued = job_store.read_status(cache_hash())
+            queued = job_store.separations.read_status(cache_hash())
             await main.cancel_separated_track(cache_hash())
             await waiting
 
-        return queued, job_store.read_status(cache_hash())
+        return queued, job_store.separations.read_status(cache_hash())
 
     queued, final = asyncio.run(scenario())
 
