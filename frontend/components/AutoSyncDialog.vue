@@ -51,6 +51,7 @@
         >
           {{ progressMessage }}
         </b-progress>
+        <b-message v-if="notice" type="is-warning" class="is-small">{{ notice }}</b-message>
         <b-message v-if="error" type="is-danger" class="is-small">{{ error }}</b-message>
       </section>
       <footer class="modal-card-foot">
@@ -78,7 +79,7 @@ import { BButton, BField, BMessage, BModal, BProgress, BRadio } from "buefy";
 import { useMediaStore } from "@/stores/media";
 import { useLyricsStore } from "@/stores/lyrics";
 import { useTimingsStore } from "@/stores/timings";
-import { SyncMode, pendingSync, syncVoice } from "@/lib/alignment";
+import { SyncMode, pendingSync, syncVoice, unplacedCount } from "@/lib/alignment";
 import { extensionForBlob } from "@/lib/audio";
 import { TimedSegment, fromLyric } from "@/lib/timedSegments";
 import { VoiceId } from "@/lib/voices";
@@ -104,6 +105,7 @@ export default defineComponent({
       progress: null as number | null,
       stage: null as string | null,
       error: null as string | null,
+      notice: null as string | null,
       controller: null as AbortController | null,
     };
   },
@@ -148,6 +150,7 @@ export default defineComponent({
     modelValue(isOpen: boolean) {
       if (!isOpen) return;
       this.error = null;
+      this.notice = null;
       this.mode = this.untimedCount > 0 ? "fill" : "replace";
     },
   },
@@ -162,11 +165,13 @@ export default defineComponent({
         ? `vocals.${extensionForBlob(this.vocals)}`
         : (this.mediaStore.songFile?.name ?? "song");
       const choosing = this.timedCount > 0 && this.untimedCount > 0;
-      const pending = pendingSync(this.segments, choosing ? this.mode : "replace");
+      const mode = choosing ? this.mode : "replace";
+      const pending = pendingSync(this.segments, mode);
       const controller = new AbortController();
       this.controller = controller;
       this.isSyncing = true;
       this.error = null;
+      this.notice = null;
       this.progress = null;
       this.stage = null;
       try {
@@ -180,6 +185,14 @@ export default defineComponent({
           },
           controller.signal,
         );
+        const asked = pending.request.filter(({ sync }) => sync).length;
+        const unplaced = unplacedCount(pending, result);
+        if (unplaced === asked) {
+          this.error =
+            "Syncing couldn't place any of the syllables, so nothing changed." +
+            (mode === "fill" ? " Syncing every syllable may place them." : "");
+          return;
+        }
         if (!this.timingsStore.applySegmentTimes(this.voice, pending, result)) {
           this.error =
             "This voice's lyrics or timings changed while syncing, so the result was left out. " +
@@ -187,6 +200,12 @@ export default defineComponent({
           return;
         }
         this.$emit("synced");
+        if (unplaced > 0) {
+          this.notice =
+            `Syncing couldn't place ${unplaced} of the ${asked} syllables, ` +
+            "so they were left without a timing.";
+          return;
+        }
         this.close();
       } catch (error) {
         if (!controller.signal.aborted) {

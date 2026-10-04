@@ -14,9 +14,13 @@ const DOUBTFUL = 2;
 
 /**
  * Answers the sync routes as a backend with the fake aligner would, spreading the syllables
- * half a second apart. Returns the requests' segments, as the page sent them.
+ * half a second apart and leaving out those `places` refuses. Returns the requests' segments, as
+ * the page sent them.
  */
-async function mockSyncApi(context: BrowserContext): Promise<{ sent: unknown[][] }> {
+async function mockSyncApi(
+  context: BrowserContext,
+  places: (index: number) => boolean = () => true,
+): Promise<{ sent: unknown[][] }> {
   const requests = { sent: [] as unknown[][] };
   let count = 0;
   await context.route("**/alignment/available", (route) =>
@@ -38,10 +42,9 @@ async function mockSyncApi(context: BrowserContext): Promise<{ sent: unknown[][]
       contentType: "application/json",
       body: JSON.stringify({
         aligner: "fake@1",
-        segments: Array.from({ length: count }, (_, i) => ({
-          start: 0.5 * i,
-          doubtful: i === DOUBTFUL,
-        })),
+        segments: Array.from({ length: count }, (_, i) =>
+          places(i) ? { start: 0.5 * i, doubtful: i === DOUBTFUL } : {},
+        ),
       }),
     }),
   );
@@ -92,5 +95,49 @@ test.describe("Syncing automatically", () => {
     await expect
       .poll(async () => (await savedSegments(page)).every(({ start }) => start === undefined))
       .toBe(true);
+  });
+
+  test("keeps the dialog open and changes nothing when no syllable could be placed", async ({
+    page,
+    context,
+  }) => {
+    await mockSyncApi(context, () => false);
+    await setupBasicInputs(
+      page,
+      defaultTestConfig.audioFile,
+      defaultTestConfig.lyricsFile,
+      defaultTestConfig.artist,
+    );
+    await navigateToTab(page, TabId.TimingAdjustment);
+
+    await page.getByRole("button", { name: "Sync", exact: true }).click();
+    const dialog = page.getByRole("dialog", { name: "Sync automatically" });
+    await dialog.getByRole("button", { name: "Sync", exact: true }).click();
+
+    await expect(dialog.getByText("Syncing couldn't place any of the syllables")).toBeVisible();
+    expect((await savedSegments(page)).every(({ start }) => start === undefined)).toBe(true);
+  });
+
+  test("writes a partial sync and says how many syllables it left out", async ({
+    page,
+    context,
+  }) => {
+    await mockSyncApi(context, (i) => i !== 0);
+    await setupBasicInputs(
+      page,
+      defaultTestConfig.audioFile,
+      defaultTestConfig.lyricsFile,
+      defaultTestConfig.artist,
+    );
+    await navigateToTab(page, TabId.TimingAdjustment);
+
+    await page.getByRole("button", { name: "Sync", exact: true }).click();
+    const dialog = page.getByRole("dialog", { name: "Sync automatically" });
+    await dialog.getByRole("button", { name: "Sync", exact: true }).click();
+
+    await expect(dialog.getByText(/Syncing couldn't place 1 of the \d+ syllables/)).toBeVisible();
+    const segments = await savedSegments(page);
+    expect(segments[0].start).toBeUndefined();
+    expect(segments[1].start).toBe(0.5);
   });
 });

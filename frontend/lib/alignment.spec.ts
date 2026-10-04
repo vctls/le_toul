@@ -1,5 +1,12 @@
 import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
-import { isSyncAvailable, linesToFill, pendingSync, syncVoice, withSyncResult } from "./alignment";
+import {
+  isSyncAvailable,
+  linesToFill,
+  pendingSync,
+  syncVoice,
+  unplacedCount,
+  withSyncResult,
+} from "./alignment";
 import { TimedSegment } from "./timedSegments";
 
 const voice = (): TimedSegment[] => [
@@ -67,6 +74,15 @@ describe("linesToFill", () => {
     expect(
       linesToFill([{ text: "one\n", start: 1 }, { text: "two\n", start: 2 }, { text: "three" }]),
     ).toEqual([false, true, true]);
+  });
+});
+
+describe("unplacedCount", () => {
+  test("counts the synced segments the result left without a start", () => {
+    const pending = pendingSync(voice(), "fill");
+    const result = { aligner: "fake@1", segments: [{ start: 0.5 }, {}, { start: 2.6 }, {}, {}] };
+
+    expect(unplacedCount(pending, result)).toBe(1);
   });
 });
 

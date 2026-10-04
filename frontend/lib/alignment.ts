@@ -103,6 +103,14 @@ export function linesToFill(segments: TimedSegment[]): boolean[] {
 }
 
 /**
+ * How many of the segments a sync was asked to place it left without a start.
+ */
+export function unplacedCount(pending: PendingSync, result: SyncResult): number {
+  return pending.request.filter(({ sync }, i) => sync && result.segments[i].start === undefined)
+    .length;
+}
+
+/**
  * Syncs the request's segments to the vocals on the backend, resolving with the result.
  */
 export async function syncVoice(
