@@ -43,6 +43,26 @@ async function makeProjectFolder(): Promise<string> {
   return folder;
 }
 
+// Mono 8 kHz 16-bit silence, whose length the browser reads exactly from the header.
+function silentWav(seconds: number): Buffer {
+  const rate = 8000;
+  const dataSize = seconds * rate * 2;
+  const header = Buffer.alloc(44);
+  header.write("RIFF", 0);
+  header.writeUInt32LE(36 + dataSize, 4);
+  header.write("WAVEfmt ", 8);
+  header.writeUInt32LE(16, 16);
+  header.writeUInt16LE(1, 20);
+  header.writeUInt16LE(1, 22);
+  header.writeUInt32LE(rate, 24);
+  header.writeUInt32LE(rate * 2, 28);
+  header.writeUInt16LE(2, 32);
+  header.writeUInt16LE(16, 34);
+  header.write("data", 36);
+  header.writeUInt32LE(dataSize, 40);
+  return Buffer.concat([header, Buffer.alloc(dataSize)]);
+}
+
 async function loadProjectFolder(page: Page, folder: string): Promise<void> {
   await navigateToTab(page, TabId.SongInfo);
   await page.locator('[name="project-folder-upload"] input[type="file"]').setInputFiles(folder);
@@ -227,6 +247,22 @@ test.describe("Project Folder Upload", () => {
         'select[aria-label="Playback track"] optgroup[label="Vocals · uploaded"] option',
       ),
     ).toHaveText(["A-vocals.mp3", "B-vocals.mp3", "C-vocals.mp3"]);
+  });
+
+  test("warns about a track that is not the same length as the song", async ({ page }) => {
+    const folder = await makeFolder("short-track");
+    await fs.copyFile(getFixturePath(defaultTestConfig.audioFile), path.join(folder, "song.mp3"));
+    await fs.copyFile(getFixturePath("project/vocals.mp3"), path.join(folder, "vocals.mp3"));
+    await fs.writeFile(path.join(folder, "backing.wav"), silentWav(5));
+
+    await loadProjectFolder(page, folder);
+
+    await expect(
+      page.locator(
+        '.toast:has-text("backing.wav is not the same length as the song, so the timings may not line up with it.")',
+      ),
+    ).toBeVisible({ timeout: 10000 });
+    await expect(page.locator('.toast:has-text("vocals.mp3 is not")')).toHaveCount(0);
   });
 
   test("counts the tracks a new song discards, and offers them but not the song", async ({

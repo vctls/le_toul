@@ -336,6 +336,7 @@ import { useProjectFolderRequestStore } from "@/stores/projectFolderRequest";
 import { parseSettingsYaml } from "@/lib/settingsFile";
 import { classifyProjectFolder, ProjectFolder } from "@/lib/projectFolder";
 import { MAX_UPLOADED_TRACKS, parseFileSource } from "@/lib/trackSources";
+import { tracksOffLength } from "@/lib/trackLength";
 import { kbpToProjectFiles, KbpImport } from "@/lib/kbpConvert";
 import { BUNDLED_FONTS } from "@/lib/fonts";
 import { isTimingsFile } from "@/lib/timedSegments";
@@ -1051,6 +1052,15 @@ export default defineComponent({
               `Ignored ${formatList(skippedTracks.map((file) => file.name))}.`,
           );
         }
+        const folderTracks = [
+          ...project.uploadedTracks.backing,
+          ...project.uploadedTracks.vocals,
+          ...Object.values(project.modelTracks).flatMap((tracks) => Object.values(tracks)),
+        ].filter((file) => !skippedTracks.includes(file));
+        const lengthWarning = await this.lengthWarning(folderTracks);
+        if (lengthWarning) {
+          trackWarnings.push(lengthWarning);
+        }
         if (trackWarnings.length > 0) {
           this.$buefy.toast.open({
             message: trackWarnings.join(" "),
@@ -1064,7 +1074,7 @@ export default defineComponent({
       this.mediaStore.separationModel = model;
     },
     // The field swaps the file it held for the new one, leaving the folder's other files alone.
-    onUploadedTrackChange(kind: TrackKind, file: File | null) {
+    async onUploadedTrackChange(kind: TrackKind, file: File | null) {
       const field = kind === "backing" ? "backingTrackFile" : "vocalTrackFile";
       const added = this.mediaStore.replaceUploadedTrack(kind, this.mediaStore[field], file);
       this.mediaStore[field] = added ? file : null;
@@ -1076,6 +1086,34 @@ export default defineComponent({
           type: "is-warning",
           duration: 5000,
         });
+      } else if (file) {
+        await this.warnAboutLength(file);
+      }
+    },
+    /**
+     * Says which of the tracks differ in length from the song, since a track cut or padded at the
+     * start no longer lines up with timings tapped against the song. Null when they all match,
+     * or when no song is loaded to compare with.
+     */
+    async lengthWarning(tracks: File[]): Promise<string | null> {
+      const songDuration = this.mediaStore.songDuration;
+      if (!songDuration || tracks.length === 0) {
+        return null;
+      }
+      const names = await tracksOffLength(tracks, songDuration);
+      if (names.length === 0) {
+        return null;
+      }
+      const one = names.length === 1;
+      return (
+        `${formatList(names)} ${one ? "is" : "are"} not the same length as the song, ` +
+        `so the timings may not line up with ${one ? "it" : "them"}.`
+      );
+    },
+    async warnAboutLength(track: File) {
+      const message = await this.lengthWarning([track]);
+      if (message) {
+        this.$buefy.toast.open({ message, type: "is-warning", duration: 8000 });
       }
     },
     // Separating again with a model replaces the tracks it made before, so ask first.
