@@ -57,6 +57,13 @@
       </div>
       <div class="title-actions">
         <b-button
+          v-if="canSync"
+          icon-left="wand-magic-sparkles"
+          label="Sync"
+          title="Time this voice automatically from its vocals"
+          @click="openSync"
+        />
+        <b-button
           v-if="canMarkChecked"
           icon-left="check"
           label="Mark as checked"
@@ -142,10 +149,15 @@
           button at the top of the page lists every key, and lets you change them.
         </p>
         <p v-if="reviewIndices.length > 0">
-          A lyric edit changed the timings of the syllables outlined in red or orange. The arrows by
-          the heading make the next or previous one the syllable to tap. The
+          A lyric edit changed the timings of the syllables outlined in red or orange. Those
+          outlined in yellow were placed by syncing, which wasn't sure of them. The arrows by the
+          heading make the next or previous one the syllable to tap. The
           <kbd>{{ keyLabels.nextReview }}</kbd> and <kbd>{{ keyLabels.previousReview }}</kbd> keys
           do the same.
+        </p>
+        <p v-if="canSync">
+          <strong>Sync</strong> times this voice for you from its vocals. It then switches to Adjust
+          mode, where you check its work.
         </p>
         <p class="legacy-tab-switch">
           Looking for the old timing tab?
@@ -215,14 +227,19 @@
           the top of the page lists every key, and lets you change them.
         </p>
         <p v-if="reviewIndices.length > 0 && !displayMode">
-          A lyric edit changed the timings of the syllables drawn in red or orange, with a line
-          across the waveform at each. Red ones lost their timing and sit where the syllables around
-          them put them. Orange ones took their timing from a word that was replaced. The arrows by
-          the heading go from one to the next and move the playhead to the preroll before it. The
+          Syllables to check are drawn in red, orange or yellow, with a line across the waveform at
+          each. Red ones lost their timing in a lyric edit and sit where the syllables around them
+          put them. Orange ones took their timing from a word a lyric edit replaced. Yellow ones
+          were placed by syncing, which wasn't sure of them. The arrows by the heading go from one
+          to the next and move the playhead to the preroll before it. The
           <kbd>{{ keyLabels.nextReview }}</kbd> and <kbd>{{ keyLabels.previousReview }}</kbd> keys
           do the same. Moving a syllable clears its mark, and <strong>Mark as checked</strong>, or
           the <kbd>{{ keyLabels.markChecked }}</kbd> key, clears it on the selected syllables
           without moving them, then goes to the next one.
+        </p>
+        <p v-if="canSync && !displayMode">
+          <strong>Sync</strong> times this voice for you from its vocals, either the syllables
+          without a timing or all of them.
         </p>
       </template>
     </help-section>
@@ -412,11 +429,13 @@
       @redo="onTimingKey('redo')"
       @play-pause="timingAdjusterRef()?.togglePlayPause()"
     />
+    <auto-sync-dialog v-model="isSyncOpen" :voice="activeVoice" @synced="setMode('adjust')" />
   </b-tab-item>
 </template>
 
 <script lang="ts">
 import { defineComponent } from "vue";
+import AutoSyncDialog from "@/components/AutoSyncDialog.vue";
 import HelpSection from "@/components/HelpSection.vue";
 import TimingAdjuster from "@/components/TimingAdjuster.vue";
 import SubtitleDisplay from "./SubtitleDisplay.vue";
@@ -471,6 +490,7 @@ import {
 } from "@/lib/timingKeys";
 import { QueueItem } from "@/components/TapQueue.vue";
 import { displayText, resolveStarts } from "@/lib/timing";
+import { isSyncAvailable } from "@/lib/alignment";
 import { REDO_SHORTCUT, UNDO_SHORTCUT, historyStepFor, historyTitle } from "@/lib/history";
 import { useHistoryStore } from "@/stores/history";
 import { BandUpdate, DisplayBand, displayBands } from "@/lib/displayBands";
@@ -595,6 +615,7 @@ function defaultAdjustState(): AdjustVoiceState {
 export default defineComponent({
   emits: ["open-drawer", "close-drawer"],
   components: {
+    AutoSyncDialog,
     BButton,
     BField,
     BNumberinput,
@@ -689,6 +710,9 @@ export default defineComponent({
       // The voice the segments last seen belong to, so a voice switch isn't read as a lyrics edit.
       segmentsVoice: null as VoiceId | null,
       selectedSegments: [] as number[],
+      isSyncOpen: false,
+      // Whether the server can sync, which it is asked once the tab is mounted.
+      isSyncAvailable: false,
     };
   },
   computed: {
@@ -837,6 +861,10 @@ export default defineComponent({
         TIMING_ACTIONS.map((action) => [action, bindingLabel(this.timingKeys[action])]),
       ) as Record<TimingAction, string>;
     },
+    // Syncing several voices against one vocals track puts each on the others' lines.
+    canSync(): boolean {
+      return this.isSyncAvailable && this.lyricsStore.voices.length <= 1 && !this.displayMode;
+    },
     // Lines mode is Adjust mode while advanced mode is off, and comes back with it.
     displayMode(): boolean {
       return this.advancedStore.isAdvanced && this.mode === "lines" && !this.isTapMode;
@@ -894,6 +922,7 @@ export default defineComponent({
     this.isPhoneLandscape = this._phoneLandscape?.matches ?? false;
     this._phoneLandscape?.addEventListener("change", this.onPhoneLandscapeChange);
     this._unsubscribeScheme = onSchemeChange(this.applyPreviewColors);
+    isSyncAvailable().then((available) => (this.isSyncAvailable = available));
   },
   beforeUnmount() {
     this.historyStore.setTabStepper(null);
@@ -1282,6 +1311,10 @@ export default defineComponent({
     /**
      * Write the pass to the store as one edit per tap. The head stays on the next segment to tap.
      */
+    openSync() {
+      this.endPass();
+      this.isSyncOpen = true;
+    },
     endPass() {
       const { pass, passVoice } = this;
       if (!pass || !passVoice) return;

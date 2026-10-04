@@ -12,7 +12,7 @@ interface PollResponse {
   finishedTrackURL: string;
 }
 
-// Shape of the JSON served while a separation job is still in flight.
+// Shape of the JSON served while a job is still in flight.
 // The backend may or may not suggest a poll interval,
 // so fall back to a value suited to a job running on a remote machine.
 // Progress and stage are only reported by a job running on this backend:
@@ -50,17 +50,33 @@ const FINISHED_STATUSES = ["error", "cancelled"];
 
 // A job running on this backend can be called off.
 // A GCS-backed one is polled straight from the bucket, where nothing is listening.
-const LOCAL_JOB_PREFIX = "/separated_track/";
+const LOCAL_JOB_PREFIXES = ["/separated_track/", "/alignment/"];
 
 function callOffJob(pollUrl: string): void {
-  if (!pollUrl.startsWith(LOCAL_JOB_PREFIX)) {
+  if (!LOCAL_JOB_PREFIXES.some((prefix) => pollUrl.startsWith(prefix))) {
     return;
   }
   // keepalive so the request still goes out if the page is on its way down.
   fetch(`${pollUrl}/cancel`, { method: "POST", keepalive: true }).catch((error) => {
-    console.warn(`Failed to call off the separation job at ${pollUrl}`, error);
+    console.warn(`Failed to call off the job at ${pollUrl}`, error);
   });
 }
+
+// How a job's errors name it.
+export interface JobWording {
+  // As in "Lost contact with the server while separating the track."
+  doing: string;
+  // As in "Track separation failed".
+  name: string;
+  // Said when the server no longer knows the job.
+  gone: string;
+}
+
+const SEPARATION_WORDING: JobWording = {
+  doing: "separating the track",
+  name: "Track separation",
+  gone: "The separation job no longer exists. Please separate the track again.",
+};
 
 function sleep(seconds: number, signal?: AbortSignal): Promise<void> {
   return new Promise((resolve, reject) => {
@@ -98,6 +114,33 @@ async function pollForResult(
   onProgress?: SeparationProgressCallback,
   signal?: AbortSignal,
 ): Promise<Blob> {
+  const result = await pollJob(url, SEPARATION_WORDING, false, onProgress, signal);
+  return result as Blob;
+}
+
+/**
+ * Polls a job whose result is JSON, as a sync's is, until it ends.
+ * A status always has a `status` field, so JSON without one is the result.
+ */
+export async function pollForJson(
+  url: string,
+  wording: JobWording,
+  onProgress?: SeparationProgressCallback,
+  signal?: AbortSignal,
+): Promise<unknown> {
+  return await pollJob(url, wording, true, onProgress, signal);
+}
+
+/**
+ * Polls a job until it ends, returning its result: JSON when `jsonResult` is set, else a Blob.
+ */
+async function pollJob(
+  url: string,
+  wording: JobWording,
+  jsonResult: boolean,
+  onProgress?: SeparationProgressCallback,
+  signal?: AbortSignal,
+): Promise<unknown> {
   let unavailableSince: number | null = null;
   while (true) {
     try {
@@ -105,7 +148,7 @@ async function pollForResult(
       if (response === null) {
         unavailableSince ??= Date.now();
         if (Date.now() - unavailableSince > RESTART_GRACE_SECONDS * 1000) {
-          throw new Error("Lost contact with the server while separating the track.");
+          throw new Error(`Lost contact with the server while ${wording.doing}.`);
         }
         await sleep(UNAVAILABLE_RETRY_SECONDS, signal);
         continue;
@@ -115,21 +158,24 @@ async function pollForResult(
       // Job statuses always arrive as 200. Error bodies are JSON too,
       // so without this check a 404 would read as a job still in flight and be polled forever.
       if (response.status === 404) {
-        throw new Error("The separation job no longer exists. Please separate the track again.");
+        throw new Error(wording.gone);
       }
       if (!response.ok) {
-        throw new Error(`Track separation failed with status ${response.status}`);
+        throw new Error(`${wording.name} failed with status ${response.status}`);
       }
 
       const contentType = response.headers.get("content-type");
 
       if (contentType?.includes("application/json")) {
         const status: JobStatus = await response.json();
+        if (jsonResult && status.status === undefined) {
+          return status;
+        }
 
-        // A job that failed or was called off never produces a zip,
+        // A job that failed or was called off never produces a result,
         // so without this the poll loop would never terminate.
         if (status.status && FINISHED_STATUSES.includes(status.status)) {
-          throw new Error(status.error || "Track separation failed");
+          throw new Error(status.error || `${wording.name} failed`);
         }
 
         onProgress?.({
@@ -149,7 +195,7 @@ async function pollForResult(
         callOffJob(url);
         throw error;
       }
-      console.error(`Failed to fetch audio separation result from URL: ${url}`, error);
+      console.error(`Failed to fetch the result of the job at ${url}`, error);
       throw error;
     }
   }

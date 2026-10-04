@@ -33,6 +33,7 @@ import { VideoSettings } from "./settings";
 import { VoiceId, DEFAULT_VOICE_ID, parseAnnotatedLyrics } from "@/lib/voices";
 import { loadJsonFromStorage } from "@/lib/persistence";
 import { writeTimingsText } from "@/lib/timingsText";
+import { PendingSync, SyncResult, withSyncResult } from "@/lib/alignment";
 
 const SEGMENTS_STORAGE_KEY = "timings._segments";
 // This key is read-only now.
@@ -517,6 +518,20 @@ export const useTimingsStore = defineStore("timings", {
         this.normalizeDisplayPeriods();
         this.commitBaseline();
       });
+    },
+
+    /**
+     * Write a sync's result into the voice it was made for, as one edit that can be undone.
+     * Returns false, writing nothing, when the voice has changed since the sync was requested.
+     */
+    applySegmentTimes(voice: VoiceId, pending: PendingSync, result: SyncResult): boolean {
+      const current =
+        this._segmentsByVoice[voice] ?? useLyricsStore().segmentsForVoice(voice).map(fromLyric);
+      const written = withSyncResult(current, pending, result);
+      if (!written) return false;
+      // The sync sets the flags of what it wrote, which a plain edit would clear.
+      this.applyVoiceEdit(voice, written, "Sync", { keepReview: true });
+      return true;
     },
 
     /**

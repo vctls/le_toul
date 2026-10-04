@@ -13,6 +13,8 @@ import { DEFAULT_VOICE_ID } from "@/lib/voices";
 import { TimedSegment } from "@/lib/timedSegments";
 import { parseTimingsText } from "@/lib/timingsText";
 import { startPass, tapStart, tapSteps } from "@/lib/tapPass";
+import { pendingSync } from "@/lib/alignment";
+import { useHistoryStore } from "./history";
 
 // Mock the createAssFile function
 vi.mock("@/lib/timing", async (importOriginal) => ({
@@ -426,6 +428,33 @@ describe("Timings Store", () => {
         "moved",
         "lost",
       ]);
+    });
+
+    test("a sync writes its doubtful flags and is one undo entry", () => {
+      const timings = load();
+      const pending = pendingSync(timings.activeSegments, "fill");
+      const result = { aligner: "fake@1", segments: [{}, {}, { start: 3, doubtful: true }] };
+
+      expect(timings.applySegmentTimes(DEFAULT_VOICE_ID, pending, result)).toBe(true);
+      expect(timings.activeSegments.map(({ start, review }) => [start, review])).toEqual([
+        [1, undefined],
+        [2, "moved"],
+        [3, "doubtful"],
+      ]);
+
+      useHistoryStore().undo();
+
+      expect(timings.activeSegments).toEqual(flagged());
+    });
+
+    test("a sync for a voice that has changed since writes nothing", () => {
+      const timings = load();
+      const pending = pendingSync(timings.activeSegments, "fill");
+      timings.applyAdjustEdit(withSegment(0, { start: 0.5 }), "Drag");
+      const result = { aligner: "fake@1", segments: [{}, {}, { start: 3, doubtful: true }] };
+
+      expect(timings.applySegmentTimes(DEFAULT_VOICE_ID, pending, result)).toBe(false);
+      expect(timings.activeSegments[2]).toEqual({ text: "three", review: "lost" });
     });
 
     test("a tap clears the flag of the segment it times", () => {
