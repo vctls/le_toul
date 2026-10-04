@@ -5,11 +5,13 @@ audio that is, checks what comes back, and takes the ends from the vocals track.
 """
 
 import math
+import traceback
 from dataclasses import dataclass
 from pathlib import Path
 
 import numpy as np
 
+from api.karaoke import gpu
 from api.karaoke.aligners import Aligner, AlignerSegment, get_aligner
 from api.karaoke.separation_progress import ProgressCallback
 
@@ -87,6 +89,26 @@ def align_track(
 
     It holds one entry per segment, in order, empty for a segment kept as it is or one
     the aligner left untimed.
+    """
+    try:
+        return _align_track(aligner_name, vocals, segments, on_progress)
+    except BaseException as e:
+        # The traceback's frames keep the aligner, and its model on the GPU, alive.
+        traceback.clear_frames(e.__traceback__)
+        raise
+    finally:
+        gpu.release_memory()
+
+
+def _align_track(
+    aligner_name: str,
+    vocals: Path,
+    segments: list[SyncSegment],
+    on_progress: ProgressCallback | None,
+) -> dict:
+    """Load the aligner and sync the segments with it.
+
+    A function of its own so that the aligner is unreferenced once it returns.
     """
     aligner = get_aligner(aligner_name)
     if on_progress:

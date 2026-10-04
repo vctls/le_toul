@@ -5,21 +5,27 @@ never turn on syncing where it can't run, such as in an image built without torc
 """
 
 import json
+import threading
 import wave
 from pathlib import Path
 from unittest import mock
 
 import numpy as np
 import pytest
+from fastapi import FastAPI
+from fastapi.testclient import TestClient
 
-from api.karaoke import alignment_backends
+from api.karaoke import alignment_backends, separation_backends
 from api.karaoke.alignment_backends import (
     NONE,
     InProcessBackend,
+    RemoteBackend,
     SubprocessBackend,
     configured_name,
     get_backend,
 )
+from api.karaoke.separation_backends import PassthroughBackend
+from api.separation_tasks import LocalTaskRunner, create_router
 
 SAMPLE_RATE = 16000
 
@@ -173,3 +179,85 @@ def test_subprocess_reports_what_the_child_failed_on(fake_aligner, tmp_path: Pat
         SubprocessBackend(inner="nope").align(
             write_vocals(tmp_path / "vocals.wav"), REQUEST, tmp_path
         )
+
+
+class HeldAligner:
+    """Reports once, then waits for release before syncing in this process."""
+
+    name = "held"
+
+    def __init__(self):
+        self.release = threading.Event()
+
+    def align(self, vocals, request, work_dir, on_progress=None):
+        on_progress(0.25, "aligning the lyrics")
+        self.release.wait(5)
+        on_progress(0.5, "aligning the lyrics")
+        return InProcessBackend().align(vocals, request, work_dir)
+
+
+def separator(alignment_backend=None) -> tuple[TestClient, LocalTaskRunner]:
+    runner = LocalTaskRunner(PassthroughBackend(), alignment_backend)
+    app = FastAPI()
+    app.include_router(create_router(runner))
+    return TestClient(app), runner
+
+
+@pytest.fixture
+def no_poll_wait():
+    with mock.patch.object(separation_backends, "REMOTE_POLL_INTERVAL_SECONDS", 0):
+        yield
+
+
+def test_remote_returns_what_the_separator_synced(
+    fake_aligner, no_poll_wait, tmp_path: Path
+):
+    vocals = write_vocals(tmp_path / "vocals.wav")
+    client, _ = separator()
+    work_dir = tmp_path / "work"
+    work_dir.mkdir()
+
+    result = RemoteBackend(client).align(vocals, REQUEST, work_dir)
+
+    assert result == InProcessBackend().align(vocals, REQUEST, tmp_path)
+
+
+def test_remote_calls_off_the_separators_task_when_the_sync_is_cancelled(
+    fake_aligner, no_poll_wait, tmp_path: Path
+):
+    held = HeldAligner()
+    client, runner = separator(held)
+
+    def cancel(fraction, stage):
+        if stage == "aligning the lyrics":
+            raise KeyboardInterrupt()
+
+    try:
+        with pytest.raises(KeyboardInterrupt):
+            RemoteBackend(client).align(
+                write_vocals(tmp_path / "vocals.wav"), REQUEST, tmp_path, cancel
+            )
+    finally:
+        held.release.set()
+
+    (task_id,) = runner._tasks
+    assert runner.status(task_id).status == "cancelled"
+
+
+def test_remote_needs_the_separators_address(fake_aligner, monkeypatch):
+    monkeypatch.setattr("api.settings.ALIGNMENT_BACKEND", "remote")
+    monkeypatch.setattr("api.settings.SEPARATION_REMOTE_URL", "")
+
+    with pytest.raises(ValueError, match="requires SEPARATION_REMOTE_URL"):
+        configured_name()
+
+
+def test_remote_needs_none_of_the_aligners_dependencies_here(monkeypatch):
+    """The web tier of a GPU or Modal deployment is built without torch."""
+    monkeypatch.setattr("api.settings.ALIGNMENT_BACKEND", "remote")
+    monkeypatch.setattr("api.settings.SEPARATION_REMOTE_URL", "http://separator:8001")
+
+    with mock.patch.object(
+        alignment_backends.aligners, "missing_dependencies", return_value=["torch"]
+    ):
+        assert configured_name() == "remote"

@@ -49,6 +49,7 @@ from .karaoke import (
     separation_backends,
     separation_progress,
 )
+from .karaoke.alignment_backends import AlignmentRequest
 from .karaoke.music_separation import AVAILABLE_MODELS, SeparationResult
 from .vite_assets import vite_assets
 
@@ -222,30 +223,6 @@ class JobPollResponse(BaseModel):
 
 class DownloadPollResponse(BaseModel):
     finishedDownloadURL: str
-
-
-# A song has hundreds of segments, rarely more than a couple of thousand.
-MAX_ALIGNMENT_SEGMENTS = 20_000
-
-
-class AlignmentSegment(BaseModel):
-    model_config = ConfigDict(extra="forbid")
-
-    # The text as drawn, without the `_` and `/` markup.
-    text: str = Field(max_length=1000)
-    endsLine: bool
-    # False for a segment kept as it is.
-    sync: bool
-    start: float | None = Field(default=None, ge=0, allow_inf_nan=False)
-    end: float | None = Field(default=None, ge=0, allow_inf_nan=False)
-
-
-class AlignmentRequest(BaseModel):
-    model_config = ConfigDict(extra="forbid")
-
-    segments: list[AlignmentSegment] = Field(
-        min_length=1, max_length=MAX_ALIGNMENT_SEGMENTS
-    )
 
 
 def streamed_response(file_path: Path) -> StreamingResponse:

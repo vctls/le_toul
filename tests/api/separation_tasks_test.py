@@ -5,6 +5,7 @@ stems at once, and one holds its task open until the test lets it go, so each
 stage a client can observe is reachable on demand.
 """
 
+import json
 import threading
 import time
 from unittest import mock
@@ -279,3 +280,81 @@ def test_the_separator_server_serves_the_job_protocol():
 
     assert client.get("/health").status_code == 200
     assert {"/tasks", "/tasks/{task_id}"} <= paths
+
+
+SYNC_REQUEST = {
+    "segments": [
+        {"text": "Went ", "endsLine": False, "sync": True},
+        {"text": "out", "endsLine": True, "sync": True},
+    ]
+}
+
+
+class FakeAlignmentBackend:
+    """Times every segment at a second, as a stand-in for a real sync."""
+
+    name = "fake"
+
+    def align(self, vocals, request, work_dir, on_progress=None):
+        segments = [{"start": 1.0, "doubtful": False} for _ in request["segments"]]
+        return {"aligner": "fake@1", "segments": segments}
+
+
+def submit_sync(client, request=SYNC_REQUEST):
+    return client.post(
+        "/tasks",
+        data={"kind": "align", "request": json.dumps(request)},
+        files={"vocalsFile": ("vocals.wav", b"vocals", "audio/wav")},
+    )
+
+
+def sync_client() -> TestClient:
+    app = FastAPI()
+    runner = LocalTaskRunner(PassthroughBackend(), FakeAlignmentBackend())
+    app.include_router(create_router(runner))
+    return TestClient(app)
+
+
+def test_a_sync_task_runs_to_done_and_serves_its_result():
+    client = sync_client()
+
+    response = submit_sync(client)
+    assert response.status_code == 202
+    status = wait_for(client, response.json()["task_id"])
+
+    assert status["status"] == "done"
+    assert status["files"] == {"alignment": "alignment.json"}
+    result = client.get(f"/tasks/{response.json()['task_id']}/files/alignment.json")
+    assert result.json()["segments"] == [{"start": 1.0, "doubtful": False}] * 2
+
+
+@pytest.mark.parametrize(
+    "data",
+    [
+        {"kind": "align"},
+        {"kind": "align", "request": "not json"},
+        {"kind": "align", "request": json.dumps({"segments": [{"text": "a"}]})},
+    ],
+)
+def test_a_malformed_sync_is_refused(data):
+    response = sync_client().post(
+        "/tasks",
+        data=data,
+        files={"vocalsFile": ("vocals.wav", b"vocals", "audio/wav")},
+    )
+
+    assert response.status_code == 400
+
+
+def test_a_host_whose_runner_cannot_sync_refuses_a_sync():
+    class SeparatingOnly:
+        def submit(self, song, filename, model_name):
+            raise AssertionError("A sync must not reach the separation")
+
+    app = FastAPI()
+    app.include_router(create_router(SeparatingOnly()))
+
+    response = submit_sync(TestClient(app))
+
+    assert response.status_code == 400
+    assert response.json()["detail"] == "This host doesn't sync."
