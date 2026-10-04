@@ -88,7 +88,7 @@ describe("kbpToProjectFiles", () => {
     expect(settings.warnings).toEqual([]);
     expect(settings.song).toEqual({ title: "Pale Moon", artist: "The Placeholders" });
     expect(settings.videoOptions.countInMode).toBe("none");
-    expect(settings.videoOptions.addInstrumentalScreens).toBe(false);
+    expect(settings.videoOptions.instrumentalThreshold).toBe(0);
     expect(settings.videoOptions.verticalAlignment).toBe(VerticalAlignment.Top);
     // The fixture's margins are top 7 and line spacing 12, and its font size is 22 once scaled:
     // (12 + 19) and (7 + 12) CDG units, times 288 / 216, over 22.

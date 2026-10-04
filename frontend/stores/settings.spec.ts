@@ -28,7 +28,7 @@ describe("Settings Store", () => {
     // Check default values
     expect(settingsStore.videoOptions.addTitleScreen).toBe(true);
     expect(settingsStore.videoOptions.countInMode).toBe("screen");
-    expect(settingsStore.videoOptions.addInstrumentalScreens).toBe(true);
+    expect(settingsStore.videoOptions.instrumentalThreshold).toBe(8);
     expect(settingsStore.videoOptions.addStaggeredLines).toBe(true);
     expect(settingsStore.videoOptions.useBackgroundVideo).toBe(false);
     expect(settingsStore.videoOptions.outputFormat).toBe("mp4");
@@ -69,7 +69,7 @@ describe("Settings Store", () => {
     const customSettings = {
       addTitleScreen: false,
       countInMode: "line",
-      addInstrumentalScreens: false,
+      instrumentalThreshold: 0,
       addStaggeredLines: false,
       useBackgroundVideo: true,
       verticalAlignment: VerticalAlignment.Top,
@@ -93,7 +93,7 @@ describe("Settings Store", () => {
     // Verify settings were loaded
     expect(settingsStore.videoOptions.addTitleScreen).toBe(false);
     expect(settingsStore.videoOptions.countInMode).toBe("line");
-    expect(settingsStore.videoOptions.addInstrumentalScreens).toBe(false);
+    expect(settingsStore.videoOptions.instrumentalThreshold).toBe(0);
     expect(settingsStore.videoOptions.addStaggeredLines).toBe(false);
     expect(settingsStore.videoOptions.useBackgroundVideo).toBe(true);
     expect(settingsStore.videoOptions.verticalAlignment).toBe(VerticalAlignment.Top);
@@ -132,7 +132,7 @@ describe("Settings Store", () => {
     const customSettings = {
       addTitleScreen: false,
       countInMode: "line",
-      addInstrumentalScreens: false,
+      instrumentalThreshold: 0,
       addStaggeredLines: false,
       useBackgroundVideo: true,
       verticalAlignment: VerticalAlignment.Top,

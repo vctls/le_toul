@@ -51,7 +51,7 @@ export const DEFAULT_TOP_MARGIN = 1.5;
 export const DEFAULT_OUTLINE_WIDTH = 1;
 
 export const TITLE_SCREEN_DURATION = 4.0;
-export const INSTRUMENTAL_SCREEN_THRESHOLD = 8.0;
+export const DEFAULT_INSTRUMENTAL_THRESHOLD = 8.0;
 
 export const DEFAULT_COUNT_IN_MODE = "screen";
 export const DEFAULT_COUNT_IN_TEXT = "";

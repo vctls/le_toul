@@ -21,7 +21,7 @@ const EXPORTED_FILE = yaml.dump({
     countInText: "1 2 3 ",
     countInThreshold: 6.5,
     countInDuration: 1.5,
-    addInstrumentalScreens: true,
+    instrumentalThreshold: 8,
     addStaggeredLines: true,
     useStoredDisplayPeriods: false,
     useBackgroundVideo: true,
@@ -72,7 +72,7 @@ describe("parseSettingsYaml", () => {
     expect(parsed.videoOptions.countInText).toBe("1 2 3 ");
     expect(parsed.videoOptions.countInThreshold).toBe(6.5);
     expect(parsed.videoOptions.countInDuration).toBe(1.5);
-    expect(parsed.videoOptions.addInstrumentalScreens).toBe(true);
+    expect(parsed.videoOptions.instrumentalThreshold).toBe(8);
     expect(parsed.videoOptions.addStaggeredLines).toBe(true);
     expect(parsed.videoOptions.useStoredDisplayPeriods).toBe(false);
     expect(parsed.videoOptions.useBackgroundVideo).toBe(true);
@@ -145,6 +145,12 @@ describe("parseSettingsYaml", () => {
     const off = parseSettingsYaml("videoOptions:\n  addCountIns: false\n");
     expect(off.warnings).toEqual([]);
     expect(off.videoOptions.countInMode).toBe("none");
+  });
+
+  test("skips a negative instrumental threshold", () => {
+    const parsed = parseSettingsYaml("videoOptions:\n  instrumentalThreshold: -1\n");
+    expect(parsed.videoOptions.instrumentalThreshold).toBeUndefined();
+    expect(parsed.warnings.join("\n")).toContain("videoOptions.instrumentalThreshold");
   });
 
   test("accepts named vertical alignments for hand-written files", () => {
@@ -268,7 +274,7 @@ describe("serializeSettingsYaml", () => {
       dynamicCountIns: false,
       countInThreshold: 6.5,
       countInDuration: 1.5,
-      addInstrumentalScreens: true,
+      instrumentalThreshold: 8,
       addStaggeredLines: true,
       useBackgroundVideo: true,
       outputFormat: "mkv",

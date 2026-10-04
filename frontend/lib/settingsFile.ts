@@ -93,7 +93,6 @@ export function serializeSettingsYaml({
 const BOOLEAN_OPTIONS = [
   "addTitleScreen",
   "dynamicCountIns",
-  "addInstrumentalScreens",
   "addStaggeredLines",
   "useStoredDisplayPeriods",
   "useBackgroundVideo",
@@ -122,6 +121,7 @@ const KNOWN_VIDEO_OPTIONS = [
   "countInMode",
   LEGACY_COUNT_IN_KEY,
   "countInText",
+  "instrumentalThreshold",
   "outputFormat",
   "verticalAlignment",
   "lineSpacing",
@@ -161,6 +161,18 @@ function readPositiveNumber(value: unknown, path: string, warnings: string[]): n
   if (parsed <= 0) {
     warnings.push(
       `${path}: expected a number of seconds above zero, ignoring ${JSON.stringify(value)}`,
+    );
+    return undefined;
+  }
+  return parsed;
+}
+
+function readSecondsOrZero(value: unknown, path: string, warnings: string[]): number | undefined {
+  const parsed = readNumber(value, path, warnings);
+  if (parsed === undefined) return undefined;
+  if (parsed < 0) {
+    warnings.push(
+      `${path}: expected a number of seconds, or zero, ignoring ${JSON.stringify(value)}`,
     );
     return undefined;
   }
@@ -371,6 +383,13 @@ function parseVideoOptions(raw: unknown, warnings: string[]): Partial<VideoSetti
     const enabled = readBoolean(legacyCountIns, `videoOptions.${LEGACY_COUNT_IN_KEY}`, warnings);
     if (enabled !== undefined) options.countInMode = enabled ? "screen" : "none";
   }
+
+  const instrumentalThreshold = readSecondsOrZero(
+    raw.instrumentalThreshold,
+    "videoOptions.instrumentalThreshold",
+    warnings,
+  );
+  if (instrumentalThreshold !== undefined) options.instrumentalThreshold = instrumentalThreshold;
 
   const countInMode = readCountInMode(raw.countInMode, "videoOptions.countInMode", warnings);
   if (countInMode !== undefined) options.countInMode = countInMode;

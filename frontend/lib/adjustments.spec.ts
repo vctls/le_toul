@@ -41,7 +41,7 @@ const DEFAULT_OPTIONS: KaraokeOptions = {
   dynamicCountIns: false,
   countInThreshold: DEFAULT_COUNT_IN_THRESHOLD,
   countInDuration: DEFAULT_COUNT_IN_DURATION,
-  addInstrumentalScreens: true,
+  instrumentalThreshold: 8,
   addStaggeredLines: true,
   useStoredDisplayPeriods: true,
   useBackgroundVideo: false,
@@ -494,6 +494,24 @@ Dialogue: 0,0:00:30.00,0:00:31.00,Default,Singer,0,0,133,,{\\k0}{\\kf100}screen 
   );
 });
 
+test("addInstrumentalScreens skips gaps shorter than the threshold", () => {
+  const lyrics = "screen one\n\nscreen two";
+  const timings: LyricEvent[] = [
+    [1.0, LYRIC_MARKERS.SEGMENT_START],
+    [2.0, LYRIC_MARKERS.SEGMENT_END],
+    [20.0, LYRIC_MARKERS.SEGMENT_START],
+    [21.0, LYRIC_MARKERS.SEGMENT_END],
+  ];
+  const withThreshold = (instrumentalThreshold: number) =>
+    addInstrumentalScreens(compileLyricTimings(fromEvents(lyrics, timings)), {
+      ...DEFAULT_OPTIONS,
+      instrumentalThreshold,
+    });
+
+  expect(withThreshold(18.5)).toHaveLength(2);
+  expect(withThreshold(18)).toHaveLength(3);
+});
+
 test("fast lines display early", () => {
   const screens = [
     new LyricsScreen(), // ignored title screen
@@ -619,7 +637,7 @@ describe("stored display periods", () => {
     ...DEFAULT_OPTIONS,
     addTitleScreen: false,
     countInMode: "none",
-    addInstrumentalScreens: false,
+    instrumentalThreshold: 0,
     addStaggeredLines: false,
   };
   const lyricScreens = (screens: LyricsScreen[]) => screens.filter((s) => s.kind === "lyrics");
@@ -720,7 +738,7 @@ describe("stored display periods", () => {
   });
 
   it("shorten an instrumental screen, or remove it", () => {
-    const options: KaraokeOptions = { ...plain, addInstrumentalScreens: true };
+    const options: KaraokeOptions = { ...plain, instrumentalThreshold: 8 };
     const bar = (screens: LyricsScreen[]) => {
       const screen = screens.find((s) => s.kind === "instrumental");
       return screen && [screen.startTimestamp, screen.lines[0].segments[0].endTimestamp];
@@ -738,7 +756,7 @@ describe("stored display periods", () => {
     const options: KaraokeOptions = {
       ...plain,
       addTitleScreen: true,
-      addInstrumentalScreens: true,
+      instrumentalThreshold: 8,
       useStoredDisplayPeriods: false,
     };
     const screens = createScreens(

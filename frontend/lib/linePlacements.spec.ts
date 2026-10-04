@@ -8,7 +8,7 @@ const options: KaraokeOptions = {
   ...DEFAULT_KARAOKE_OPTIONS,
   addTitleScreen: false,
   countInMode: "none",
-  addInstrumentalScreens: false,
+  instrumentalThreshold: 0,
   addStaggeredLines: false,
 };
 

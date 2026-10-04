@@ -8,7 +8,7 @@ const options: KaraokeOptions = {
   ...DEFAULT_KARAOKE_OPTIONS,
   addTitleScreen: false,
   countInMode: "none",
-  addInstrumentalScreens: false,
+  instrumentalThreshold: 0,
   addStaggeredLines: false,
 };
 
@@ -87,7 +87,7 @@ describe("fadeLines", () => {
   it("starts an instrumental screen once the line before it has faded out", () => {
     const screens = layOut(twoScreens({ start: 20, end: 21 }), {
       ...options,
-      addInstrumentalScreens: true,
+      instrumentalThreshold: 8,
     });
     const instrumental = screens.find((screen) => screen.kind === "instrumental");
 

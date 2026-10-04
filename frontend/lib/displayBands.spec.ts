@@ -11,7 +11,7 @@ import { DEFAULT_KARAOKE_OPTIONS, KaraokeOptions } from "./timing";
 
 const options: KaraokeOptions = {
   ...DEFAULT_KARAOKE_OPTIONS,
-  addInstrumentalScreens: false,
+  instrumentalThreshold: 0,
   addStaggeredLines: false,
 };
 

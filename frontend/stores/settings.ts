@@ -30,6 +30,7 @@ import {
   DEFAULT_TOP_MARGIN,
   DEFAULT_OUTLINE_WIDTH,
   DEFAULT_DYNAMIC_COUNT_INS,
+  DEFAULT_INSTRUMENTAL_THRESHOLD,
 } from "@/constants";
 
 const VOICE_STYLES_STORAGE_KEY = "voiceStyles";
@@ -141,7 +142,7 @@ export type VideoSettings = {
   dynamicCountIns: boolean;
   countInThreshold: number;
   countInDuration: number;
-  addInstrumentalScreens: boolean;
+  instrumentalThreshold: number;
   addStaggeredLines: boolean;
   useStoredDisplayPeriods: boolean;
   useBackgroundVideo: boolean;
@@ -180,7 +181,7 @@ const DEFAULT_SETTINGS: VideoSettings = {
   dynamicCountIns: DEFAULT_DYNAMIC_COUNT_INS,
   countInThreshold: DEFAULT_COUNT_IN_THRESHOLD,
   countInDuration: DEFAULT_COUNT_IN_DURATION,
-  addInstrumentalScreens: true,
+  instrumentalThreshold: DEFAULT_INSTRUMENTAL_THRESHOLD,
   addStaggeredLines: true,
   useStoredDisplayPeriods: true,
   useBackgroundVideo: false,

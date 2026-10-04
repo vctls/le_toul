@@ -5,7 +5,6 @@ import {
   exactFieldFor,
   fieldFor,
   radioFor,
-  switchFor,
   TabId,
   getFixturePath,
 } from "./utils";
@@ -38,7 +37,9 @@ test.describe("Settings File Upload", () => {
     // ...as are the video options, over on the Submit tab
     await navigateToTab(page, TabId.Submit);
     await expect(radioFor(page, "Count-Ins", "line")).toBeChecked();
-    await expect(switchFor(page, "Instrumental Breaks")).toBeChecked();
+    await expect(fieldFor(page, "Instrumental Breaks").locator('input[type="number"]')).toHaveValue(
+      "12.5",
+    );
     await expect(fieldFor(page, "Video Format").locator("select")).toHaveValue("mkv");
 
     await page.getByRole("button", { name: "Fonts and Colors" }).click();

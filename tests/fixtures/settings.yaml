@@ -7,7 +7,7 @@ separationModel: UVR-MDX-NET-Inst_HQ_3.onnx
 videoOptions:
   addTitleScreen: true
   countInMode: line
-  addInstrumentalScreens: true
+  instrumentalThreshold: 12.5
   addStaggeredLines: true
   useBackgroundVideo: false
   outputFormat: mkv

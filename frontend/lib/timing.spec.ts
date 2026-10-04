@@ -34,7 +34,7 @@ const DEFAULT_OPTIONS: KaraokeOptions = {
   dynamicCountIns: false,
   countInThreshold: DEFAULT_COUNT_IN_THRESHOLD,
   countInDuration: DEFAULT_COUNT_IN_DURATION,
-  addInstrumentalScreens: true,
+  instrumentalThreshold: 8,
   addStaggeredLines: true,
   useStoredDisplayPeriods: true,
   useBackgroundVideo: false,
@@ -391,7 +391,7 @@ describe("spacers", () => {
       ...DEFAULT_OPTIONS,
       addTitleScreen: false,
       countInMode: "none",
-      addInstrumentalScreens: false,
+      instrumentalThreshold: 0,
       addStaggeredLines: false,
       verticalAlignment: VerticalAlignment.Top,
     };
@@ -428,7 +428,7 @@ test("the title screen stays centred whatever the alignment", () => {
   const options: KaraokeOptions = {
     ...DEFAULT_OPTIONS,
     countInMode: "none",
-    addInstrumentalScreens: false,
+    instrumentalThreshold: 0,
     addStaggeredLines: false,
     verticalAlignment: VerticalAlignment.Top,
   };
@@ -459,7 +459,7 @@ test("createAssFileForShortIntroSong", () => {
   const songDuration = 60.0;
   const options: KaraokeOptions = {
     ...DEFAULT_OPTIONS,
-    addInstrumentalScreens: false,
+    instrumentalThreshold: 0,
     addStaggeredLines: false,
   };
   const assFile = createAssFile(
@@ -500,7 +500,7 @@ test("addCountIn", () => {
   ];
   const options: KaraokeOptions = {
     ...DEFAULT_OPTIONS,
-    addInstrumentalScreens: false,
+    instrumentalThreshold: 0,
     addStaggeredLines: false,
   };
   let assFile = createAssFile(
@@ -549,7 +549,7 @@ Dialogue: 0,0:00:12.00,0:01:00.00,Default,Singer,0,0,133,,{\\k0}{\\kf100}And {\\
 `;
   const options: KaraokeOptions = {
     ...DEFAULT_OPTIONS,
-    addInstrumentalScreens: false,
+    instrumentalThreshold: 0,
     addStaggeredLines: false,
   };
 
@@ -661,7 +661,7 @@ describe("CJK lyrics in the ASS file", () => {
     ...DEFAULT_OPTIONS,
     addTitleScreen: true,
     countInMode: "none",
-    addInstrumentalScreens: false,
+    instrumentalThreshold: 0,
     addStaggeredLines: false,
   };
   const segments = fromEvents("残酷な天使\n", [[5.0, LYRIC_MARKERS.SEGMENT_START]]);
@@ -705,7 +705,7 @@ describe("symbols in the ASS file", () => {
     ...DEFAULT_OPTIONS,
     addTitleScreen: false,
     countInMode: "none",
-    addInstrumentalScreens: false,
+    instrumentalThreshold: 0,
     addStaggeredLines: false,
     font: { ...DEFAULT_OPTIONS.font, name: "Arial" },
   };
@@ -733,7 +733,7 @@ describe("createMultiVoiceAssFile", () => {
     ...DEFAULT_OPTIONS,
     addTitleScreen: false,
     countInMode: "none",
-    addInstrumentalScreens: false,
+    instrumentalThreshold: 0,
     addStaggeredLines: false,
   };
 
@@ -819,7 +819,7 @@ describe("multi-voice vertical lanes", () => {
       ...DEFAULT_OPTIONS,
       addTitleScreen: false,
       countInMode: "none",
-      addInstrumentalScreens: false,
+      instrumentalThreshold: 0,
       addStaggeredLines: true,
     };
     // Four screens of two lines, each following the last closely enough to be staggered.
@@ -893,7 +893,7 @@ describe("multi-voice vertical lanes", () => {
       ...DEFAULT_OPTIONS,
       addTitleScreen: false,
       countInMode: "none",
-      addInstrumentalScreens: false,
+      instrumentalThreshold: 0,
       addStaggeredLines: true,
       font: { ...DEFAULT_OPTIONS.font, size: 20 },
     };
@@ -925,7 +925,7 @@ describe("multi-voice vertical lanes", () => {
       ...DEFAULT_OPTIONS,
       addTitleScreen: false,
       countInMode: "none",
-      addInstrumentalScreens: false,
+      instrumentalThreshold: 0,
       addStaggeredLines: false,
     };
     const tracks = [
@@ -953,7 +953,7 @@ describe("multi-voice audio delay", () => {
     ...DEFAULT_OPTIONS,
     addTitleScreen: false,
     countInMode: "none",
-    addInstrumentalScreens: false,
+    instrumentalThreshold: 0,
     addStaggeredLines: false,
   };
   const titled: KaraokeOptions = { ...plain, addTitleScreen: true };

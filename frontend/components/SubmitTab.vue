@@ -155,12 +155,26 @@
             <b-tooltip
               append-to-body
               content-class="wide-tooltip"
-              label="Add screens that count down long instrumentals"
+              label="How many seconds without lyrics get a screen that counts down the instrumental. 0 turns them off."
             >
               <b-icon size="is-small" icon="circle-question"></b-icon>
-            </b-tooltip> </template
-          ><b-switch v-model="videoOptions.addInstrumentalScreens"></b-switch
-        ></b-field>
+            </b-tooltip>
+          </template>
+          <b-numberinput
+            expanded
+            :model-value="videoOptions.instrumentalThreshold"
+            :min="0"
+            :step="0.5"
+            :min-step="0.01"
+            @update:model-value="
+              (v: number | null | undefined) =>
+                (videoOptions.instrumentalThreshold = Number(
+                  v ?? videoOptions.instrumentalThreshold,
+                ))
+            "
+            controls-position="compact"
+          ></b-numberinput>
+        </b-field>
         <b-field horizontal>
           <template #label>
             Show Fast Lines Early

@@ -7,6 +7,7 @@ import {
   DEFAULT_COUNT_IN_THRESHOLD,
   DEFAULT_COUNT_IN_DURATION,
   DEFAULT_DYNAMIC_COUNT_INS,
+  DEFAULT_INSTRUMENTAL_THRESHOLD,
   DEFAULT_LINE_SPACING,
   DEFAULT_TOP_MARGIN,
   DEFAULT_OUTLINE_WIDTH,
@@ -59,7 +60,8 @@ export interface KaraokeOptions {
   dynamicCountIns: boolean;
   countInThreshold: number;
   countInDuration: number;
-  addInstrumentalScreens: boolean;
+  // The shortest gap between screens, in seconds, that gets an instrumental screen. Zero turns them off.
+  instrumentalThreshold: number;
   addStaggeredLines: boolean;
   // When this is off, every line follows the automatic rules, but the stored periods are kept.
   useStoredDisplayPeriods: boolean;
@@ -102,7 +104,7 @@ export const DEFAULT_KARAOKE_OPTIONS: KaraokeOptions = {
   dynamicCountIns: DEFAULT_DYNAMIC_COUNT_INS,
   countInThreshold: DEFAULT_COUNT_IN_THRESHOLD,
   countInDuration: DEFAULT_COUNT_IN_DURATION,
-  addInstrumentalScreens: true,
+  instrumentalThreshold: DEFAULT_INSTRUMENTAL_THRESHOLD,
   addStaggeredLines: true,
   useStoredDisplayPeriods: true,
   useBackgroundVideo: false,
@@ -1139,7 +1141,7 @@ function createAutomaticScreens(
       screens = displayQuickLinesEarly(screens, options);
     }
     screens = addOverlappingCountIns(screens, options);
-    if (options.addInstrumentalScreens) {
+    if (options.instrumentalThreshold > 0) {
       screens = addInstrumentalScreens(screens, options);
     }
     return screens;
@@ -1300,7 +1302,7 @@ export function layOutVoices(
     options:
       index === 0
         ? track.options
-        : { ...track.options, addTitleScreen: false, addInstrumentalScreens: false },
+        : { ...track.options, addTitleScreen: false, instrumentalThreshold: 0 },
   }));
   const screensByVoice =
     tracks.length > 0 ? createAutomaticScreens(voiceTracks, songDuration, title, artist) : [];

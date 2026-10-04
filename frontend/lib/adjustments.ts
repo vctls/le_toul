@@ -9,7 +9,6 @@ import {
 } from "./timing";
 import {
   TITLE_SCREEN_DURATION as TITLE_SCREEN_DURATION,
-  INSTRUMENTAL_SCREEN_THRESHOLD,
   SUBTITLE_CANVAS,
   GLYPH_BLOCK_RATIO,
 } from "../constants";
@@ -323,7 +322,7 @@ export function addInstrumentalScreens(
   const prevScreenEnd = screens[0].endTimestamp;
   const screenStart = currentScreen.segments[0].timestamp;
   const screenGap = screenStart - prevScreenEnd;
-  if (screenGap < INSTRUMENTAL_SCREEN_THRESHOLD) {
+  if (screenGap < options.instrumentalThreshold) {
     return [screens[0]].concat(addInstrumentalScreens(screens.slice(1), options));
   } else {
     const instrumentalScreen = createInstrumentalScreen(

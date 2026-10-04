@@ -232,7 +232,7 @@ function styleSettings(
   // so the app's own would duplicate them.
   const videoOptions: Record<string, unknown> = {
     countInMode: "none",
-    addInstrumentalScreens: false,
+    instrumentalThreshold: 0,
     // KBS anchors a page's lines to the top of the screen, and its spacers push them down from there.
     verticalAlignment: "top",
     color: { background: color(0) },
