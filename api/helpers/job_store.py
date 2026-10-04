@@ -1,4 +1,4 @@
-"""Filesystem-backed store for locally-processed jobs, one store per kind of job.
+"""Filesystem-backed store for locally-processed jobs: separations and syncs.
 
 Used when no GCS bucket is configured (local development).
 A separation can run for half an hour,
@@ -12,7 +12,7 @@ Each kind of job has a store of its own, a directory with one pair of files per 
     <hash><suffix>    the result, present only once the job succeeded
 
 Separations live at the root of the job directory, with the separated tracks as
-`<hash>.zip`.
+`<hash>.zip`. Syncs live in its `alignments` folder, as `<hash>.result.json`.
 """
 
 import json
@@ -322,7 +322,15 @@ separations = JobStore(
     poll_prefix="/separated_track",
     noun="Track separation",
 )
-_STORES = (separations,)
+alignments = JobStore(
+    kind="alignment",
+    folder="alignments",
+    result_suffix=".result.json",
+    poll_prefix="/alignment",
+    noun="Syncing",
+)
+
+_STORES = (separations, alignments)
 
 
 def is_stale(status: dict) -> bool:

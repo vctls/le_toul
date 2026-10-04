@@ -4,17 +4,22 @@ It times every character, so a segment starts at its first character, whatever t
 segment's size. Text is romanized first, since the model only knows Latin letters.
 """
 
+from __future__ import annotations
+
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 import numpy as np
-import torch
-import torchaudio
 
 from api import settings
 from api.karaoke.aligners import AlignerSegment, SegmentAlignment
 from api.karaoke.separation_progress import ProgressCallback
 
-_BUNDLE = torchaudio.pipelines.MMS_FA
+# torch is imported only once the aligner is built, so the web server can read the
+# version for a job's hash without loading it.
+if TYPE_CHECKING:
+    import torch
+
 _STAR = "*"
 _BLANK = "-"
 
@@ -31,13 +36,16 @@ _START_LAG_SECONDS = 0.19
 class MmsFaAligner:
     name = "mms_fa"
     version = "1"
-    sample_rate = _BUNDLE.sample_rate
+    # The bundle's own, which reading would import torchaudio.
+    sample_rate = 16_000
     # It flags 6% of segments, and caught two thirds of those more than 300 ms off.
     doubtful_below = 0.05
 
     def __init__(self, model_dir: Path | None = None):
+        import torch
+
         self._model_dir = model_dir or settings.MODELS_DIR / "mms_fa"
-        self._dictionary = _BUNDLE.get_dict(star=_STAR)
+        self._dictionary = _bundle().get_dict(star=_STAR)
         self._device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
         self._model: torch.nn.Module | None = None
         self._uroman = None
@@ -49,6 +57,9 @@ class MmsFaAligner:
         on_progress: ProgressCallback | None = None,
     ) -> list[SegmentAlignment]:
         """Place the segments with a forced alignment over the whole audio."""
+        import torch
+        import torchaudio
+
         alignments = [SegmentAlignment() for _ in segments]
         targets, owners = self._targets(segments)
         # The conv front end needs a few hundred samples to produce a single frame.
@@ -126,6 +137,8 @@ class MmsFaAligner:
         self, audio: np.ndarray, on_progress: ProgressCallback | None
     ) -> torch.Tensor:
         """Return the model's log probabilities, a row per frame of the audio."""
+        import torch
+
         model = self._load_model()
         waveform = torch.from_numpy(audio).float().unsqueeze(0).to(self._device)
         total = waveform.shape[1]
@@ -149,7 +162,7 @@ class MmsFaAligner:
 
     def _load_model(self) -> torch.nn.Module:
         if self._model is None:
-            model = _BUNDLE.get_model(
+            model = _bundle().get_model(
                 with_star=True, dl_kwargs={"model_dir": str(self._model_dir)}
             )
             self._model = model.to(self._device).eval()
@@ -161,3 +174,9 @@ class MmsFaAligner:
 
             self._uroman = uroman.Uroman()
         return self._uroman
+
+
+def _bundle():
+    import torchaudio
+
+    return torchaudio.pipelines.MMS_FA

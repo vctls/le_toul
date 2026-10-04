@@ -103,7 +103,15 @@ SEPARATION_BACKEND = os.getenv("SEPARATION_BACKEND", "in_process")
 # than one mostly slows them all down.
 SEPARATION_CONCURRENCY = int(os.getenv("SEPARATION_CONCURRENCY", "1"))
 
-# Where separation models are downloaded to and loaded from.
+# Where syncing runs. One of the names in karaoke/alignment_backends.py, or `none` to
+# turn it off. Unset, it runs where separation does when that is in this container
+# and the aligner's dependencies are installed, and is off otherwise.
+ALIGNMENT_BACKEND = os.getenv("ALIGNMENT_BACKEND", "").strip()
+
+# The aligner that syncs. One of the names in karaoke/aligners/__init__.py.
+ALIGNMENT_MODEL = os.getenv("ALIGNMENT_MODEL", "").strip() or "mms_fa"
+
+# Where separation and alignment models are downloaded to and loaded from.
 MODELS_DIR = Path(os.getenv("MODELS_DIR") or BASE_DIR / "pretrained_models")
 
 # Container the separated stems are written in, as an audio-separator output

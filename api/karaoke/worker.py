@@ -7,6 +7,7 @@ the stock audio-separator CLI, which reports nothing a caller can read.
 Spawned by the subprocess backends as
 
     python -m api.karaoke.worker separate <backend> <songfile> <song_dir> <model>
+    python -m api.karaoke.worker align <backend> <vocals> <request.json> <out_dir>
 
 with the writable end of a pipe inherited as TUUL_PROGRESS_FD. One JSON object
 per line goes down it, a run of progress reports followed by a single result.
@@ -35,7 +36,7 @@ _WORKER_MODULE = "api.karaoke.worker"
 _REPO_ROOT = Path(__file__).resolve().parents[2]
 
 # What each kind of job is called in an error.
-_NOUNS = {"separate": "separation"}
+_NOUNS = {"separate": "separation", "align": "alignment"}
 
 
 def run(kind: str, args: list[str], on_progress: ProgressCallback | None) -> dict:
@@ -136,9 +137,25 @@ def _separate(args: list[str], on_progress: ProgressCallback) -> dict:
     return {"accompaniment": str(result.accompaniment), "vocals": str(result.vocals)}
 
 
+def _align(args: list[str], on_progress: ProgressCallback) -> dict:
+    from api.karaoke.alignment_backends import get_backend
+
+    backend_name, vocals, request_path, out_dir = args
+    result = get_backend(backend_name).align(
+        Path(vocals),
+        json.loads(Path(request_path).read_text()),
+        Path(out_dir),
+        on_progress=on_progress,
+    )
+    destination = Path(out_dir) / "alignment.json"
+    destination.write_text(json.dumps(result))
+    return {"alignment": str(destination)}
+
+
 # The backend modules import this one, so each kind imports its own when it runs.
 _KINDS: dict[str, Callable[[list[str], ProgressCallback], dict]] = {
     "separate": _separate,
+    "align": _align,
 }
 
 

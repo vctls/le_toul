@@ -1,6 +1,8 @@
 import asyncio
 import contextlib
+import hashlib
 import ipaddress
+import json
 import math
 import tempfile
 import time
@@ -29,7 +31,7 @@ from fastapi.responses import FileResponse, JSONResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from markupsafe import Markup
-from pydantic import BaseModel, ConfigDict, Field, StringConstraints
+from pydantic import BaseModel, ConfigDict, Field, StringConstraints, ValidationError
 
 from . import app_logging, lyrics, settings
 from .helpers import (
@@ -41,7 +43,12 @@ from .helpers import (
 )
 from .helpers.rate_limit import RateLimiter
 from .helpers.youtube_helper import YouTubeException
-from .karaoke import separation_backends, separation_progress
+from .karaoke import (
+    aligners,
+    alignment_backends,
+    separation_backends,
+    separation_progress,
+)
 from .karaoke.music_separation import AVAILABLE_MODELS, SeparationResult
 from .vite_assets import vite_assets
 
@@ -54,6 +61,10 @@ if settings.DEFAULT_SEPARATION_MODEL not in AVAILABLE_MODELS:
         f"Unknown DEFAULT_SEPARATION_MODEL {settings.DEFAULT_SEPARATION_MODEL!r}. "
         f"Available models: {AVAILABLE_MODELS}"
     )
+
+# Raises on an unknown backend or aligner, or one without its dependencies,
+# so a misconfigured server fails at startup rather than on someone's first sync.
+alignment_backends.configured_name()
 
 
 @contextlib.asynccontextmanager
@@ -87,9 +98,9 @@ UPLOAD_TOO_LARGE_MESSAGE = (
 async def limit_upload_size(request: Request, call_next):
     """Refuse an oversized song before its body is read.
 
-    A body without a Content-Length is checked once parsed, in separate_track.
+    A body without a Content-Length is checked once parsed, in the route.
     """
-    if request.url.path == "/separate_track":
+    if request.url.path in ("/separate_track", "/align_track"):
         length = request.headers.get("content-length", "")
         limit = settings.MAX_UPLOAD_BYTES + _MULTIPART_ALLOWANCE_BYTES
         if length.isdigit() and int(length) > limit:
@@ -211,6 +222,30 @@ class JobPollResponse(BaseModel):
 
 class DownloadPollResponse(BaseModel):
     finishedDownloadURL: str
+
+
+# A song has hundreds of segments, rarely more than a couple of thousand.
+MAX_ALIGNMENT_SEGMENTS = 20_000
+
+
+class AlignmentSegment(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    # The text as drawn, without the `_` and `/` markup.
+    text: str = Field(max_length=1000)
+    endsLine: bool
+    # False for a segment kept as it is.
+    sync: bool
+    start: float | None = Field(default=None, ge=0, allow_inf_nan=False)
+    end: float | None = Field(default=None, ge=0, allow_inf_nan=False)
+
+
+class AlignmentRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    segments: list[AlignmentSegment] = Field(
+        min_length=1, max_length=MAX_ALIGNMENT_SEGMENTS
+    )
 
 
 def streamed_response(file_path: Path) -> StreamingResponse:
@@ -403,6 +438,42 @@ def _run_local_job(
         store.mark_failed(cache_hash, str(e), run_id)
 
 
+def alignment_hash(vocals: bytes, body: AlignmentRequest) -> str:
+    """Return the key a sync's job is stored under.
+
+    It covers the aligner's version, so a result from an older aligner is never served.
+    """
+    aligner = aligners.aligner_class(settings.ALIGNMENT_MODEL)
+    digest = hashlib.sha256(hashlib.sha256(vocals).digest())
+    digest.update(body.model_dump_json(exclude_none=True).encode("utf-8"))
+    digest.update(f"{aligner.name}@{aligner.version}".encode())
+    return digest.hexdigest()
+
+
+def process_alignment_local(
+    cache_hash: str,
+    run_id: str,
+    vocals_content: bytes,
+    vocals_filename: str,
+    request: dict,
+):
+    """Background task that syncs into the local job store."""
+    logger.info("local_alignment_started", cache_hash=cache_hash)
+
+    def align(work_dir: Path, report) -> Path:
+        # The extension tells the decoder what the stem is.
+        vocals = work_dir / safe_filename(vocals_filename, "vocals")
+        vocals.write_bytes(vocals_content)
+        result = alignment_backends.get_backend().align(
+            vocals, request, work_dir, on_progress=report
+        )
+        result_path = work_dir / "result.json"
+        result_path.write_text(json.dumps(result))
+        return result_path
+
+    _run_local_job(job_store.alignments, cache_hash, run_id, align)
+
+
 async def queue_track_separation_local(
     cache_hash: str,
     run_id: str,
@@ -501,6 +572,9 @@ async def index(request: Request):
         "vite_assets": Markup(vite_assets.render_tags("index.ts")),
         "max_upload_bytes": settings.MAX_UPLOAD_BYTES,
         "default_separation_model": settings.DEFAULT_SEPARATION_MODEL,
+        "alignment_available": (
+            alignment_backends.configured_name() != alignment_backends.NONE
+        ),
         "app_name": settings.APP_NAME,
     }
     return templates.TemplateResponse("index.html", context)
@@ -684,6 +758,89 @@ def _cancel_local_job(store: job_store.JobStore, cache_hash: str) -> dict:
         f"local_{store.kind}_cancel_requested", cache_hash=cache_hash, running=cancelled
     )
     return {"cancelled": cancelled}
+
+
+@app.post("/align_track")
+async def align_track(
+    request: Request,
+    background_tasks: BackgroundTasks,
+    vocalsFile: UploadFile = File(...),
+    alignment_request: str = Form(..., alias="request"),
+):
+    """Start syncing lyrics to a vocals track, and return the URL to poll.
+
+    `request` is JSON: every segment of the voice, in order, each marked to sync or to
+    keep. A kept segment's times bound the audio the others are synced in.
+    """
+    if alignment_backends.configured_name() == alignment_backends.NONE:
+        raise HTTPException(status_code=404, detail="Syncing is off on this server.")
+    try:
+        body = AlignmentRequest.model_validate_json(alignment_request)
+    except ValidationError as e:
+        raise HTTPException(status_code=400, detail=e.errors(include_url=False)) from e
+    if not any(segment.sync for segment in body.segments):
+        raise HTTPException(status_code=400, detail="No segment is marked to sync.")
+
+    if vocalsFile.size is not None and vocalsFile.size > settings.MAX_UPLOAD_BYTES:
+        raise HTTPException(status_code=413, detail=UPLOAD_TOO_LARGE_MESSAGE)
+    vocals_content = await vocalsFile.read()
+
+    store = job_store.alignments
+    cache_hash = alignment_hash(vocals_content, body)
+    logger.info(
+        "align_track",
+        cache_hash=cache_hash,
+        vocals_size=len(vocals_content),
+        segments=len(body.segments),
+        client=client_address(request),
+    )
+
+    if store.result_path(cache_hash).exists():
+        return JobPollResponse(finishedTrackURL=store.poll_url(cache_hash))
+
+    status = store.read_status(cache_hash)
+    if (
+        status
+        and status.get("status") == job_store.STATUS_PROCESSING
+        and not status.get("cancelRequested")
+        and not job_store.is_stale(status)
+    ):
+        return JobPollResponse(finishedTrackURL=store.poll_url(cache_hash))
+
+    store.prune_expired_results()
+    run_id = store.mark_processing(cache_hash)
+    background_tasks.add_task(
+        _queue_local_job,
+        store,
+        cache_hash,
+        run_id,
+        process_alignment_local,
+        vocals_content,
+        vocalsFile.filename or "vocals",
+        body.model_dump(exclude_none=True),
+    )
+    logger.info("local_alignment_queued", cache_hash=cache_hash)
+    return JobPollResponse(finishedTrackURL=store.poll_url(cache_hash))
+
+
+@app.get("/alignment/{cache_hash}")
+async def alignment_result(
+    cache_hash: str = PathParam(..., pattern="^[0-9a-f]{64}$"),
+):
+    """Poll target for a sync.
+
+    Returns the result once the job has finished, and the job's status until then,
+    both as JSON. Only a status has a `status` field.
+    """
+    return _poll_local_job(job_store.alignments, cache_hash, "application/json")
+
+
+@app.post("/alignment/{cache_hash}/cancel")
+async def cancel_alignment(
+    cache_hash: str = PathParam(..., pattern="^[0-9a-f]{64}$"),
+):
+    """Call off a sync, as /separated_track/{cache_hash}/cancel does a separation."""
+    return _cancel_local_job(job_store.alignments, cache_hash)
 
 
 @app.get("/download_video")

@@ -145,6 +145,8 @@ export default defineConfig(({ command, mode }) =>
         return {
           "/separate_track": target,
           "/separated_track": target,
+          "/align_track": target,
+          "/alignment": target,
           "/download_video": target,
           "/lyrics": target,
           "/log_error": target,

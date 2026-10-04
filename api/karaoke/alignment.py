@@ -10,7 +10,7 @@ from pathlib import Path
 
 import numpy as np
 
-from api.karaoke.aligners import Aligner, AlignerSegment
+from api.karaoke.aligners import Aligner, AlignerSegment, get_aligner
 from api.karaoke.separation_progress import ProgressCallback
 
 # A syllable is released where the vocals fall this far below their loud level.
@@ -61,6 +61,55 @@ def load_audio(path: Path, sample_rate: int) -> np.ndarray:
 
     audio, _ = librosa.load(path, sr=sample_rate, mono=True)
     return audio
+
+
+def segments_from_request(request: dict) -> list[SyncSegment]:
+    """Read the segments of a sync request, as the frontend sends them."""
+    return [
+        SyncSegment(
+            text=segment["text"],
+            ends_line=segment["endsLine"],
+            sync=segment["sync"],
+            start=segment.get("start"),
+            end=segment.get("end"),
+        )
+        for segment in request["segments"]
+    ]
+
+
+def align_track(
+    aligner_name: str,
+    vocals: Path,
+    segments: list[SyncSegment],
+    on_progress: ProgressCallback | None = None,
+) -> dict:
+    """Sync the segments to the vocals, and return the result the frontend reads.
+
+    It holds one entry per segment, in order, empty for a segment kept as it is or one
+    the aligner left untimed.
+    """
+    aligner = get_aligner(aligner_name)
+    if on_progress:
+        on_progress(None, "reading the vocals")
+    audio = load_audio(vocals, aligner.sample_rate)
+    synced = sync(aligner, audio, segments, on_progress)
+    return {
+        "aligner": f"{aligner.name}@{aligner.version}",
+        "segments": [
+            _result_entry(segment, result)
+            for segment, result in zip(segments, synced, strict=True)
+        ],
+    }
+
+
+def _result_entry(segment: SyncSegment, result: SyncedSegment) -> dict:
+    if not segment.sync or result.start is None:
+        return {}
+    entry = {"start": round(result.start, 3)}
+    if result.end is not None:
+        entry["end"] = round(result.end, 3)
+    entry["doubtful"] = result.doubtful
+    return entry
 
 
 def sync(
