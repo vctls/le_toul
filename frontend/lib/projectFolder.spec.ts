@@ -1,5 +1,10 @@
 import { describe, expect, test } from "vitest";
-import { classifyProjectFolder, projectSongEntryName } from "./projectFolder";
+import {
+  classifyProjectFolder,
+  projectSongEntryName,
+  trackEntries,
+  trackEntryName,
+} from "./projectFolder";
 
 function file(relativePath: string): File {
   const name = relativePath.split("/").pop() as string;
@@ -21,13 +26,17 @@ const EXPORTED_FOLDER = [
   "backing.wav",
 ].map((name) => file(`project/${name}`));
 
+function names(files: File[]): string[] {
+  return files.map((track) => track.name);
+}
+
 describe("classifyProjectFolder", () => {
   test("picks up every file an export writes", () => {
     const project = classifyProjectFolder(EXPORTED_FOLDER);
 
     expect(project.song?.name).toBe("song.mp4");
-    expect(project.backing?.name).toBe("backing.wav");
-    expect(project.vocals?.name).toBe("vocals.wav");
+    expect(names(project.uploadedTracks.backing)).toEqual(["backing.wav"]);
+    expect(names(project.uploadedTracks.vocals)).toEqual(["vocals.wav"]);
     expect(project.lyrics?.name).toBe("lyrics.txt");
     expect(project.timings?.name).toBe("timings.txt");
     expect(project.settings?.name).toBe("settings.yaml");
@@ -107,26 +116,15 @@ describe("classifyProjectFolder", () => {
   test("places the stems whatever container they were separated into", () => {
     const project = classifyProjectFolder([file("backing.flac"), file("vocals.flac")]);
 
-    expect(project.backing?.name).toBe("backing.flac");
-    expect(project.vocals?.name).toBe("vocals.flac");
+    expect(names(project.uploadedTracks.backing)).toEqual(["backing.flac"]);
+    expect(names(project.uploadedTracks.vocals)).toEqual(["vocals.flac"]);
     expect(project.song).toBeUndefined();
   });
 
   test("still loads the backing track an older export named accompaniment", () => {
-    expect(classifyProjectFolder([file("accompaniment.wav")]).backing?.name).toBe(
-      "accompaniment.wav",
-    );
-  });
+    const project = classifyProjectFolder([file("accompaniment.wav")]);
 
-  test("prefers backing over accompaniment, whichever comes first", () => {
-    for (const files of [
-      [file("accompaniment.wav"), file("backing.mp3")],
-      [file("backing.mp3"), file("accompaniment.wav")],
-    ]) {
-      const project = classifyProjectFolder(files);
-      expect(project.backing?.name).toBe("backing.mp3");
-      expect(project.ignored).toEqual(["accompaniment.wav"]);
-    }
+    expect(names(project.uploadedTracks.backing)).toEqual(["accompaniment.wav"]);
   });
 
   test("never loads a Karaoke Builder Studio project, whatever it is named", () => {
@@ -136,10 +134,102 @@ describe("classifyProjectFolder", () => {
     expect(project.ignored).toEqual(["Pale Moon.kbp", "song.kbp"]);
   });
 
+  test("puts each model's tracks in its own pair, apart from the uploaded ones", () => {
+    const project = classifyProjectFolder([
+      file("backing.mp3"),
+      file("MDX-Kara-backing.wav"),
+      file("mdx-kara-vocals.wav"),
+      file("BS-Roformer-vocals.flac"),
+    ]);
+
+    expect(names(project.uploadedTracks.backing)).toEqual(["backing.mp3"]);
+    expect(project.song).toBeUndefined();
+    expect(project.modelTracks["UVR_MDXNET_KARA_2.onnx"]?.backing?.name).toBe(
+      "MDX-Kara-backing.wav",
+    );
+    expect(project.modelTracks["UVR_MDXNET_KARA_2.onnx"]?.vocals?.name).toBe("mdx-kara-vocals.wav");
+    expect(project.modelTracks["model_bs_roformer_ep_317_sdr_12.9755.ckpt"]).toEqual({
+      vocals: expect.objectContaining({ name: "BS-Roformer-vocals.flac" }),
+    });
+  });
+
+  test("gives a model its first track of each kind, and uploads the next", () => {
+    const project = classifyProjectFolder([
+      file("MDX-Kara-backing.wav"),
+      file("MDX-Kara-backing.mp3"),
+    ]);
+
+    expect(project.modelTracks["UVR_MDXNET_KARA_2.onnx"]?.backing?.name).toBe(
+      "MDX-Kara-backing.mp3",
+    );
+    expect(names(project.uploadedTracks.backing)).toEqual(["MDX-Kara-backing.wav"]);
+  });
+
+  test("uploads every other backing and vocal track, never taking one as the song", () => {
+    const project = classifyProjectFolder([
+      file("Demucs-backing.wav"),
+      file("demucs-vocals.wav"),
+      file("backing.mp3"),
+      file("accompaniment.wav"),
+      file("song.mp3"),
+    ]);
+
+    expect(project.song?.name).toBe("song.mp3");
+    expect(names(project.uploadedTracks.backing)).toEqual([
+      "accompaniment.wav",
+      "backing.mp3",
+      "Demucs-backing.wav",
+    ]);
+    expect(names(project.uploadedTracks.vocals)).toEqual(["demucs-vocals.wav"]);
+    expect(project.ignored).toEqual([]);
+  });
+
+  test("prefers the exported song over an audio file that took the slot by its extension", () => {
+    const project = classifyProjectFolder([file("Instrumental.mp3"), file("song.mp3")]);
+
+    expect(project.song?.name).toBe("song.mp3");
+    expect(project.ignored).toEqual(["Instrumental.mp3"]);
+  });
+
   test("reports what it could not place", () => {
     const project = classifyProjectFolder([file("project/notes.docx")]);
 
     expect(project.ignored).toEqual(["project/notes.docx"]);
+  });
+});
+
+describe("trackEntryName", () => {
+  test("prefixes a model's tracks with the model", () => {
+    expect(trackEntryName("UVR_MDXNET_KARA_2.onnx", "vocals", "wav")).toBe("MDX-Kara-vocals.wav");
+    expect(trackEntryName("model_bs_roformer_ep_317_sdr_12.9755.ckpt", "backing", "mp3")).toBe(
+      "BS-Roformer-backing.mp3",
+    );
+  });
+
+  test("keeps an uploaded file's name, adding the kind when the name lacks it", () => {
+    expect(trackEntryName("file:backing/backing.mp3", "backing", "wav")).toBe("backing.mp3");
+    expect(trackEntryName("file:vocals/Demucs-vocals.flac", "vocals", "wav")).toBe(
+      "Demucs-vocals.flac",
+    );
+    expect(trackEntryName("file:backing/Instrumental.mp3", "backing", "wav")).toBe(
+      "Instrumental-backing.mp3",
+    );
+  });
+
+  test("names an uploaded file so that the classifier uploads it again", () => {
+    const name = trackEntryName("file:backing/Instrumental.mp3", "backing", "mp3");
+
+    expect(names(classifyProjectFolder([file(name)]).uploadedTracks.backing)).toEqual([name]);
+  });
+
+  test("names a track the classifier puts back in its model's pair", () => {
+    const name = trackEntryName("mel_band_roformer_karaoke_becruily.ckpt", "backing", "wav");
+
+    const project = classifyProjectFolder([file(name)]);
+
+    expect(project.modelTracks["mel_band_roformer_karaoke_becruily.ckpt"]?.backing?.name).toBe(
+      name,
+    );
   });
 });
 
@@ -148,5 +238,20 @@ describe("projectSongEntryName", () => {
     expect(projectSongEntryName("Bohemian Rhapsody.mp3")).toBe("song.mp3");
     expect(projectSongEntryName("audio.mp4")).toBe("song.mp4");
     expect(projectSongEntryName("audio")).toBe("song");
+  });
+});
+
+describe("trackEntries", () => {
+  test("numbers a name another track already took, so neither overwrites the other", () => {
+    const audio = new Blob(["x"], { type: "audio/wav" });
+    const entries = trackEntries([
+      { source: "UVR_MDXNET_KARA_2.onnx", backing: audio, vocals: new Blob() },
+      { source: "file:backing/MDX-Kara-backing.wav", backing: audio, vocals: new Blob() },
+    ]);
+
+    expect(entries.map((entry) => entry.name)).toEqual([
+      "MDX-Kara-backing.wav",
+      "2-MDX-Kara-backing.wav",
+    ]);
   });
 });

@@ -58,6 +58,22 @@ export async function persistBlobRef<T>(key: string, ref: Ref<T | null>): Promis
   }
 }
 
+/**
+ * Reads a value saved under a key that is no longer used, and deletes it.
+ */
+export async function takeLegacyBlob<T>(key: string): Promise<T | undefined> {
+  try {
+    const value = await get(key);
+    if (value !== undefined) {
+      await del(key);
+    }
+    return value as T | undefined;
+  } catch (e) {
+    console.error(`Failed to load ${key} from IDB`, e);
+    return undefined;
+  }
+}
+
 export function loadJsonFromStorage<T>(key: string, defaultValue: T): T {
   try {
     const stored = localStorage.getItem(key);

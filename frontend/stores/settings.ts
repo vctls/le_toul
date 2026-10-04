@@ -390,6 +390,7 @@ export const useSettingsStore = defineStore("settings", () => {
         youtubeUrl: media.youtubeUrl,
       },
       separationModel: media.separationModel,
+      backingTrack: media.separatedTrack?.source ?? null,
       videoOptions,
       voiceStyles: voiceStyles.value,
     });

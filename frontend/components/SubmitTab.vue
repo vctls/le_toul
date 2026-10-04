@@ -187,6 +187,15 @@
         <b-field v-if="videoBlob" horizontal label="Use Background Video">
           <b-switch v-model="videoOptions.useBackgroundVideo"></b-switch
         ></b-field>
+        <b-field v-if="mediaStore.backingSources.length > 0" horizontal label="Backing Track">
+          <track-select
+            kind="backing"
+            :include-full="false"
+            expanded
+            :model-value="mediaStore.separatedTrack?.source ?? null"
+            @update:model-value="(v: TrackSource) => (mediaStore.renderTrackSource = v)"
+          />
+        </b-field>
         <b-field horizontal>
           <template #label>
             Video Format
@@ -448,17 +457,19 @@
       </div>
       <div class="column is-8 preview-column">
         <h3 class="title">Video Preview</h3>
-        <b-field v-if="backingTrack" label="Preview audio" horizontal style="margin-bottom: 0.5em">
-          <b-select v-model="previewTrack">
-            <option value="full">Full track</option>
-            <option value="backing">Backing track</option>
-          </b-select>
+        <b-field
+          v-if="mediaStore.backingSources.length > 0"
+          label="Preview audio"
+          horizontal
+          style="margin-bottom: 0.5em"
+        >
+          <track-select kind="backing" v-model="previewTrack" />
         </b-field>
         <video-preview
           v-if="songFile"
           :song-file="songFile"
-          :backing-track="backingTrack ?? undefined"
-          :preview-track="previewTrack"
+          :backing-track="previewBacking ?? undefined"
+          :preview-track="previewBacking ? 'backing' : 'full'"
           :subtitles="allVoicesSubtitles()"
           :audio-delay="audioDelay"
           :fonts="fontMap"
@@ -506,8 +517,7 @@
           :subtitles="allVoicesSubtitles()"
           :settings="settingsYaml"
           :font="customFont ?? undefined"
-          :vocals="mediaStore.separatedTrack?.vocals"
-          :backing="mediaStore.separatedTrack?.backing"
+          :tracks="mediaStore.trackPairs ?? []"
         />
         <div v-if="advancedStore.isAdvanced && lyricText.trim()" class="kbp-export is-size-7">
           <span>Karaoke Builder Studio</span>
@@ -558,9 +568,10 @@ import VoiceStyleSettings from "@/components/VoiceStyleSettings.vue";
 import ColorField from "@/components/ColorField.vue";
 import FileUpload from "@/components/FileUpload.vue";
 import SymbolPicker from "@/components/SymbolPicker.vue";
+import TrackSelect from "@/components/TrackSelect.vue";
 import jszip from "jszip";
 import video from "@/lib/video";
-import { CreationPhase } from "@/types";
+import { CreationPhase, TrackSource } from "@/types";
 import { useMediaStore } from "@/stores/media";
 import { useSettingsStore, VideoSettings } from "@/stores/settings";
 import { useTimingsStore } from "@/stores/timings";
@@ -568,11 +579,10 @@ import { useAdvancedStore } from "@/stores/advanced";
 import { useLyricsStore } from "@/stores/lyrics";
 import { useFallbackFontsStore } from "@/stores/fallbackFonts";
 import { abortable } from "@/lib/util";
-import { projectSongEntryName } from "@/lib/projectFolder";
+import { projectSongEntryName, trackEntries } from "@/lib/projectFolder";
 import { BUNDLED_FONTS as fonts, COUNT_IN_SYMBOLS } from "@/lib/fonts";
 import { projectFilesToKbp } from "@/lib/kbpConvert";
 import { applyVoiceStyle } from "@/lib/voiceStyle";
-import { extensionForBlob } from "@/lib/audio";
 import { slide } from "@/lib/slide";
 
 // The rest of the bar is the zip, which carries the source song and both separated tracks.
@@ -592,6 +602,7 @@ export default defineComponent({
     ColorField,
     FileUpload,
     SymbolPicker,
+    TrackSelect,
   },
   setup() {
     const mediaStore = useMediaStore();
@@ -628,8 +639,8 @@ export default defineComponent({
       videoProgress: 0,
       creationStep: "",
       submitError: null as string | null,
-      // Which track the preview plays: "full" (with vocals) or "backing".
-      previewTrack: "full",
+      // Which track the preview plays: "full" (with vocals) or the source of a backing track.
+      previewTrack: "full" as "full" | TrackSource,
       isShowingFontsAndColors: true,
       // Vue would proxy the controller, whose methods need the instance itself.
       creation: markRaw({ abort: null as AbortController | null }),
@@ -740,8 +751,8 @@ export default defineComponent({
     customFont(): File | null {
       return (this.settingsStore.customFont as File | null) ?? null;
     },
-    backingTrack(): Blob | null {
-      return (this.mediaStore.separatedTrack?.backing as Blob | undefined) || null;
+    previewBacking(): Blob | null {
+      return this.mediaStore.trackFor("backing", this.previewTrack);
     },
     songDuration() {
       return this.mediaStore.songDuration;
@@ -938,12 +949,8 @@ export default defineComponent({
         zip.file(projectSongEntryName(this.songFile.name), this.songFile);
       }
 
-      const separated = this.mediaStore.separatedTrack;
-      if (separated?.vocals && separated.vocals.size > 0) {
-        zip.file(`vocals.${extensionForBlob(separated.vocals)}`, separated.vocals);
-      }
-      if (separated?.backing && separated.backing.size > 0) {
-        zip.file(`backing.${extensionForBlob(separated.backing)}`, separated.backing);
+      for (const { name, blob } of trackEntries(this.mediaStore.trackPairs ?? [])) {
+        zip.file(name, blob);
       }
 
       this.creationStep = "packaging the files";

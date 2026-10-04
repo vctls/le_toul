@@ -123,7 +123,7 @@ test.describe("Submit preview track switching", () => {
     await expectPlayingAndAdvancing(page, "initial playback");
 
     // Switch to the backing track mid-playback and listen there
-    await page.locator(TRACK_SELECT).selectOption("backing");
+    await page.locator(TRACK_SELECT).selectOption({ index: 1 });
     await expectPlayingAndAdvancing(page, "after switching to backing");
 
     // Seek around manually a few times, like a user dragging the scrubber
@@ -137,7 +137,7 @@ test.describe("Submit preview track switching", () => {
     await expectPlayingAndAdvancing(page, "after switching back to full");
 
     // And once more to backing, to catch wedging on repeat switches
-    await page.locator(TRACK_SELECT).selectOption("backing");
+    await page.locator(TRACK_SELECT).selectOption({ index: 1 });
     await expectPlayingAndAdvancing(page, "after second switch to backing");
 
     // Reload the page: the preview must still be playable from restored state

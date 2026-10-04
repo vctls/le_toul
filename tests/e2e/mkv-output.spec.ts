@@ -79,6 +79,9 @@ test.describe("MKV Output", () => {
     const zip = await JSZip.loadAsync(await fs.readFile(zipPath as string));
     const videoName = Object.keys(zip.files).find((name) => name.endsWith(".mkv"));
     expect(videoName).toBeDefined();
+    // The separated tracks are named after the model that made them.
+    const trackNames = Object.keys(zip.files).filter((name) => /-(vocals|backing)\./.test(name));
+    expect(trackNames).toHaveLength(2);
 
     const video = await zip.file(videoName as string)!.async("nodebuffer");
     // EBML magic: what ffmpeg writes when the Matroska muxer really ran.

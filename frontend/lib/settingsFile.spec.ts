@@ -123,6 +123,7 @@ describe("parseSettingsYaml", () => {
     expect(parsed.videoOptions).toEqual({ countInMode: "none" });
     expect(parsed.song).toEqual({});
     expect(parsed.separationModel).toBeUndefined();
+    expect(parsed.backingTrack).toBeUndefined();
     expect(parsed.voiceStyles).toBeUndefined();
   });
 
@@ -234,6 +235,19 @@ describe("parseSettingsYaml", () => {
     expect(parsed.warnings).toEqual(["voiceStyles.Anna: expected a mapping, ignoring it"]);
   });
 
+  test("reads the backing track from a model or an uploaded file, and ignores any other", () => {
+    expect(parseSettingsYaml("backingTrack: file:backing/Demucs.wav\n").backingTrack).toBe(
+      "file:backing/Demucs.wav",
+    );
+    expect(parseSettingsYaml(`backingTrack: ${NO_VOCALS_SEPARATOR_MODEL}\n`).backingTrack).toBe(
+      NO_VOCALS_SEPARATOR_MODEL,
+    );
+    const unknown = parseSettingsYaml("backingTrack: mystery.onnx\n");
+
+    expect(unknown.backingTrack).toBeUndefined();
+    expect(unknown.warnings.join("\n")).toContain("backingTrack");
+  });
+
   test("throws on a file that is not a settings mapping", () => {
     expect(() => parseSettingsYaml("")).toThrow(/empty/);
     expect(() => parseSettingsYaml("- one\n- two\n")).toThrow(/mapping/);
@@ -245,6 +259,7 @@ describe("serializeSettingsYaml", () => {
   const source: SettingsFileSource = {
     song: { title: "Bohemian Rhapsody", artist: "Queen", duration: 354.2, youtubeUrl: null },
     separationModel: BACKING_VOCALS_HQ_SEPARATOR_MODEL,
+    backingTrack: NO_VOCALS_SEPARATOR_MODEL,
     videoOptions: {
       vocalSeparationModel: NO_VOCALS_SEPARATOR_MODEL,
       addTitleScreen: false,
@@ -299,5 +314,14 @@ describe("serializeSettingsYaml", () => {
 
     expect(document.separationModel).toBe(BACKING_VOCALS_HQ_SEPARATOR_MODEL);
     expect(document.videoOptions).not.toHaveProperty("vocalSeparationModel");
+  });
+
+  test("writes the backing track the video renders with, and leaves it out while there is none", () => {
+    expect(parseSettingsYaml(serializeSettingsYaml(source)).backingTrack).toBe(
+      NO_VOCALS_SEPARATOR_MODEL,
+    );
+    const withoutTracks = yaml.load(serializeSettingsYaml({ ...source, backingTrack: null }));
+
+    expect(withoutTracks).not.toHaveProperty("backingTrack");
   });
 });

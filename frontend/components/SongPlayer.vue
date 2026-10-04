@@ -46,6 +46,7 @@ export default defineComponent({
       isPlaying: false,
       currentTime: 0,
       duration: 0,
+      resumeAt: null as { time: number; playing: boolean } | null,
     };
   },
   mounted() {
@@ -59,8 +60,12 @@ export default defineComponent({
   watch: {
     file: {
       immediate: true,
-      handler(file: Blob | null) {
+      handler(file: Blob | null, previous: Blob | null | undefined) {
+        // Another track of the same song picks up where the last one was.
+        const resume =
+          file && previous ? { time: this.currentTime, playing: this.isPlaying } : null;
         this.setSource(file);
+        this.resumeAt = resume;
       },
     },
   },
@@ -99,7 +104,16 @@ export default defineComponent({
       this.currentTime = this.audioElement()?.currentTime ?? 0;
     },
     onLoadedMetadata() {
-      this.duration = this.audioElement()?.duration ?? 0;
+      const audio = this.audioElement();
+      this.duration = audio?.duration ?? 0;
+      const resume = this.resumeAt;
+      this.resumeAt = null;
+      if (!audio || !resume) return;
+      audio.currentTime = resume.time;
+      this.currentTime = resume.time;
+      if (resume.playing) {
+        audio.play();
+      }
     },
     onSeek(e: Event) {
       const audio = this.audioElement();

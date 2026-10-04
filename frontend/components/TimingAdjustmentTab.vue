@@ -335,10 +335,7 @@
             />
           </b-field>
           <b-field v-if="vocalTrack" label="Playback track" horizontal>
-            <b-select expanded v-model="playbackTrackChoice">
-              <option value="full">Full track</option>
-              <option value="vocals">Vocals only</option>
-            </b-select>
+            <track-select kind="vocals" expanded v-model="playbackTrackChoice" />
           </b-field>
           <b-field v-if="isAdjustMode" label="Shift all timings (ms)" horizontal>
             <b-numberinput
@@ -426,14 +423,16 @@ import HelpSection from "@/components/HelpSection.vue";
 import TimingAdjuster from "@/components/TimingAdjuster.vue";
 import SubtitleDisplay from "./SubtitleDisplay.vue";
 import VoiceSelector from "@/components/VoiceSelector.vue";
+import TrackSelect from "@/components/TrackSelect.vue";
 import { useMediaStore } from "@/stores/media";
+import { TrackSource } from "@/types";
 import { useTimingsStore } from "@/stores/timings";
 import { useAdvancedStore } from "@/stores/advanced";
 import { useLyricsStore } from "@/stores/lyrics";
 import { useSettingsStore } from "@/stores/settings";
 import { useLegacyTimingStore } from "@/stores/legacyTiming";
 import { storeToRefs } from "pinia";
-import { BButton, BField, BIcon, BMessage, BNumberinput, BSelect, BSwitch } from "buefy";
+import { BButton, BField, BIcon, BMessage, BNumberinput, BSwitch } from "buefy";
 import { PHONE_LANDSCAPE_QUERY, isMobile } from "@/lib/device";
 import TapButtons from "@/components/TapButtons.vue";
 import { VoiceId } from "@/lib/voices";
@@ -518,7 +517,7 @@ interface AdjustVoiceState {
   zoomPercent: number;
   waveformScroll: number;
   playbackRate: number;
-  playbackTrackChoice: "full" | "vocals";
+  playbackTrackChoice: "full" | TrackSource;
   tapHead: number;
   // The Almost done or Done message the user tucked away, which then shows as an icon.
   acknowledgedStatus?: TimingStatus | null;
@@ -593,7 +592,6 @@ export default defineComponent({
     BButton,
     BField,
     BNumberinput,
-    BSelect,
     BSwitch,
     HelpSection,
     BIcon,
@@ -602,6 +600,7 @@ export default defineComponent({
     TimingAdjuster,
     SubtitleDisplay,
     VoiceSelector,
+    TrackSelect,
   },
   setup() {
     const mediaStore = useMediaStore();
@@ -652,7 +651,7 @@ export default defineComponent({
       _phoneLandscape: null as MediaQueryList | null,
       acknowledgedStatus: null as TimingStatus | null,
       // Which track to play back. The waveform always stays on the vocals.
-      playbackTrackChoice: "full" as "full" | "vocals",
+      playbackTrackChoice: "full" as "full" | TrackSource,
       // Per-voice control state.
       // The flat fields above are the *active* voice's values.
       // On a voice switch they are saved here and the incoming voice's values are loaded.
@@ -730,17 +729,15 @@ export default defineComponent({
     songFile(): Blob | null {
       return this.mediaStore.songFile;
     },
+    // The waveform shows the vocals being played, or the latest ones while the full track plays.
     vocalTrack(): Blob | null {
-      // setBackingTrack() uses an empty Blob as a "no vocals" placeholder,
-      // so an empty blob means there is no usable vocal track.
-      const vocals = this.mediaStore.separatedTrack?.vocals;
-      return vocals && vocals.size > 0 ? vocals : null;
+      return (
+        this.mediaStore.trackFor("vocals", this.playbackTrackChoice) ??
+        this.mediaStore.trackFor("vocals", this.mediaStore.vocalSources.at(-1) ?? null)
+      );
     },
     playbackTrack(): Blob | null {
-      if (this.playbackTrackChoice === "vocals" && this.vocalTrack) {
-        return this.vocalTrack;
-      }
-      return this.songFile;
+      return this.mediaStore.trackFor("vocals", this.playbackTrackChoice) ?? this.songFile;
     },
     // DejaVu Sans has no CJK glyphs, so CJK text is still tagged with the CJK font.
     previewFonts(): Record<string, string> {

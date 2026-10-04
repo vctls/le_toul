@@ -133,8 +133,7 @@
         :timings="timingsStore.hasAnyTimings ? timingsStore.timingsText : undefined"
         :font="settingsStore.customFont ?? undefined"
         :fonts="voiceFonts"
-        :vocals="mediaStore.separatedTrack?.vocals"
-        :backing="mediaStore.separatedTrack?.backing"
+        :tracks="mediaStore.trackPairs ?? []"
       />
     </confirm-modal>
   </div>

@@ -3,9 +3,15 @@ import { computed, ref, shallowRef, watch } from "vue";
 
 import { resumeSeparation, separateTrack, SeparationProgressCallback } from "@/lib/audio";
 import { maxUploadBytes } from "@/constants";
-import { SeparationModel } from "@/types";
+import { SeparationModel, TrackKind, TrackSource } from "@/types";
+import { fileSource, MAX_UPLOADED_TRACKS, parseFileSource } from "@/lib/trackSources";
 import jsmediatags from "@/jsmediatags.min.js";
-import { clearPersistence, persistBlobRef, persistJsonRef } from "@/lib/persistence";
+import {
+  clearPersistence,
+  persistBlobRef,
+  persistJsonRef,
+  takeLegacyBlob,
+} from "@/lib/persistence";
 import { useLyricsLookupStore } from "@/stores/lyricsLookup";
 import {
   BACKING_VOCALS_SEPARATOR_MODEL,
@@ -23,11 +29,12 @@ const MEDIA_LOCALSTORAGE_KEYS = [
   "media.songArtist",
   "media.songDuration",
   "media.runningSeparation",
+  "media.renderTrackSource",
 ];
 const MEDIA_IDB_KEYS = [
   "media.songFile",
   "media.backgroundVideo",
-  "media.separatedTrack",
+  "media.trackPairs",
   "media.timingsFile",
   "media.lyricsFile",
   "media.backingTrackFile",
@@ -43,6 +50,10 @@ export interface SeparatedTrack {
   vocals: Blob;
 }
 
+export interface TrackPair extends SeparatedTrack {
+  source: TrackSource;
+}
+
 // How the last separation ended. The duration runs from the request, so it includes the wait in line.
 export interface SeparationOutcome {
   status: "succeeded" | "failed" | "cancelled";
@@ -52,6 +63,8 @@ export interface SeparationOutcome {
 // A separation job the backend is running for this session, which a reload follows again.
 interface RunningSeparation {
   pollUrl: string;
+  // A job remembered by an older version has no model.
+  model?: SeparationModel;
   // When the separation was asked for, in milliseconds since the epoch.
   requestedAt: number;
 }
@@ -121,7 +134,11 @@ export const useMediaStore = defineStore("media", () => {
   // Track separation state
   const isProcessing = ref(false);
   const separationModel = ref<SeparationModel>(defaultSeparationModel());
-  const separatedTrack = shallowRef<SeparatedTrack | null>(null);
+  // Oldest first, one per source, and null rather than empty so a saved list can be restored.
+  // A side the source has no track for is an empty blob.
+  const trackPairs = shallowRef<TrackPair[] | null>(null);
+  // The pair the video renders with, as the user picked it.
+  const renderTrackSource = ref<TrackSource | null>(null);
   const error = ref<string | null>(null);
   const separationStartTime = shallowRef<Date | null>(null);
 
@@ -137,6 +154,53 @@ export const useMediaStore = defineStore("media", () => {
   // Held outside the store state: Vue would proxy the controller, whose methods need the instance itself.
   let activeSeparation: AbortController | null = null;
   let pendingSeparation: Promise<SeparatedTrack | undefined> | null = null;
+
+  function trackPair(source: TrackSource): TrackPair | undefined {
+    return trackPairs.value?.find((pair) => pair.source === source);
+  }
+
+  /**
+   * Sources with a track of that kind, oldest first.
+   */
+  function sourcesWith(kind: keyof SeparatedTrack): TrackSource[] {
+    return (trackPairs.value ?? [])
+      .filter((pair) => pair[kind].size > 0)
+      .map((pair) => pair.source);
+  }
+
+  const vocalSources = computed(() => sourcesWith("vocals"));
+  const backingSources = computed(() => sourcesWith("backing"));
+
+  // The pair the video renders with. Until the user picks one, it is the latest with a backing track.
+  const separatedTrack = computed<TrackPair | null>(() => {
+    const picked = renderTrackSource.value && trackPair(renderTrackSource.value);
+    if (picked && picked.backing.size > 0) {
+      return picked;
+    }
+    const latest = backingSources.value.at(-1);
+    return latest ? trackPair(latest)! : null;
+  });
+
+  /**
+   * The source's track of that kind, or null when the choice is the full song or a track that is
+   * not there.
+   */
+  function trackFor(kind: keyof SeparatedTrack, choice: "full" | TrackSource | null): Blob | null {
+    const track = choice && choice !== "full" ? trackPair(choice)?.[kind] : undefined;
+    return track && track.size > 0 ? track : null;
+  }
+
+  /**
+   * Stores the pair as the latest from its source, replacing any it had before.
+   * A pair with no audio on either side is dropped.
+   */
+  function putTrackPair(source: TrackSource, track: SeparatedTrack) {
+    const pairs = (trackPairs.value ?? []).filter((pair) => pair.source !== source);
+    if (track.backing.size > 0 || track.vocals.size > 0) {
+      pairs.push({ source, backing: track.backing, vocals: track.vocals });
+    }
+    trackPairs.value = pairs.length > 0 ? pairs : null;
+  }
   // separationStartTime restarts when the song leaves the line, and the outcome's duration must not.
   let separationRequestedAt = 0;
 
@@ -166,9 +230,9 @@ export const useMediaStore = defineStore("media", () => {
       return undefined;
     }
     const requestedAt = Date.now();
-    return follow(requestedAt, (onProgress, signal) =>
+    return follow(requestedAt, modelName, (onProgress, signal) =>
       separateTrack(inputData, modelName, onProgress, signal, (pollUrl) => {
-        runningSeparation.value = { pollUrl, requestedAt };
+        runningSeparation.value = { pollUrl, model: modelName, requestedAt };
       }),
     );
   }
@@ -179,7 +243,7 @@ export const useMediaStore = defineStore("media", () => {
     if (!running || pendingSeparation) {
       return;
     }
-    follow(running.requestedAt, (onProgress, signal) =>
+    follow(running.requestedAt, running.model ?? separationModel.value, (onProgress, signal) =>
       resumeSeparation(running.pollUrl, onProgress, signal),
     );
   }
@@ -187,6 +251,7 @@ export const useMediaStore = defineStore("media", () => {
   // Tracks a separation through to its outcome, whichever way it was started.
   function follow(
     requestedAt: number,
+    model: SeparationModel,
     run: (onProgress: SeparationProgressCallback, signal: AbortSignal) => Promise<SeparatedTrack>,
   ): Promise<SeparatedTrack | undefined> {
     const abort = new AbortController();
@@ -200,7 +265,7 @@ export const useMediaStore = defineStore("media", () => {
     separationSongsAhead.value = null;
     pendingSeparation = (async () => {
       try {
-        separatedTrack.value = await run(({ progress, stage, songsAhead }) => {
+        const track = await run(({ progress, stage, songsAhead }) => {
           // The elapsed-time estimate counts from when the song left the line, not from submission.
           if (separationSongsAhead.value !== null && songsAhead === null) {
             separationStartTime.value = new Date();
@@ -209,8 +274,9 @@ export const useMediaStore = defineStore("media", () => {
           separationStage.value = stage;
           separationSongsAhead.value = songsAhead;
         }, abort.signal);
+        putTrackPair(model, track);
         recordOutcome("succeeded");
-        return separatedTrack.value;
+        return track;
       } catch (err) {
         if (abort.signal.aborted) {
           return undefined;
@@ -241,7 +307,7 @@ export const useMediaStore = defineStore("media", () => {
   }
 
   // Cancels the running separation, calling off the work on the backend where that is possible.
-  // Leaves any track separated by an earlier run in place.
+  // Leaves the tracks separated by earlier runs in place.
   function cancelSeparation() {
     if (!activeSeparation) {
       return;
@@ -253,36 +319,69 @@ export const useMediaStore = defineStore("media", () => {
   }
 
   // Whether a backing or vocal track is loaded, from an upload or an earlier separation.
-  // The setters below stand a missing side in as an empty blob, so presence is a matter of size.
-  const hasSeparatedTrack = computed(
-    () =>
-      (separatedTrack.value?.backing.size ?? 0) > 0 || (separatedTrack.value?.vocals.size ?? 0) > 0,
-  );
+  const hasSeparatedTrack = computed(() => (trackPairs.value?.length ?? 0) > 0);
 
-  // Drops the tracks an upload or an earlier separation left behind,
-  // so a render waits for the next separation instead of using the old backing track.
+  // Drops the tracks uploads or earlier separations left behind,
+  // so a render waits for the next separation instead of using an old backing track.
   // Calls off a run still in flight first: its result would otherwise land here after the clear.
   function discardSeparatedTrack() {
     cancelSeparation();
-    separatedTrack.value = null;
+    trackPairs.value = null;
+    renderTrackSource.value = null;
     backingTrackFile.value = null;
     vocalTrackFile.value = null;
     error.value = null;
   }
 
-  async function setBackingTrack(file: File | null) {
-    if (separatedTrack.value == null) {
-      separatedTrack.value = { backing: file ?? new Blob(), vocals: new Blob() };
-    } else {
-      separatedTrack.value = { ...separatedTrack.value, backing: file ?? new Blob() };
-    }
+  function oneSided(kind: TrackKind, track: Blob): SeparatedTrack {
+    return kind === "backing"
+      ? { backing: track, vocals: new Blob() }
+      : { backing: new Blob(), vocals: track };
   }
 
-  async function setVocalTrack(file: File | null) {
-    if (separatedTrack.value == null) {
-      separatedTrack.value = { backing: new Blob(), vocals: file ?? new Blob() };
-    } else {
-      separatedTrack.value = { ...separatedTrack.value, vocals: file ?? new Blob() };
+  /**
+   * Swaps one uploaded file of that kind for another. Either can be null, to only add or only
+   * remove one. A file with the name of one already loaded replaces it. Returns false, adding
+   * nothing, when the kind already has MAX_UPLOADED_TRACKS files.
+   */
+  function replaceUploadedTrack(
+    kind: TrackKind,
+    previous: File | null,
+    next: File | null,
+  ): boolean {
+    if (previous) {
+      putTrackPair(fileSource(kind, previous.name), oneSided(kind, new Blob()));
+    }
+    if (!next) {
+      return true;
+    }
+    const source = fileSource(kind, next.name);
+    const others = (trackPairs.value ?? []).filter(
+      (pair) => pair.source !== source && parseFileSource(pair.source)?.kind === kind,
+    );
+    if (others.length >= MAX_UPLOADED_TRACKS) {
+      return false;
+    }
+    putTrackPair(source, oneSided(kind, next));
+    return true;
+  }
+
+  /**
+   * Brings back the single pair older versions saved. The model that made it was not saved,
+   * so it goes to the model picked at the time, or to the uploaded files if there were any.
+   */
+  async function restoreLegacyTrack() {
+    const legacy = await takeLegacyBlob<SeparatedTrack>("media.separatedTrack");
+    if (!legacy || trackPairs.value) {
+      return;
+    }
+    if (!backingTrackFile.value && !vocalTrackFile.value) {
+      putTrackPair(separationModel.value, legacy);
+      return;
+    }
+    for (const kind of ["backing", "vocals"] as const) {
+      const name = (kind === "backing" ? backingTrackFile : vocalTrackFile).value?.name ?? kind;
+      putTrackPair(fileSource(kind, name), oneSided(kind, legacy[kind]));
     }
   }
 
@@ -402,28 +501,32 @@ export const useMediaStore = defineStore("media", () => {
   persistJsonRef("media.songArtist", songArtist);
   persistJsonRef("media.songDuration", songDuration);
   persistJsonRef("media.runningSeparation", runningSeparation);
+  persistJsonRef("media.renderTrackSource", renderTrackSource);
 
   // Blobs → IndexedDB (async load)
   Promise.all([
     persistBlobRef("media.songFile", songFile),
     persistBlobRef("media.backgroundVideo", backgroundVideo),
-    persistBlobRef("media.separatedTrack", separatedTrack),
+    persistBlobRef("media.trackPairs", trackPairs),
     persistBlobRef("media.timingsFile", timingsFile),
     persistBlobRef("media.lyricsFile", lyricsFile),
     persistBlobRef("media.backingTrackFile", backingTrackFile),
     persistBlobRef("media.vocalTrackFile", vocalTrackFile),
     persistBlobRef("media.settingsFile", settingsFile),
     persistBlobRef("media.kbpFile", kbpFile),
-  ]).finally(() => {
-    isHydrating = false;
-    resumeRunningSeparation();
-  });
+  ])
+    .then(restoreLegacyTrack)
+    .finally(() => {
+      isHydrating = false;
+      resumeRunningSeparation();
+    });
 
   async function clearSession(): Promise<void> {
     cancelSeparation();
     songFile.value = null;
     backgroundVideo.value = null;
-    separatedTrack.value = null;
+    trackPairs.value = null;
+    renderTrackSource.value = null;
     timingsFile.value = null;
     lyricsFile.value = null;
     backingTrackFile.value = null;
@@ -464,7 +567,11 @@ export const useMediaStore = defineStore("media", () => {
     // Track separation
     isProcessing,
     separationModel,
+    trackPairs,
+    renderTrackSource,
     separatedTrack,
+    vocalSources,
+    backingSources,
     error,
     separationStartTime,
     separationProgress,
@@ -476,11 +583,13 @@ export const useMediaStore = defineStore("media", () => {
 
     // Methods
     metadataSettled,
+    trackPair,
+    trackFor,
+    putTrackPair,
     startSeparation,
     cancelSeparation,
     discardSeparatedTrack,
-    setBackingTrack,
-    setVocalTrack,
+    replaceUploadedTrack,
     clearSession,
   };
 });

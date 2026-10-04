@@ -21,7 +21,8 @@ import {
   serializeVoiceStyle,
 } from "@/lib/voiceStyle";
 import { VoiceId } from "@/lib/voices";
-import { SeparationModel } from "@/types";
+import { SeparationModel, TrackSource } from "@/types";
+import { parseFileSource } from "@/lib/trackSources";
 import { SEPARATION_MODELS } from "@/stores/media";
 import type { VideoSettings } from "@/stores/settings";
 
@@ -35,6 +36,7 @@ export interface SettingsFileSong {
 export interface ParsedSettingsFile {
   song: SettingsFileSong;
   separationModel?: SeparationModel;
+  backingTrack?: TrackSource;
   videoOptions: Partial<VideoSettings>;
   // Absent when the file says nothing about voice styles, so a caller can tell
   // "no opinion" (leave the current overrides alone) from "explicitly empty".
@@ -50,6 +52,8 @@ export interface SettingsFileSource {
     youtubeUrl: string | null;
   };
   separationModel: SeparationModel;
+  // The source of the backing track the video renders with, or null while there is none.
+  backingTrack: TrackSource | null;
   videoOptions: VideoSettings;
   voiceStyles: Record<VoiceId, VoiceStyleOverride>;
 }
@@ -60,6 +64,7 @@ export interface SettingsFileSource {
 export function serializeSettingsYaml({
   song,
   separationModel,
+  backingTrack,
   videoOptions,
   voiceStyles,
 }: SettingsFileSource): string {
@@ -69,6 +74,7 @@ export function serializeSettingsYaml({
   const document: Record<string, unknown> = {
     song,
     separationModel,
+    ...(backingTrack ? { backingTrack } : {}),
     videoOptions: {
       ...rest,
       color: Object.fromEntries(
@@ -283,6 +289,17 @@ function readSeparationModel(
     return undefined;
   }
   return name as SeparationModel;
+}
+
+function readTrackSource(
+  value: unknown,
+  path: string,
+  warnings: string[],
+): TrackSource | undefined {
+  if (typeof value === "string" && parseFileSource(value as TrackSource)) {
+    return value as TrackSource;
+  }
+  return readSeparationModel(value, path, warnings);
 }
 
 function warnUnknownKeys(
@@ -508,7 +525,7 @@ export function parseSettingsYaml(text: string): ParsedSettingsFile {
   const warnings: string[] = [];
   warnUnknownKeys(
     document,
-    ["song", "separationModel", "videoOptions", "voiceStyles"],
+    ["song", "separationModel", "backingTrack", "videoOptions", "voiceStyles"],
     "",
     warnings,
   );
@@ -524,6 +541,9 @@ export function parseSettingsYaml(text: string): ParsedSettingsFile {
     readSeparationModel(document.separationModel, "separationModel", warnings) ??
     videoOptions.vocalSeparationModel;
   if (model !== undefined) parsed.separationModel = model;
+
+  const backingTrack = readTrackSource(document.backingTrack, "backingTrack", warnings);
+  if (backingTrack !== undefined) parsed.backingTrack = backingTrack;
 
   const voiceStyles = parseVoiceStyles(document.voiceStyles, warnings);
   if (voiceStyles !== undefined) parsed.voiceStyles = voiceStyles;

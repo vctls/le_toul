@@ -1,6 +1,7 @@
 import { mount } from "@vue/test-utils";
 import { vi } from "vitest";
 import SourceFileDownloadLinks from "./SourceFileDownloadLinks.vue";
+import type { TrackPair } from "@/stores/media";
 
 const stubIcons = { stubs: { "b-icon": true } };
 
@@ -17,6 +18,21 @@ describe("SourceFileDownloadLinks", () => {
     const wrapper = mount(SourceFileDownloadLinks, { props: { song }, global: stubIcons });
 
     expect(wrapper.text()).toContain("My Song.flac");
+  });
+
+  it("lists every track of every pair, prefixed with the model that made it", () => {
+    const audio = (bytes: string) => new Blob([bytes], { type: "audio/mpeg" });
+    const tracks: TrackPair[] = [
+      { source: "UVR_MDXNET_KARA_2.onnx", backing: audio("b1"), vocals: audio("v1") },
+      { source: "file:backing/Instrumental.mp3", backing: audio("b2"), vocals: new Blob() },
+    ];
+    const wrapper = mount(SourceFileDownloadLinks, { props: { tracks }, global: stubIcons });
+
+    expect(wrapper.findAll(".file-item").map((item) => item.text())).toEqual([
+      "MDX-Kara-vocals.mp3",
+      "MDX-Kara-backing.mp3",
+      "Instrumental-backing.mp3",
+    ]);
   });
 
   it("shows nothing when there is no font and no other file", () => {

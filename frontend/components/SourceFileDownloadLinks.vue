@@ -95,24 +95,13 @@
         <b-icon icon="download" />
       </button>
     </span>
-    <span v-if="vocals && vocals.size > 0" class="file-item">
-      {{ vocalsName }}
+    <span v-for="track in trackFiles" :key="track.name" class="file-item">
+      {{ track.name }}
       <button
         type="button"
         class="link-button"
-        @click="download(vocals, vocalsName)"
-        title="download vocals"
-      >
-        <b-icon icon="download" />
-      </button>
-    </span>
-    <span v-if="backing && backing.size > 0" class="file-item">
-      {{ backingName }}
-      <button
-        type="button"
-        class="link-button"
-        @click="download(backing, backingName)"
-        title="download backing track"
+        @click="download(track.blob, track.name)"
+        :title="track.kind === 'vocals' ? 'download vocals' : 'download backing track'"
       >
         <b-icon icon="download" />
       </button>
@@ -123,7 +112,9 @@
 <script lang="ts">
 import { isString } from "lodash-es";
 import { defineComponent, PropType } from "vue";
-import { extensionForBlob } from "@/lib/audio";
+import { trackEntries } from "@/lib/projectFolder";
+import type { TrackKind } from "@/types";
+import type { TrackPair } from "@/stores/media";
 
 export default defineComponent({
   props: {
@@ -137,18 +128,14 @@ export default defineComponent({
     font: File,
     // More fonts, such as the ones uploaded for single voices.
     fonts: { type: Array as PropType<File[]>, default: () => [] },
-    vocals: Blob,
-    backing: Blob,
+    tracks: { type: Array as PropType<TrackPair[]>, default: () => [] },
   },
   computed: {
     allFonts(): File[] {
       return this.font ? [this.font, ...this.fonts] : this.fonts;
     },
-    vocalsName(): string {
-      return `vocals.${extensionForBlob(this.vocals ?? new Blob())}`;
-    },
-    backingName(): string {
-      return `backing.${extensionForBlob(this.backing ?? new Blob())}`;
+    trackFiles(): { name: string; kind: TrackKind; blob: Blob }[] {
+      return trackEntries(this.tracks);
     },
     hasAnyFiles(): boolean {
       return Boolean(
@@ -158,8 +145,7 @@ export default defineComponent({
         this.subtitles ||
         this.settings ||
         this.allFonts.length > 0 ||
-        (this.vocals && this.vocals.size > 0) ||
-        (this.backing && this.backing.size > 0),
+        this.trackFiles.length > 0,
       );
     },
   },

@@ -160,6 +160,75 @@ test.describe("Project Folder Upload", () => {
     );
   });
 
+  test("loads each model's tracks into that model's pair", async ({ page }) => {
+    const folder = await makeFolder("models");
+    await fs.copyFile(getFixturePath(defaultTestConfig.audioFile), path.join(folder, "song.mp3"));
+    const tracks = getFixturePath("project/backing.mp3");
+    await fs.copyFile(tracks, path.join(folder, "backing.mp3"));
+    await fs.copyFile(tracks, path.join(folder, "MDX-Kara-backing.mp3"));
+    await fs.copyFile(tracks, path.join(folder, "MDX-Kara-vocals.mp3"));
+    // The MDX-Kara pair loads last, so only the settings make the uploaded track the one rendered.
+    await fs.writeFile(
+      path.join(folder, "settings.yaml"),
+      "backingTrack: file:backing/backing.mp3\n",
+    );
+
+    await loadProjectFolder(page, folder);
+
+    await expect(page.locator('.toast:has-text("the MDX-Kara tracks")')).toBeVisible();
+    await expect(page.locator('[name="song-file-upload"] .file-name')).toHaveText("song.mp3");
+    await expect(page.locator('[name="backing-track-upload"] .file-name')).toHaveText(
+      "backing.mp3",
+    );
+    await expect(page.getByRole("img", { name: "Already separated" })).toHaveCount(1);
+    await expect(page.getByRole("radio", { name: /^MDX-Net \(fastest\)/ })).toHaveAccessibleName(
+      /Already separated/,
+    );
+
+    await navigateToTab(page, TabId.Submit);
+    await expect(
+      page.locator('.field:has(label:has-text("Backing Track")) select').first(),
+    ).toHaveValue("file:backing/backing.mp3");
+    await expect(page.locator(".source-file-links").last()).toContainText("MDX-Kara-vocals.mp3");
+    await expect(page.locator(".source-file-links").last()).toContainText("MDX-Kara-backing.mp3");
+  });
+
+  test("uploads the other tracks, up to three of each kind, under their file names", async ({
+    page,
+  }) => {
+    const folder = await makeFolder("unknown-models");
+    await fs.copyFile(getFixturePath(defaultTestConfig.audioFile), path.join(folder, "song.mp3"));
+    const tracks = getFixturePath("project/backing.mp3");
+    for (const name of ["A-vocals", "B-vocals", "C-vocals", "Demucs-vocals", "Demucs-backing"]) {
+      await fs.copyFile(tracks, path.join(folder, `${name}.mp3`));
+    }
+    await fs.copyFile(tracks, path.join(folder, "Demucs-backing.wav"));
+
+    await loadProjectFolder(page, folder);
+
+    await expect(
+      page.locator(
+        '.toast:has-text("The uploaded tracks are limited to 3 vocal and 3 backing tracks. Ignored Demucs-vocals.mp3.")',
+      ),
+    ).toBeVisible({ timeout: 10000 });
+    await expect(page.locator('[name="song-file-upload"] .file-name')).toHaveText("song.mp3");
+    await expect(page.locator('[name="vocal-track-upload"] .file-name')).toHaveText("A-vocals.mp3");
+    await navigateToTab(page, TabId.Submit);
+    const backingGroup = page.locator(
+      '.field:has(label:has-text("Backing Track")) optgroup[label="Backing · uploaded"]',
+    );
+    await expect(backingGroup.first().locator("option")).toHaveText([
+      "Demucs-backing.mp3",
+      "Demucs-backing.wav",
+    ]);
+    await navigateToTab(page, TabId.LyricInput);
+    await expect(
+      page.locator(
+        'select[aria-label="Playback track"] optgroup[label="Vocals · uploaded"] option',
+      ),
+    ).toHaveText(["A-vocals.mp3", "B-vocals.mp3", "C-vocals.mp3"]);
+  });
+
   test("counts the tracks a new song discards, and offers them but not the song", async ({
     page,
   }) => {

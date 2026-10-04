@@ -73,41 +73,26 @@
           </b-field>
           <b-field label="Separation Model" class="separation-model-field">
             <div class="separation-model-radios">
-              <div class="model-group-label">Keep backing vocals</div>
-              <b-radio
-                v-model="mediaStore.separationModel"
-                :native-value="BACKING_VOCALS_SEPARATOR_MODEL"
-              >
-                MDX-Net <span class="hint">(fastest)</span>
-              </b-radio>
-              <b-radio
-                v-model="mediaStore.separationModel"
-                :native-value="BACKING_VOCALS_HQ_SEPARATOR_MODEL"
-              >
-                Mel-Band Roformer (aufr33/viperx)
-                <span class="hint">(higher quality · slower)</span>
-              </b-radio>
-              <b-radio
-                v-model="mediaStore.separationModel"
-                :native-value="BACKING_VOCALS_HQ_ALT_SEPARATOR_MODEL"
-              >
-                Mel-Band Roformer (becruily)
-                <span class="hint">(higher quality, newer · slower)</span>
-              </b-radio>
-              <div class="model-group-label">Remove backing vocals</div>
-              <b-radio
-                v-model="mediaStore.separationModel"
-                :native-value="NO_VOCALS_SEPARATOR_MODEL"
-              >
-                MDX-Net Inst HQ <span class="hint">(fastest)</span>
-              </b-radio>
-              <b-radio
-                v-model="mediaStore.separationModel"
-                :native-value="NO_VOCALS_HQ_SEPARATOR_MODEL"
-              >
-                BS-Roformer
-                <span class="hint">(highest quality · slowest)</span>
-              </b-radio>
+              <template v-for="group in SEPARATION_MODEL_GROUPS" :key="group.label">
+                <div class="model-group-label">{{ group.label }}</div>
+                <b-radio
+                  v-for="entry in group.models"
+                  :key="entry.model"
+                  v-model="mediaStore.separationModel"
+                  :native-value="entry.model"
+                >
+                  {{ entry.name }} <span class="hint">({{ entry.hint }})</span>
+                  <span
+                    v-if="mediaStore.trackPair(entry.model)"
+                    class="separated-mark"
+                    role="img"
+                    aria-label="Already separated"
+                    title="Already separated"
+                  >
+                    <b-icon icon="check" size="is-small" type="is-success" />
+                  </span>
+                </b-radio>
+              </template>
             </div>
           </b-field>
 
@@ -226,16 +211,16 @@
             name="backing-track-upload"
             label="Backing Track"
             tooltip="An instrumental track you already have. Skips the separation step."
-            v-model="mediaStore.backingTrackFile"
-            @update:modelValue="onBackingTrackFileChange"
+            :model-value="mediaStore.backingTrackFile"
+            @update:model-value="(file: File | null) => onUploadedTrackChange('backing', file)"
           />
           <file-upload
             expanded
             name="vocal-track-upload"
             label="Vocal Track"
             tooltip="A vocals-only track you already have. Used to check your timings against the singing."
-            v-model="mediaStore.vocalTrackFile"
-            @update:modelValue="onVocalTrackFileChange"
+            :model-value="mediaStore.vocalTrackFile"
+            @update:model-value="(file: File | null) => onUploadedTrackChange('vocals', file)"
           />
         </div>
         <div v-if="advancedStore.isAdvanced" class="box kbp-files">
@@ -273,17 +258,16 @@
       icon="warning"
       confirm-label="Separate again"
       cancel-label="Keep what I have"
-      @confirm="separateAgain"
+      @confirm="runSeparation"
     >
       <p>
-        The backing and vocal tracks you have now will be unloaded, and the video will wait for the
-        new separation before it renders. Save them first if you want to keep them.
+        The backing and vocal tracks this model made before will be replaced once the new separation
+        finishes. Save them first if you want to keep them.
       </p>
       <source-file-download-links
         class="mt-4"
         label="Current tracks: "
-        :vocals="mediaStore.separatedTrack?.vocals"
-        :backing="mediaStore.separatedTrack?.backing"
+        :tracks="selectedModelTracks ? [selectedModelTracks] : []"
       />
     </confirm-modal>
 
@@ -338,16 +322,10 @@
 import { defineComponent } from "vue";
 import { mapStores } from "pinia";
 import { fetchYouTubeVideo, parseYouTubeTitle } from "@/lib/video";
-import { SeparationModel } from "@/types";
+import { SeparationModel, TrackKind } from "@/types";
 
-import {
-  useMediaStore,
-  BACKING_VOCALS_SEPARATOR_MODEL,
-  NO_VOCALS_SEPARATOR_MODEL,
-  BACKING_VOCALS_HQ_SEPARATOR_MODEL,
-  BACKING_VOCALS_HQ_ALT_SEPARATOR_MODEL,
-  NO_VOCALS_HQ_SEPARATOR_MODEL,
-} from "@/stores/media";
+import { TrackPair, useMediaStore } from "@/stores/media";
+import { SEPARATION_MODEL_GROUPS, separationModelShortName } from "@/lib/separationModels";
 import { useTimingsStore } from "@/stores/timings";
 import { useHistoryStore } from "@/stores/history";
 import { useAdvancedStore } from "@/stores/advanced";
@@ -357,6 +335,7 @@ import { useSettingsStore } from "@/stores/settings";
 import { useProjectFolderRequestStore } from "@/stores/projectFolderRequest";
 import { parseSettingsYaml } from "@/lib/settingsFile";
 import { classifyProjectFolder, ProjectFolder } from "@/lib/projectFolder";
+import { MAX_UPLOADED_TRACKS, parseFileSource } from "@/lib/trackSources";
 import { kbpToProjectFiles, KbpImport } from "@/lib/kbpConvert";
 import { BUNDLED_FONTS } from "@/lib/fonts";
 import { isTimingsFile } from "@/lib/timedSegments";
@@ -392,8 +371,7 @@ interface FolderLosses {
     timings?: string;
     settings?: string;
     font?: File;
-    vocals?: Blob;
-    backing?: Blob;
+    tracks?: TrackPair[];
   };
 }
 
@@ -448,11 +426,7 @@ export default defineComponent({
       cancelArmingTimeout: undefined as ReturnType<typeof setTimeout> | undefined,
       isLoadingYouTube: false,
       youtubeError: null as string | null,
-      BACKING_VOCALS_SEPARATOR_MODEL,
-      NO_VOCALS_SEPARATOR_MODEL,
-      BACKING_VOCALS_HQ_SEPARATOR_MODEL,
-      BACKING_VOCALS_HQ_ALT_SEPARATOR_MODEL,
-      NO_VOCALS_HQ_SEPARATOR_MODEL,
+      SEPARATION_MODEL_GROUPS,
       isConfirmingSeparation: false,
       isConfirmingReplacement: false,
       // Left in place once the prompt closes, so the prompt doesn't lose its text while it fades out.
@@ -574,6 +548,9 @@ export default defineComponent({
         class: OUTCOME_CLASSES[outcome.status],
       };
     },
+    selectedModelTracks(): TrackPair | undefined {
+      return this.mediaStore.trackPair(this.mediaStore.separationModel);
+    },
     separationHeaderLabel(): string {
       return this.isSeparatingTrack ? this.separationProgressMessage : "Separating track";
     },
@@ -581,8 +558,11 @@ export default defineComponent({
       if (this.isSeparatingTrack) {
         return "Separating track...head to the Lyrics tab to keep working on the song!";
       }
+      if (this.selectedModelTracks) {
+        return "You already have tracks from this model. Separating again replaces them.";
+      }
       if (this.mediaStore.hasSeparatedTrack) {
-        return "You already have a backing track. Separating again replaces it.";
+        return "The new tracks are added to the ones you have, so you can compare them.";
       }
       return "Start separating the track while you work on the song timings. It's faster!";
     },
@@ -639,6 +619,9 @@ export default defineComponent({
       }
       if (settings.separationModel) {
         this.mediaStore.separationModel = settings.separationModel;
+      }
+      if (settings.backingTrack) {
+        this.mediaStore.renderTrackSource = settings.backingTrack;
       }
       if (settings.song.title) {
         this.mediaStore.songTitle = settings.song.title;
@@ -898,7 +881,7 @@ export default defineComponent({
      */
     folderLosses(project: ProjectFolder, includeSettings: boolean): FolderLosses {
       const losses: FolderLosses = { labels: [], files: {} };
-      const track = this.mediaStore.separatedTrack;
+      const tracks = this.replacedTracks(project);
       if (project.song && this.mediaStore.songFile) {
         losses.labels.push("song");
       }
@@ -910,14 +893,16 @@ export default defineComponent({
         losses.labels.push("timings");
         losses.files.timings = this.timingsStore.timingsText;
       }
-      // A new song discards the tracks separated from the old one, even when the folder has none.
-      if ((project.backing || project.song) && track && track.backing.size > 0) {
-        losses.labels.push("backing track");
-        losses.files.backing = track.backing;
+      const backingCount = tracks.filter((pair) => pair.backing.size > 0).length;
+      const vocalCount = tracks.filter((pair) => pair.vocals.size > 0).length;
+      if (backingCount > 0) {
+        losses.labels.push(backingCount > 1 ? "backing tracks" : "backing track");
       }
-      if ((project.vocals || project.song) && track && track.vocals.size > 0) {
-        losses.labels.push("vocal track");
-        losses.files.vocals = track.vocals;
+      if (vocalCount > 0) {
+        losses.labels.push(vocalCount > 1 ? "vocal tracks" : "vocal track");
+      }
+      if (tracks.length > 0) {
+        losses.files.tracks = tracks;
       }
       if (project.font && this.settingsStore.customFont) {
         losses.labels.push("font");
@@ -928,6 +913,23 @@ export default defineComponent({
         losses.files.settings = this.settingsStore.settingsYaml;
       }
       return losses;
+    },
+    /**
+     * The tracks loading the folder would discard. A new song discards all of them, even when the
+     * folder has none. Otherwise a track in the folder replaces its model's pair, or the uploaded
+     * file of the same kind and name.
+     */
+    replacedTracks(project: ProjectFolder): TrackPair[] {
+      const pairs = this.mediaStore.trackPairs ?? [];
+      if (project.song) {
+        return pairs;
+      }
+      return pairs.filter((pair) => {
+        const file = parseFileSource(pair.source);
+        return file
+          ? project.uploadedTracks[file.kind].some((track) => track.name === file.name)
+          : !!project.modelTracks[pair.source as SeparationModel];
+      });
     },
     onProjectFolderSelect(files: File[], name: string | null) {
       const project = classifyProjectFolder(files);
@@ -989,19 +991,30 @@ export default defineComponent({
             this.timingsWarnings = warnings;
           });
         }
-        if (project.backing) {
-          const backing = project.backing;
-          await apply("the backing track", backing, async () => {
-            await this.mediaStore.setBackingTrack(backing);
-            this.mediaStore.backingTrackFile = backing;
-          });
+        const skippedTracks: File[] = [];
+        for (const kind of ["backing", "vocals"] as const) {
+          for (const file of project.uploadedTracks[kind]) {
+            if (!this.mediaStore.replaceUploadedTrack(kind, null, file)) {
+              skippedTracks.push(file);
+              continue;
+            }
+            loaded.push(file.name);
+            const field = kind === "backing" ? "backingTrackFile" : "vocalTrackFile";
+            this.mediaStore[field] ??= file;
+          }
         }
-        if (project.vocals) {
-          const vocals = project.vocals;
-          await apply("the vocal track", vocals, async () => {
-            await this.mediaStore.setVocalTrack(vocals);
-            this.mediaStore.vocalTrackFile = vocals;
-          });
+        type FolderTracks = { backing?: File; vocals?: File };
+        for (const [model, tracks] of Object.entries(project.modelTracks) as [
+          SeparationModel,
+          FolderTracks,
+        ][]) {
+          const file = (tracks.backing ?? tracks.vocals)!;
+          await apply(`the ${separationModelShortName(model)} tracks`, file, () =>
+            this.mediaStore.putTrackPair(model, {
+              backing: tracks.backing ?? new Blob(),
+              vocals: tracks.vocals ?? new Blob(),
+            }),
+          );
         }
         if (project.font) {
           const font = project.font;
@@ -1030,27 +1043,47 @@ export default defineComponent({
           type: loaded.length ? "is-success" : "is-warning",
           duration: loaded.length ? 3000 : 5000,
         });
+        const trackWarnings: string[] = [];
+        if (skippedTracks.length > 0) {
+          trackWarnings.push(
+            `The uploaded tracks are limited to ${MAX_UPLOADED_TRACKS} vocal and ` +
+              `${MAX_UPLOADED_TRACKS} backing tracks. ` +
+              `Ignored ${formatList(skippedTracks.map((file) => file.name))}.`,
+          );
+        }
+        if (trackWarnings.length > 0) {
+          this.$buefy.toast.open({
+            message: trackWarnings.join(" "),
+            type: "is-warning",
+            duration: 8000,
+          });
+        }
       });
     },
     onSeparationModelChange(model: SeparationModel) {
       this.mediaStore.separationModel = model;
     },
-    onBackingTrackFileChange(file: File | null) {
-      this.mediaStore.setBackingTrack(file);
+    // The field swaps the file it held for the new one, leaving the folder's other files alone.
+    onUploadedTrackChange(kind: TrackKind, file: File | null) {
+      const field = kind === "backing" ? "backingTrackFile" : "vocalTrackFile";
+      const added = this.mediaStore.replaceUploadedTrack(kind, this.mediaStore[field], file);
+      this.mediaStore[field] = added ? file : null;
+      if (!added) {
+        this.$buefy.toast.open({
+          message:
+            `There are already ${MAX_UPLOADED_TRACKS} uploaded ` +
+            `${kind === "backing" ? "backing" : "vocal"} tracks. Remove one to add another.`,
+          type: "is-warning",
+          duration: 5000,
+        });
+      }
     },
-    onVocalTrackFileChange(file: File | null) {
-      this.mediaStore.setVocalTrack(file);
-    },
-    // Separating again throws away the track that is loaded, so ask before it goes.
+    // Separating again with a model replaces the tracks it made before, so ask first.
     separateTrack() {
-      if (this.mediaStore.hasSeparatedTrack) {
+      if (this.selectedModelTracks) {
         this.isConfirmingSeparation = true;
         return;
       }
-      this.runSeparation();
-    },
-    separateAgain() {
-      this.mediaStore.discardSeparatedTrack();
       this.runSeparation();
     },
     runSeparation() {
@@ -1133,6 +1166,10 @@ export default defineComponent({
 .separation-model-radios .hint {
   color: #888;
   font-size: 0.85em;
+  margin-left: 0.25rem;
+}
+
+.separation-model-radios .separated-mark {
   margin-left: 0.25rem;
 }
 </style>

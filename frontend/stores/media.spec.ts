@@ -3,8 +3,13 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { Ref } from "vue";
 import { resumeSeparation, separateTrack } from "@/lib/audio";
-import { persistJsonRef } from "@/lib/persistence";
-import { BACKING_VOCALS_SEPARATOR_MODEL, useMediaStore } from "./media";
+import { persistJsonRef, takeLegacyBlob } from "@/lib/persistence";
+import {
+  BACKING_VOCALS_SEPARATOR_MODEL,
+  NO_VOCALS_SEPARATOR_MODEL,
+  TrackPair,
+  useMediaStore,
+} from "./media";
 
 vi.mock("@/lib/audio", () => ({
   separateTrack: vi.fn(),
@@ -22,10 +27,12 @@ vi.mock("@/lib/persistence", () => ({
   persistJsonRef: vi.fn(),
   persistBlobRef: vi.fn().mockResolvedValue(undefined),
   clearPersistence: vi.fn().mockResolvedValue(undefined),
+  takeLegacyBlob: vi.fn().mockResolvedValue(undefined),
 }));
 
 const SONG = new File(["audio data"], "test.mp3", { type: "audio/mp3" });
 const TRACK = { backing: new Blob(["backing"]), vocals: new Blob(["vocals"]) };
+const PAIR: TrackPair = { source: BACKING_VOCALS_SEPARATOR_MODEL, ...TRACK };
 
 // Resolves once the store has read its saved files back, after which a new song counts as a change.
 function hydrated() {
@@ -104,7 +111,7 @@ describe("Media Store separation", () => {
     const started = pendingSeparation();
     store.startSeparation(SONG, BACKING_VOCALS_SEPARATOR_MODEL);
     const signal = await started;
-    store.separatedTrack = TRACK;
+    store.trackPairs = [PAIR];
     store.backingTrackFile = new File(["backing"], "backing.wav");
     store.vocalTrackFile = new File(["vocals"], "vocals.wav");
 
@@ -131,7 +138,7 @@ describe("Media Store separation", () => {
     const started = pendingSeparation();
     store.startSeparation(SONG, BACKING_VOCALS_SEPARATOR_MODEL);
     const signal = await started;
-    store.separatedTrack = TRACK;
+    store.trackPairs = [PAIR];
     store.backingTrackFile = new File(["backing"], "backing.wav");
     store.backgroundVideo = new Blob(["video"]);
 
@@ -147,18 +154,18 @@ describe("Media Store separation", () => {
 
   it("keeps the tracks that are restored along with the song", () => {
     const store = useMediaStore();
-    store.separatedTrack = TRACK;
+    store.trackPairs = [PAIR];
 
     store.songFile = SONG;
 
-    expect(store.separatedTrack).toBe(TRACK);
+    expect(store.trackPairs).toEqual([PAIR]);
   });
 
   it("reports an uploaded track alone as a separated track", async () => {
     const store = useMediaStore();
 
     expect(store.hasSeparatedTrack).toBe(false);
-    await store.setBackingTrack(new File(["backing"], "backing.wav"));
+    store.replaceUploadedTrack("backing", null, new File(["backing"], "backing.wav"));
 
     expect(store.hasSeparatedTrack).toBe(true);
   });
@@ -172,6 +179,114 @@ describe("Media Store separation", () => {
     expect(result).toBeUndefined();
     expect(store.error).toBe("Separator ran out of memory");
     expect(store.isProcessing).toBe(false);
+  });
+});
+
+describe("Media Store track pairs", () => {
+  const OTHER = { backing: new Blob(["other backing"]), vocals: new Blob(["other vocals"]) };
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    setActivePinia(createPinia());
+  });
+
+  it("keeps the tracks of each model side by side", async () => {
+    const store = useMediaStore();
+    (separateTrack as any).mockResolvedValueOnce(TRACK).mockResolvedValueOnce(OTHER);
+
+    await store.startSeparation(SONG, BACKING_VOCALS_SEPARATOR_MODEL);
+    await store.startSeparation(SONG, NO_VOCALS_SEPARATOR_MODEL);
+
+    expect(store.vocalSources).toEqual([BACKING_VOCALS_SEPARATOR_MODEL, NO_VOCALS_SEPARATOR_MODEL]);
+    expect(store.trackFor("vocals", BACKING_VOCALS_SEPARATOR_MODEL)).toBe(TRACK.vocals);
+    expect(store.trackFor("backing", NO_VOCALS_SEPARATOR_MODEL)).toBe(OTHER.backing);
+  });
+
+  it("renders with the latest backing track until one is picked", async () => {
+    const store = useMediaStore();
+    (separateTrack as any).mockResolvedValueOnce(TRACK).mockResolvedValueOnce(OTHER);
+    await store.startSeparation(SONG, BACKING_VOCALS_SEPARATOR_MODEL);
+    await store.startSeparation(SONG, NO_VOCALS_SEPARATOR_MODEL);
+
+    expect(store.separatedTrack?.source).toBe(NO_VOCALS_SEPARATOR_MODEL);
+    store.renderTrackSource = BACKING_VOCALS_SEPARATOR_MODEL;
+
+    expect(store.separatedTrack?.backing).toBe(TRACK.backing);
+  });
+
+  it("replaces the tracks a model made before and counts them as the latest", async () => {
+    const store = useMediaStore();
+    (separateTrack as any)
+      .mockResolvedValueOnce(TRACK)
+      .mockResolvedValueOnce(OTHER)
+      .mockResolvedValueOnce(OTHER);
+    await store.startSeparation(SONG, BACKING_VOCALS_SEPARATOR_MODEL);
+    await store.startSeparation(SONG, NO_VOCALS_SEPARATOR_MODEL);
+
+    await store.startSeparation(SONG, BACKING_VOCALS_SEPARATOR_MODEL);
+
+    expect(store.backingSources).toEqual([
+      NO_VOCALS_SEPARATOR_MODEL,
+      BACKING_VOCALS_SEPARATOR_MODEL,
+    ]);
+    expect(store.trackFor("backing", BACKING_VOCALS_SEPARATOR_MODEL)).toBe(OTHER.backing);
+  });
+
+  it("keeps each uploaded file apart from the separated tracks", async () => {
+    const store = useMediaStore();
+    (separateTrack as any).mockResolvedValue(TRACK);
+    await store.startSeparation(SONG, BACKING_VOCALS_SEPARATOR_MODEL);
+    const vocals = new File(["my vocals"], "vocals.wav");
+
+    store.replaceUploadedTrack("vocals", null, vocals);
+
+    expect(store.vocalSources).toEqual([BACKING_VOCALS_SEPARATOR_MODEL, "file:vocals/vocals.wav"]);
+    expect(store.backingSources).toEqual([BACKING_VOCALS_SEPARATOR_MODEL]);
+    expect(store.trackFor("vocals", "file:vocals/vocals.wav")).toBe(vocals);
+    expect(store.separatedTrack?.backing).toBe(TRACK.backing);
+    store.replaceUploadedTrack("vocals", vocals, null);
+    expect(store.trackPair("file:vocals/vocals.wav")).toBeUndefined();
+  });
+
+  it("swaps one uploaded file for another, leaving the rest", () => {
+    const store = useMediaStore();
+    const [first, second, third] = ["a.wav", "b.wav", "c.wav"].map(
+      (name) => new File([name], name),
+    );
+    store.replaceUploadedTrack("backing", null, first);
+    store.replaceUploadedTrack("backing", null, second);
+
+    store.replaceUploadedTrack("backing", first, third);
+
+    expect(store.backingSources).toEqual(["file:backing/b.wav", "file:backing/c.wav"]);
+  });
+
+  it("refuses a fourth uploaded file of a kind", () => {
+    const store = useMediaStore();
+    const files = ["a.wav", "b.wav", "c.wav", "d.wav"].map((name) => new File([name], name));
+
+    const added = files.map((file) => store.replaceUploadedTrack("vocals", null, file));
+
+    expect(added).toEqual([true, true, true, false]);
+    expect(store.vocalSources).toHaveLength(3);
+    expect(store.replaceUploadedTrack("backing", null, files[3])).toBe(true);
+  });
+
+  it("finds no track for the full song or a source that has none", () => {
+    const store = useMediaStore();
+    store.trackPairs = [PAIR];
+
+    expect(store.trackFor("vocals", "full")).toBeNull();
+    expect(store.trackFor("vocals", NO_VOCALS_SEPARATOR_MODEL)).toBeNull();
+  });
+
+  it("brings back the single pair an older version saved", async () => {
+    vi.mocked(takeLegacyBlob).mockResolvedValueOnce(TRACK);
+    const store = useMediaStore();
+
+    await vi.waitFor(() =>
+      expect(store.trackPairs).toEqual([{ source: store.separationModel, ...TRACK }]),
+    );
   });
 });
 
@@ -254,10 +369,11 @@ describe("Media Store separation outcome", () => {
 
 describe("Media Store running separation", () => {
   const POLL_URL = "/separated_track/abc";
-  let running: Ref<{ pollUrl: string; requestedAt: number } | null> | undefined;
+  type Running = { pollUrl: string; model?: string; requestedAt: number };
+  let running: Ref<Running | null> | undefined;
 
   // Captures the persisted ref, optionally seeding it as a reload would from localStorage.
-  function persistRunning(stored: { pollUrl: string; requestedAt: number } | null = null) {
+  function persistRunning(stored: Running | null = null) {
     vi.mocked(persistJsonRef).mockImplementation((key: string, ref: Ref<any>) => {
       if (key === "media.runningSeparation") {
         ref.value = stored;
@@ -295,6 +411,7 @@ describe("Media Store running separation", () => {
     store.startSeparation(SONG, BACKING_VOCALS_SEPARATOR_MODEL);
 
     expect(running?.value?.pollUrl).toBe(POLL_URL);
+    expect(running?.value?.model).toBe(BACKING_VOCALS_SEPARATOR_MODEL);
     expect(running?.value?.requestedAt).toBeLessThanOrEqual(Date.now());
   });
 
@@ -324,7 +441,11 @@ describe("Media Store running separation", () => {
   });
 
   it("follows a remembered job when the page loads again", async () => {
-    persistRunning({ pollUrl: POLL_URL, requestedAt: Date.now() - 60_000 });
+    persistRunning({
+      pollUrl: POLL_URL,
+      model: NO_VOCALS_SEPARATOR_MODEL,
+      requestedAt: Date.now() - 60_000,
+    });
     (resumeSeparation as any).mockResolvedValue(TRACK);
 
     const store = useMediaStore();
@@ -335,7 +456,7 @@ describe("Media Store running separation", () => {
       expect.any(Function),
       expect.any(AbortSignal),
     );
-    expect(store.separatedTrack).toBe(TRACK);
+    expect(store.trackPairs).toEqual([{ source: NO_VOCALS_SEPARATOR_MODEL, ...TRACK }]);
     // The duration counts from the original request, not from the reload.
     expect(store.lastSeparation?.durationSeconds).toBeGreaterThanOrEqual(60);
     expect(running?.value).toBeNull();

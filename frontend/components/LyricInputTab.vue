@@ -49,6 +49,9 @@
       >
     </p>
     <div class="level is-mobile">
+      <div v-if="vocalSources.length > 0" class="level-item">
+        <track-select kind="vocals" aria-label="Playback track" v-model="playerTrackChoice" />
+      </div>
       <div class="level-item">
         <b-tooltip position="is-right" label="Convert all spaces to underscores">
           <b-button @click="convertSpaces">Add Underscores</b-button></b-tooltip
@@ -71,7 +74,8 @@
         >
       </div>
     </div>
-    <song-player :file="songFile" />
+    <!-- A new song starts the player over, while another track of the same song keeps its place. -->
+    <song-player :key="songKey" :file="playerFile" />
     <lyric-editor
       ref="lyricEditor"
       :modelValue="lyricText"
@@ -88,6 +92,7 @@ import { useLyricsStore } from "@/stores/lyrics";
 import LyricEditor from "@/components/LyricEditor.vue";
 import HelpSection from "@/components/HelpSection.vue";
 import SongPlayer from "@/components/SongPlayer.vue";
+import TrackSelect from "@/components/TrackSelect.vue";
 import { useMediaStore } from "@/stores/media";
 import { REDO_SHORTCUT, SHORTCUT_MODIFIER, UNDO_SHORTCUT } from "@/lib/history";
 import { useLyricsLookupStore } from "@/stores/lyricsLookup";
@@ -109,15 +114,19 @@ export default defineComponent({
     HelpSection,
     LyricEditor,
     SongPlayer,
+    TrackSelect,
   },
   setup() {
     const lyricStore = useLyricsStore();
     const { lyricText } = storeToRefs(lyricStore);
-    const { songFile } = storeToRefs(useMediaStore());
+    const mediaStore = useMediaStore();
+    const { songFile, vocalSources } = storeToRefs(mediaStore);
     const { provider, status } = storeToRefs(useLyricsLookupStore());
     return {
       lyricText,
+      mediaStore,
       songFile,
+      vocalSources,
       provider,
       status,
       appName: appName(),
@@ -129,12 +138,18 @@ export default defineComponent({
   data() {
     return {
       magicSlashes: true,
+      // "full" or a track source.
+      playerTrackChoice: "full",
+      songKey: 0,
       singleVoiceExample: "Hell/o_from_the_oth/er_side\nI_must_have_called_a_thou/sand_times",
       multiVoiceExample:
         "[Bob]Hell/o_from_the_oth/er_side\n[Alice]I_must_have_called_a_thou/sand_times\n[Alice+Bob]To_tell_you_I'm so/rry_for_e/very/thing_that_I've_done",
     };
   },
   computed: {
+    playerFile() {
+      return this.mediaStore.trackFor("vocals", this.playerTrackChoice) ?? this.songFile;
+    },
     statusMessage() {
       const name = this.provider?.name;
       const status = this.status;
@@ -154,6 +169,11 @@ export default defineComponent({
         default:
           return { text: `Couldn't reach ${name}.` };
       }
+    },
+  },
+  watch: {
+    songFile() {
+      this.songKey++;
     },
   },
   methods: {
