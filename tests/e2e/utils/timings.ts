@@ -157,7 +157,7 @@ export interface SavedSegment {
   text: string;
   start?: number;
   end?: number;
-  review?: "lost" | "moved";
+  review?: "lost" | "moved" | "doubtful";
 }
 
 /**

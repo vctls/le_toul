@@ -19,19 +19,25 @@ export interface TimedSegment {
   // They come from the lyrics, like the text.
   spacersBefore?: number;
   spacersAfter?: number;
-  // A lyric edit changed this segment's timing, and nobody has retimed or checked it since.
+  // A lyric edit or a sync put this segment's timing in doubt, and nobody has retimed or checked
+  // it since.
   // "lost": the segment took the place of timed words, and their timings were dropped.
   // "moved": the segment's start or end came from a different word.
+  // "doubtful": a sync placed the segment, and the aligner wasn't sure of it.
   review?: ReviewFlag;
 }
 
-export type ReviewFlag = "lost" | "moved";
+export type ReviewFlag = "lost" | "moved" | "doubtful";
+
+// From the flag that asks for the most attention to the least.
+const FLAGS_BY_URGENCY: ReviewFlag[] = ["lost", "moved", "doubtful"];
 
 /**
- * The flag that asks for more attention, since a lost timing is worse than a moved one.
+ * The flag that asks for more attention. A lost timing is worse than a moved one, and a moved one
+ * is worse than one the aligner placed without being sure.
  */
 function strongerFlag(a?: ReviewFlag, b?: ReviewFlag): ReviewFlag | undefined {
-  return a === "lost" || b === "lost" ? "lost" : (a ?? b);
+  return FLAGS_BY_URGENCY.find((flag) => flag === a || flag === b);
 }
 
 /**

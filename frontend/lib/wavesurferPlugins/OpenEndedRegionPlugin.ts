@@ -154,7 +154,7 @@ const FADED_OPACITY = "0.4";
 // Keep in sync with --bulma-primary in main.scss.
 const SELECTION_COLOR = "#7957d5";
 
-export type RegionReview = "lost" | "moved";
+export type RegionReview = "lost" | "moved" | "doubtful";
 
 // A region to review stays visible and clickable however far the waveform is zoomed out.
 const REVIEW_MIN_WIDTH_PX = 6;
@@ -162,10 +162,12 @@ const REVIEW_MARKER_WIDTH_PX = 2;
 const REVIEW_COLORS: Record<RegionReview, string> = {
   lost: "var(--region-review-lost)",
   moved: "var(--region-review-moved)",
+  doubtful: "var(--region-review-doubtful)",
 };
 const REVIEW_TITLES: Record<RegionReview, string> = {
   lost: "Lost its timing in a lyric edit",
   moved: "Timing taken from a replaced word",
+  doubtful: "Placed by syncing, which wasn't sure of it",
 };
 
 // The label spans two backgrounds: the region's own fill and,

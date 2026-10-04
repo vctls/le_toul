@@ -512,6 +512,23 @@ describe("reconcile", () => {
         timed("four", 4.0),
       ]);
     });
+
+    it("prefers lost and moved over doubtful", () => {
+      const stored = [
+        timed("one_", 1.0),
+        flag(timed("two_", 2.0), "doubtful"),
+        timed("three_", 3.0),
+        timed("four", 4.0),
+      ];
+
+      expect(reconcile(stored, lyrics("one_ka_lu_mo_four"))).toEqual([
+        timed("one_", 1.0),
+        flag(timed("ka_", 2.0), "moved"),
+        flag(timed("lu_"), "lost"),
+        flag(timed("mo_"), "doubtful"),
+        timed("four", 4.0),
+      ]);
+    });
   });
 
   describe("the diff", () => {

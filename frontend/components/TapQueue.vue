@@ -56,6 +56,7 @@ export default defineComponent({
             "joins-previous": !!this.items[i - 1]?.joinsNext,
             "is-review-lost": item.review === "lost",
             "is-review-moved": item.review === "moved",
+            "is-review-doubtful": item.review === "doubtful",
           },
         };
         if (!item.endsLine) return [segment];
@@ -144,14 +145,20 @@ The muted colour stands in for the timed tint, so a start alone still shows as a
   --review-color: var(--region-review-moved);
 }
 
+.queue-item.is-review-doubtful {
+  --review-color: var(--region-review-doubtful);
+}
+
 .queue-item.is-review-lost,
-.queue-item.is-review-moved {
+.queue-item.is-review-moved,
+.queue-item.is-review-doubtful {
   --queue-timed: color-mix(in srgb, var(--review-color) 45%, var(--bulma-scheme-main));
   background-color: var(--queue-timed);
 }
 
 .queue-item.is-head.is-review-lost,
-.queue-item.is-head.is-review-moved {
+.queue-item.is-head.is-review-moved,
+.queue-item.is-head.is-review-doubtful {
   border-color: var(--review-color);
   background: var(--review-color);
   color: var(--region-label-on-fill);

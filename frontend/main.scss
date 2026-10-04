@@ -72,8 +72,10 @@
   --region-fill-hole: rgba(102, 209, 255, 0.35);
   // Segments a lyric edit changed the timing of, in the danger and warning hues,
   // darkened enough to stand out from both the waveform and the other regions.
+  // Segments a sync wasn't sure of are yellow, a hue no other region uses.
   --region-review-lost: hsl(348deg, 86%, 55%);
   --region-review-moved: hsl(32deg, 100%, 50%);
+  --region-review-doubtful: hsl(50deg, 100%, 47%);
   --region-label-on-fill: black;
   --region-label-on-waveform: var(--bulma-text-strong);
 }
@@ -86,6 +88,7 @@
   --region-fill-hole: rgba(35, 113, 149, 0.4);
   --region-review-lost: hsl(348deg, 80%, 47%);
   --region-review-moved: hsl(32deg, 100%, 36%);
+  --region-review-doubtful: hsl(50deg, 100%, 27%);
   --region-label-on-fill: white;
   --region-label-on-waveform: white;
 }
