@@ -433,12 +433,15 @@ describe("Timings Store", () => {
     test("a sync writes its doubtful flags and is one undo entry", () => {
       const timings = load();
       const pending = pendingSync(timings.activeSegments, "fill");
-      const result = { aligner: "fake@1", segments: [{}, {}, { start: 3, doubtful: true }] };
+      const result = {
+        aligner: "fake@1",
+        segments: [{ start: 1.1 }, { start: 2.1 }, { start: 3, doubtful: true }],
+      };
 
       expect(timings.applySegmentTimes(DEFAULT_VOICE_ID, pending, result)).toBe(true);
       expect(timings.activeSegments.map(({ start, review }) => [start, review])).toEqual([
-        [1, undefined],
-        [2, "moved"],
+        [1.1, undefined],
+        [2.1, undefined],
         [3, "doubtful"],
       ]);
 

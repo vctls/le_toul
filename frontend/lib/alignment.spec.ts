@@ -1,11 +1,12 @@
 import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
-import { isSyncAvailable, pendingSync, syncVoice, withSyncResult } from "./alignment";
+import { isSyncAvailable, linesToFill, pendingSync, syncVoice, withSyncResult } from "./alignment";
 import { TimedSegment } from "./timedSegments";
 
 const voice = (): TimedSegment[] => [
   { text: "Went_" },
   { text: "out\n", start: 2, end: 2.4 },
-  { text: "last/" },
+  { text: "had\n", start: 2.6 },
+  { text: "last/", start: 3 },
   { text: "night\n", start: 5, review: "moved" },
 ];
 
@@ -19,13 +20,14 @@ function jsonResponse(body: unknown, status = 200) {
 }
 
 describe("pendingSync", () => {
-  test("Fill untimed keeps every timed segment, with its times", () => {
+  test("Fill syncs the lines around an untimed segment, and keeps the others with their times", () => {
     const { request } = pendingSync(voice(), "fill");
 
     expect(request).toEqual([
       { text: "Went ", endsLine: false, sync: true, start: undefined, end: undefined },
-      { text: "out", endsLine: true, sync: false, start: 2, end: 2.4 },
-      { text: "last", endsLine: false, sync: true, start: undefined, end: undefined },
+      { text: "out", endsLine: true, sync: true, start: undefined, end: undefined },
+      { text: "had", endsLine: true, sync: true, start: undefined, end: undefined },
+      { text: "last", endsLine: false, sync: false, start: 3, end: undefined },
       { text: "night", endsLine: true, sync: false, start: 5, end: undefined },
     ]);
   });
@@ -46,10 +48,38 @@ describe("pendingSync", () => {
   });
 });
 
+describe("linesToFill", () => {
+  test("marks every segment of a line with an untimed one, and of the lines on either side", () => {
+    const segments: TimedSegment[] = [
+      { text: "one\n", start: 1 },
+      { text: "two_", start: 2 },
+      { text: "three\n\n", start: 3 },
+      { text: "four_", start: 4 },
+      { text: "five\n" },
+      { text: "six\n", start: 6 },
+      { text: "seven", start: 7 },
+    ];
+
+    expect(linesToFill(segments)).toEqual([false, true, true, true, true, true, false]);
+  });
+
+  test("counts a last line without a line end", () => {
+    expect(
+      linesToFill([{ text: "one\n", start: 1 }, { text: "two\n", start: 2 }, { text: "three" }]),
+    ).toEqual([false, true, true]);
+  });
+});
+
 describe("withSyncResult", () => {
   const result = {
     aligner: "fake@1",
-    segments: [{ start: 0.5, end: 1.1, doubtful: false }, {}, { start: 3, doubtful: true }, {}],
+    segments: [
+      { start: 0.5, end: 1.1, doubtful: false },
+      { start: 1.5, doubtful: true },
+      { start: 2.6 },
+      {},
+      {},
+    ],
   };
 
   test("writes the synced segments and leaves the kept ones alone", () => {
@@ -59,8 +89,9 @@ describe("withSyncResult", () => {
 
     expect(written).toEqual([
       { text: "Went_", start: 0.5, end: 1.1 },
-      { text: "out\n", start: 2, end: 2.4 },
-      { text: "last/", start: 3, review: "doubtful" },
+      { text: "out\n", start: 1.5, review: "doubtful" },
+      { text: "had\n", start: 2.6 },
+      { text: "last/", start: 3 },
       { text: "night\n", start: 5, review: "moved" },
     ]);
   });
@@ -70,7 +101,7 @@ describe("withSyncResult", () => {
 
     const written = withSyncResult(segments, pendingSync(segments, "replace"), result);
 
-    expect(written?.[3]).toEqual({ text: "night\n" });
+    expect(written?.[4]).toEqual({ text: "night\n" });
   });
 
   test("refuses a result for lyrics that have changed since", () => {
@@ -78,7 +109,7 @@ describe("withSyncResult", () => {
     const pending = pendingSync(segments, "fill");
 
     const edited = segments.map((segment, i) =>
-      i === 2 ? { ...segment, text: "lost/" } : segment,
+      i === 3 ? { ...segment, text: "lost/" } : segment,
     );
 
     expect(withSyncResult(edited, pending, result)).toBeNull();

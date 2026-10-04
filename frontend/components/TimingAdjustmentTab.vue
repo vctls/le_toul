@@ -238,8 +238,8 @@
           without moving them, then goes to the next one.
         </p>
         <p v-if="canSync && !displayMode">
-          <strong>Sync</strong> times this voice for you from its vocals, either the syllables
-          without a timing or all of them.
+          <strong>Sync</strong> times this voice for you from its vocals, either the lines around
+          the syllables without a timing or all of them.
         </p>
       </template>
     </help-section>

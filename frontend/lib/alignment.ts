@@ -5,7 +5,7 @@ import { JobWording, SeparationProgressCallback, pollForJson } from "@/lib/audio
 import { displayText } from "@/lib/timing";
 import { TimedSegment } from "@/lib/timedSegments";
 
-// "fill" syncs only the segments without a start. "replace" syncs every segment.
+// "fill" syncs the lines around the segments without a start. "replace" syncs every segment.
 export type SyncMode = "fill" | "replace";
 
 // One segment as the backend reads it.
@@ -64,10 +64,11 @@ export function isSyncAvailable(): Promise<boolean> {
  * The sync to request for a voice's segments in the given mode.
  */
 export function pendingSync(segments: TimedSegment[], mode: SyncMode): PendingSync {
+  const filled = linesToFill(segments);
   return {
     segments: segments.map((segment) => ({ ...segment })),
-    request: segments.map((segment) => {
-      const sync = mode === "replace" || segment.start === undefined;
+    request: segments.map((segment, i) => {
+      const sync = mode === "replace" || filled[i];
       return {
         text: displayText(segment.text).replace(/\n+$/, ""),
         endsLine: segment.text.endsWith("\n"),
@@ -77,6 +78,28 @@ export function pendingSync(segments: TimedSegment[], mode: SyncMode): PendingSy
       };
     }),
   };
+}
+
+/**
+ * For each segment, whether filling syncs it: its line, or a line next to it, has a segment
+ * without a start.
+ *
+ * A line added after a sync finds its audio taken by the lines around it, so those are synced
+ * again too.
+ */
+export function linesToFill(segments: TimedSegment[]): boolean[] {
+  const lines: TimedSegment[][] = [];
+  let lineStart = 0;
+  segments.forEach((segment, i) => {
+    if (i + 1 < segments.length && !segment.text.endsWith("\n")) return;
+    lines.push(segments.slice(lineStart, i + 1));
+    lineStart = i + 1;
+  });
+  const untimed = lines.map((line) => line.some(({ start }) => start === undefined));
+  return lines.flatMap((line, i) => {
+    const fill = [i - 1, i, i + 1].some((j) => untimed[j]);
+    return line.map(() => fill);
+  });
 }
 
 /**

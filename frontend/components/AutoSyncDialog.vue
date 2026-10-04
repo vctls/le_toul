@@ -34,8 +34,7 @@
         <b-field v-else-if="timedCount > 0" label="What to sync">
           <div class="mode-choices">
             <b-radio v-model="mode" native-value="fill" :disabled="isSyncing">
-              Only the {{ untimedCount }} syllable{{ untimedCount === 1 ? "" : "s" }} without a
-              timing
+              {{ fillLabel }}
             </b-radio>
             <b-radio v-model="mode" native-value="replace" :disabled="isSyncing">
               Every syllable, replacing the timings already there
@@ -120,6 +119,10 @@ export default defineComponent({
     },
     untimedCount(): number {
       return this.segments.length - this.timedCount;
+    },
+    fillLabel(): string {
+      const count = this.untimedCount;
+      return `Only the lines around the ${count} syllable${count === 1 ? "" : "s"} without a timing`;
     },
     // An empty Blob stands for a missing stem.
     vocals(): Blob | null {
