@@ -1,9 +1,15 @@
 """An aligner with no model, for tests and as the floor for real aligners."""
 
-import numpy as np
+from __future__ import annotations
+
+from typing import TYPE_CHECKING
 
 from api.karaoke.aligners import AlignerSegment, SegmentAlignment
 from api.karaoke.separation_progress import ProgressCallback
+
+# A web server that syncs on another host may not have numpy, and still reads the version.
+if TYPE_CHECKING:
+    import numpy as np
 
 
 class FakeAligner:

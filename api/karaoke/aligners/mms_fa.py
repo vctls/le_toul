@@ -9,15 +9,14 @@ from __future__ import annotations
 from pathlib import Path
 from typing import TYPE_CHECKING
 
-import numpy as np
-
 from api import settings
 from api.karaoke.aligners import AlignerSegment, SegmentAlignment
 from api.karaoke.separation_progress import ProgressCallback
 
-# torch is imported only once the aligner is built, so the web server can read the
-# version for a job's hash without loading it.
+# torch is imported only once the aligner is built, and numpy only by the caller, so a
+# web server can read the version for a job's hash without either.
 if TYPE_CHECKING:
+    import numpy as np
     import torch
 
 _STAR = "*"
