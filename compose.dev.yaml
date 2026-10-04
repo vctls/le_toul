@@ -2,8 +2,8 @@
 #   docker compose -f compose.dev.yaml up --build
 #
 # Open http://localhost:5173 in the browser.
-# Vite serves the frontend with HMR and proxies /separate_track, /download_video,
-# /lyrics, /log_error, /health, /static to the api service.
+# Vite serves the frontend with HMR and proxies /separate_track, /align_track,
+# /alignment, /download_video, /lyrics, /log_error, /health, /static to the api service.
 # Source code is bind-mounted into both containers so edits trigger live reload.
 
 services:

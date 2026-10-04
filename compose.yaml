@@ -32,6 +32,7 @@ services:
       # by max_requests mid-job takes the job with it while the client polls on.
       MAX_REQUESTS: "0"
       # The image sets this too, but a .env copied from .env.example would override it.
+      # Syncing runs the same way, unless ALIGNMENT_BACKEND says otherwise.
       SEPARATION_BACKEND: subprocess
       LOCAL_JOB_DIR: /var/lib/tuul/jobs
     ports:
@@ -54,7 +55,7 @@ services:
     restart: unless-stopped
 
 volumes:
-  # Separated tracks, keyed by song hash.
+  # Separated tracks and syncs, keyed by hash.
   # Re-separating a song already done is then instant instead of another full run.
   job-results:
   # Model weights, downloaded on first use and not shipped in the image.
