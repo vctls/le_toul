@@ -34,7 +34,9 @@ test.describe("Drawer on a phone", () => {
     await expect(menu).toHaveAttribute("aria-expanded", "false");
     await expect(lyricsTab).toBeHidden();
     await expect(navbar.getByText("Lyrics", { exact: true })).toBeVisible();
-    await expect(page.getByRole("heading", { level: 2, name: "Song Lyrics" })).toBeVisible();
+    await expect(
+      page.getByRole("heading", { level: 2, name: "Lyrics", exact: true }),
+    ).toBeVisible();
 
     await menu.tap();
     await expect(page.getByText("Lyrics settings")).toBeVisible();

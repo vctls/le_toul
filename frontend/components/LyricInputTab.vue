@@ -6,7 +6,7 @@
     class="lyric-input-tab"
     headerClass="lyric-input-tab-header"
   >
-    <h2 class="title">Song Lyrics</h2>
+    <h2 class="title">Lyrics</h2>
     <help-section>
       <p v-if="provider">
         When you load a song and this box is empty, {{ appName }} tries to fetch the lyrics from
