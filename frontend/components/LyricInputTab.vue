@@ -62,18 +62,18 @@
         </div>
       </Teleport>
       <div class="level-item">
-        <b-tooltip position="is-right" label="Convert all spaces to underscores">
-          <b-button @click="convertSpaces">Add Underscores</b-button></b-tooltip
+        <viewport-tooltip position="is-right" label="Convert all spaces to underscores">
+          <b-button @click="convertSpaces">Add Underscores</b-button></viewport-tooltip
         >
       </div>
       <div class="level-item">
-        <b-tooltip position="is-right" :label="`Find and replace text (${findShortcut})`">
+        <viewport-tooltip position="is-right" :label="`Find and replace text (${findShortcut})`">
           <b-button
             :type="isSearchOpen ? 'is-primary' : ''"
             :aria-pressed="isSearchOpen"
             @click="$refs.lyricEditor.toggleSearch()"
             >Find and Replace</b-button
-          ></b-tooltip
+          ></viewport-tooltip
         >
       </div>
       <Teleport defer to="#drawer-settings-lyrics" :disabled="!isCompact">

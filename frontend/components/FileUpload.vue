@@ -2,9 +2,9 @@
   <b-field :label="label">
     <template #label>
       <span>{{ label }}</span>
-      <b-tooltip v-if="tooltip" :label="tooltip" position="is-bottom" multilined>
+      <viewport-tooltip v-if="tooltip" :label="tooltip" position="is-bottom">
         <b-icon class="tooltip-icon" icon="circle-question" size="is-small"></b-icon>
-      </b-tooltip>
+      </viewport-tooltip>
     </template>
     <b-upload
       ref="upload"
@@ -37,8 +37,10 @@
 
 <script lang="ts">
 import { defineComponent, PropType } from "vue";
+import ViewportTooltip from "@/components/ViewportTooltip.vue";
 
 export default defineComponent({
+  components: { ViewportTooltip },
   emits: ["update:modelValue"],
   props: {
     label: String,

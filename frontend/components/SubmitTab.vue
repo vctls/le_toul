@@ -18,14 +18,12 @@
         <b-field horizontal>
           <template #label>
             Count-Ins
-            <b-tooltip
-              append-to-body
-              content-class="wide-tooltip"
-              multilined
+            <viewport-tooltip
+              wide
               label="Add count-in characters so you know when to start singing: before each screen, or before any line that follows a gap"
             >
               <b-icon size="is-small" icon="circle-question"></b-icon>
-            </b-tooltip>
+            </viewport-tooltip>
           </template>
           <b-radio-button
             v-model="videoOptions.countInMode"
@@ -53,24 +51,20 @@
           <b-field horizontal>
             <template #label>
               Dynamic Count-Ins
-              <b-tooltip
-                append-to-body
-                content-class="wide-tooltip"
-                multilined
+              <viewport-tooltip
+                wide
                 label="Split the count-in text into up to three marks: a long gap gets them all and shorter gaps get fewer. A gap too short for one still gets the last mark, which starts while the previous line is being sung, as long as the line is already on screen. Turn this off to show the whole text for a fixed length instead"
               >
                 <b-icon size="is-small" icon="circle-question"></b-icon>
-              </b-tooltip>
+              </viewport-tooltip>
             </template>
             <b-switch v-model="videoOptions.dynamicCountIns"></b-switch>
           </b-field>
           <b-field horizontal>
             <template #label>
               Count-In Text
-              <b-tooltip
-                append-to-body
-                content-class="wide-tooltip"
-                multilined
+              <viewport-tooltip
+                wide
                 :label="
                   videoOptions.dynamicCountIns
                     ? 'What a count-in shows before the singing starts, split by word if it has spaces and by character otherwise. Leave it empty to draw blocks'
@@ -78,7 +72,7 @@
                 "
               >
                 <b-icon size="is-small" icon="circle-question"></b-icon>
-              </b-tooltip>
+              </viewport-tooltip>
             </template>
             <b-field>
               <b-input
@@ -97,10 +91,8 @@
           <b-field horizontal>
             <template #label>
               Count-In Gap
-              <b-tooltip
-                append-to-body
-                content-class="wide-tooltip"
-                multilined
+              <viewport-tooltip
+                wide
                 :label="
                   videoOptions.dynamicCountIns
                     ? 'A line that starts this long after the previous one gets every mark, and shorter gaps get fewer, down to the last mark alone. A full count-in lasts this long, with its marks evenly spaced'
@@ -108,7 +100,7 @@
                 "
               >
                 <b-icon size="is-small" icon="circle-question"></b-icon>
-              </b-tooltip>
+              </viewport-tooltip>
             </template>
             <b-numberinput
               expanded
@@ -126,13 +118,12 @@
           <b-field v-if="!videoOptions.dynamicCountIns" horizontal>
             <template #label>
               Count-In Length
-              <b-tooltip
-                append-to-body
-                content-class="wide-tooltip"
+              <viewport-tooltip
+                wide
                 label="How many seconds a count-in lasts. Can't be longer than the gap above."
               >
                 <b-icon size="is-small" icon="circle-question"></b-icon>
-              </b-tooltip>
+              </viewport-tooltip>
             </template>
             <b-numberinput
               expanded
@@ -152,13 +143,12 @@
         <b-field horizontal>
           <template #label>
             Instrumental Breaks
-            <b-tooltip
-              append-to-body
-              content-class="wide-tooltip"
+            <viewport-tooltip
+              wide
               label="How many seconds without lyrics get a screen that counts down the instrumental. 0 turns them off."
             >
               <b-icon size="is-small" icon="circle-question"></b-icon>
-            </b-tooltip>
+            </viewport-tooltip>
           </template>
           <b-numberinput
             expanded
@@ -178,26 +168,23 @@
         <b-field horizontal>
           <template #label>
             Show Fast Lines Early
-            <b-tooltip
-              append-to-body
-              content-class="wide-tooltip"
+            <viewport-tooltip
+              wide
               label="Show the first few lines of a screen early if it starts right after the previous screen ends"
             >
               <b-icon size="is-small" icon="circle-question"></b-icon>
-            </b-tooltip> </template
+            </viewport-tooltip> </template
           ><b-switch v-model="videoOptions.addStaggeredLines"></b-switch
         ></b-field>
         <b-field v-if="advancedStore.isAdvanced && timingsStore.hasDisplayPeriods" horizontal>
           <template #label>
             Use Line Display Times
-            <b-tooltip
-              append-to-body
-              content-class="wide-tooltip"
-              multilined
+            <viewport-tooltip
+              wide
               label="Show each line when its display times say, as set in the Edit tab or imported from a KBP file. When off, the automatic rules apply. The times are kept either way, and the KBP export still writes them."
             >
               <b-icon size="is-small" icon="circle-question"></b-icon>
-            </b-tooltip> </template
+            </viewport-tooltip> </template
           ><b-switch v-model="videoOptions.useStoredDisplayPeriods"></b-switch
         ></b-field>
         <b-field v-if="videoBlob" horizontal label="Use Background Video">
@@ -215,14 +202,12 @@
         <b-field horizontal>
           <template #label>
             Video Format
-            <b-tooltip
-              append-to-body
-              content-class="wide-tooltip"
-              multilined
+            <viewport-tooltip
+              wide
               label="MKV also carries the vocals and the original mix as extra audio tracks, for players that can switch between them"
             >
               <b-icon size="is-small" icon="circle-question"></b-icon>
-            </b-tooltip>
+            </viewport-tooltip>
           </template>
           <b-select
             expanded
@@ -264,13 +249,12 @@
               <b-field horizontal>
                 <template #label>
                   Custom Font
-                  <b-tooltip
-                    append-to-body
-                    content-class="wide-tooltip"
+                  <viewport-tooltip
+                    wide
                     label="Upload your own .ttf or .otf font file. It overrides the font picked above."
                   >
                     <b-icon size="is-small" icon="circle-question"></b-icon>
-                  </b-tooltip>
+                  </viewport-tooltip>
                 </template>
                 <file-upload
                   expanded
@@ -342,13 +326,12 @@
               <b-field horizontal>
                 <template #label>
                   Shadow Offset X
-                  <b-tooltip
-                    append-to-body
-                    content-class="wide-tooltip"
+                  <viewport-tooltip
+                    wide
                     label="Positive values move the shadow right, negative values left. Zero on both axes turns it off."
                   >
                     <b-icon size="is-small" icon="circle-question"></b-icon>
-                  </b-tooltip>
+                  </viewport-tooltip>
                 </template>
                 <b-numberinput
                   expanded
@@ -365,13 +348,12 @@
               <b-field horizontal>
                 <template #label>
                   Shadow Offset Y
-                  <b-tooltip
-                    append-to-body
-                    content-class="wide-tooltip"
+                  <viewport-tooltip
+                    wide
                     label="Positive values move the shadow down, negative values up. Zero on both axes turns it off."
                   >
                     <b-icon size="is-small" icon="circle-question"></b-icon>
-                  </b-tooltip>
+                  </viewport-tooltip>
                 </template>
                 <b-numberinput
                   expanded
@@ -413,14 +395,12 @@
               <b-field v-if="advancedStore.isAdvanced" horizontal>
                 <template #label>
                   Line Spacing
-                  <b-tooltip
-                    append-to-body
-                    content-class="wide-tooltip"
-                    multilined
+                  <viewport-tooltip
+                    wide
                     label="From the top of one line to the top of the next, as a multiple of the font size. A KBP file sets it from its own margins."
                   >
                     <b-icon size="is-small" icon="circle-question"></b-icon>
-                  </b-tooltip>
+                  </viewport-tooltip>
                 </template>
                 <b-numberinput
                   expanded
@@ -444,14 +424,12 @@
               >
                 <template #label>
                   Top Margin
-                  <b-tooltip
-                    append-to-body
-                    content-class="wide-tooltip"
-                    multilined
+                  <viewport-tooltip
+                    wide
                     label="The space above the first line, as a multiple of the font size. A KBP file sets it from its own margins."
                   >
                     <b-icon size="is-small" icon="circle-question"></b-icon>
-                  </b-tooltip>
+                  </viewport-tooltip>
                 </template>
                 <b-numberinput
                   expanded
@@ -537,14 +515,12 @@
         />
         <div v-if="advancedStore.isAdvanced && lyricText.trim()" class="kbp-export is-size-7">
           <span>Karaoke Builder Studio</span>
-          <b-tooltip
-            append-to-body
-            content-class="wide-tooltip"
-            multilined
+          <viewport-tooltip
+            wide
             label="These lyrics and timings as a Karaoke Builder Studio project. They aren't included in the project download."
           >
             <b-icon size="is-small" icon="circle-question"></b-icon>
-          </b-tooltip>
+          </viewport-tooltip>
           <button type="button" class="link-button ml-1" @click="downloadKbp">
             {{ kbpFileName }}
           </button>
@@ -579,6 +555,7 @@ import ColorField from "@/components/ColorField.vue";
 import FileUpload from "@/components/FileUpload.vue";
 import SymbolPicker from "@/components/SymbolPicker.vue";
 import TrackSelect from "@/components/TrackSelect.vue";
+import ViewportTooltip from "@/components/ViewportTooltip.vue";
 import jszip from "jszip";
 import video from "@/lib/video";
 import { CreationPhase, TrackSource } from "@/types";
@@ -613,6 +590,7 @@ export default defineComponent({
     FileUpload,
     SymbolPicker,
     TrackSelect,
+    ViewportTooltip,
   },
   setup() {
     const mediaStore = useMediaStore();
@@ -977,23 +955,6 @@ export default defineComponent({
 <style>
 .field.is-horizontal .field-label {
   flex-grow: 3;
-}
-
-/* These tooltips are appended to the body so the scrolling column can't clip them,
-which also puts them out of reach of this component's scoped styles.
-Bulma sets the multiline width per size class, so overriding its 240px takes a selector naming the size too. */
-.b-tooltip.is-multiline.is-medium .tooltip-content.wide-tooltip {
-  width: 24rem;
-}
-
-/* Buefy drops the appended wrapper to z-index: -1 as soon as the tooltip starts closing,
-so the fade-out plays out behind the page.
-Hold it in front for good:
-once hidden the wrapper is zero-sized and its content is display:none, so it covers nothing.
-Only an ancestor selector can reach the wrapper,
-which Buefy builds in JS and gives no class of its own. */
-body > div:has(> .b-tooltip > .tooltip-content.wide-tooltip) {
-  z-index: 99 !important;
 }
 </style>
 <style scoped>

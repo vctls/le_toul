@@ -310,12 +310,11 @@
             <b-field horizontal>
               <template #label>
                 Preserve pitch
-                <b-tooltip
-                  multilined
+                <viewport-tooltip
                   label="Hold the original key at other speeds. Turned off, a slower speed lowers the pitch too."
                 >
                   <b-icon size="is-small" icon="circle-question"></b-icon>
-                </b-tooltip>
+                </viewport-tooltip>
               </template>
               <b-switch v-model="preservePitch"></b-switch>
             </b-field>
@@ -423,6 +422,7 @@ import TimingAdjuster from "@/components/TimingAdjuster.vue";
 import SubtitleDisplay from "./SubtitleDisplay.vue";
 import VoiceSelector from "@/components/VoiceSelector.vue";
 import TrackSelect from "@/components/TrackSelect.vue";
+import ViewportTooltip from "@/components/ViewportTooltip.vue";
 import { useMediaStore } from "@/stores/media";
 import { TrackSource } from "@/types";
 import { useTimingsStore } from "@/stores/timings";
@@ -607,6 +607,7 @@ export default defineComponent({
     SubtitleDisplay,
     VoiceSelector,
     TrackSelect,
+    ViewportTooltip,
   },
   setup() {
     const mediaStore = useMediaStore();

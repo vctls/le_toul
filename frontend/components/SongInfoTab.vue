@@ -6,12 +6,12 @@
   >
     <template #header>
       <b-icon v-if="!isSeparatingTrack" icon="file-audio"></b-icon>
-      <b-tooltip v-else :label="separationHeaderLabel" position="is-bottom">
+      <viewport-tooltip v-else :label="separationHeaderLabel" position="is-bottom">
         <span v-if="separationProgress !== null" class="icon">
           <circular-progress :value="separationProgress" label="Track separation progress" />
         </span>
         <span v-else class="icon is-small loader"></span>
-      </b-tooltip>
+      </viewport-tooltip>
       <span> Files</span>
     </template>
     <h2 class="title">Files</h2>
@@ -97,7 +97,7 @@
           </b-field>
 
           <div class="buttons">
-            <b-tooltip
+            <viewport-tooltip
               position="is-right"
               :label="separatingTrackMessage"
               :always="isSeparatingTrack"
@@ -116,7 +116,7 @@
                 :disabled="!mediaStore.songFile || !!mediaStore.songTooLargeMessage"
                 @click="separateTrack"
               />
-            </b-tooltip>
+            </viewport-tooltip>
             <span v-if="lastSeparation" :class="lastSeparation.class">
               {{ lastSeparation.message }}
             </span>
@@ -347,6 +347,7 @@ import FolderUpload from "@/components/FolderUpload.vue";
 import CircularProgress from "@/components/CircularProgress.vue";
 import SourceFileDownloadLinks from "@/components/SourceFileDownloadLinks.vue";
 import ConfirmModal from "@/components/ConfirmModal.vue";
+import ViewportTooltip from "@/components/ViewportTooltip.vue";
 import { CANCEL_ARMING_DELAY_MS } from "@/constants";
 
 function formatList(items: string[]): string {
@@ -404,6 +405,7 @@ export default defineComponent({
     CircularProgress,
     SourceFileDownloadLinks,
     ConfirmModal,
+    ViewportTooltip,
   },
   setup() {
     const mediaStore = useMediaStore();

@@ -106,12 +106,11 @@
         <b-field horizontal class="preserve-pitch">
           <template #label>
             Preserve pitch
-            <b-tooltip
-              multilined
+            <viewport-tooltip
               label="Hold the original key at other speeds. The stretching it needs sounds rough well below 1x."
             >
               <b-icon size="is-small" icon="circle-question"></b-icon>
-            </b-tooltip>
+            </viewport-tooltip>
           </template>
           <b-switch v-model="preservePitch" :size="isMobile ? 'is-small' : ''"></b-switch>
         </b-field>
@@ -161,6 +160,7 @@ import HelpSection from "@/components/HelpSection.vue";
 import LyricDisplay from "@/components/LyricDisplay.vue";
 import TimingButtons from "@/components/TimingButtons.vue";
 import VoiceSelector from "@/components/VoiceSelector.vue";
+import ViewportTooltip from "@/components/ViewportTooltip.vue";
 import { useTimingsStore } from "@/stores/timings";
 import { useHistoryStore } from "@/stores/history";
 import { useLyricsStore } from "@/stores/lyrics";
@@ -182,7 +182,7 @@ function defaultVoiceState(): VoiceTimingState {
 }
 
 export default defineComponent({
-  components: { HelpSection, LyricDisplay, TimingButtons, VoiceSelector },
+  components: { HelpSection, LyricDisplay, TimingButtons, VoiceSelector, ViewportTooltip },
   setup() {
     const timingsStore = useTimingsStore();
     const lyricsStore = useLyricsStore();
