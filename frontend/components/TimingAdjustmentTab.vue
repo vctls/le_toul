@@ -238,8 +238,8 @@
           without moving them, then goes to the next one.
         </p>
         <p v-if="canSync && !displayMode">
-          <strong>Sync</strong> times this voice for you from its vocals, either the lines around
-          the syllables without a timing or all of them.
+          <strong>Sync</strong> times this voice for you from its vocals: the lines around the
+          syllables without a timing, the lines you selected, or all of them.
         </p>
       </template>
     </help-section>
@@ -429,7 +429,12 @@
       @redo="onTimingKey('redo')"
       @play-pause="timingAdjusterRef()?.togglePlayPause()"
     />
-    <auto-sync-dialog v-model="isSyncOpen" :voice="activeVoice" @synced="setMode('adjust')" />
+    <auto-sync-dialog
+      v-model="isSyncOpen"
+      :voice="activeVoice"
+      :selection="isAdjustMode ? selectedSegments : []"
+      @synced="setMode('adjust')"
+    />
   </b-tab-item>
 </template>
 

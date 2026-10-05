@@ -33,19 +33,32 @@
           places a voice on another singer's lines, especially one with a small part, and doesn't
           mark those syllables in yellow. Check every line afterwards.
         </b-message>
-        <p v-if="untimedCount === 0" class="mb-4">
-          Every syllable already has a timing, so syncing replaces them all.
-        </p>
-        <b-field v-else-if="timedCount > 0" label="What to sync">
+        <b-field v-if="modes.length > 1" label="What to sync">
           <div class="mode-choices">
-            <b-radio v-model="mode" native-value="fill" :disabled="isSyncing">
+            <b-radio
+              v-if="modes.includes('fill')"
+              v-model="mode"
+              native-value="fill"
+              :disabled="isSyncing"
+            >
               {{ fillLabel }}
+            </b-radio>
+            <b-radio
+              v-if="modes.includes('selected')"
+              v-model="mode"
+              native-value="selected"
+              :disabled="isSyncing"
+            >
+              {{ selectedLabel }}
             </b-radio>
             <b-radio v-model="mode" native-value="replace" :disabled="isSyncing">
               Every syllable, replacing the timings already there
             </b-radio>
           </div>
         </b-field>
+        <p v-else-if="untimedCount === 0" class="mb-4">
+          Every syllable already has a timing, so syncing replaces them all.
+        </p>
         <b-progress
           v-if="isSyncing"
           type="is-primary"
@@ -84,7 +97,14 @@ import { BButton, BField, BMessage, BModal, BProgress, BRadio } from "buefy";
 import { useMediaStore } from "@/stores/media";
 import { useLyricsStore } from "@/stores/lyrics";
 import { useTimingsStore } from "@/stores/timings";
-import { SyncMode, pendingSync, syncVoice, unplacedCount } from "@/lib/alignment";
+import {
+  SyncMode,
+  lineNumbers,
+  pendingSync,
+  selectedLines,
+  syncVoice,
+  unplacedCount,
+} from "@/lib/alignment";
 import { extensionForBlob } from "@/lib/audio";
 import { TimedSegment, fromLyric } from "@/lib/timedSegments";
 import { VoiceId } from "@/lib/voices";
@@ -94,6 +114,8 @@ export default defineComponent({
   props: {
     modelValue: { type: Boolean, default: false },
     voice: { type: String as PropType<VoiceId>, required: true },
+    // The indices of the segments selected in Adjust mode.
+    selection: { type: Array as PropType<number[]>, default: () => [] },
   },
   emits: ["update:modelValue", "synced"],
   setup() {
@@ -131,6 +153,28 @@ export default defineComponent({
       const count = this.untimedCount;
       return `Only the lines around the ${count} syllable${count === 1 ? "" : "s"} without a timing`;
     },
+    selectedLineCount(): number {
+      const lines = lineNumbers(this.segments);
+      const selected = selectedLines(this.segments, this.selection);
+      return new Set(lines.filter((_, i) => selected[i])).size;
+    },
+    selectedLabel(): string {
+      const count = this.selectedLineCount;
+      return count === 1
+        ? "Only the selected line, replacing its timings"
+        : `Only the ${count} selected lines, replacing their timings`;
+    },
+    // The modes worth offering, of which "replace" is always one.
+    modes(): SyncMode[] {
+      const lineCount = new Set(lineNumbers(this.segments)).size;
+      return [
+        ...(this.timedCount > 0 && this.untimedCount > 0 ? ["fill" as const] : []),
+        ...(this.selectedLineCount > 0 && this.selectedLineCount < lineCount
+          ? ["selected" as const]
+          : []),
+        "replace",
+      ];
+    },
     hasSeveralVoices(): boolean {
       return this.lyricsStore.voices.length > 1;
     },
@@ -159,7 +203,7 @@ export default defineComponent({
       if (!isOpen) return;
       this.error = null;
       this.notice = null;
-      this.mode = this.untimedCount > 0 ? "fill" : "replace";
+      this.mode = this.modes[0];
     },
   },
   beforeUnmount() {
@@ -172,9 +216,8 @@ export default defineComponent({
       const name = this.vocals
         ? `vocals.${extensionForBlob(this.vocals)}`
         : (this.mediaStore.songFile?.name ?? "song");
-      const choosing = this.timedCount > 0 && this.untimedCount > 0;
-      const mode = choosing ? this.mode : "replace";
-      const pending = pendingSync(this.segments, mode);
+      const mode = this.modes.includes(this.mode) ? this.mode : "replace";
+      const pending = pendingSync(this.segments, mode, this.selection);
       const controller = new AbortController();
       this.controller = controller;
       this.isSyncing = true;

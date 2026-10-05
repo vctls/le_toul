@@ -3,6 +3,7 @@ import {
   isSyncAvailable,
   linesToFill,
   pendingSync,
+  selectedLines,
   syncVoice,
   unplacedCount,
   withSyncResult,
@@ -36,6 +37,18 @@ describe("pendingSync", () => {
       { text: "had", endsLine: true, sync: true, start: undefined, end: undefined },
       { text: "last", endsLine: false, sync: false, start: 3, end: undefined },
       { text: "night", endsLine: true, sync: false, start: 5, end: undefined },
+    ]);
+  });
+
+  test("Selected syncs the lines that hold a selected segment, and keeps the lines around them", () => {
+    const { request } = pendingSync(voice(), "selected", [3]);
+
+    expect(request.map(({ sync, start }) => [sync, start])).toEqual([
+      [false, undefined],
+      [false, 2],
+      [false, 2.6],
+      [true, undefined],
+      [true, undefined],
     ]);
   });
 
@@ -77,6 +90,20 @@ describe("linesToFill", () => {
   });
 });
 
+describe("selectedLines", () => {
+  test("marks every segment of each line with a selected one, and ignores unknown indices", () => {
+    const segments: TimedSegment[] = [
+      { text: "one_" },
+      { text: "two\n" },
+      { text: "three\n\n" },
+      { text: "four_" },
+      { text: "five" },
+    ];
+
+    expect(selectedLines(segments, [1, 4, 9])).toEqual([true, true, false, true, true]);
+  });
+});
+
 describe("unplacedCount", () => {
   test("counts the synced segments the result left without a start", () => {
     const pending = pendingSync(voice(), "fill");
@@ -107,6 +134,25 @@ describe("withSyncResult", () => {
       { text: "Went_", start: 0.5, end: 1.1 },
       { text: "out\n", start: 1.5, review: "doubtful" },
       { text: "had\n", start: 2.6 },
+      { text: "last/", start: 3 },
+      { text: "night\n", start: 5, review: "moved" },
+    ]);
+  });
+
+  test("a sync of the selected lines leaves the lines around them untouched", () => {
+    const segments = voice();
+
+    const everywhere = {
+      aligner: "fake@1",
+      segments: [{ start: 0.5 }, { start: 1.5 }, { start: 2.7, doubtful: true }, {}, {}],
+    };
+
+    const written = withSyncResult(segments, pendingSync(segments, "selected", [2]), everywhere);
+
+    expect(written).toEqual([
+      { text: "Went_" },
+      { text: "out\n", start: 2, end: 2.4 },
+      { text: "had\n", start: 2.7, review: "doubtful" },
       { text: "last/", start: 3 },
       { text: "night\n", start: 5, review: "moved" },
     ]);

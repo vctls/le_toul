@@ -1,8 +1,10 @@
 import { BrowserContext, expect, test } from "@playwright/test";
 import {
+  clickRegion,
   defaultTestConfig,
   navigateToTab,
   savedSegments,
+  scrollWaveformIntoView,
   setupBasicInputs,
   setupTestEnvironment,
   TabId,
@@ -14,8 +16,8 @@ const DOUBTFUL = 2;
 
 /**
  * Answers the sync routes as a backend with the fake aligner would, spreading the syllables
- * half a second apart and leaving out those `places` refuses. Returns the requests' segments, as
- * the page sent them.
+ * half a second apart and leaving out those `places` refuses. Each later request places them
+ * 0.1 s later than the one before. Returns the requests' segments, as the page sent them.
  */
 async function mockSyncApi(
   context: BrowserContext,
@@ -43,7 +45,9 @@ async function mockSyncApi(
       body: JSON.stringify({
         aligner: "fake@1",
         segments: Array.from({ length: count }, (_, i) =>
-          places(i) ? { start: 0.5 * i, doubtful: i === DOUBTFUL } : {},
+          places(i)
+            ? { start: 0.5 * i + 0.1 * (requests.sent.length - 1), doubtful: i === DOUBTFUL }
+            : {},
         ),
       }),
     }),
@@ -139,5 +143,40 @@ test.describe("Syncing automatically", () => {
     const segments = await savedSegments(page);
     expect(segments[0].start).toBeUndefined();
     expect(segments[1].start).toBe(0.5);
+  });
+
+  test("re-syncs the selected line and leaves the lines around it untouched", async ({
+    page,
+    context,
+  }) => {
+    const requests = await mockSyncApi(context);
+    await setupBasicInputs(
+      page,
+      defaultTestConfig.audioFile,
+      defaultTestConfig.lyricsFile,
+      defaultTestConfig.artist,
+    );
+    await navigateToTab(page, TabId.TimingAdjustment);
+    const dialog = page.getByRole("dialog", { name: "Sync automatically" });
+    await page.getByRole("button", { name: "Sync", exact: true }).click();
+    await dialog.getByRole("button", { name: "Sync", exact: true }).click();
+    await expect(dialog).toBeHidden();
+    const before = await savedSegments(page);
+
+    await scrollWaveformIntoView(page);
+    await clickRegion(page, 4);
+    await page.getByRole("button", { name: "Sync", exact: true }).click();
+    await expect(dialog.getByRole("radio", { name: /the selected line,/ })).toBeChecked();
+    await dialog.getByRole("button", { name: "Sync", exact: true }).click();
+    await expect(dialog).toBeHidden();
+
+    const sent = requests.sent[1] as Array<{ sync: boolean; endsLine: boolean }>;
+    const lineStart = sent.map(({ endsLine }) => endsLine).lastIndexOf(true, 3) + 1;
+    const lineEnd = sent.findIndex(({ endsLine }, i) => i >= 4 && endsLine) + 1;
+    expect(sent.map(({ sync }) => sync)).toEqual(sent.map((_, i) => i >= lineStart && i < lineEnd));
+    const after = await savedSegments(page);
+    expect(after.map(({ start }) => start)).toEqual(
+      before.map(({ start }, i) => (i >= lineStart && i < lineEnd ? 0.5 * i + 0.1 : start)),
+    );
   });
 });

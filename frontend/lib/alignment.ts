@@ -5,8 +5,9 @@ import { JobWording, SeparationProgressCallback, pollForJson } from "@/lib/audio
 import { displayText } from "@/lib/timing";
 import { TimedSegment } from "@/lib/timedSegments";
 
-// "fill" syncs the lines around the segments without a start. "replace" syncs every segment.
-export type SyncMode = "fill" | "replace";
+// "fill" syncs the lines around the segments without a start, "selected" the lines that hold a
+// selected segment, and "replace" every segment.
+export type SyncMode = "fill" | "selected" | "replace";
 
 // One segment as the backend reads it.
 export interface SyncRequestSegment {
@@ -61,14 +62,24 @@ export function isSyncAvailable(): Promise<boolean> {
 }
 
 /**
- * The sync to request for a voice's segments in the given mode.
+ * The sync to request for a voice's segments in the given mode. `selection` holds the indices of
+ * the selected segments, which only the "selected" mode reads.
  */
-export function pendingSync(segments: TimedSegment[], mode: SyncMode): PendingSync {
-  const filled = linesToFill(segments);
+export function pendingSync(
+  segments: TimedSegment[],
+  mode: SyncMode,
+  selection: number[] = [],
+): PendingSync {
+  const marked =
+    mode === "fill"
+      ? linesToFill(segments)
+      : mode === "selected"
+        ? selectedLines(segments, selection)
+        : segments.map(() => true);
   return {
     segments: segments.map((segment) => ({ ...segment })),
     request: segments.map((segment, i) => {
-      const sync = mode === "replace" || filled[i];
+      const sync = marked[i];
       return {
         text: displayText(segment.text).replace(/\n+$/, ""),
         endsLine: segment.text.endsWith("\n"),
@@ -81,6 +92,14 @@ export function pendingSync(segments: TimedSegment[], mode: SyncMode): PendingSy
 }
 
 /**
+ * Each segment's line number. A last line without a line end counts as a line.
+ */
+export function lineNumbers(segments: TimedSegment[]): number[] {
+  let line = 0;
+  return segments.map((segment) => (segment.text.endsWith("\n") ? line++ : line));
+}
+
+/**
  * For each segment, whether filling syncs it: its line, or a line next to it, has a segment
  * without a start.
  *
@@ -88,18 +107,18 @@ export function pendingSync(segments: TimedSegment[], mode: SyncMode): PendingSy
  * again too.
  */
 export function linesToFill(segments: TimedSegment[]): boolean[] {
-  const lines: TimedSegment[][] = [];
-  let lineStart = 0;
-  segments.forEach((segment, i) => {
-    if (i + 1 < segments.length && !segment.text.endsWith("\n")) return;
-    lines.push(segments.slice(lineStart, i + 1));
-    lineStart = i + 1;
-  });
-  const untimed = lines.map((line) => line.some(({ start }) => start === undefined));
-  return lines.flatMap((line, i) => {
-    const fill = [i - 1, i, i + 1].some((j) => untimed[j]);
-    return line.map(() => fill);
-  });
+  const lines = lineNumbers(segments);
+  const untimed = new Set(lines.filter((_, i) => segments[i].start === undefined));
+  return lines.map((line) => [line - 1, line, line + 1].some((near) => untimed.has(near)));
+}
+
+/**
+ * For each segment, whether its line holds one of the selected segments.
+ */
+export function selectedLines(segments: TimedSegment[], selection: number[]): boolean[] {
+  const lines = lineNumbers(segments);
+  const selected = new Set(selection.filter((i) => i < lines.length).map((i) => lines[i]));
+  return lines.map((line) => selected.has(line));
 }
 
 /**
