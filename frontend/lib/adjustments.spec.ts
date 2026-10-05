@@ -311,8 +311,12 @@ describe("overlapping count-ins", () => {
   };
   const marksOf = (line: LyricsLine) =>
     line.segments.filter((s) => s.countIn).map((s) => [s.timestamp, s.endTimestamp]);
-  const counted = (screens: LyricsScreen[], countInMode: CountInMode = "line") => {
-    const modeOptions = { ...options, countInMode };
+  const counted = (
+    screens: LyricsScreen[],
+    countInMode: CountInMode = "line",
+    useStoredDisplayPeriods = true,
+  ) => {
+    const modeOptions = { ...options, countInMode, useStoredDisplayPeriods };
     return addOverlappingCountIns(addGapCountIns(screens, modeOptions), modeOptions);
   };
   const compiled = (segments: TimedSegment[]) =>
@@ -359,6 +363,17 @@ describe("overlapping count-ins", () => {
     expect(marksOf(second.lines[0])).toEqual([]);
   });
 
+  it("give a screen's first line its mark when its stored display start shows it in time", () => {
+    const song = (displayStart: number) => [
+      { text: "one\n\n", start: 10, end: 11 },
+      { text: "two", start: 11.5, end: 12.5, displayStart },
+    ];
+
+    expect(marksOf(counted(compiled(song(10)), "screen")[1].lines[0])).toEqual([[10.5, 11.5]]);
+    expect(marksOf(counted(compiled(song(10.75)), "screen")[1].lines[0])).toEqual([]);
+    expect(marksOf(counted(compiled(song(10)), "screen", false)[1].lines[0])).toEqual([]);
+  });
+
   it("give a staggered line its mark when it is shown early enough", () => {
     const [, , next] = counted(
       staggered([
@@ -382,10 +397,24 @@ describe("overlapping count-ins", () => {
       ]),
       "screen",
     );
-    unstagger(previous, next);
+    unstagger(previous, next, options);
 
     expect(marksOf(next.lines[0])).toEqual([]);
     expect(next.lines[0].timestamp).toBe(5.5);
+  });
+
+  it("stay when a staggered line's stored display start still shows it in time", () => {
+    const [, previous, next] = counted(
+      staggered([
+        { text: "one\n", start: 1, end: 2 },
+        { text: "two\n\n", start: 2, end: 5 },
+        { text: "three", start: 5.5, end: 6, displayStart: 4.5 },
+      ]),
+      "screen",
+    );
+    unstagger(previous, next, options);
+
+    expect(marksOf(next.lines[0])).toEqual([[4.5, 5.5]]);
   });
 });
 

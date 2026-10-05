@@ -1279,7 +1279,7 @@ function assignVoiceLanes(renders: VoiceTrackRender[]): void {
     for (const [i, screen] of render.screens.entries()) {
       const previous = render.screens[i - 1];
       if (i > 0 && screen.staggered && !previous.verticalZone !== !screen.verticalZone) {
-        unstagger(previous, screen);
+        unstagger(previous, screen, render.options);
       }
     }
   });

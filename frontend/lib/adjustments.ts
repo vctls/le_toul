@@ -210,6 +210,7 @@ export function addGapCountIns(screens: LyricsScreen[], options: KaraokeOptions)
  * sweeping while the previous line is still being sung, but not before that line's singing starts.
  * A mark is only added when the line is already shown by the time it starts,
  * so this runs once the staggered-lines pass has set the display starts.
+ * A stored display start counts too, though it is only applied later.
  */
 export function addOverlappingCountIns(
   screens: LyricsScreen[],
@@ -229,7 +230,7 @@ export function addOverlappingCountIns(
       if ((everyLine || index === 0) && !line.segments[0].countIn) {
         const mark = countInMarks(options, marks, 1, line.timestamp);
         const start = mark[0].timestamp;
-        if (start >= prevSingStart && start >= displayStartOf(line, screen)) {
+        if (start >= prevSingStart && start >= countInEarliestStart(line, screen, options)) {
           line.addSegmentsToFront(mark);
         }
       }
@@ -441,7 +442,11 @@ function placeStaggeredScreen(
  * Show a staggered screen's early lines at the usual time again,
  * and keep the previous screen's lines in those slots until then.
  */
-export function unstagger(previous: LyricsScreen, screen: LyricsScreen): void {
+export function unstagger(
+  previous: LyricsScreen,
+  screen: LyricsScreen,
+  options: KaraokeOptions,
+): void {
   const early = (s: LyricsScreen) => s.lines.filter((_, i) => s.slotOf(i) < screen.earlySlots);
   for (const line of early(previous)) {
     line.customDisplayEndTime = undefined;
@@ -449,7 +454,7 @@ export function unstagger(previous: LyricsScreen, screen: LyricsScreen): void {
   for (const line of early(screen)) {
     line.customDisplayStartTime = undefined;
     // An overlapping count-in may only have fit because the line was shown early.
-    if (line.timestamp < displayStartOf(line, screen)) {
+    if (line.timestamp < countInEarliestStart(line, screen, options)) {
       line.segments = line.segments.filter((segment) => !segment.countIn);
     }
   }
@@ -488,6 +493,21 @@ export function applyStoredDisplayPeriods(screens: LyricsScreen[]): LyricsScreen
 
 export function displayStartOf(line: LyricsLine, screen: LyricsScreen): Timestamp {
   return line.customDisplayStartTime ?? screen.startTimestamp ?? 0;
+}
+
+/**
+ * The earliest time a count-in can start without showing its line earlier.
+ * A stored display start replaces the automatic one, so it is used strictly:
+ * a count-in before it would pull it earlier.
+ */
+function countInEarliestStart(
+  line: LyricsLine,
+  screen: LyricsScreen,
+  options: KaraokeOptions,
+): Timestamp {
+  return options.useStoredDisplayPeriods && line.storedDisplayStart !== undefined
+    ? line.storedDisplayStart
+    : displayStartOf(line, screen);
 }
 
 export function displayEndOf(line: LyricsLine, screen: LyricsScreen): Timestamp {
