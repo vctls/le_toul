@@ -133,6 +133,8 @@ export default defineComponent({
     voice: { type: String as PropType<VoiceId>, required: true },
     // The indices of the segments selected in Adjust mode.
     selection: { type: Array as PropType<number[]>, default: () => [] },
+    // The vocals stem to sync, or null to sync the full song.
+    vocals: { type: Blob as PropType<Blob | null>, default: null },
   },
   emits: ["update:modelValue", "synced"],
   setup() {
@@ -196,11 +198,6 @@ export default defineComponent({
     },
     hasSeveralVoices(): boolean {
       return this.lyricsStore.voices.length > 1;
-    },
-    // An empty Blob stands for a missing stem.
-    vocals(): Blob | null {
-      const vocals = this.mediaStore.separatedTrack?.vocals;
-      return vocals && vocals.size > 0 ? vocals : null;
     },
     audio(): Blob | null {
       return this.vocals ?? this.mediaStore.songFile;

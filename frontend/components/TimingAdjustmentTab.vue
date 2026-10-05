@@ -432,6 +432,7 @@
     <auto-sync-dialog
       v-model="isSyncOpen"
       :voice="activeVoice"
+      :vocals="vocalTrack"
       :selection="isAdjustMode ? selectedSegments : []"
       @synced="setMode('adjust')"
     />

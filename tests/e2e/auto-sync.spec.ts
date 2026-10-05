@@ -2,6 +2,7 @@ import { BrowserContext, expect, test } from "@playwright/test";
 import {
   clickRegion,
   defaultTestConfig,
+  getFixturePath,
   navigateToTab,
   savedSegments,
   scrollWaveformIntoView,
@@ -17,14 +18,14 @@ const DOUBTFUL = 2;
 /**
  * Answers the sync routes as a backend with the fake aligner would, spreading the syllables
  * half a second apart and leaving out those `places` refuses. Each later request places them
- * 0.1 s later than the one before. Returns the requests' segments and leads, as the page sent
- * them.
+ * 0.1 s later than the one before. Returns the requests' segments, leads and audio file names,
+ * as the page sent them.
  */
 async function mockSyncApi(
   context: BrowserContext,
   places: (index: number) => boolean = () => true,
-): Promise<{ sent: unknown[][]; leads: unknown[] }> {
-  const requests = { sent: [] as unknown[][], leads: [] as unknown[] };
+): Promise<{ sent: unknown[][]; leads: unknown[]; audioNames: string[] }> {
+  const requests = { sent: [] as unknown[][], leads: [] as unknown[], audioNames: [] as string[] };
   let count = 0;
   await context.route("**/alignment/available", (route) =>
     route.fulfill({ contentType: "application/json", body: JSON.stringify({ available: true }) }),
@@ -35,6 +36,7 @@ async function mockSyncApi(
     const { segments = [], lead } = JSON.parse(json);
     requests.sent.push(segments);
     requests.leads.push(lead);
+    requests.audioNames.push(body.match(/name="vocalsFile"; filename="([^"]*)"/)?.[1] ?? "");
     count = segments.length;
     await route.fulfill({
       contentType: "application/json",
@@ -206,5 +208,28 @@ test.describe("Syncing automatically", () => {
 
     await page.getByRole("button", { name: "Sync", exact: true }).click();
     await expect(lead).toHaveValue("0.19");
+  });
+
+  test("syncs an uploaded vocals track rather than the whole song", async ({ page, context }) => {
+    const requests = await mockSyncApi(context);
+    await setupBasicInputs(
+      page,
+      defaultTestConfig.audioFile,
+      defaultTestConfig.lyricsFile,
+      defaultTestConfig.artist,
+    );
+    await navigateToTab(page, TabId.SongInfo);
+    await page
+      .locator('[name="vocal-track-upload"] input[type="file"]')
+      .setInputFiles(getFixturePath("project/vocals.mp3"));
+    await navigateToTab(page, TabId.TimingAdjustment);
+
+    await page.getByRole("button", { name: "Sync", exact: true }).click();
+    const dialog = page.getByRole("dialog", { name: "Sync automatically" });
+    await expect(dialog.getByText("No vocals track is loaded")).toBeHidden();
+    await dialog.getByRole("button", { name: "Sync", exact: true }).click();
+    await expect(dialog).toBeHidden();
+
+    expect(requests.audioNames).toEqual(["vocals.mp3"]);
   });
 });
