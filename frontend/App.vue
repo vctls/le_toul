@@ -615,6 +615,13 @@ export default defineComponent({
   border-top: 1px solid var(--bulma-border);
 }
 
+/* Firefox gives the content of a details element content-box sizing, as Bulma's inherited
+   border-box does not reach through it. */
+.drawer-settings,
+.drawer-actions {
+  box-sizing: border-box;
+}
+
 .drawer-section > summary {
   padding: 0.75rem 1rem;
   font-weight: var(--bulma-weight-semibold);
