@@ -155,10 +155,7 @@ class MmsFaAligner:
 
     def _load_model(self) -> torch.nn.Module:
         if self._model is None:
-            model = _bundle().get_model(
-                with_star=True, dl_kwargs={"model_dir": str(self._model_dir)}
-            )
-            self._model = model.to(self._device).eval()
+            self._model = _model(self._model_dir).to(self._device).eval()
         return self._model
 
     def _romanizer(self):
@@ -167,6 +164,15 @@ class MmsFaAligner:
 
             self._uroman = uroman.Uroman()
         return self._uroman
+
+
+def fetch_weights(model_dir: Path | None = None) -> None:
+    """Download the weights ahead of a first sync, unless they are already there."""
+    _model(model_dir or settings.MODELS_DIR / "mms_fa")
+
+
+def _model(model_dir: Path) -> torch.nn.Module:
+    return _bundle().get_model(with_star=True, dl_kwargs={"model_dir": str(model_dir)})
 
 
 def _bundle():

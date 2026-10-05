@@ -1,4 +1,7 @@
-"""The separation service on Modal: the job protocol in front of a GPU function.
+"""The separation service on Modal: the job protocol in front of two GPU functions.
+
+One separates and the other syncs, so the aligner's torch never holds GPU memory
+that a separation's ONNX Runtime needs.
 
 Run from the repository root, as a module so that the api package imports:
 
@@ -19,6 +22,10 @@ GPU = "L4"
 MAX_GPU_CONTAINERS = 3
 # A song that takes longer to separate fails, so this bounds how long a song can be.
 SEPARATION_TIMEOUT_SECONDS = 10 * 60
+# ALIGNMENT_CONCURRENCY on Railway should equal this, as for separations.
+MAX_ALIGNMENT_CONTAINERS = 2
+# TODO: Measure on Modal. The fixture song syncs in 18 s on a laptop GPU.
+ALIGNMENT_TIMEOUT_SECONDS = 5 * 60
 # Railway downloads the stems as soon as a task is done, so a day is margin.
 FILE_TTL_SECONDS = 24 * 60 * 60
 
@@ -51,6 +58,7 @@ gpu_image = (
     .poetry_install_from_file(_PYPROJECT, _LOCKFILE, with_=["ml"], without=["dev"])
     .pip_install(
         "torch==2.7.1+cu128",
+        "torchaudio==2.7.1+cu128",
         "torchvision==0.22.1+cu128",
         index_url="https://download.pytorch.org/whl/cu128",
         extra_index_url="https://pypi.org/simple",
@@ -88,22 +96,48 @@ def separate(task_id: str, song_name: str, model_name: str) -> None:
     """Separate a task's song, uploaded to the files Volume under its ID."""
     from api.karaoke.separation_backends import InProcessBackend
     from api.modal_tasks import run_task
+    from api.separation_tasks import separation_work
 
     files_volume.reload()
-
-    def commit() -> None:
-        files_volume.commit()
-        # A model's first use downloads its weights into the Volume.
-        models_volume.commit()
-
     run_task(
         records,
         task_id,
+        "separation",
         Path(FILES_MOUNT) / task_id / song_name,
-        model_name,
-        InProcessBackend(),
-        commit,
+        separation_work(InProcessBackend(), model_name),
+        _commit,
     )
+
+
+@app.function(
+    image=gpu_image,
+    gpu=GPU,
+    volumes={FILES_MOUNT: files_volume, MODELS_MOUNT: models_volume},
+    timeout=ALIGNMENT_TIMEOUT_SECONDS,
+    max_containers=MAX_ALIGNMENT_CONTAINERS,
+    scaledown_window=60,
+)
+def align(task_id: str, vocals_name: str, request: dict) -> None:
+    """Sync a task's vocals, uploaded to the files Volume under its ID."""
+    from api.karaoke.alignment_backends import InProcessBackend
+    from api.modal_tasks import run_task
+    from api.separation_tasks import alignment_work
+
+    files_volume.reload()
+    run_task(
+        records,
+        task_id,
+        "alignment",
+        Path(FILES_MOUNT) / task_id / vocals_name,
+        alignment_work(InProcessBackend(), request),
+        _commit,
+    )
+
+
+def _commit() -> None:
+    files_volume.commit()
+    # A model's first use downloads its weights into the Volume.
+    models_volume.commit()
 
 
 class _VolumeFiles:
@@ -124,9 +158,12 @@ class _VolumeFiles:
         self._volume.read_file_into_fileobj(path, destination)
 
 
-class _SeparateCalls:
-    def spawn(self, task_id: str, song_name: str, model_name: str) -> str:
-        return separate.spawn(task_id, song_name, model_name).object_id
+class _GpuCalls:
+    def spawn(
+        self, kind: str, task_id: str, upload_name: str, payload: str | dict
+    ) -> str:
+        function = align if kind == "align" else separate
+        return function.spawn(task_id, upload_name, payload).object_id
 
     def failure(self, call_id: str) -> str | None:
         """Say why a call ended without recording an outcome.
@@ -149,7 +186,7 @@ class _SeparateCalls:
 
 def _describe(error: BaseException) -> str:
     detail = f": {error}" if str(error) else ""
-    return f"The separation stopped without finishing ({type(error).__name__}{detail})"
+    return f"The GPU task stopped without finishing ({type(error).__name__}{detail})"
 
 
 @app.function(image=web_image)
@@ -162,7 +199,7 @@ def web():
     from api.modal_tasks import ModalTaskRunner
     from api.separation_tasks import create_router
 
-    runner = ModalTaskRunner(records, _VolumeFiles(files_volume), _SeparateCalls())
+    runner = ModalTaskRunner(records, _VolumeFiles(files_volume), _GpuCalls())
     service = FastAPI(title="Separation service")
     service.include_router(create_router(runner))
 
@@ -196,9 +233,11 @@ def seed_models() -> None:
     """Download every model's weights into the models Volume ahead of first use."""
     from audio_separator.separator import Separator
 
+    from api.karaoke.aligners import mms_fa
     from api.karaoke.music_separation import AVAILABLE_MODELS
 
     separator = Separator(model_file_dir=MODELS_MOUNT)
     for model_name in AVAILABLE_MODELS:
         separator.download_model_files(model_name)
+    mms_fa.fetch_weights()
     models_volume.commit()

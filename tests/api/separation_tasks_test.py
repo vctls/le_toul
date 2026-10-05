@@ -346,6 +346,17 @@ def test_a_malformed_sync_is_refused(data):
     assert response.status_code == 400
 
 
+def test_a_host_without_the_aligners_dependencies_refuses_a_sync(monkeypatch):
+    monkeypatch.setattr(
+        "api.separation_tasks.aligners.missing_dependencies", lambda name: ["torch"]
+    )
+
+    response = submit_sync(sync_client())
+
+    assert response.status_code == 400
+    assert response.json()["detail"] == "This host can't sync without torch."
+
+
 def test_a_host_whose_runner_cannot_sync_refuses_a_sync():
     class SeparatingOnly:
         def submit(self, song, filename, model_name):

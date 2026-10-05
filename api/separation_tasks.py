@@ -101,9 +101,13 @@ class TaskRunner(Protocol):
 class AlignmentRunner(Protocol):
     """A runner that syncs as well as separates."""
 
-    def submit_alignment(
-        self, vocals: BinaryIO, filename: str, request: dict
-    ) -> str: ...
+    def submit_alignment(self, vocals: BinaryIO, filename: str, request: dict) -> str:
+        """Start a sync, raising CannotSync if this host can't run one."""
+        ...
+
+
+class CannotSync(Exception):
+    """Raised by a runner whose host is missing what a sync needs."""
 
 
 class _TaskCancelled(Exception):
@@ -111,7 +115,36 @@ class _TaskCancelled(Exception):
 
 
 # Runs a task on its upload, reporting progress, and returns its files by role.
-_Work = Callable[[Path, ProgressCallback], dict[str, str]]
+Work = Callable[[Path, ProgressCallback], dict[str, str]]
+
+
+def separation_work(backend: SeparationBackend, model_name: str) -> Work:
+    """Separate an uploaded song beside it, offering both stems."""
+
+    def separate(songfile: Path, report: ProgressCallback) -> dict[str, str]:
+        result = backend.separate(
+            songfile, songfile.parent, model_name, on_progress=report
+        )
+        return {
+            "accompaniment": result.accompaniment.name,
+            "vocals": result.vocals.name,
+        }
+
+    return separate
+
+
+def alignment_work(backend: AlignmentBackend, request: dict) -> Work:
+    """Sync an uploaded vocals track, offering the result as a JSON file beside it."""
+
+    def align(vocalsfile: Path, report: ProgressCallback) -> dict[str, str]:
+        result = backend.align(
+            vocalsfile, request, vocalsfile.parent, on_progress=report
+        )
+        destination = vocalsfile.parent / alignment_backends.RESULT_FILE
+        destination.write_text(json.dumps(result))
+        return {"alignment": destination.name}
+
+    return align
 
 
 @dataclass
@@ -119,7 +152,7 @@ class _Task:
     directory: Path
     # "separation" or "alignment", which names the task in log events.
     kind: str
-    work: _Work
+    work: Work
     status: TaskStatus = field(default_factory=lambda: TaskStatus(status="queued"))
     future: Future | None = None
     finished_at: float | None = None
@@ -148,35 +181,29 @@ class LocalTaskRunner:
         self._executor = ThreadPoolExecutor(max_workers=1, thread_name_prefix="task")
 
     def submit(self, song: BinaryIO, filename: str, model_name: str) -> str:
-        def separate(songfile: Path, report: ProgressCallback) -> dict[str, str]:
-            result = self._backend.separate(
-                songfile, songfile.parent, model_name, on_progress=report
-            )
-            return {
-                "accompaniment": result.accompaniment.name,
-                "vocals": result.vocals.name,
-            }
-
-        task_id = self._add("separation", song, song_file_name(filename), separate)
+        task_id = self._add(
+            "separation",
+            song,
+            song_file_name(filename),
+            separation_work(self._backend, model_name),
+        )
         logger.info("separation_task_submitted", task_id=task_id, model=model_name)
         return task_id
 
     def submit_alignment(self, vocals: BinaryIO, filename: str, request: dict) -> str:
-        def align(vocalsfile: Path, report: ProgressCallback) -> dict[str, str]:
-            result = self._alignment_backend.align(
-                vocalsfile, request, vocalsfile.parent, on_progress=report
-            )
-            destination = vocalsfile.parent / alignment_backends.RESULT_FILE
-            destination.write_text(json.dumps(result))
-            return {"alignment": destination.name}
-
+        missing = aligners.missing_dependencies(settings.ALIGNMENT_MODEL)
+        if missing:
+            raise CannotSync(f"This host can't sync without {', '.join(missing)}.")
         task_id = self._add(
-            "alignment", vocals, song_file_name(filename, stem="vocals"), align
+            "alignment",
+            vocals,
+            song_file_name(filename, stem="vocals"),
+            alignment_work(self._alignment_backend, request),
         )
         logger.info("alignment_task_submitted", task_id=task_id)
         return task_id
 
-    def _add(self, kind: str, upload: BinaryIO, upload_name: str, work: _Work) -> str:
+    def _add(self, kind: str, upload: BinaryIO, upload_name: str, work: Work) -> str:
         """Store a task's upload in a directory of its own, and queue the task."""
         self._prune()
         task_id = uuid.uuid4().hex
@@ -297,19 +324,16 @@ def _submit_alignment(runner: TaskRunner, vocals: UploadFile, request: str) -> s
     """Start a sync on a runner that can run one, refusing it with a 400 otherwise."""
     if not isinstance(runner, AlignmentRunner):
         raise HTTPException(status_code=400, detail="This host doesn't sync.")
-    missing = aligners.missing_dependencies(settings.ALIGNMENT_MODEL)
-    if missing:
-        raise HTTPException(
-            status_code=400,
-            detail=f"This host can't sync without {', '.join(missing)}.",
-        )
     try:
         body = AlignmentRequest.model_validate_json(request)
     except ValidationError as e:
         raise HTTPException(status_code=400, detail=e.errors(include_url=False)) from e
-    return runner.submit_alignment(
-        vocals.file, vocals.filename or "vocals", body.model_dump(exclude_none=True)
-    )
+    try:
+        return runner.submit_alignment(
+            vocals.file, vocals.filename or "vocals", body.model_dump(exclude_none=True)
+        )
+    except CannotSync as e:
+        raise HTTPException(status_code=400, detail=str(e)) from e
 
 
 def create_router(runner: TaskRunner) -> APIRouter:

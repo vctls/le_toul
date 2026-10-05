@@ -1,7 +1,7 @@
 """The job protocol's runner for Modal, written against three small interfaces.
 
-The web function records each task in a shared store and hands the separation
-to a GPU function, which reports into the same store. No web container holds
+The web function records each task in a shared store and hands the separation or
+sync to a GPU function, which reports into the same store. No web container holds
 a task in memory, so any of them can answer any poll.
 
 modal_app.py implements the interfaces with Modal's objects, and the tests with
@@ -19,11 +19,12 @@ from typing import Any, BinaryIO, Protocol
 
 import structlog
 
-from api.karaoke.separation_backends import SeparationBackend
 from api.separation_tasks import (
     FINISHED_STATES,
     TASK_TTL_SECONDS,
+    TaskKind,
     TaskStatus,
+    Work,
     song_file_name,
 )
 
@@ -51,8 +52,13 @@ class Files(Protocol):
 
 
 class GpuCalls(Protocol):
-    def spawn(self, task_id: str, song_name: str, model_name: str) -> str:
-        """Start the GPU function on a task, returning the call's ID."""
+    def spawn(
+        self, kind: TaskKind, task_id: str, upload_name: str, payload: str | dict
+    ) -> str:
+        """Start the GPU function for a kind of task, returning the call's ID.
+
+        The payload is the model's name for a separation, and the request for a sync.
+        """
 
     def failure(self, call_id: str) -> str | None:
         """Say why a call ended without recording an outcome.
@@ -64,7 +70,7 @@ class GpuCalls(Protocol):
 
 
 class _TaskCancelled(Exception):
-    """Raised out of a running separation whose task was cancelled."""
+    """Raised out of a running task that was cancelled."""
 
 
 def _call_key(task_id: str) -> str:
@@ -97,14 +103,9 @@ class ModalTaskRunner:
         self._cache.mkdir(parents=True, exist_ok=True)
 
     def submit(self, song: BinaryIO, filename: str, model_name: str) -> str:
-        prune_task_files(self._cache, TASK_TTL_SECONDS)
-        task_id = uuid.uuid4().hex
-        song_name = song_file_name(filename)
-        self._files.upload(song, f"{task_id}/{song_name}")
-        # Recorded before the spawn, which the GPU function could otherwise overtake.
-        _record(self._records, task_id, TaskStatus(status="queued"))
-        call_id = self._calls.spawn(task_id, song_name, model_name)
-        self._records[_call_key(task_id)] = call_id
+        task_id, call_id = self._submit(
+            "separate", song, song_file_name(filename), model_name
+        )
         logger.info(
             "separation_task_submitted",
             task_id=task_id,
@@ -112,6 +113,26 @@ class ModalTaskRunner:
             model=model_name,
         )
         return task_id
+
+    def submit_alignment(self, vocals: BinaryIO, filename: str, request: dict) -> str:
+        task_id, call_id = self._submit(
+            "align", vocals, song_file_name(filename, stem="vocals"), request
+        )
+        logger.info("alignment_task_submitted", task_id=task_id, call_id=call_id)
+        return task_id
+
+    def _submit(
+        self, kind: TaskKind, upload: BinaryIO, upload_name: str, payload: str | dict
+    ) -> tuple[str, str]:
+        """Store a task's upload and spawn its GPU call, returning both IDs."""
+        prune_task_files(self._cache, TASK_TTL_SECONDS)
+        task_id = uuid.uuid4().hex
+        self._files.upload(upload, f"{task_id}/{upload_name}")
+        # Recorded before the spawn, which the GPU function could otherwise overtake.
+        _record(self._records, task_id, TaskStatus(status="queued"))
+        call_id = self._calls.spawn(kind, task_id, upload_name, payload)
+        self._records[_call_key(task_id)] = call_id
+        return task_id, call_id
 
     def status(self, task_id: str) -> TaskStatus | None:
         """Read a task's record, failing it if its call died without a word.
@@ -126,7 +147,7 @@ class ModalTaskRunner:
         failure = self._calls.failure(call_id) if call_id else None
         if failure is None:
             return status
-        logger.error("separation_call_died", task_id=task_id, failure=failure)
+        logger.error("task_call_died", task_id=task_id, failure=failure)
         status = TaskStatus(status="error", error=failure)
         _record(self._records, task_id, status)
         return status
@@ -154,22 +175,23 @@ class ModalTaskRunner:
         call_id = self._records.get(_call_key(task_id))
         if call_id:
             self._calls.cancel(call_id)
-        logger.info("separation_task_cancelled", task_id=task_id)
+        logger.info("task_cancelled", task_id=task_id)
         return True
 
 
 def run_task(
     records: Records,
     task_id: str,
-    songfile: Path,
-    model_name: str,
-    backend: SeparationBackend,
+    kind: str,
+    upload: Path,
+    work: Work,
     commit: Callable[[], None],
 ) -> None:
-    """Separate a task's song into its directory, recording progress and outcome.
+    """Run a task's work on its upload, recording progress and outcome.
 
-    The GPU function's body. commit runs before the task is recorded as done,
-    so that a client never sees done before the stems are there to download.
+    The GPU functions' body. kind, "separation" or "alignment", names the task in
+    log events. commit runs before the task is recorded as done, so that a client
+    never sees done before the files are there to download.
     """
     status = _read(records, task_id)
     if status is None or status.status != "queued":
@@ -194,26 +216,20 @@ def run_task(
         _record(records, task_id, status)
 
     try:
-        result = backend.separate(
-            songfile, songfile.parent, model_name, on_progress=report
-        )
+        files = work(upload, report)
     except _TaskCancelled:
-        logger.info("separation_task_stopped", task_id=task_id)
+        logger.info(f"{kind}_task_stopped", task_id=task_id)
         return
     except Exception as e:
-        logger.exception("separation_task_failed", task_id=task_id)
+        logger.exception(f"{kind}_task_failed", task_id=task_id)
         _record(records, task_id, TaskStatus(status="error", error=str(e)))
         return
     finally:
-        songfile.unlink(missing_ok=True)
+        upload.unlink(missing_ok=True)
 
     commit()
-    files = {
-        "accompaniment": result.accompaniment.name,
-        "vocals": result.vocals.name,
-    }
     _record(records, task_id, TaskStatus(status="done", progress=1.0, files=files))
-    logger.info("separation_task_done", task_id=task_id)
+    logger.info(f"{kind}_task_done", task_id=task_id)
 
 
 def prune_task_files(root: Path, max_age_seconds: float) -> None:

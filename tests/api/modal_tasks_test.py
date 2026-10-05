@@ -6,6 +6,7 @@ every point in a task's life is reachable without a thread.
 """
 
 import io
+import json
 import os
 import shutil
 import time
@@ -18,7 +19,7 @@ from fastapi.testclient import TestClient
 from api import modal_tasks
 from api.karaoke.separation_backends import PassthroughBackend
 from api.modal_tasks import ModalTaskRunner, prune_task_files, run_task
-from api.separation_tasks import create_router
+from api.separation_tasks import alignment_work, create_router, separation_work
 
 SONG = b"song bytes"
 MODEL_NAME = "UVR_MDXNET_KARA_2.onnx"
@@ -43,12 +44,12 @@ class DirectoryFiles:
 
 class RecordedCalls:
     def __init__(self):
-        self.spawned: list[tuple[str, str, str]] = []
+        self.spawned: list[tuple[str, str, str, str | dict]] = []
         self.cancelled: list[str] = []
         self.failures: dict[str, str] = {}
 
-    def spawn(self, task_id, song_name, model_name):
-        self.spawned.append((task_id, song_name, model_name))
+    def spawn(self, kind, task_id, upload_name, payload):
+        self.spawned.append((kind, task_id, upload_name, payload))
         return f"fc-{task_id}"
 
     def failure(self, call_id):
@@ -119,22 +120,35 @@ def submit(client) -> str:
 
 
 def play_gpu(records, files, calls, backend=None, commit=lambda: None):
-    """Run the last spawned call the way the GPU function would."""
-    task_id, song_name, model_name = calls.spawned[-1]
+    """Run the last spawned separation the way the GPU function would."""
+    _, task_id, song_name, model_name = calls.spawned[-1]
     run_task(
         records,
         task_id,
+        "separation",
         files.root / task_id / song_name,
-        model_name,
-        backend or PassthroughBackend(),
+        separation_work(backend or PassthroughBackend(), model_name),
         commit,
     )
+
+
+class FakeAlignmentBackend:
+    """Times every segment at a second, as a stand-in for a real sync."""
+
+    name = "fake"
+
+    def align(self, vocals, request, work_dir, on_progress=None):
+        segments = [{"start": 1.0, "doubtful": False} for _ in request["segments"]]
+        return {"aligner": "fake@1", "segments": segments}
+
+
+SYNC_REQUEST = {"segments": [{"text": "out", "endsLine": True, "sync": True}]}
 
 
 def test_a_task_runs_to_done_and_serves_its_stems(client, records, files, calls):
     task_id = submit(client)
     assert client.get(f"/tasks/{task_id}").json()["status"] == "queued"
-    assert calls.spawned == [(task_id, "song.mp3", MODEL_NAME)]
+    assert calls.spawned == [("separate", task_id, "song.mp3", MODEL_NAME)]
     assert (files.root / task_id / "song.mp3").read_bytes() == SONG
 
     play_gpu(records, files, calls)
@@ -147,6 +161,39 @@ def test_a_task_runs_to_done_and_serves_its_stems(client, records, files, calls)
         assert download.status_code == 200
         assert download.content == SONG
     assert not (files.root / task_id / "song.mp3").exists()
+
+
+def test_a_sync_runs_on_the_align_call_and_serves_its_result(
+    client, records, files, calls, monkeypatch
+):
+    # The web function's image has no torch, which only the GPU function needs.
+    monkeypatch.setattr(
+        "api.separation_tasks.aligners.missing_dependencies", lambda name: ["torch"]
+    )
+    response = client.post(
+        "/tasks",
+        data={"kind": "align", "request": json.dumps(SYNC_REQUEST)},
+        files={"vocalsFile": ("vocals.flac", b"vocals", "audio/flac")},
+    )
+    assert response.status_code == 202
+    task_id = response.json()["task_id"]
+    kind, spawned_id, vocals_name, request = calls.spawned[-1]
+    assert (kind, spawned_id, vocals_name) == ("align", task_id, "vocals.flac")
+    assert request == {**SYNC_REQUEST, "lead": 0.0}
+
+    run_task(
+        records,
+        task_id,
+        "alignment",
+        files.root / task_id / vocals_name,
+        alignment_work(FakeAlignmentBackend(), request),
+        lambda: None,
+    )
+
+    status = client.get(f"/tasks/{task_id}").json()
+    assert status["status"] == "done"
+    result = client.get(f"/tasks/{task_id}/files/{status['files']['alignment']}")
+    assert result.json()["segments"] == [{"start": 1.0, "doubtful": False}]
 
 
 def test_the_stems_are_committed_before_the_task_is_done(records, files, calls, runner):
