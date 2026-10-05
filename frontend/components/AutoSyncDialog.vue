@@ -26,7 +26,7 @@
         </p>
         <b-message v-if="!vocals" type="is-warning" class="is-small">
           No vocals track is loaded, so syncing listens to the whole song, which is less accurate.
-          Separate the track in the Song Info tab for a better result.
+          Separate the track in the Files tab for a better result.
         </b-message>
         <b-message v-if="hasSeveralVoices" type="is-warning" class="is-small">
           These lyrics have more than one voice. Auto-sync hears all of them at once. It will often
