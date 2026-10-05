@@ -8,7 +8,7 @@ test.describe("Drawer on a phone", () => {
     await setupTestEnvironment(page);
   });
 
-  test("holds the tabs, the tab's settings and the global buttons, leaving Undo and Redo in the navbar", async ({
+  test("holds the tabs, the tab's settings and the global buttons, leaving Undo, Redo and Full screen in the navbar", async ({
     page,
   }) => {
     const navbar = page.getByRole("navigation").first();
@@ -18,6 +18,7 @@ test.describe("Drawer on a phone", () => {
 
     await expect(navbar.getByRole("button", { name: "Undo" })).toBeVisible();
     await expect(navbar.getByRole("button", { name: "Redo" })).toBeVisible();
+    await expect(navbar.getByRole("button", { name: "Full screen" })).toBeVisible();
     await expect(navbar.getByText("Intro", { exact: true })).toBeVisible();
     await expect(lyricsTab).toBeHidden();
     await expect(instructions).toBeHidden();

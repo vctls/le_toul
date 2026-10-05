@@ -49,25 +49,23 @@
                 <b-icon icon="arrow-rotate-right" size="is-large"></b-icon>
               </b-button>
             </viewport-tooltip>
-            <template v-if="!isCompact">
-              <viewport-tooltip
-                v-for="action in actions"
-                :key="action.label"
-                :label="action.tooltip"
+            <viewport-tooltip
+              v-for="action in navbarActions"
+              :key="action.label"
+              :label="action.tooltip"
+            >
+              <b-button
+                :tag="action.href ? 'a' : 'button'"
+                :href="action.href"
+                :target="action.target"
+                :type="action.isPressed ? 'is-primary' : 'is-text'"
+                @click="action.onClick?.()"
+                :aria-label="action.label"
+                :aria-pressed="action.isPressed"
               >
-                <b-button
-                  :tag="action.href ? 'a' : 'button'"
-                  :href="action.href"
-                  :target="action.target"
-                  :type="action.isPressed ? 'is-primary' : 'is-text'"
-                  @click="action.onClick?.()"
-                  :aria-label="action.label"
-                  :aria-pressed="action.isPressed"
-                >
-                  <b-icon :pack="action.pack" :icon="action.icon" size="is-large"></b-icon>
-                </b-button>
-              </viewport-tooltip>
-            </template>
+                <b-icon :pack="action.pack" :icon="action.icon" size="is-large"></b-icon>
+              </b-button>
+            </viewport-tooltip>
           </div>
         </b-navbar-item>
       </template>
@@ -121,7 +119,7 @@
             <summary>App</summary>
             <div class="drawer-actions">
               <b-button
-                v-for="action in actions"
+                v-for="action in drawerActions"
                 :key="action.label"
                 :tag="action.href ? 'a' : 'button'"
                 :href="action.href"
@@ -170,7 +168,7 @@
 <script lang="ts">
 import { defineComponent, h, ref } from "vue";
 import { persistJsonRef } from "@/lib/persistence";
-import { DRAWER_QUERY, useMediaQuery } from "@/lib/device";
+import { DRAWER_QUERY, useFullScreen, useMediaQuery } from "@/lib/device";
 import { DONATE_URL, appName } from "@/constants";
 import HelpTab from "@/components/HelpTab.vue";
 import SongInfoTab from "@/components/SongInfoTab.vue";
@@ -206,6 +204,8 @@ interface GlobalAction {
   icon: string;
   pack?: string;
   isPressed?: boolean;
+  // Kept in the navbar when the others move to the drawer.
+  staysInNavbar?: boolean;
   href?: string;
   target?: string;
   onClick?: () => void;
@@ -272,6 +272,7 @@ export default defineComponent({
       fallbackFontsStore: useFallbackFontsStore(),
       historyStore: useHistoryStore(),
       isCompact: useMediaQuery(DRAWER_QUERY),
+      ...useFullScreen(),
       ...useTabRoute(),
     };
   },
@@ -344,6 +345,16 @@ export default defineComponent({
           target: "_blank",
         });
       }
+      if (this.canFullScreen) {
+        const label = this.isFullScreen ? "Leave full screen" : "Full screen";
+        actions.push({
+          label,
+          tooltip: label,
+          icon: this.isFullScreen ? "compress" : "expand",
+          staysInNavbar: true,
+          onClick: this.toggleFullScreen,
+        });
+      }
       actions.push({
         label: "GitHub",
         tooltip: "View the source code on GitHub",
@@ -352,6 +363,12 @@ export default defineComponent({
         href: "https://github.com/vctls/le_toul",
       });
       return actions;
+    },
+    navbarActions(): GlobalAction[] {
+      return this.isCompact ? this.actions.filter((action) => action.staysInNavbar) : this.actions;
+    },
+    drawerActions(): GlobalAction[] {
+      return this.actions.filter((action) => !action.staysInNavbar);
     },
     undoTitle(): string {
       return historyTitle("undo", this.historyStore.nextUndo);
