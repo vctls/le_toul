@@ -257,7 +257,7 @@
     </b-message>
     <div class="adjust-top">
       <Teleport defer to="#drawer-settings-adjust" :disabled="!isCompact">
-        <div class="adjustment-form">
+        <div class="adjustment-form" :class="{ 'is-in-drawer': isCompact }">
           <div
             class="adjustment-fields"
             :class="{ 'has-more-above': settingsScrolled }"
@@ -1647,6 +1647,29 @@ Buefy's margin after it, and the padding of its empty label, would push it off t
 /* Bulma's input padding alone is wider than the value at the narrowest column. */
 .adjustment-fields :deep(.b-numberinput input) {
   padding-inline: 0.25em;
+}
+
+/* In the drawer, the controls fill its width, and the Apply button stays beside its control. */
+.is-in-drawer .adjustment-fields {
+  grid-template-columns: 100%;
+}
+
+.is-in-drawer .adjustment-fields :deep(.field-body) {
+  flex-wrap: nowrap;
+}
+
+.is-in-drawer .adjustment-fields :deep(.field-body > .field) {
+  flex-grow: 1;
+}
+
+.is-in-drawer .adjustment-fields :deep(.field-body > .field:has(.field-action)) {
+  flex: none;
+}
+
+.is-in-drawer .mode-switch,
+.is-in-drawer .adjustment-fields :deep(.b-numberinput),
+.is-in-drawer .adjustment-fields :deep(.select) {
+  width: 100%;
 }
 
 .adjust-top {
