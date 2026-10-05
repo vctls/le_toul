@@ -24,8 +24,6 @@ test.describe("Drawer on a phone", () => {
 
     await menu.tap();
     await expect(menu).toHaveAttribute("aria-expanded", "true");
-    await expect(instructions).toBeHidden();
-    await page.getByText("App", { exact: true }).tap();
     await expect(page.getByRole("button", { name: "Keyboard shortcuts" })).toBeVisible();
     await expect(page.getByRole("link", { name: "GitHub" })).toBeVisible();
     await instructions.tap();

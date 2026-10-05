@@ -256,7 +256,7 @@ export default defineComponent({
     CircularProgress,
   },
   setup() {
-    const drawerSections = ref({ settings: true, app: false });
+    const drawerSections = ref({ settings: true, app: true });
     persistJsonRef("drawer.sections", drawerSections);
     return {
       drawerSections,
