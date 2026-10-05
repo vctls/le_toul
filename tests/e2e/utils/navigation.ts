@@ -17,9 +17,21 @@ export enum TabId {
 }
 
 /**
+ * Opens the drawer that holds the tabs on a narrow screen. Elsewhere the tabs are always shown.
+ */
+export async function showTabs(page: Page): Promise<void> {
+  const menu = page.getByRole("navigation").getByRole("button", { name: "Menu" });
+  if (await menu.isVisible()) {
+    await menu.click();
+    await expect(menu).toHaveAttribute("aria-expanded", "true");
+  }
+}
+
+/**
  * Navigates to a specific tab and verifies it's visible
  */
 export async function navigateToTab(page: Page, tabId: TabId): Promise<void> {
+  await showTabs(page);
   await page.click(`nav.tabs .${tabId}`);
 
   // Map of tab IDs to expected header text for verification

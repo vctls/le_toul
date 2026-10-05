@@ -9,6 +9,7 @@ import {
   uploadTimingsFile,
   savedSegments,
   playbackPosition,
+  showTabs,
 } from "./utils";
 
 // A phone held sideways, which gives the Timing tab's waveform the whole screen.
@@ -26,6 +27,7 @@ async function loadSong(page: Page, lyrics: string, timings?: string) {
   await loadAndEnterLyrics(page, lyrics);
   if (timings) await uploadTimingsFile(page, timings);
   // The full-screen layout hides the tab's heading, which navigateToTab waits for.
+  await showTabs(page);
   await page.click(`nav.tabs .${TabId.TimingAdjustment}`);
 }
 
@@ -120,13 +122,22 @@ test.describe("Tap mode on a phone held sideways", () => {
     await expect.poll(wrapperWidth).toBeGreaterThan(widthBefore * 2);
   });
 
-  test("opens the settings in a drawer, and gives the other tabs back", async ({ page }) => {
+  test("opens the menu with the settings, and shows the whole tab", async ({ page }) => {
     await loadSong(page, "One\nTwo");
-    await page.getByRole("button", { name: "Settings" }).tap();
+    const menu = page
+      .getByRole("toolbar", { name: "Timing" })
+      .getByRole("button", { name: "Menu" });
+    await menu.tap();
     await expect(page.getByRole("button", { name: "Tap", exact: true })).toBeVisible();
+    await expect(page.getByRole("tab", { name: "Lyrics" })).toBeVisible();
     await page.screenshot({ path: test.info().outputPath("phone-settings.png") });
 
-    await page.getByRole("button", { name: "Show the other tabs" }).tap();
+    await page.keyboard.press("Escape");
+    await expect(page.getByRole("tab", { name: "Lyrics" })).toBeHidden();
+
+    await menu.tap();
+    await page.getByRole("button", { name: "Show the whole tab" }).tap();
+    await expect(page.getByRole("tab", { name: "Lyrics" })).toBeHidden();
     await expect(
       page.getByRole("heading", { level: 2, name: "Timing", exact: true }),
     ).toBeVisible();

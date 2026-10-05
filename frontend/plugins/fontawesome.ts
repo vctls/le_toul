@@ -3,6 +3,7 @@ import { FontAwesomeIcon } from "@fortawesome/vue-fontawesome";
 
 // Import only the specific icons we need
 import {
+  faBars,
   faDownload,
   faCopy,
   faUpload,
@@ -51,6 +52,7 @@ import { faGithub } from "@fortawesome/free-brands-svg-icons";
 // Add only the imported icons to the library
 library.add(
   // Solid icons
+  faBars,
   faDownload,
   faCopy,
   faUpload,

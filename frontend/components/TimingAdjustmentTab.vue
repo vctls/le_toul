@@ -5,11 +5,12 @@
     label="Timing"
     :disabled="!isEnabled"
     class="timing-adjustment-tab"
-    :class="{ 'is-immersive': isImmersive, 'settings-open': isImmersive && settingsOpen }"
+    :class="{ 'is-immersive': isImmersive }"
     headerClass="timing-adjustment-tab-header"
   >
-    <div v-if="isImmersive" class="immersive-bar">
+    <div v-if="isImmersive" class="immersive-bar" role="toolbar" aria-label="Timing">
       <div class="buttons">
+        <b-button icon-left="bars" aria-label="Menu" @click="$emit('open-drawer')" />
         <b-button
           icon-left="arrow-rotate-left"
           aria-label="Undo"
@@ -35,29 +36,24 @@
           :aria-label="isFullScreen ? 'Leave full screen' : 'Full screen'"
           @click="toggleFullScreen"
         />
-        <b-button
-          icon-left="sliders"
-          aria-label="Settings"
-          :aria-pressed="settingsOpen"
-          :type="settingsOpen ? 'is-primary' : ''"
-          @click="settingsOpen = !settingsOpen"
-        />
       </div>
     </div>
     <div class="title-row">
       <div class="title-main">
         <h2 class="title">Timing</h2>
-        <button
-          v-if="timingStatus && acknowledgedStatus === timingStatus"
-          type="button"
-          class="status-icon"
-          :class="timingStatus === 'done' ? 'has-text-success' : 'has-text-warning'"
-          :aria-label="statusTitle"
-          :title="`${statusTitle}. Click for more.`"
-          @click="acknowledgedStatus = null"
-        >
-          <b-icon :icon="timingStatus === 'done' ? 'check' : 'warning'" />
-        </button>
+        <Teleport defer to="#navbar-tab-status" :disabled="!isCompact">
+          <button
+            v-if="timingStatus && acknowledgedStatus === timingStatus"
+            type="button"
+            class="status-icon"
+            :class="timingStatus === 'done' ? 'has-text-success' : 'has-text-warning'"
+            :aria-label="statusTitle"
+            :title="`${statusTitle}. Click for more.`"
+            @click="acknowledgedStatus = null"
+          >
+            <b-icon :icon="timingStatus === 'done' ? 'check' : 'warning'" />
+          </button>
+        </Teleport>
       </div>
       <div class="title-actions">
         <b-button
@@ -260,98 +256,106 @@
       </div>
     </b-message>
     <div class="adjust-top">
-      <div class="adjustment-form">
-        <div
-          class="adjustment-fields"
-          :class="{ 'has-more-above': settingsScrolled }"
-          @scroll="onSettingsScroll"
-        >
-          <b-field label="Mode" horizontal>
-            <div class="buttons has-addons mode-switch">
-              <b-button
-                :type="isTapMode ? 'is-primary' : ''"
-                :aria-pressed="isTapMode"
-                :title="`Tap the timings as the song plays (${keyLabels.switchMode})`"
-                @click="setMode('tap')"
-              >
-                Tap
-              </b-button>
-              <b-button
-                :type="isAdjustMode ? 'is-primary' : ''"
-                :aria-pressed="isAdjustMode"
-                :disabled="!hasTimings"
-                :title="`Drag the timings into place (${keyLabels.switchMode})`"
-                @click="setMode('adjust')"
-              >
-                Adjust
-              </b-button>
-              <b-button
-                v-if="advancedStore.isAdvanced"
-                :type="displayMode ? 'is-primary' : ''"
-                :aria-pressed="displayMode"
-                :disabled="!hasTimings"
-                :title="`Drag when each line is on screen (${keyLabels.switchMode})`"
-                @click="setMode('lines')"
-              >
-                Lines
-              </b-button>
-            </div>
-          </b-field>
-          <b-field label="Playback rate" horizontal>
-            <b-numberinput
-              expanded
-              :model-value="playbackRate"
-              @update:model-value="
-                (v: number | null | undefined) => (playbackRate = Number(v ?? playbackRate))
-              "
-              :min="0.25"
-              :max="2"
-              :step="0.25"
-              controls-position="compact"
-            />
-          </b-field>
-          <b-field horizontal>
-            <template #label>
-              Preserve pitch
-              <b-tooltip
-                multilined
-                label="Hold the original key at other speeds. Turned off, a slower speed lowers the pitch too."
-              >
-                <b-icon size="is-small" icon="circle-question"></b-icon>
-              </b-tooltip>
-            </template>
-            <b-switch v-model="preservePitch"></b-switch>
-          </b-field>
-          <b-field label="Playhead preroll (seconds)" horizontal>
-            <b-numberinput
-              expanded
-              :model-value="prerollSeconds"
-              @update:model-value="
-                (v: number | null | undefined) => (prerollSeconds = Number(v ?? prerollSeconds))
-              "
-              :min="0"
-              :max="30"
-              :step="1"
-              controls-position="compact"
-            />
-          </b-field>
-          <b-field v-if="vocalTrack" label="Playback track" horizontal>
-            <track-select kind="vocals" expanded v-model="playbackTrackChoice" />
-          </b-field>
-          <b-field v-if="isAdjustMode" label="Shift all timings (ms)" horizontal>
-            <b-numberinput
-              expanded
-              :model-value="shiftMs"
-              @update:model-value="
-                (v: number | null | undefined) => (shiftMs = Number(v ?? shiftMs))
-              "
-              :step="1"
-              controls-position="compact"
-            />
-            <b-button class="field-action" label="Apply" @click="applyShift" />
-          </b-field>
+      <Teleport defer to="#drawer-settings-adjust" :disabled="!isCompact">
+        <div class="adjustment-form">
+          <div
+            class="adjustment-fields"
+            :class="{ 'has-more-above': settingsScrolled }"
+            @scroll="onSettingsScroll"
+          >
+            <b-field label="Mode" horizontal>
+              <div class="buttons has-addons mode-switch">
+                <b-button
+                  :type="isTapMode ? 'is-primary' : ''"
+                  :aria-pressed="isTapMode"
+                  :title="`Tap the timings as the song plays (${keyLabels.switchMode})`"
+                  @click="setMode('tap')"
+                >
+                  Tap
+                </b-button>
+                <b-button
+                  :type="isAdjustMode ? 'is-primary' : ''"
+                  :aria-pressed="isAdjustMode"
+                  :disabled="!hasTimings"
+                  :title="`Drag the timings into place (${keyLabels.switchMode})`"
+                  @click="setMode('adjust')"
+                >
+                  Adjust
+                </b-button>
+                <b-button
+                  v-if="advancedStore.isAdvanced"
+                  :type="displayMode ? 'is-primary' : ''"
+                  :aria-pressed="displayMode"
+                  :disabled="!hasTimings"
+                  :title="`Drag when each line is on screen (${keyLabels.switchMode})`"
+                  @click="setMode('lines')"
+                >
+                  Lines
+                </b-button>
+              </div>
+            </b-field>
+            <b-field label="Playback rate" horizontal>
+              <b-numberinput
+                expanded
+                :model-value="playbackRate"
+                @update:model-value="
+                  (v: number | null | undefined) => (playbackRate = Number(v ?? playbackRate))
+                "
+                :min="0.25"
+                :max="2"
+                :step="0.25"
+                controls-position="compact"
+              />
+            </b-field>
+            <b-field horizontal>
+              <template #label>
+                Preserve pitch
+                <b-tooltip
+                  multilined
+                  label="Hold the original key at other speeds. Turned off, a slower speed lowers the pitch too."
+                >
+                  <b-icon size="is-small" icon="circle-question"></b-icon>
+                </b-tooltip>
+              </template>
+              <b-switch v-model="preservePitch"></b-switch>
+            </b-field>
+            <b-field label="Playhead preroll (seconds)" horizontal>
+              <b-numberinput
+                expanded
+                :model-value="prerollSeconds"
+                @update:model-value="
+                  (v: number | null | undefined) => (prerollSeconds = Number(v ?? prerollSeconds))
+                "
+                :min="0"
+                :max="30"
+                :step="1"
+                controls-position="compact"
+              />
+            </b-field>
+            <b-field v-if="vocalTrack" label="Playback track" horizontal>
+              <track-select kind="vocals" expanded v-model="playbackTrackChoice" />
+            </b-field>
+            <b-field v-if="isAdjustMode" label="Shift all timings (ms)" horizontal>
+              <b-numberinput
+                expanded
+                :model-value="shiftMs"
+                @update:model-value="
+                  (v: number | null | undefined) => (shiftMs = Number(v ?? shiftMs))
+                "
+                :step="1"
+                controls-position="compact"
+              />
+              <b-button class="field-action" label="Apply" @click="applyShift" />
+            </b-field>
+          </div>
+          <b-button
+            v-if="isImmersive"
+            class="immersive-exit"
+            label="Show the whole tab"
+            @click="showWholeTab"
+          />
         </div>
-      </div>
+      </Teleport>
       <subtitle-display
         class="subtitle-display"
         v-if="songFile"
@@ -359,12 +363,6 @@
         :subtitles="debouncedSubtitles"
         :fonts="previewFonts"
         :backgroundColor="previewColors.background.toString()"
-      />
-      <b-button
-        v-if="isImmersive"
-        class="immersive-exit"
-        label="Show the other tabs"
-        @click="immersiveDismissed = true"
       />
     </div>
     <timing-adjuster
@@ -434,7 +432,7 @@ import { useSettingsStore } from "@/stores/settings";
 import { useLegacyTimingStore } from "@/stores/legacyTiming";
 import { storeToRefs } from "pinia";
 import { BButton, BField, BIcon, BMessage, BNumberinput, BSwitch } from "buefy";
-import { PHONE_LANDSCAPE_QUERY, isMobile } from "@/lib/device";
+import { DRAWER_QUERY, PHONE_LANDSCAPE_QUERY, isMobile, useMediaQuery } from "@/lib/device";
 import TapButtons from "@/components/TapButtons.vue";
 import { VoiceId } from "@/lib/voices";
 import { clampSegmentOverlaps } from "@/lib/timingValidation";
@@ -589,6 +587,7 @@ function defaultAdjustState(): AdjustVoiceState {
 }
 
 export default defineComponent({
+  emits: ["open-drawer", "close-drawer"],
   components: {
     BButton,
     BField,
@@ -620,6 +619,8 @@ export default defineComponent({
       settingsStore,
       fallbackFontsStore,
       subtitles,
+      // On a narrow screen, the status moves to the navbar and the settings to the drawer.
+      isCompact: useMediaQuery(DRAWER_QUERY),
     };
   },
   data() {
@@ -645,9 +646,8 @@ export default defineComponent({
       showTapButtons: restored?.showTapButtons ?? isMobile(),
       isPlaying: false,
       isPhoneLandscape: false,
-      // Set by "Show the other tabs", until the phone is turned upright again.
+      // Set by "Show the whole tab", until the phone is turned upright again.
       immersiveDismissed: false,
-      settingsOpen: false,
       isFullScreen: false,
       _phoneLandscape: null as MediaQueryList | null,
       acknowledgedStatus: null as TimingStatus | null,
@@ -1014,11 +1014,14 @@ export default defineComponent({
     onScrollChange(startSeconds: number) {
       this.waveformScroll = startSeconds;
     },
+    showWholeTab() {
+      this.immersiveDismissed = true;
+      this.$emit("close-drawer");
+    },
     onPhoneLandscapeChange(event: MediaQueryListEvent) {
       this.isPhoneLandscape = event.matches;
       if (!event.matches) {
         this.immersiveDismissed = false;
-        this.settingsOpen = false;
       }
     },
     onFullScreenChange() {
@@ -1796,30 +1799,8 @@ buttons float over it, and the settings open in a drawer. */
   display: inline-flex;
 }
 
-.is-immersive.settings-open > .adjust-top {
-  position: absolute;
-  inset: 0 0 0 auto;
-  z-index: 20;
-  display: flex;
-  flex-direction: column;
-  gap: 1rem;
-  width: min(24rem, 100%);
-  padding: 3.5rem 1rem 1rem;
-  overflow-y: auto;
-  background: var(--bulma-scheme-main);
-  box-shadow: -0.25rem 0 1rem rgb(0 0 0 / 35%);
-}
-
-/* The drawer is narrow, whatever width the wide layout would give the settings. */
-.is-immersive .adjust-top > .adjustment-form {
-  flex: none;
-}
-
-.is-immersive .adjust-top .adjustment-fields {
-  position: static;
-  padding-bottom: 0;
-  overflow: visible;
-  mask-image: none;
+.immersive-exit {
+  margin-top: 1rem;
 }
 
 /* A phone held upright could time too, but sideways gives the waveform far more room. */

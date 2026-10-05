@@ -2,8 +2,28 @@
   <div class="wrapper">
     <b-navbar shadow :mobile-burger="false">
       <template #brand>
-        <b-navbar-item tag="span">
-          <span class="title">{{ appName }}</span>
+        <b-navbar-item v-if="isCompact" tag="div" class="drawer-toggle">
+          <b-button
+            type="is-text"
+            @click="isDrawerOpen = !isDrawerOpen"
+            aria-label="Menu"
+            :aria-expanded="isDrawerOpen"
+          >
+            <b-icon icon="bars" size="is-large"></b-icon>
+          </b-button>
+          <span v-if="mediaStore.isProcessing" class="drawer-toggle-badge">
+            <circular-progress
+              v-if="mediaStore.separationProgress !== null"
+              :value="mediaStore.separationProgress"
+              size="1rem"
+              label="Track separation progress"
+            />
+            <span v-else class="icon is-small loader" aria-label="Separating the track"></span>
+          </span>
+        </b-navbar-item>
+        <b-navbar-item tag="span" class="navbar-title">
+          <span class="title">{{ isCompact ? TAB_LABELS[activeTab] : appName }}</span>
+          <span v-show="activeTab === 'adjust'" id="navbar-tab-status"></span>
         </b-navbar-item>
       </template>
       <template #end>
@@ -29,89 +49,97 @@
                 <b-icon icon="arrow-rotate-right" size="is-large"></b-icon>
               </b-button>
             </viewport-tooltip>
-            <viewport-tooltip label="Show or hide the instructions on each tab">
-              <b-button
-                :type="helpStore.isShowingHelp ? 'is-primary' : 'is-text'"
-                @click="helpStore.toggleHelp()"
-                aria-label="Instructions"
-                :aria-pressed="helpStore.isShowingHelp"
+            <template v-if="!isCompact">
+              <viewport-tooltip
+                v-for="action in actions"
+                :key="action.label"
+                :label="action.tooltip"
               >
-                <b-icon icon="circle-question" size="is-large"></b-icon>
-              </b-button>
-            </viewport-tooltip>
-            <viewport-tooltip label="Keyboard shortcuts (?)">
-              <b-button
-                type="is-text"
-                @click="isShowingKeyBindings = true"
-                aria-label="Keyboard shortcuts"
-              >
-                <b-icon icon="keyboard" size="is-large"></b-icon>
-              </b-button>
-            </viewport-tooltip>
-            <viewport-tooltip
-              label="Show or hide the advanced features: the Edit tab, Karaoke Builder Studio files and line display times"
-            >
-              <b-button
-                :type="advancedStore.isAdvanced ? 'is-primary' : 'is-text'"
-                @click="advancedStore.toggleAdvanced()"
-                aria-label="Advanced"
-                :aria-pressed="advancedStore.isAdvanced"
-              >
-                <b-icon icon="sliders" size="is-large"></b-icon>
-              </b-button>
-            </viewport-tooltip>
-            <viewport-tooltip label="Discard the saved session and start fresh">
-              <b-button type="is-text" @click="confirmStartOver" aria-label="Start Over">
-                <b-icon icon="trash-can" size="is-large"></b-icon>
-              </b-button>
-            </viewport-tooltip>
-            <viewport-tooltip :label="themeTitle">
-              <b-button type="is-text" @click="themeStore.cycle()" :aria-label="themeButton.label">
-                <b-icon :icon="themeButton.icon" size="is-large"></b-icon>
-              </b-button>
-            </viewport-tooltip>
-            <viewport-tooltip v-if="DONATE_URL" label="Support the project on Buy Me A Coffee">
-              <b-button
-                tag="a"
-                :href="DONATE_URL"
-                type="is-text"
-                target="_blank"
-                aria-label="Buy Me A Coffee"
-              >
-                <b-icon icon="circle-dollar-to-slot" size="is-large"></b-icon>
-              </b-button>
-            </viewport-tooltip>
-            <viewport-tooltip label="View the source code on GitHub">
-              <b-button
-                tag="a"
-                href="https://github.com/vctls/le_toul"
-                type="is-text"
-                aria-label="GitHub"
-              >
-                <b-icon pack="fab" icon="github" size="is-large"></b-icon>
-              </b-button>
-            </viewport-tooltip>
+                <b-button
+                  :tag="action.href ? 'a' : 'button'"
+                  :href="action.href"
+                  :target="action.target"
+                  :type="action.isPressed ? 'is-primary' : 'is-text'"
+                  @click="action.onClick?.()"
+                  :aria-label="action.label"
+                  :aria-pressed="action.isPressed"
+                >
+                  <b-icon :pack="action.pack" :icon="action.icon" size="is-large"></b-icon>
+                </b-button>
+              </viewport-tooltip>
+            </template>
           </div>
         </b-navbar-item>
       </template>
     </b-navbar>
     <b-tabs
       :model-value="activeTab"
-      @update:model-value="setActiveTab"
+      @update:model-value="selectTab"
       expanded
       :animated="false"
-      :vertical="!isMobile"
+      vertical
       type="is-boxed"
       class="main-tabs"
+      :class="{ 'has-drawer': isCompact, 'is-drawer-open': isDrawerOpen }"
     >
+      <template v-if="isCompact" #start>
+        <p class="drawer-title title">{{ appName }}</p>
+      </template>
       <help-tab @show-tab="setActiveTab"></help-tab>
       <song-info-tab></song-info-tab>
       <lyric-input-tab></lyric-input-tab>
       <song-timing-tab></song-timing-tab>
-      <timing-adjustment-tab />
+      <timing-adjustment-tab
+        @open-drawer="isDrawerOpen = true"
+        @close-drawer="isDrawerOpen = false"
+      />
       <timing-edit-tab />
       <submit-tab></submit-tab>
+      <!-- Always rendered, as the tabs teleport their settings into it. -->
+      <template #end>
+        <div v-show="isCompact" class="drawer-sections">
+          <details
+            v-show="hasTabSettings"
+            class="drawer-section"
+            :open="drawerSections.settings"
+            @toggle="onSectionToggle('settings', $event)"
+          >
+            <summary>{{ TAB_LABELS[activeTab] }} settings</summary>
+            <div
+              v-for="id in SETTINGS_TABS"
+              v-show="activeTab === id"
+              :key="id"
+              :id="`drawer-settings-${id}`"
+              class="drawer-settings"
+            ></div>
+          </details>
+          <details
+            class="drawer-section"
+            :open="drawerSections.app"
+            @toggle="onSectionToggle('app', $event)"
+          >
+            <summary>App</summary>
+            <div class="drawer-actions">
+              <b-button
+                v-for="action in actions"
+                :key="action.label"
+                :tag="action.href ? 'a' : 'button'"
+                :href="action.href"
+                :target="action.target"
+                :type="action.isPressed ? 'is-primary' : 'is-text'"
+                :icon-pack="action.pack"
+                :icon-left="action.icon"
+                @click="action.onClick?.()"
+                :aria-pressed="action.isPressed"
+              >
+                {{ action.label }}
+              </b-button>
+            </div>
+          </details>
+        </div>
+      </template>
     </b-tabs>
+    <div v-if="isDrawerOpen" class="drawer-backdrop" @click="isDrawerOpen = false"></div>
     <key-bindings-modal v-model="isShowingKeyBindings" />
     <confirm-modal
       v-model="isConfirmingStartOver"
@@ -140,8 +168,9 @@
 </template>
 
 <script lang="ts">
-import { defineComponent, h } from "vue";
-import { isMobile } from "@/lib/device";
+import { defineComponent, h, ref } from "vue";
+import { persistJsonRef } from "@/lib/persistence";
+import { DRAWER_QUERY, useMediaQuery } from "@/lib/device";
 import { DONATE_URL, appName } from "@/constants";
 import HelpTab from "@/components/HelpTab.vue";
 import SongInfoTab from "@/components/SongInfoTab.vue";
@@ -154,6 +183,7 @@ import ConfirmModal from "@/components/ConfirmModal.vue";
 import KeyBindingsModal from "@/components/KeyBindingsModal.vue";
 import SourceFileDownloadLinks from "@/components/SourceFileDownloadLinks.vue";
 import ViewportTooltip from "@/components/ViewportTooltip.vue";
+import CircularProgress from "@/components/CircularProgress.vue";
 import { useMediaStore } from "@/stores/media";
 import { useLyricsStore } from "@/stores/lyrics";
 import { useLyricsLookupStore } from "@/stores/lyricsLookup";
@@ -165,9 +195,24 @@ import { useLegacyTimingStore } from "@/stores/legacyTiming";
 import { useThemeStore } from "@/stores/theme";
 import { useFallbackFontsStore } from "@/stores/fallbackFonts";
 import { ThemePreference } from "@/lib/colorScheme";
-import { useTabRoute } from "@/lib/tabRoute";
+import { TabId, useTabRoute } from "@/lib/tabRoute";
 import { useHistoryStore } from "@/stores/history";
 import { HistoryEntry, TAB_LABELS, historyStepFor, historyTitle } from "@/lib/history";
+
+// A navbar button, which the drawer shows with its label instead.
+interface GlobalAction {
+  label: string;
+  tooltip: string;
+  icon: string;
+  pack?: string;
+  isPressed?: boolean;
+  href?: string;
+  target?: string;
+  onClick?: () => void;
+}
+
+// The tabs that move their settings into the drawer.
+const SETTINGS_TABS: TabId[] = ["lyrics", "adjust"];
 
 const THEME_BUTTONS: Record<ThemePreference, { icon: string; label: string }> = {
   system: { icon: "circle-half-stroke", label: "Theme: follow system" },
@@ -208,9 +253,13 @@ export default defineComponent({
     KeyBindingsModal,
     SourceFileDownloadLinks,
     ViewportTooltip,
+    CircularProgress,
   },
   setup() {
+    const drawerSections = ref({ settings: true, app: false });
+    persistJsonRef("drawer.sections", drawerSections);
     return {
+      drawerSections,
       mediaStore: useMediaStore(),
       lyricsStore: useLyricsStore(),
       lyricsLookupStore: useLyricsLookupStore(),
@@ -222,28 +271,87 @@ export default defineComponent({
       themeStore: useThemeStore(),
       fallbackFontsStore: useFallbackFontsStore(),
       historyStore: useHistoryStore(),
+      isCompact: useMediaQuery(DRAWER_QUERY),
       ...useTabRoute(),
     };
   },
   data() {
     return {
-      DONATE_URL,
+      TAB_LABELS,
+      SETTINGS_TABS,
       appName: appName(),
       isSubmitting: false,
       isConfirmingStartOver: false,
       isShowingKeyBindings: false,
+      isDrawerOpen: false,
     };
   },
 
   computed: {
-    isMobile,
     voiceFonts(): File[] {
       return this.lyricsStore.voices
         .map((voice) => this.settingsStore.getVoiceFont(voice)?.file)
         .filter((file): file is File => file !== undefined);
     },
+    hasTabSettings(): boolean {
+      return SETTINGS_TABS.includes(this.activeTab);
+    },
     themeButton(): { icon: string; label: string } {
       return THEME_BUTTONS[this.themeStore.preference];
+    },
+    actions(): GlobalAction[] {
+      const actions: GlobalAction[] = [
+        {
+          label: "Instructions",
+          tooltip: "Show or hide the instructions on each tab",
+          icon: "circle-question",
+          isPressed: this.helpStore.isShowingHelp,
+          onClick: () => this.helpStore.toggleHelp(),
+        },
+        {
+          label: "Keyboard shortcuts",
+          tooltip: "Keyboard shortcuts (?)",
+          icon: "keyboard",
+          onClick: () => (this.isShowingKeyBindings = true),
+        },
+        {
+          label: "Advanced",
+          tooltip:
+            "Show or hide the advanced features: the Edit tab, Karaoke Builder Studio files and line display times",
+          icon: "sliders",
+          isPressed: this.advancedStore.isAdvanced,
+          onClick: () => this.advancedStore.toggleAdvanced(),
+        },
+        {
+          label: "Start Over",
+          tooltip: "Discard the saved session and start fresh",
+          icon: "trash-can",
+          onClick: this.confirmStartOver,
+        },
+        {
+          label: this.themeButton.label,
+          tooltip: this.themeTitle,
+          icon: this.themeButton.icon,
+          onClick: () => this.themeStore.cycle(),
+        },
+      ];
+      if (DONATE_URL) {
+        actions.push({
+          label: "Buy Me A Coffee",
+          tooltip: "Support the project on Buy Me A Coffee",
+          icon: "circle-dollar-to-slot",
+          href: DONATE_URL,
+          target: "_blank",
+        });
+      }
+      actions.push({
+        label: "GitHub",
+        tooltip: "View the source code on GitHub",
+        icon: "github",
+        pack: "fab",
+        href: "https://github.com/vctls/le_toul",
+      });
+      return actions;
     },
     undoTitle(): string {
       return historyTitle("undo", this.historyStore.nextUndo);
@@ -268,6 +376,9 @@ export default defineComponent({
     },
   },
   watch: {
+    isCompact(isCompact: boolean) {
+      if (!isCompact) this.isDrawerOpen = false;
+    },
     pageTitle: {
       handler(title: string) {
         document.title = title;
@@ -285,7 +396,7 @@ export default defineComponent({
       if (!last || last.entry.tab === this.activeTab) return;
       const { entry, step } = last;
       this.$buefy.snackbar.open({
-        message: `${step === "undo" ? "Undid" : "Redid"} ${entry.label} (${TAB_LABELS[entry.tab] ?? entry.tab})`,
+        message: `${step === "undo" ? "Undid" : "Redid"} ${entry.label} (${TAB_LABELS[entry.tab]})`,
         actionText: "Show",
         onAction: () => this.setActiveTab(entry.tab),
         position: "is-bottom",
@@ -323,15 +434,38 @@ export default defineComponent({
       });
     },
   },
+  created() {
+    // Before the tabs mount, so that this capture listener runs ahead of the Timing tab's,
+    // which would take Escape for itself.
+    window.addEventListener("keydown", this.onDrawerKeyDown, true);
+  },
   mounted() {
     window.addEventListener("keydown", this.onKeyDown);
   },
   beforeUnmount() {
+    window.removeEventListener("keydown", this.onDrawerKeyDown, true);
     window.removeEventListener("keydown", this.onKeyDown);
   },
   methods: {
+    onSectionToggle(section: "settings" | "app", event: Event) {
+      this.drawerSections[section] = (event.target as HTMLDetailsElement).open;
+    },
+    selectTab(id: string | number | null | undefined) {
+      this.setActiveTab(id);
+      this.isDrawerOpen = false;
+    },
     confirmStartOver() {
       this.isConfirmingStartOver = true;
+    },
+    /**
+     * Closes the drawer on Escape, before anything behind it can act on the key.
+     */
+    onDrawerKeyDown(event: KeyboardEvent) {
+      if (event.key !== "Escape" || !this.isDrawerOpen) return;
+      if (document.querySelector(".modal.is-active")) return;
+      event.preventDefault();
+      event.stopImmediatePropagation();
+      this.isDrawerOpen = false;
     },
     /**
      * Undoes and redoes, and opens the keyboard shortcuts on ?, from anywhere that doesn't handle
@@ -416,6 +550,103 @@ export default defineComponent({
   }
 }
 
+.drawer-toggle {
+  position: relative;
+}
+
+/* The Files tab shows separation progress in its header, which the closed drawer hides. */
+.drawer-toggle-badge {
+  position: absolute;
+  top: 0.25rem;
+  right: 0.25rem;
+  display: flex;
+  pointer-events: none;
+}
+
+.navbar-title {
+  min-width: 0;
+  gap: 0.5rem;
+}
+
+.navbar-title .title {
+  margin-bottom: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* The tab list, with the app title above it and the other global buttons
+   below it, slides in from the left. */
+.main-tabs.has-drawer > :deep(nav.tabs) {
+  position: fixed;
+  inset: 0 auto 0 0;
+  /* Above the Timing tab's full screen mode, which can open the drawer. */
+  z-index: 37;
+  width: min(80vw, 18rem);
+  flex-direction: column;
+  align-items: stretch;
+  justify-content: flex-start;
+  overflow-y: auto;
+  background-color: var(--bulma-scheme-main);
+  box-shadow: var(--bulma-shadow);
+  transform: translateX(-100%);
+  visibility: hidden;
+  transition:
+    transform 0.2s ease,
+    visibility 0.2s;
+}
+
+/* Bulma stretches the list to fill the drawer, spacing the tabs apart. */
+.main-tabs.has-drawer > :deep(nav.tabs ul) {
+  flex-grow: 0;
+}
+
+.main-tabs.has-drawer.is-drawer-open > :deep(nav.tabs) {
+  transform: none;
+  visibility: visible;
+}
+
+.drawer-title {
+  padding: 1rem;
+  margin-bottom: 0;
+}
+
+.drawer-section {
+  border-top: 1px solid var(--bulma-border);
+}
+
+.drawer-section > summary {
+  padding: 0.75rem 1rem;
+  font-weight: var(--bulma-weight-semibold);
+  cursor: pointer;
+}
+
+.drawer-settings {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  padding: 0 1rem 1rem;
+}
+
+.drawer-actions {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  padding: 0 0.5rem 0.5rem;
+}
+
+.drawer-actions > .button {
+  justify-content: flex-start;
+  text-decoration: none;
+}
+
+.drawer-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 36;
+  background-color: rgba(10, 10, 10, 0.4);
+}
+
 .main-tabs {
   display: flex;
   flex-direction: column;
@@ -443,5 +674,15 @@ export default defineComponent({
 .b-tabs.main-tabs .tab-content {
   flex-grow: 1;
   overflow: hidden;
+}
+
+/* The navbar shows the tab's name, so its heading is only kept for screen readers. */
+.b-tabs.main-tabs.has-drawer .tab-content h2.title {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
 }
 </style>

@@ -72,6 +72,8 @@ function mountTab() {
   const wrapper = shallowMount(TimingAdjustmentTab, {
     global: {
       stubs: {
+        // The stub drops the settings and the status, which only teleport on a narrow screen.
+        teleport: false,
         TimingAdjuster: timingAdjusterStub,
         // The default stub drops its slot, and with it the controls inside.
         BField: { template: "<div><slot /></div>" },

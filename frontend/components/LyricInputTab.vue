@@ -48,13 +48,19 @@
         >See it on {{ provider.name }}</a
       >
     </p>
-    <div class="level is-mobile">
-      <div v-if="vocalSources.length > 0" class="level-item">
-        <label class="playback-track-field">
-          <span class="label">Playback track</span>
-          <track-select kind="vocals" v-model="playerTrackChoice" />
-        </label>
-      </div>
+    <div class="level is-mobile" :class="{ 'is-compact': isCompact }">
+      <Teleport defer to="#drawer-settings-lyrics" :disabled="!isCompact">
+        <div
+          v-if="vocalSources.length > 0"
+          class="level-item"
+          :class="{ 'is-in-drawer': isCompact }"
+        >
+          <label class="playback-track-field">
+            <span class="label">Playback track</span>
+            <track-select kind="vocals" v-model="playerTrackChoice" />
+          </label>
+        </div>
+      </Teleport>
       <div class="level-item">
         <b-tooltip position="is-right" label="Convert all spaces to underscores">
           <b-button @click="convertSpaces">Add Underscores</b-button></b-tooltip
@@ -70,14 +76,16 @@
           ></b-tooltip
         >
       </div>
-      <div class="level-item">
-        <b-checkbox type="is-primary" v-model="magicSlashes">Magic Slashes</b-checkbox>
-        <viewport-tooltip
-          label="Adding a slash to a word will add the same slash to all instances of that word"
-        >
-          <b-icon size="is-small" icon="circle-question"></b-icon>
-        </viewport-tooltip>
-      </div>
+      <Teleport defer to="#drawer-settings-lyrics" :disabled="!isCompact">
+        <div class="level-item" :class="{ 'is-in-drawer': isCompact }">
+          <b-checkbox type="is-primary" v-model="magicSlashes">Magic Slashes</b-checkbox>
+          <viewport-tooltip
+            label="Adding a slash to a word will add the same slash to all instances of that word"
+          >
+            <b-icon size="is-small" icon="circle-question"></b-icon>
+          </viewport-tooltip>
+        </div>
+      </Teleport>
     </div>
     <!-- A new song starts the player over, while another track of the same song keeps its place. -->
     <song-player :key="songKey" :file="playerFile" />
@@ -105,6 +113,7 @@ import { REDO_SHORTCUT, SHORTCUT_MODIFIER, UNDO_SHORTCUT } from "@/lib/history";
 import { useLyricsLookupStore } from "@/stores/lyricsLookup";
 import { formatDuration } from "@/lib/lyricsLookup";
 import { appName } from "@/constants";
+import { DRAWER_QUERY, useMediaQuery } from "@/lib/device";
 
 /**
  * Describes a match as "Artist – Title (Album, 3:52)".
@@ -138,6 +147,8 @@ export default defineComponent({
       provider,
       status,
       appName: appName(),
+      // On a narrow screen, the settings move to the drawer.
+      isCompact: useMediaQuery(DRAWER_QUERY),
       findShortcut: `${SHORTCUT_MODIFIER}+F`,
       undoShortcut: UNDO_SHORTCUT,
       redoShortcut: REDO_SHORTCUT,
@@ -212,6 +223,31 @@ export default defineComponent({
 .playback-track-field .label {
   margin: 0;
   white-space: nowrap;
+}
+
+/* Bulma keeps a mobile level on one row, which two buttons overflow on the narrowest phones. */
+.level.is-compact {
+  flex-wrap: wrap;
+}
+
+.level.is-compact > .level-item {
+  flex: 1 1 auto;
+}
+
+.level.is-compact :deep(.b-tooltip),
+.level.is-compact .button {
+  width: 100%;
+}
+
+/* The drawer is too narrow for the label beside its control. */
+.level-item.is-in-drawer {
+  justify-content: flex-start;
+}
+
+.is-in-drawer .playback-track-field {
+  flex-direction: column;
+  align-items: stretch;
+  gap: 0.25rem;
 }
 
 .lyrics-lookup-status {

@@ -38,12 +38,14 @@ export type EntryMeta = {
 
 export type HistoryEntry = EntryMeta & StatePatch;
 
-export const TAB_LABELS: Partial<Record<TabId, string>> = {
+export const TAB_LABELS: Record<TabId, string> = {
+  help: "Intro",
   song: "Files",
   lyrics: "Lyrics",
   timing: "Timing (legacy)",
   adjust: "Timing",
   edit: "Edit",
+  submit: "Submit",
 };
 
 /**
