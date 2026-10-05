@@ -1673,6 +1673,7 @@ Buefy's margin after it, and the padding of its empty label, would push it off t
 }
 
 .adjust-top {
+  --preview-margin: 0.5rem;
   display: flex;
   flex-direction: column;
 }
@@ -1684,9 +1685,10 @@ The width follows from the height, so the frame is centred. */
 .adjust-top > .subtitle-display {
   align-self: center;
   flex: 0 1 auto;
-  height: min(480px, 100cqw * 9 / 16);
+  height: min(480px, (100cqw - 2 * var(--preview-margin)) * 9 / 16);
   min-height: 15rem;
   width: auto;
+  margin: var(--preview-margin);
   border: 1px solid var(--bulma-border-weak);
   background-color: var(--bulma-body-background-color);
 }
@@ -1751,7 +1753,7 @@ These rules come last so they win over the form's own column rules. */
 
   .adjust-top > .subtitle-display {
     flex: 0 0 auto;
-    width: min(100cqw - 1.5rem - var(--settings-width), 400px * 16 / 9);
+    width: min(100cqw - 1.5rem - var(--settings-width) - 2 * var(--preview-margin), 400px * 16 / 9);
     height: auto;
     margin-inline: auto;
   }
