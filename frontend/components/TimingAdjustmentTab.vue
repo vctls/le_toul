@@ -362,7 +362,7 @@
         ref="subtitleDisplay"
         :subtitles="debouncedSubtitles"
         :fonts="previewFonts"
-        :backgroundColor="previewColors.background.toString()"
+        backgroundColor="transparent"
       />
     </div>
     <timing-adjuster
@@ -1687,6 +1687,18 @@ The width follows from the height, so the frame is centred. */
   height: min(480px, 100cqw * 9 / 16);
   min-height: 15rem;
   width: auto;
+  border: 1px solid var(--bulma-border-weak);
+  background-color: var(--bulma-body-background-color);
+}
+
+/* The canvas is transparent so this band shows behind the subtitles. */
+.adjust-top > .subtitle-display::before {
+  --band-width: 10%;
+  content: "";
+  position: absolute;
+  inset: 0;
+  background-color: var(--bulma-border-weak);
+  clip-path: polygon(0 0, var(--band-width) 0, 100% 100%, calc(100% - var(--band-width)) 100%);
 }
 
 /* Once the preview fits beside the settings at its floor height, the two share a row,
