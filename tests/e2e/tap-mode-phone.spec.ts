@@ -144,6 +144,45 @@ test.describe("Tap mode on a phone held sideways", () => {
   });
 });
 
+test.describe("Adjust mode on a phone held sideways", () => {
+  test.describe.configure({ timeout: 60000 });
+  test.use({ viewport: PHONE_LANDSCAPE, hasTouch: true, isMobile: true });
+
+  test("pinches to zoom the waveform, not the page", async ({ page }) => {
+    await setupTestEnvironment(page);
+    // With timings, the tab opens in Adjust mode, where the waveform scrolls.
+    await loadSong(page, defaultTestConfig.lyricsFile, defaultTestConfig.timingsFile);
+    await expect(page.getByRole("button", { name: "Adjust", exact: true })).toHaveAttribute(
+      "aria-pressed",
+      "true",
+    );
+    const stage = page.locator(".timing-adjustment-tab .waveform-stage");
+    const box = (await stage.boundingBox())!;
+    const y = box.y + box.height * 0.3;
+    const cdp = await page.context().newCDPSession(page);
+    const wrapperWidth = () =>
+      page
+        .locator('.timing-adjustment-tab .wavesurfer-container [part~="wrapper"]')
+        .evaluate((wrapper) => wrapper.clientWidth);
+    const widthBefore = await wrapperWidth();
+
+    await touch(cdp, "touchStart", [
+      { x: 400, y },
+      { x: 440, y },
+    ]);
+    for (let spread = 60; spread <= 300; spread += 20) {
+      await touch(cdp, "touchMove", [
+        { x: 420 - spread / 2, y },
+        { x: 420 + spread / 2, y },
+      ]);
+    }
+    await touch(cdp, "touchEnd", []);
+
+    await expect.poll(wrapperWidth).toBeGreaterThan(widthBefore * 2);
+    expect(await page.evaluate(() => window.visualViewport?.scale)).toBe(1);
+  });
+});
+
 test.describe("Tap mode on a phone held upright", () => {
   test.use({ viewport: { width: 390, height: 844 }, hasTouch: true, isMobile: true });
 

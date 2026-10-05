@@ -124,6 +124,7 @@ export default defineComponent({
       // The middle-button drag under way, and where the pointer was last seen.
       _pan: null as { pointerId: number; x: number } | null,
       _zoomRatio: 1,
+      _zoomClientX: 0,
       _zoomFrame: 0,
       _initialScrollApplied: false,
       // Set when a drag/resize updates a region.
@@ -328,12 +329,7 @@ export default defineComponent({
       }
       if (event.shiftKey || event.deltaY === 0) return;
       event.preventDefault();
-      const scrollEl = this.scrollElement();
-      if (scrollEl) {
-        const cursorX = event.clientX - scrollEl.getBoundingClientRect().left;
-        const time = (scrollEl.scrollLeft + cursorX) / this.pixelsPerSecond(scrollEl);
-        this._zoomAnchor = { time, cursorX };
-      }
+      this.anchorZoomAt(event.clientX);
       // Scrolling up zooms in, matching maps and image viewers.
       this.$emit("zoom-change", -Math.sign(event.deltaY));
     },
@@ -387,18 +383,28 @@ export default defineComponent({
       });
     },
     /**
-     * A finger on a centered view, which can't be scrolled by hand. One finger swipes the playhead
-     * along, and two pinch to zoom.
+     * Keep the point under `clientX` where it is on screen through the next zoom.
+     */
+    anchorZoomAt(clientX: number) {
+      const scrollEl = this.scrollElement();
+      if (!scrollEl) return;
+      const cursorX = clientX - scrollEl.getBoundingClientRect().left;
+      const time = (scrollEl.scrollLeft + cursorX) / this.pixelsPerSecond(scrollEl);
+      this._zoomAnchor = { time, cursorX };
+    },
+    /**
+     * Two fingers pinch to zoom. On a centered view, which can't be scrolled by hand, one finger
+     * swipes the playhead along. Elsewhere the browser scrolls under it.
      */
     onTouchStart(event: PointerEvent) {
-      if (!this.centered || event.pointerType !== "touch") return;
+      if (event.pointerType !== "touch") return;
       if (this._touches.size === 0) this._swipeDistance = 0;
       this._touches.set(event.pointerId, { x: event.clientX, y: event.clientY });
     },
     onTouchMove(event: PointerEvent) {
       const last = this._touches.get(event.pointerId);
       if (!last) return;
-      if (this._touches.size === 1) {
+      if (this._touches.size === 1 && this.centered) {
         const dx = event.clientX - last.x;
         this._swipeDistance += Math.abs(dx);
         // The waveform follows the finger, so a swipe to the right goes back in time.
@@ -408,7 +414,7 @@ export default defineComponent({
         this._touches.set(event.pointerId, { x: event.clientX, y: event.clientY });
         const after = this.touchSpread();
         this._swipeDistance = Infinity;
-        if (before > 0) this.queueZoom(after / before);
+        if (before > 0) this.queueZoom(after / before, this.touchMidpointX());
         return;
       }
       this._touches.set(event.pointerId, { x: event.clientX, y: event.clientY });
@@ -421,7 +427,7 @@ export default defineComponent({
      * pinch.
      */
     onClickCapture(event: MouseEvent) {
-      if (this.centered && this._swipeDistance > TAP_SLOP_PX) {
+      if (this._swipeDistance > TAP_SLOP_PX) {
         event.stopPropagation();
         event.preventDefault();
         this._swipeDistance = 0;
@@ -431,17 +437,27 @@ export default defineComponent({
       const [a, b] = [...this._touches.values()];
       return a && b ? Math.hypot(a.x - b.x, a.y - b.y) : 0;
     },
+    touchMidpointX(): number {
+      const [a, b] = [...this._touches.values()];
+      return (a.x + b.x) / 2;
+    },
     /**
-     * Gather a pinch's zoom until the next frame, as a scrub is.
+     * Gather a pinch's zoom until the next frame, as a scrub is. A view that isn't centered zooms
+     * around `clientX`, the point between the fingers.
      */
-    queueZoom(ratio: number) {
+    queueZoom(ratio: number, clientX: number) {
       this._zoomRatio *= ratio;
+      this._zoomClientX = clientX;
       if (this._zoomFrame) return;
       this._zoomFrame = requestAnimationFrame(() => {
         this._zoomFrame = 0;
         const zoomRatio = this._zoomRatio;
         this._zoomRatio = 1;
-        if (zoomRatio !== 1) this.$emit("zoom-by", zoomRatio);
+        if (zoomRatio === 1) return;
+        // Set at the last moment, as an anchor taken while a zoom is still being applied would mix
+        // the old scroll position with the new scale.
+        if (!this.centered) this.anchorZoomAt(this._zoomClientX);
+        this.$emit("zoom-by", zoomRatio);
       });
     },
     pixelsPerSecond(scrollEl: HTMLElement): number {
@@ -675,7 +691,12 @@ export default defineComponent({
   overflow-x: hidden;
 }
 
-/* The page mustn't scroll or zoom under a swipe or a pinch, which move the waveform instead. */
+/* A pinch zooms the waveform, not the page. */
+.wavesurfer-container {
+  touch-action: pan-x pan-y;
+}
+
+/* A centered view can't be scrolled, so a swipe moves the playhead instead. */
 .wavesurfer-container.centered {
   touch-action: none;
 }
