@@ -24,6 +24,7 @@ import RegionsPlugin, { Region, RegionParams } from "@/lib/wavesurferPlugins/Ope
 import DisplayBandsPlugin from "@/lib/wavesurferPlugins/DisplayBandsPlugin";
 import { DisplayBand } from "@/lib/displayBands";
 import { onSchemeChange } from "@/lib/colorScheme";
+import { drawPeaks, peakLevelsFor } from "@/lib/waveformPeaks";
 
 // The height while the container has none of its own, such as in a hidden tab.
 const DEFAULT_HEIGHT = 300;
@@ -181,6 +182,9 @@ export default defineComponent({
       ...this.schemeColors(),
       height: this.fittedHeight() || DEFAULT_HEIGHT,
       normalize: false,
+      // WaveSurfer's own renderer reads every sample a canvas covers, which on a phone takes
+      // longer than a frame for each step of a pinch.
+      renderFunction: (channels, ctx) => this.drawWaveform(channels, ctx),
       plugins: [
         this.regionsPlugin as unknown as GenericPlugin,
         this.bandsPlugin as unknown as GenericPlugin,
@@ -459,6 +463,15 @@ export default defineComponent({
         if (!this.centered) this.anchorZoomAt(this._zoomClientX);
         this.$emit("zoom-by", zoomRatio);
       });
+    },
+    drawWaveform(channels: Array<Float32Array | number[]>, ctx: CanvasRenderingContext2D) {
+      const decoded = this.wavesurfer?.getDecodedData();
+      if (!decoded) return;
+      // The wrapper's inline width, as reading its layout here would force a reflow per canvas.
+      // It is "100%" while the waveform fits the view.
+      const wrapperWidth = this.wavesurfer!.getWrapper().style.width;
+      const totalWidth = wrapperWidth.endsWith("px") ? parseFloat(wrapperWidth) : undefined;
+      drawPeaks(ctx, peakLevelsFor(decoded), channels[0]?.length ?? 0, totalWidth);
     },
     pixelsPerSecond(scrollEl: HTMLElement): number {
       return scrollEl.scrollWidth / (this.wavesurfer?.getDuration() || 1);
