@@ -14,7 +14,7 @@
       </b-tooltip>
       <span> Files</span>
     </template>
-    <h2 class="title">Get Your Song Ready</h2>
+    <h2 class="title">Files</h2>
     <div class="columns is-desktop is-variable is-5">
       <div class="column">
         <div class="box">

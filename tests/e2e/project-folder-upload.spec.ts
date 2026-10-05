@@ -106,7 +106,7 @@ test.describe("Project Folder Upload", () => {
   test("the Intro tab's example link loads the example project", async ({ page }) => {
     await page.getByRole("link", { name: "Load an example song" }).click();
 
-    await expect(page.getByRole("heading", { name: "Get Your Song Ready" })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Files", exact: true })).toBeVisible();
     await expect(page.locator('.toast:has-text("Loaded")')).toBeVisible();
     await expect(page.locator('[name="project-folder-upload"] .file-name')).toHaveText(
       "Example project",

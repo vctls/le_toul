@@ -24,7 +24,7 @@ export async function navigateToTab(page: Page, tabId: TabId): Promise<void> {
 
   // Map of tab IDs to expected header text for verification
   const tabHeaderMap = {
-    [TabId.SongInfo]: "Get Your Song Ready",
+    [TabId.SongInfo]: "Files",
     [TabId.LyricInput]: "Song Lyrics",
     [TabId.SongTiming]: "Song Timing",
     [TabId.TimingAdjustment]: "Timing",
