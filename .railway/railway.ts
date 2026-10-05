@@ -36,6 +36,8 @@ export default defineRailway(() => {
       SEPARATION_CONCURRENCY: "3",
       // Keep equal to MAX_ALIGNMENT_CONTAINERS in api/modal_app.py.
       ALIGNMENT_CONCURRENCY: "2",
+      // FIXME Remove this once merged.
+      INSTALL_SEPARATION: preserve(),
       INSTALL_ML: "false",
       DEFAULT_SEPARATION_MODEL: "mel_band_roformer_karaoke_becruily.ckpt",
       LYRICS_PROVIDER: "lrclib",
