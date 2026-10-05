@@ -16,22 +16,22 @@
       </header>
       <section class="modal-card-body">
         <p class="mb-3">
-          Syncing listens to the vocals and times the syllables for you. Check the result
-          afterwards: the syllables it wasn't sure of are drawn in yellow, and an undo takes back
-          the whole sync.
+          Auto-syncing listens to the vocals and tries to time the syllables for you. Results may
+          vary. Check them afterwards. Low-confidence timings will be drawn in yellow. This
+          operation can be undone.
         </p>
         <p class="mb-4">
-          The lyrics should hold every word that is sung, once for each time it's sung, and nothing
-          else. A word written but not sung pushes the lines around it out of place.
+          The lyrics should hold precisely every word sung in the vocal track and nothing else. A
+          word written but not sung can mess things up.
         </p>
         <b-message v-if="!vocals" type="is-warning" class="is-small">
           No vocals track is loaded, so syncing listens to the whole song, which is less accurate.
           Separate the track in the Song Info tab for a better result.
         </b-message>
         <b-message v-if="hasSeveralVoices" type="is-warning" class="is-small">
-          These lyrics have more than one voice, and syncing hears all of them at once. It often
-          places a voice on another singer's lines, especially one with a small part, and doesn't
-          mark those syllables in yellow. Check every line afterwards.
+          These lyrics have more than one voice. Auto-sync hears all of them at once. It will often
+          place a voice on another singer's lines, especially one with a small part, and may not
+          flag those syllables in yellow. Check every line afterwards.
         </b-message>
         <b-field v-if="modes.length > 1" label="What to sync">
           <div class="mode-choices">
