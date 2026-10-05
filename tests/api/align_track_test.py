@@ -206,6 +206,25 @@ def test_a_sync_waits_in_line_behind_a_separation(client, monkeypatch):
     assert final["error"] == "Syncing was cancelled."
 
 
+@pytest.mark.parametrize(
+    ("backend", "line"), [("in_process", "local_jobs"), ("remote", "remote_alignments")]
+)
+def test_a_remote_sync_waits_in_a_line_of_its_own(client, monkeypatch, backend, line):
+    from api import main
+
+    lines = []
+
+    async def queue(*args, queue):
+        lines.append(queue)
+
+    monkeypatch.setattr(main.alignment_backends, "configured_name", lambda: backend)
+    monkeypatch.setattr(main, "_queue_local_job", queue)
+
+    post_sync(client)
+
+    assert lines == [getattr(main, line)]
+
+
 def test_syncing_off_refuses_a_sync(client, monkeypatch):
     monkeypatch.setattr("api.settings.ALIGNMENT_BACKEND", "none")
 

@@ -131,6 +131,9 @@ async def cache_fonts(request: Request, call_next):
 # Only the local job store queues. A GCS-backed deployment runs on Cloud Run,
 # which caps concurrency per instance itself.
 local_jobs = job_queue.JobQueue(settings.SEPARATION_CONCURRENCY)
+# Remote syncs run on GPU containers of their own,
+# so the separations' slots don't limit them.
+remote_alignments = job_queue.JobQueue(settings.ALIGNMENT_CONCURRENCY)
 
 separation_starts = RateLimiter(
     [
@@ -476,10 +479,15 @@ async def _queue_local_job(
     run_id: str,
     process: Callable[..., None],
     *args,
+    queue: job_queue.JobQueue | None = None,
 ) -> None:
-    """Wait in line, then run `process(cache_hash, run_id, *args)` in a thread."""
+    """Wait in line, then run `process(cache_hash, run_id, *args)` in a thread.
+
+    The line is `queue`, or else the one separations wait in.
+    """
+    queue = queue or local_jobs
     try:
-        async with local_jobs.slot(
+        async with queue.slot(
             run_id,
             on_wait=lambda ahead: store.mark_queued(cache_hash, run_id, ahead),
         ):
@@ -727,7 +735,8 @@ def _cancel_local_job(store: job_store.JobStore, cache_hash: str) -> dict:
     status = store.read_status(cache_hash)
     cancelled = store.request_cancel(cache_hash)
     if cancelled:
-        local_jobs.withdraw(status["runId"])
+        for queue in (local_jobs, remote_alignments):
+            queue.withdraw(status["runId"])
     logger.info(
         f"local_{store.kind}_cancel_requested", cache_hash=cache_hash, running=cancelled
     )
@@ -792,6 +801,12 @@ async def align_track(
         vocals_content,
         vocalsFile.filename or "vocals",
         body.model_dump(exclude_none=True),
+        queue=(
+            remote_alignments
+            if alignment_backends.configured_name()
+            == alignment_backends.RemoteBackend.name
+            else local_jobs
+        ),
     )
     logger.info("local_alignment_queued", cache_hash=cache_hash)
     return JobPollResponse(finishedTrackURL=store.poll_url(cache_hash))

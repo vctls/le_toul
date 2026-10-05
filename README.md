@@ -212,9 +212,8 @@ And open it on http://localhost:8000
 
 `poetry run python -m api.separator_server`
 
-It listens on port 8001, and both separates and syncs. The app sends separations to it with
-`SEPARATION_BACKEND=remote`, and syncs with `ALIGNMENT_BACKEND=remote`, with `SEPARATION_REMOTE_URL`
-pointing at it.
+It listens on port 8001, and both separates and syncs. The app sends both to it with
+`SEPARATION_BACKEND=remote`, with `SEPARATION_REMOTE_URL` pointing at it.
 
 To run it in a container with GPU access instead:
 
@@ -230,7 +229,7 @@ docker compose -f compose.dev.yaml -f compose.dev-gpu.yaml up
 
 Both need the NVIDIA container toolkit.
 
-### Separating on Modal
+### Separating and syncing on Modal
 
 `api/modal_app.py` serves the same job protocol from a Modal GPU. Install its SDK with
 `poetry install --with modal`, then serve it from the repository root:

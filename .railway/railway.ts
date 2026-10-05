@@ -34,6 +34,8 @@ export default defineRailway(() => {
       SEPARATION_REMOTE_SECRET: preserve(),
       // Keep equal to MAX_GPU_CONTAINERS in api/modal_app.py.
       SEPARATION_CONCURRENCY: "3",
+      // Keep equal to MAX_ALIGNMENT_CONTAINERS in api/modal_app.py.
+      ALIGNMENT_CONCURRENCY: "2",
       INSTALL_ML: "false",
       DEFAULT_SEPARATION_MODEL: "mel_band_roformer_karaoke_becruily.ckpt",
       LYRICS_PROVIDER: "lrclib",

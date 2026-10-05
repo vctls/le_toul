@@ -104,9 +104,14 @@ SEPARATION_BACKEND = os.getenv("SEPARATION_BACKEND", "in_process")
 SEPARATION_CONCURRENCY = int(os.getenv("SEPARATION_CONCURRENCY", "1"))
 
 # Where syncing runs. One of the names in karaoke/alignment_backends.py, or `none` to
-# turn it off. Unset, it runs where separation does when that is in this container
-# and the aligner's dependencies are installed, and is off otherwise.
+# turn it off. Unset, it runs where separation does: on the remote host, or in this
+# container when the aligner's dependencies are installed. It is off otherwise.
 ALIGNMENT_BACKEND = os.getenv("ALIGNMENT_BACKEND", "").strip()
+
+# How many remote syncs run at once in each worker process. The rest wait in line.
+# A sync in this container waits in the separations' line instead, since both share
+# its CPU and memory.
+ALIGNMENT_CONCURRENCY = int(os.getenv("ALIGNMENT_CONCURRENCY", "1"))
 
 # The aligner that syncs. One of the names in karaoke/aligners/__init__.py.
 ALIGNMENT_MODEL = os.getenv("ALIGNMENT_MODEL", "").strip() or "mms_fa"

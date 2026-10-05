@@ -71,11 +71,20 @@ def test_an_unset_backend_follows_a_local_separation(fake_aligner, separation):
         assert configured_name() == separation
 
 
-@pytest.mark.parametrize("separation", ["remote", "passthrough"])
-def test_an_unset_backend_is_off_where_separation_is_not_local(
-    fake_aligner, separation
-):
-    alignment_setting, separation_setting = settings_for("", separation)
+def test_an_unset_backend_follows_a_remote_separation_without_the_aligner_here():
+    alignment_setting, separation_setting = settings_for("", "remote")
+    with (
+        alignment_setting,
+        separation_setting,
+        mock.patch.object(
+            alignment_backends.aligners, "missing_dependencies", return_value=["torch"]
+        ),
+    ):
+        assert configured_name() == "remote"
+
+
+def test_an_unset_backend_is_off_where_separation_only_pretends(fake_aligner):
+    alignment_setting, separation_setting = settings_for("", "passthrough")
     with alignment_setting, separation_setting:
         assert configured_name() == NONE
 

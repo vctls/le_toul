@@ -189,12 +189,10 @@ _BACKENDS: dict[str, type[AlignmentBackend]] = {
 def configured_name() -> str:
     """Return the backend syncing runs on, or NONE, raising if the settings can't work.
 
-    Unset, it follows SEPARATION_BACKEND where that runs in this container, so a
-    deployment that separates locally syncs locally the same way. It is NONE where the
-    aligner's dependencies are missing, as in an image built without torch.
-
-    It never follows a remote separation, since not every host that separates can sync.
-    `remote` is set explicitly, and needs the aligner's dependencies only on that host.
+    Unset, it follows SEPARATION_BACKEND, so a deployment syncs where it separates.
+    Following a local separation, it is NONE where the aligner's dependencies are
+    missing, as in an image built without torch. `remote` needs them only on the host
+    that separates.
     """
     name = settings.ALIGNMENT_BACKEND
     if name and name != NONE and name not in _BACKENDS:
@@ -206,6 +204,8 @@ def configured_name() -> str:
 
     if not name:
         follows = settings.SEPARATION_BACKEND
+        if follows == RemoteBackend.name:
+            return follows
         return follows if follows in _LOCAL_BACKENDS and not missing else NONE
     if name == RemoteBackend.name:
         problem = separation_backends.check_remote()

@@ -1,4 +1,4 @@
-# Separation on Modal, from a local web service built without torch. Run with:
+# Separation and syncing on Modal, from a local web service built without torch. Run with:
 #   docker compose -f compose.yaml -f compose.modal.yaml up --build
 #
 # Open http://localhost:8080. This is the stack Railway runs, with the same
@@ -24,5 +24,7 @@ services:
       SEPARATION_REMOTE_SECRET: ${MODAL_PROXY_SECRET:?set MODAL_PROXY_SECRET to the proxy token's secret}
       # Keep equal to MAX_GPU_CONTAINERS in api/modal_app.py.
       SEPARATION_CONCURRENCY: "3"
+      # Keep equal to MAX_ALIGNMENT_CONTAINERS in api/modal_app.py.
+      ALIGNMENT_CONCURRENCY: "2"
     volumes: !override
       - job-results:/var/lib/tuul/jobs

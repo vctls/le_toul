@@ -13,7 +13,6 @@ services:
   api:
     environment:
       SEPARATION_BACKEND: remote
-      ALIGNMENT_BACKEND: remote
       SEPARATION_REMOTE_URL: http://separator:8001
       SEPARATION_REMOTE_KEY: ${SEPARATOR_KEY:-wk-local}
       SEPARATION_REMOTE_SECRET: ${SEPARATOR_SECRET:-ws-local}
