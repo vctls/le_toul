@@ -44,6 +44,38 @@ export interface DragOptions {
   canStart?: (event: PointerEvent) => boolean;
 }
 
+// Fingers down on any element that listens for drags, or anywhere else under the same root, so
+// that a drag notices a second finger landing outside its own element, as in a pinch.
+const touchesDown = new Set<number>();
+const trackedRoots = new WeakSet<Node>();
+let isWatchingLifts = false;
+
+/**
+ * Starts counting the fingers that land under `root`. A finger is let go of at the window, as the
+ * region it landed on may have left the page since. The count starts over with the first finger
+ * of every touch, in case a lift went missing.
+ */
+function trackTouchesUnder(root: Node) {
+  if (!isWatchingLifts) {
+    const release = (event: PointerEvent) => touchesDown.delete(event.pointerId);
+    window.addEventListener("pointerup", release, { capture: true });
+    window.addEventListener("pointercancel", release, { capture: true });
+    isWatchingLifts = true;
+  }
+  if (trackedRoots.has(root)) return;
+  trackedRoots.add(root);
+  root.addEventListener(
+    "pointerdown",
+    (event) => {
+      const { pointerType, pointerId, isPrimary } = event as PointerEvent;
+      if (pointerType !== "touch") return;
+      if (isPrimary) touchesDown.clear();
+      touchesDown.add(pointerId);
+    },
+    { capture: true },
+  );
+}
+
 /**
  * Call the handlers as the user drags the element, with positions relative to the element.
  * Returns a function that stops listening.
@@ -57,10 +89,13 @@ export function listenForDrags(
   const activePointers = new Map<number, PointerEvent>();
   const isTouchDevice = matchMedia("(pointer: coarse)").matches;
   let unsubscribeDocument = () => {};
+  trackTouchesUnder(element.getRootNode());
 
   const onPointerDown = (event: PointerEvent) => {
     if (event.button !== mouseButton) return;
     if (canStart && !canStart(event)) return;
+    // A finger landing during a pinch.
+    if (event.pointerType === "touch" && touchesDown.size > 1) return;
     if (activePointers.has(event.pointerId)) return;
     activePointers.set(event.pointerId, event);
     // A second finger doesn't start a drag of its own.
@@ -70,11 +105,19 @@ export function listenForDrags(
     let startX = event.clientX;
     let startY = event.clientY;
     let isDragging = false;
+    // Set once a second finger lands anywhere, after which the gesture is a pinch until every
+    // finger has lifted. A drag already under way ends where it is.
+    let isPinch = false;
     const touchStartTime = Date.now();
     const { left, top } = element.getBoundingClientRect();
 
     const onPointerMove = (event: PointerEvent) => {
       if (event.pointerId !== dragPointerId) return;
+      if (event.pointerType === "touch" && touchesDown.size > 1 && !isPinch) {
+        isPinch = true;
+        if (isDragging) handlers.onEnd(event.clientX - left, event.clientY - top);
+      }
+      if (isPinch) return;
       if (event.defaultPrevented || activePointers.size > 1) return;
       if (isTouchDevice && Date.now() - touchStartTime < touchDelay) return;
 
@@ -97,7 +140,7 @@ export function listenForDrags(
 
     const onPointerUp = (event: PointerEvent) => {
       if (!activePointers.delete(event.pointerId)) return;
-      if (event.pointerId === dragPointerId && isDragging) {
+      if (event.pointerId === dragPointerId && isDragging && !isPinch) {
         handlers.onEnd(event.clientX - left, event.clientY - top);
       }
       if (activePointers.size === 0) {
@@ -105,9 +148,10 @@ export function listenForDrags(
       }
     };
 
-    // The click that ends a drag would otherwise also count as a click on what was dragged.
+    // The click that ends a drag or a pinch would otherwise also count as a click on what was
+    // under it.
     const onClick = (event: MouseEvent) => {
-      if (isDragging) {
+      if (isDragging || isPinch) {
         event.stopPropagation();
         event.preventDefault();
       }
@@ -115,7 +159,7 @@ export function listenForDrags(
 
     const onTouchMove = (event: TouchEvent) => {
       if (event.defaultPrevented || activePointers.size > 1) return;
-      if (isDragging) {
+      if (isDragging && !isPinch) {
         event.preventDefault();
       }
     };

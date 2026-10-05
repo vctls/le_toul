@@ -3,15 +3,11 @@
     ref="wavesurfer-container"
     :class="['wavesurfer-container', { 'hide-waveform': !showWaveform, centered }]"
     @wheel="onWheel"
-    @pointerdown="onTouchStart"
-    @pointermove="onTouchMove"
-    @pointerup="onTouchEnd"
-    @pointercancel="onTouchEnd"
     @touchmove="blockPagePinch"
-    @pointerdown.capture="onPanStart"
-    @pointermove.capture="onPanMove"
-    @pointerup.capture="onPanEnd"
-    @pointercancel.capture="onPanEnd"
+    @pointerdown.capture="onPointerDown"
+    @pointermove.capture="onPointerMove"
+    @pointerup.capture="onPointerUp"
+    @pointercancel.capture="onPointerUp"
     @click.capture="onClickCapture"
   ></div>
 </template>
@@ -349,6 +345,22 @@ export default defineComponent({
       }
       const scrollEl = this.scrollElement();
       if (scrollEl) scrollEl.scrollLeft += pixels;
+    },
+    /**
+     * Fingers are counted before anything on the waveform sees them, as a region's handles stop
+     * their pointerdown, which would hide a finger on one from a pinch.
+     */
+    onPointerDown(event: PointerEvent) {
+      this.onPanStart(event);
+      this.onTouchStart(event);
+    },
+    onPointerMove(event: PointerEvent) {
+      this.onPanMove(event);
+      this.onTouchMove(event);
+    },
+    onPointerUp(event: PointerEvent) {
+      this.onPanEnd(event);
+      this.onTouchEnd(event);
     },
     /**
      * A middle-button press starts dragging the waveform sideways.

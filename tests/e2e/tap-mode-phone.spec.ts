@@ -9,6 +9,7 @@ import {
   uploadTimingsFile,
   savedSegments,
   playbackPosition,
+  regionLocator,
   showTabs,
 } from "./utils";
 
@@ -29,6 +30,8 @@ async function loadSong(page: Page, lyrics: string, timings?: string) {
   // The full-screen layout hides the tab's heading, which navigateToTab waits for.
   await showTabs(page);
   await page.click(`nav.tabs .${TabId.TimingAdjustment}`);
+  // The drawer slides out over the waveform, and takes touches until it is gone.
+  await expect(page.getByRole("tab", { name: "Lyrics" })).toBeHidden();
 }
 
 function songTime(page: Page): Promise<number> {
@@ -152,10 +155,10 @@ test.describe("Adjust mode on a phone held sideways", () => {
     await setupTestEnvironment(page);
     // With timings, the tab opens in Adjust mode, where the waveform scrolls.
     await loadSong(page, defaultTestConfig.lyricsFile, defaultTestConfig.timingsFile);
-    await expect(page.getByRole("button", { name: "Adjust", exact: true })).toHaveAttribute(
-      "aria-pressed",
-      "true",
-    );
+    // The mode buttons are in the closed drawer.
+    await expect(
+      page.getByRole("button", { name: "Adjust", exact: true, includeHidden: true }),
+    ).toHaveAttribute("aria-pressed", "true");
     const stage = page.locator(".timing-adjustment-tab .waveform-stage");
     const box = (await stage.boundingBox())!;
     const y = box.y + box.height * 0.3;
@@ -193,6 +196,44 @@ test.describe("Adjust mode on a phone held sideways", () => {
     );
     expect(pinchMoves?.length).toBeGreaterThan(0);
     expect(pinchMoves).not.toContain(false);
+  });
+
+  test("zooms when a pinch starts on a region's edge, and leaves the edge alone", async ({
+    page,
+  }) => {
+    await setupTestEnvironment(page);
+    await loadSong(page, defaultTestConfig.lyricsFile, defaultTestConfig.timingsFile);
+    const region = regionLocator(page, 3);
+    await expect(region).toBeVisible();
+    const box = (await region.boundingBox())!;
+    const y = box.y + box.height / 2;
+    // A finger on a region's edge resizes it.
+    const onHandle = box.x + box.width - 1;
+    const before = await savedSegments(page);
+    const cdp = await page.context().newCDPSession(page);
+    const wrapperWidth = () =>
+      page
+        .locator('.timing-adjustment-tab .wavesurfer-container [part~="wrapper"]')
+        .evaluate((wrapper) => wrapper.clientWidth);
+    const widthBefore = await wrapperWidth();
+
+    // One finger on the edge and the other on the waveform beside it, held long enough that a
+    // lone finger would start dragging the edge.
+    await touch(cdp, "touchStart", [
+      { x: onHandle, y },
+      { x: onHandle + 150, y },
+    ]);
+    await page.waitForTimeout(200);
+    for (let spread = 10; spread <= 120; spread += 10) {
+      await touch(cdp, "touchMove", [
+        { x: onHandle - spread, y },
+        { x: onHandle + 150 + spread, y },
+      ]);
+    }
+    await touch(cdp, "touchEnd", []);
+
+    await expect.poll(wrapperWidth).toBeGreaterThan(widthBefore * 1.5);
+    expect(await savedSegments(page)).toEqual(before);
   });
 });
 
