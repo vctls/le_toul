@@ -19,7 +19,7 @@ import {
   snapTargets,
 } from "@/lib/displayBands";
 import { sameHeight } from "@/lib/linePlacements";
-import { makeDraggable } from "./OpenEndedRegionPlugin";
+import { EDGE_LINE_COLOR, makeDraggable } from "./OpenEndedRegionPlugin";
 import { listenForMarquee, MarqueeArea } from "./marquee";
 
 export type DisplayBandsPluginEvents = BasePluginEvents & {
@@ -40,7 +40,6 @@ const SAME_HEIGHT_FILL = "color-mix(in srgb, var(--bulma-primary) 20%, transpare
 const SELECTED_FILL = "color-mix(in srgb, var(--bulma-primary) 30%, transparent)";
 const SELECTED_COLOR = "var(--bulma-primary)";
 const LIMIT_COLOR = "var(--bulma-primary)";
-const SNAP_COLOR = `color-mix(in srgb, ${FRAME_COLOR} 45%, transparent)`;
 // In pixels, so snapping feels the same at every zoom.
 const SNAP_DISTANCE = 7;
 // The fills are translucent, so the more frames overlap, the darker the area they share.
@@ -174,7 +173,7 @@ class DisplayBandsPlugin extends BasePlugin<DisplayBandsPluginEvents, undefined>
           position: "absolute",
           top: "0",
           height: "100%",
-          borderLeft: `1px solid ${SNAP_COLOR}`,
+          borderLeft: `1px solid ${EDGE_LINE_COLOR}`,
           display: "none",
         },
       },
