@@ -28,6 +28,8 @@ RESULT_FILE = "alignment.json"
 
 # A song has hundreds of segments, rarely more than a couple of thousand.
 MAX_ALIGNMENT_SEGMENTS = 20_000
+# Keep in sync with MAX_SYNC_LEAD in frontend/lib/alignment.ts.
+MAX_LEAD_SECONDS = 1.0
 
 
 class AlignmentSegment(BaseModel):
@@ -48,6 +50,8 @@ class AlignmentRequest(BaseModel):
     segments: list[AlignmentSegment] = Field(
         min_length=1, max_length=MAX_ALIGNMENT_SEGMENTS
     )
+    # How many seconds before the voice each synced segment starts.
+    lead: float = Field(default=0.0, ge=0, le=MAX_LEAD_SECONDS, allow_inf_nan=False)
 
 
 class AlignmentBackend(Protocol):
@@ -86,6 +90,7 @@ class InProcessBackend:
             vocals,
             alignment.segments_from_request(request),
             on_progress,
+            alignment.lead_from_request(request),
         )
 
 

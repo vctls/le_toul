@@ -27,14 +27,10 @@ _BLANK = "-"
 _CHUNK_SECONDS = 30
 _CONTEXT_SECONDS = 1
 
-# CTC marks a character a little after it begins. Against hand timings on 13 songs,
-# the lag was 190 ms at the median.
-_START_LAG_SECONDS = 0.19
-
 
 class MmsFaAligner:
     name = "mms_fa"
-    version = "1"
+    version = "2"
     # The bundle's own, which reading would import torchaudio.
     sample_rate = 16_000
     # It flags 6% of segments, and caught two thirds of those more than 300 ms off.
@@ -87,9 +83,7 @@ class MmsFaAligner:
                 by_segment.setdefault(owner, []).append(span)
         for i, segment_spans in by_segment.items():
             frames = sum(span.end - span.start for span in segment_spans)
-            alignments[i].start = max(
-                0.0, segment_spans[0].start * seconds_per_frame - _START_LAG_SECONDS
-            )
+            alignments[i].start = segment_spans[0].start * seconds_per_frame
             alignments[i].confidence = (
                 sum(span.score * (span.end - span.start) for span in segment_spans)
                 / frames

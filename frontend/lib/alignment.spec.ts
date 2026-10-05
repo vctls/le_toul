@@ -4,6 +4,8 @@ import {
   linesToFill,
   pendingSync,
   selectedLines,
+  storeSyncLead,
+  storedSyncLead,
   syncVoice,
   unplacedCount,
   withSyncResult,
@@ -212,6 +214,7 @@ describe("syncVoice", () => {
       new Blob(["vocals"]),
       "vocals.wav",
       [{ text: "hey", endsLine: true, sync: true }],
+      0.19,
       (progress) => reported.push(progress),
     );
     await vi.runAllTimersAsync();
@@ -221,6 +224,7 @@ describe("syncVoice", () => {
     const body = vi.mocked(fetch).mock.calls[0][1]?.body as FormData;
     expect(JSON.parse(body.get("request") as string)).toEqual({
       segments: [{ text: "hey", endsLine: true, sync: true }],
+      lead: 0.19,
     });
   });
 
@@ -230,7 +234,12 @@ describe("syncVoice", () => {
     );
 
     await expect(
-      syncVoice(new Blob(["vocals"]), "vocals.wav", [{ text: "a", endsLine: true, sync: false }]),
+      syncVoice(
+        new Blob(["vocals"]),
+        "vocals.wav",
+        [{ text: "a", endsLine: true, sync: false }],
+        0,
+      ),
     ).rejects.toThrow("No segment is marked to sync.");
   });
 
@@ -242,8 +251,28 @@ describe("syncVoice", () => {
       );
 
     await expect(
-      syncVoice(new Blob(["vocals"]), "vocals.wav", [{ text: "a", endsLine: true, sync: true }]),
+      syncVoice(new Blob(["vocals"]), "vocals.wav", [{ text: "a", endsLine: true, sync: true }], 0),
     ).rejects.toThrow("the vocals are silent");
+  });
+});
+
+describe("storedSyncLead", () => {
+  afterEach(() => {
+    sessionStorage.clear();
+  });
+
+  test("is 0 until a lead is stored, then the stored lead", () => {
+    expect(storedSyncLead()).toBe(0);
+
+    storeSyncLead(0.19);
+
+    expect(storedSyncLead()).toBe(0.19);
+  });
+
+  test("is 0 for a stored value out of range", () => {
+    sessionStorage.setItem("syncLead", "5");
+
+    expect(storedSyncLead()).toBe(0);
   });
 });
 

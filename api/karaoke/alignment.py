@@ -65,6 +65,11 @@ def load_audio(path: Path, sample_rate: int) -> np.ndarray:
     return audio
 
 
+def lead_from_request(request: dict) -> float:
+    """Read how many seconds before its onset a sync request starts each segment."""
+    return request.get("lead", 0.0)
+
+
 def segments_from_request(request: dict) -> list[SyncSegment]:
     """Read the segments of a sync request, as the frontend sends them."""
     return [
@@ -84,6 +89,7 @@ def align_track(
     vocals: Path,
     segments: list[SyncSegment],
     on_progress: ProgressCallback | None = None,
+    lead: float = 0.0,
 ) -> dict:
     """Sync the segments to the vocals, and return the result the frontend reads.
 
@@ -91,7 +97,7 @@ def align_track(
     the aligner left untimed.
     """
     try:
-        return _align_track(aligner_name, vocals, segments, on_progress)
+        return _align_track(aligner_name, vocals, segments, on_progress, lead)
     except BaseException as e:
         # The traceback's frames keep the aligner, and its model on the GPU, alive.
         traceback.clear_frames(e.__traceback__)
@@ -105,6 +111,7 @@ def _align_track(
     vocals: Path,
     segments: list[SyncSegment],
     on_progress: ProgressCallback | None,
+    lead: float,
 ) -> dict:
     """Load the aligner and sync the segments with it.
 
@@ -114,7 +121,7 @@ def _align_track(
     if on_progress:
         on_progress(None, "reading the vocals")
     audio = load_audio(vocals, aligner.sample_rate)
-    synced = sync(aligner, audio, segments, on_progress)
+    synced = sync(aligner, audio, segments, on_progress, lead)
     return {
         "aligner": f"{aligner.name}@{aligner.version}",
         "segments": [
@@ -139,12 +146,14 @@ def sync(
     audio: np.ndarray,
     segments: list[SyncSegment],
     on_progress: ProgressCallback | None = None,
+    lead: float = 0.0,
 ) -> list[SyncedSegment]:
     """Place every segment marked for syncing, and leave the others empty.
 
     Each run of segments to sync is aligned only against the audio between the kept
     segments on either side of it. A segment with a rough start begins a run of its own,
-    looked for around that start.
+    looked for around that start. Each start is moved `lead` seconds earlier, but never
+    before its run's window.
     """
     sample_rate = aligner.sample_rate
     duration = len(audio) / sample_rate
@@ -190,7 +199,7 @@ def sync(
         for result, alignment in zip(results[first:last], alignments, strict=True):
             if alignment.start is None:
                 continue
-            start = alignment.start + low
+            start = max(low, alignment.start + low - lead)
             # A start out of order would draw a region out of order,
             # and a hole is fixable.
             if start < previous or start >= high:

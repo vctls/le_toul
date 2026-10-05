@@ -120,6 +120,20 @@ def test_only_the_audio_between_kept_segments_is_aligned():
     assert results[0].start is None and results[2].start is None
 
 
+def test_the_lead_moves_starts_earlier_but_not_before_their_window():
+    segments = [
+        SyncSegment("kept", True, sync=False, start=1.0, end=2.0),
+        SyncSegment("a", False, sync=True),
+        SyncSegment("b", True, sync=True),
+    ]
+    aligner = StubAligner([SegmentAlignment(start=0.1), SegmentAlignment(start=1.0)])
+
+    results = sync(aligner, _vocals(4), segments, lead=0.2)
+
+    assert results[1].start == pytest.approx(2.0)
+    assert results[2].start == pytest.approx(2.8)
+
+
 def test_a_window_starts_at_the_kept_start_when_the_kept_segment_has_no_end():
     segments = [
         SyncSegment("kept", False, sync=False, start=1.0),

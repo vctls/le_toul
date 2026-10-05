@@ -106,6 +106,16 @@ def test_changed_anchors_are_a_new_job(client):
     )
 
 
+def test_a_lead_starts_the_synced_segments_earlier_in_a_job_of_its_own(client):
+    plain = post_sync(client).json()["finishedTrackURL"]
+    led = post_sync(client, {**REQUEST, "lead": 0.19}).json()["finishedTrackURL"]
+
+    assert led != plain
+    plain_start = client.get(plain).json()["segments"][3]["start"]
+    led_start = client.get(led).json()["segments"][3]["start"]
+    assert led_start == pytest.approx(plain_start - 0.19)
+
+
 @pytest.mark.parametrize(
     "request_body",
     [
@@ -118,6 +128,8 @@ def test_changed_anchors_are_a_new_job(client):
         json.dumps(
             {"segments": [{"text": "a", "endsLine": True, "sync": False, "start": -1}]}
         ),
+        json.dumps({**REQUEST, "lead": -0.1}),
+        json.dumps({**REQUEST, "lead": 5}),
     ],
 )
 def test_a_malformed_request_is_refused(client, request_body):

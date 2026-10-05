@@ -17,13 +17,14 @@ const DOUBTFUL = 2;
 /**
  * Answers the sync routes as a backend with the fake aligner would, spreading the syllables
  * half a second apart and leaving out those `places` refuses. Each later request places them
- * 0.1 s later than the one before. Returns the requests' segments, as the page sent them.
+ * 0.1 s later than the one before. Returns the requests' segments and leads, as the page sent
+ * them.
  */
 async function mockSyncApi(
   context: BrowserContext,
   places: (index: number) => boolean = () => true,
-): Promise<{ sent: unknown[][] }> {
-  const requests = { sent: [] as unknown[][] };
+): Promise<{ sent: unknown[][]; leads: unknown[] }> {
+  const requests = { sent: [] as unknown[][], leads: [] as unknown[] };
   let count = 0;
   await context.route("**/alignment/available", (route) =>
     route.fulfill({ contentType: "application/json", body: JSON.stringify({ available: true }) }),
@@ -31,8 +32,9 @@ async function mockSyncApi(
   await context.route("**/align_track", async (route, request) => {
     const body = request.postDataBuffer()?.toString() ?? "";
     const json = body.match(/name="request"\r\n\r\n([\s\S]*?)\r\n--/)?.[1] ?? "{}";
-    const segments = JSON.parse(json).segments ?? [];
+    const { segments = [], lead } = JSON.parse(json);
     requests.sent.push(segments);
+    requests.leads.push(lead);
     count = segments.length;
     await route.fulfill({
       contentType: "application/json",
@@ -178,5 +180,31 @@ test.describe("Syncing automatically", () => {
     expect(after.map(({ start }) => start)).toEqual(
       before.map(({ start }, i) => (i >= lineStart && i < lineEnd ? 0.5 * i + 0.1 : start)),
     );
+  });
+
+  test("sends the lead, which starts at 0 and is kept for the next sync", async ({
+    page,
+    context,
+  }) => {
+    const requests = await mockSyncApi(context);
+    await setupBasicInputs(
+      page,
+      defaultTestConfig.audioFile,
+      defaultTestConfig.lyricsFile,
+      defaultTestConfig.artist,
+    );
+    await navigateToTab(page, TabId.TimingAdjustment);
+    const dialog = page.getByRole("dialog", { name: "Sync automatically" });
+    const lead = dialog.getByRole("spinbutton");
+
+    await page.getByRole("button", { name: "Sync", exact: true }).click();
+    await expect(lead).toHaveValue("0");
+    await lead.fill("0.19");
+    await dialog.getByRole("button", { name: "Sync", exact: true }).click();
+    await expect(dialog).toBeHidden();
+    expect(requests.leads).toEqual([0.19]);
+
+    await page.getByRole("button", { name: "Sync", exact: true }).click();
+    await expect(lead).toHaveValue("0.19");
   });
 });

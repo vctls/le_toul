@@ -44,6 +44,11 @@ const SYNC_WORDING: JobWording = {
   gone: "The server no longer knows this sync. Please sync again.",
 };
 
+// Keep in sync with MAX_LEAD_SECONDS in api/karaoke/alignment_backends.py.
+export const MAX_SYNC_LEAD = 1;
+
+const LEAD_KEY = "syncLead";
+
 let availability: Promise<boolean> | null = null;
 
 /**
@@ -59,6 +64,29 @@ export function isSyncAvailable(): Promise<boolean> {
       return false;
     });
   return availability;
+}
+
+/**
+ * The lead last chosen in this browser tab, or 0.
+ */
+export function storedSyncLead(): number {
+  try {
+    const lead = Number(sessionStorage.getItem(LEAD_KEY));
+    return Number.isFinite(lead) && lead >= 0 && lead <= MAX_SYNC_LEAD ? lead : 0;
+  } catch {
+    return 0;
+  }
+}
+
+/**
+ * Remember the lead for the rest of this browser tab's session.
+ */
+export function storeSyncLead(lead: number): void {
+  try {
+    sessionStorage.setItem(LEAD_KEY, String(lead));
+  } catch {
+    // Storage can be blocked, and the lead is then forgotten on a reload.
+  }
 }
 
 /**
@@ -131,17 +159,19 @@ export function unplacedCount(pending: PendingSync, result: SyncResult): number 
 
 /**
  * Syncs the request's segments to the vocals on the backend, resolving with the result.
+ * Each synced segment starts `lead` seconds before the voice.
  */
 export async function syncVoice(
   vocals: Blob,
   vocalsName: string,
   request: SyncRequestSegment[],
+  lead: number,
   onProgress?: SeparationProgressCallback,
   signal?: AbortSignal,
 ): Promise<SyncResult> {
   const formData = new FormData();
   formData.append("vocalsFile", vocals, vocalsName);
-  formData.append("request", JSON.stringify({ segments: request }));
+  formData.append("request", JSON.stringify({ segments: request, lead }));
 
   const response = await fetch(`${API_HOSTNAME}/align_track`, {
     method: "POST",

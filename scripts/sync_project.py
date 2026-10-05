@@ -1,6 +1,7 @@
 """Sync a song's lyrics to its vocals, and write a project folder the app loads.
 
     python scripts/sync_project.py SOURCE OUTPUT [--model mel_band_roformer_karaoke_becruily.ckpt]
+        [--lead 0.19]
 
 SOURCE holds the song and its lyrics.txt. OUTPUT receives the song, the lyrics, both stems
 and a timings.json, in which the syllables the aligner is unsure of are flagged for review.
@@ -43,6 +44,12 @@ def main() -> None:
     parser.add_argument("output", type=Path)
     parser.add_argument("--model", default=settings.DEFAULT_SEPARATION_MODEL)
     parser.add_argument("--aligner", default="mms_fa")
+    parser.add_argument(
+        "--lead",
+        type=float,
+        default=0.0,
+        help="seconds each syllable starts ahead of the voice (default: 0)",
+    )
     args = parser.parse_args()
     sys.stdout.reconfigure(line_buffering=True)
 
@@ -67,6 +74,7 @@ def main() -> None:
             aligner,
             audio,
             [SyncSegment(s["text"], s["endsLine"], sync=True) for s in segments],
+            lead=args.lead,
         )
         synced[voice] = [
             {"start": r.start, "end": r.end, "doubtful": r.doubtful} for r in results

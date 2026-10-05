@@ -59,6 +59,20 @@
         <p v-else-if="untimedCount === 0" class="mb-4">
           Every syllable already has a timing, so syncing replaces them all.
         </p>
+        <b-field
+          label="Lead, in seconds"
+          message="How long before the voice each syllable starts. At 0, it starts with the voice."
+        >
+          <b-numberinput
+            :model-value="lead"
+            :min="0"
+            :max="maxLead"
+            :step="0.01"
+            :disabled="isSyncing"
+            controls-position="compact"
+            @update:model-value="(v: number | null | undefined) => (lead = Number(v ?? lead))"
+          />
+        </b-field>
         <b-progress
           v-if="isSyncing"
           type="is-primary"
@@ -93,15 +107,18 @@
 
 <script lang="ts">
 import { defineComponent, PropType } from "vue";
-import { BButton, BField, BMessage, BModal, BProgress, BRadio } from "buefy";
+import { BButton, BField, BMessage, BModal, BNumberinput, BProgress, BRadio } from "buefy";
 import { useMediaStore } from "@/stores/media";
 import { useLyricsStore } from "@/stores/lyrics";
 import { useTimingsStore } from "@/stores/timings";
 import {
+  MAX_SYNC_LEAD,
   SyncMode,
   lineNumbers,
   pendingSync,
   selectedLines,
+  storeSyncLead,
+  storedSyncLead,
   syncVoice,
   unplacedCount,
 } from "@/lib/alignment";
@@ -110,7 +127,7 @@ import { TimedSegment, fromLyric } from "@/lib/timedSegments";
 import { VoiceId } from "@/lib/voices";
 
 export default defineComponent({
-  components: { BButton, BField, BMessage, BModal, BProgress, BRadio },
+  components: { BButton, BField, BMessage, BModal, BNumberinput, BProgress, BRadio },
   props: {
     modelValue: { type: Boolean, default: false },
     voice: { type: String as PropType<VoiceId>, required: true },
@@ -128,6 +145,8 @@ export default defineComponent({
   data() {
     return {
       mode: "fill" as SyncMode,
+      lead: storedSyncLead(),
+      maxLead: MAX_SYNC_LEAD,
       isSyncing: false,
       progress: null as number | null,
       stage: null as string | null,
@@ -199,6 +218,9 @@ export default defineComponent({
     },
   },
   watch: {
+    lead(lead: number) {
+      storeSyncLead(lead);
+    },
     modelValue(isOpen: boolean) {
       if (!isOpen) return;
       this.error = null;
@@ -230,6 +252,7 @@ export default defineComponent({
           audio,
           name,
           pending.request,
+          Math.min(Math.max(this.lead, 0), MAX_SYNC_LEAD),
           ({ progress, stage }) => {
             this.progress = progress;
             this.stage = stage;

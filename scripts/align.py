@@ -115,8 +115,9 @@ def main() -> None:
     parser.add_argument(
         "--lead",
         type=float,
-        help="seconds mms_fa starts a syllable ahead of its onset, to match a reference "
-        "timed at the onset (default: the aligner's own)",
+        default=0.0,
+        help="seconds a syllable starts ahead of its onset, to match a reference "
+        "tapped early (default: 0)",
     )
     parser.add_argument(
         "--rows", type=Path, help="write every compared segment to this JSON Lines file"
@@ -129,10 +130,6 @@ def main() -> None:
 
     if args.soft_margin is not None:
         alignment.SOFT_ANCHOR_MARGIN_SECONDS = args.soft_margin
-    if args.lead is not None:
-        from api.karaoke.aligners import mms_fa
-
-        mms_fa._START_LAG_SECONDS = args.lead
     lrcs = synced_lyrics(args.lrc) if args.lrc else None
     if lrcs is not None and args.lrc_songs_only:
         projects = [p for p in projects if p.name in lrcs]
@@ -149,6 +146,7 @@ def main() -> None:
             lrc,
             args.lrc_anchors,
             args.lrc_offset,
+            args.lead,
         ):
             results.append(result)
             print_song(result)
@@ -196,6 +194,7 @@ def measure(
     lrc: list[tuple[float, str]] | None = None,
     lrc_anchors: str = "none",
     lrc_offset: str = "none",
+    lead: float = 0.0,
 ) -> list[SongResult]:
     vocals = next(iter(sorted(project.glob("vocals.*"))), None)
     timings = timings_file(project)
@@ -227,7 +226,7 @@ def measure(
         lrc_starts = matched
         began = time.monotonic()
         if lrc_starts and lrc_offset != "none":
-            first_pass = sync(aligner, audio, [to_sync(h) for h in hand])
+            first_pass = sync(aligner, audio, [to_sync(h) for h in hand], lead=lead)
             lrc_starts = shifted(
                 lrc_starts,
                 {i: s.start for i, s in enumerate(first_pass)},
@@ -248,7 +247,7 @@ def measure(
                 segments[i] = SyncSegment(
                     hand[i]["text"], hand[i]["endsLine"], sync=False, start=start
                 )
-        synced = sync(aligner, audio, segments)
+        synced = sync(aligner, audio, segments, lead=lead)
         elapsed = time.monotonic() - began
 
         starts, ends = [], []
