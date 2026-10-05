@@ -225,6 +225,31 @@ def test_a_remote_sync_waits_in_a_line_of_its_own(client, monkeypatch, backend, 
     assert lines == [getattr(main, line)]
 
 
+def test_a_client_over_its_sync_allowance_is_refused_with_a_429(client, monkeypatch):
+    from api import main
+    from api.helpers.rate_limit import RateLimiter
+
+    monkeypatch.setattr(main, "sync_starts", RateLimiter([(2, 60 * 60)]))
+    requests = [{**REQUEST, "lead": lead} for lead in (0.1, 0.2, 0.3)]
+
+    statuses = [post_sync(client, request).status_code for request in requests]
+    response = post_sync(client, requests[2])
+
+    assert statuses == [200, 200, 429]
+    assert "started as many syncs" in response.json()["detail"]
+
+
+def test_a_sync_already_done_does_not_count(client, monkeypatch):
+    from api import main
+    from api.helpers.rate_limit import RateLimiter
+
+    monkeypatch.setattr(main, "sync_starts", RateLimiter([(1, 60 * 60)]))
+
+    statuses = [post_sync(client).status_code for _ in range(3)]
+
+    assert statuses == [200, 200, 200]
+
+
 def test_syncing_off_refuses_a_sync(client, monkeypatch):
     monkeypatch.setattr("api.settings.ALIGNMENT_BACKEND", "none")
 

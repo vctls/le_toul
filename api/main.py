@@ -142,6 +142,13 @@ separation_starts = RateLimiter(
     ]
 )
 
+sync_starts = RateLimiter(
+    [
+        (settings.SYNCS_PER_HOUR, 60 * 60),
+        (settings.SYNCS_PER_DAY, 24 * 60 * 60),
+    ]
+)
+
 
 lyrics_provider = lyrics.get_provider()
 
@@ -171,15 +178,26 @@ def rate_limit_key(address: str) -> str:
 
 def start_separation_or_refuse(request: Request) -> None:
     """Count a new separation against the client's allowance, or refuse it with a 429."""
+    _start_or_refuse(request, separation_starts, "separation", "separations")
+
+
+def start_sync_or_refuse(request: Request) -> None:
+    """Count a new sync against the client's allowance, or refuse it with a 429."""
+    _start_or_refuse(request, sync_starts, "sync", "syncs")
+
+
+def _start_or_refuse(
+    request: Request, starts: RateLimiter, kind: str, plural: str
+) -> None:
     client = client_address(request)
-    wait = separation_starts.acquire(rate_limit_key(client))
+    wait = starts.acquire(rate_limit_key(client))
     if wait is None:
         return
-    logger.warning("separation_rate_limited", client=client, retry_after=wait)
+    logger.warning(f"{kind}_rate_limited", client=client, retry_after=wait)
     raise HTTPException(
         status_code=429,
         detail=(
-            "You have started as many separations as this server allows for now. "
+            f"You have started as many {plural} as this server allows for now. "
             f"Try again in {_describe_wait(wait)}."
         ),
         headers={"Retry-After": str(math.ceil(wait))},
@@ -790,6 +808,7 @@ async def align_track(
     ):
         return JobPollResponse(finishedTrackURL=store.poll_url(cache_hash))
 
+    start_sync_or_refuse(request)
     store.prune_expired_results()
     run_id = store.mark_processing(cache_hash)
     background_tasks.add_task(

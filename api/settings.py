@@ -74,6 +74,11 @@ MAX_UPLOAD_BYTES = MAX_UPLOAD_MB * 1_000_000
 SEPARATIONS_PER_HOUR = int(os.getenv("SEPARATIONS_PER_HOUR", "10"))
 SEPARATIONS_PER_DAY = int(os.getenv("SEPARATIONS_PER_DAY", "30"))
 
+# The same for syncs. They cost a fraction of a separation, and one song can take several
+# when stretches are re-synced one at a time.
+SYNCS_PER_HOUR = int(os.getenv("SYNCS_PER_HOUR", "30"))
+SYNCS_PER_DAY = int(os.getenv("SYNCS_PER_DAY", "100"))
+
 # The lyrics provider that fills empty lyrics: lrclib, or empty to turn the lookup off.
 LYRICS_PROVIDER = os.getenv("LYRICS_PROVIDER", "").strip()
 
