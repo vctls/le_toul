@@ -22,3 +22,27 @@ export function useMediaQuery(query: string): Ref<boolean> {
   onScopeDispose(() => list?.removeEventListener("change", update));
   return matches;
 }
+
+/**
+ * Whether the browser allows full screen, whether the page is in it, kept up to date however it
+ * was entered or left, and a toggle for it.
+ */
+export function useFullScreen(): {
+  canFullScreen: boolean;
+  isFullScreen: Ref<boolean>;
+  toggleFullScreen: () => void;
+} {
+  const isFullScreen = ref(document.fullscreenElement != null);
+  const update = () => (isFullScreen.value = document.fullscreenElement != null);
+  document.addEventListener("fullscreenchange", update);
+  onScopeDispose(() => document.removeEventListener("fullscreenchange", update));
+  const toggleFullScreen = () => {
+    if (document.fullscreenElement) {
+      document.exitFullscreen();
+    } else {
+      document.documentElement.requestFullscreen();
+    }
+  };
+  // Safari on iPhone only allows full screen on a video, so it reports false.
+  return { canFullScreen: document.fullscreenEnabled ?? false, isFullScreen, toggleFullScreen };
+}

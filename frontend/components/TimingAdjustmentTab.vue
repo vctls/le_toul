@@ -432,7 +432,13 @@ import { useSettingsStore } from "@/stores/settings";
 import { useLegacyTimingStore } from "@/stores/legacyTiming";
 import { storeToRefs } from "pinia";
 import { BButton, BField, BIcon, BMessage, BNumberinput, BSwitch } from "buefy";
-import { DRAWER_QUERY, PHONE_LANDSCAPE_QUERY, isMobile, useMediaQuery } from "@/lib/device";
+import {
+  DRAWER_QUERY,
+  PHONE_LANDSCAPE_QUERY,
+  isMobile,
+  useFullScreen,
+  useMediaQuery,
+} from "@/lib/device";
 import TapButtons from "@/components/TapButtons.vue";
 import { VoiceId } from "@/lib/voices";
 import { clampSegmentOverlaps } from "@/lib/timingValidation";
@@ -621,6 +627,7 @@ export default defineComponent({
       subtitles,
       // On a narrow screen, the status moves to the navbar and the settings to the drawer.
       isCompact: useMediaQuery(DRAWER_QUERY),
+      ...useFullScreen(),
     };
   },
   data() {
@@ -648,7 +655,6 @@ export default defineComponent({
       isPhoneLandscape: false,
       // Set by "Show the whole tab", until the phone is turned upright again.
       immersiveDismissed: false,
-      isFullScreen: false,
       _phoneLandscape: null as MediaQueryList | null,
       acknowledgedStatus: null as TimingStatus | null,
       // Which track to play back. The waveform always stays on the vocals.
@@ -789,9 +795,6 @@ export default defineComponent({
     isImmersive(): boolean {
       return this.isPhoneLandscape && !this.immersiveDismissed;
     },
-    canFullScreen(): boolean {
-      return document.fullscreenEnabled ?? false;
-    },
     isMobile,
     /**
      * Whether every segment has a start and none is flagged for review, and whether the last one
@@ -886,7 +889,6 @@ export default defineComponent({
     // A bubble-phase listener runs too late and both act.
     window.addEventListener("keydown", this.onKeyDown, true);
     window.addEventListener("pagehide", this.saveBeforeLeaving);
-    document.addEventListener("fullscreenchange", this.onFullScreenChange);
     this._phoneLandscape = window.matchMedia?.(PHONE_LANDSCAPE_QUERY) ?? null;
     this.isPhoneLandscape = this._phoneLandscape?.matches ?? false;
     this._phoneLandscape?.addEventListener("change", this.onPhoneLandscapeChange);
@@ -896,7 +898,6 @@ export default defineComponent({
     this.historyStore.setTabStepper(null);
     window.removeEventListener("keydown", this.onKeyDown, true);
     window.removeEventListener("pagehide", this.saveBeforeLeaving);
-    document.removeEventListener("fullscreenchange", this.onFullScreenChange);
     this._phoneLandscape?.removeEventListener("change", this.onPhoneLandscapeChange);
     this._unsubscribeScheme?.();
     if (this._subtitleDebounceTimer) {
@@ -1022,16 +1023,6 @@ export default defineComponent({
       this.isPhoneLandscape = event.matches;
       if (!event.matches) {
         this.immersiveDismissed = false;
-      }
-    },
-    onFullScreenChange() {
-      this.isFullScreen = document.fullscreenElement !== null;
-    },
-    toggleFullScreen() {
-      if (document.fullscreenElement) {
-        document.exitFullscreen();
-      } else {
-        document.documentElement.requestFullscreen();
       }
     },
     onZoomBy(ratio: number) {
