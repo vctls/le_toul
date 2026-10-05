@@ -94,6 +94,17 @@ describe("LyricEditor", () => {
     wrapper = null;
   });
 
+  it("toggles the search panel, and reports each change", () => {
+    const { editor, view } = mountEditor("Hello world");
+    const toggle = () => (editor.vm as unknown as { toggleSearch(): void }).toggleSearch();
+
+    toggle();
+    expect(view.dom.querySelector(".cm-search")).not.toBeNull();
+    toggle();
+    expect(view.dom.querySelector(".cm-search")).toBeNull();
+    expect(editor.emitted("search-toggle")).toEqual([[true], [false]]);
+  });
+
   it("undoes a typed word as one step", async () => {
     const { view } = mountEditor("one");
     view.dispatch({ selection: { anchor: 3 } });

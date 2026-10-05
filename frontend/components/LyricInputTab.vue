@@ -62,7 +62,12 @@
       </div>
       <div class="level-item">
         <b-tooltip position="is-right" :label="`Find and replace text (${findShortcut})`">
-          <b-button @click="openSearch">Find and Replace</b-button></b-tooltip
+          <b-button
+            :type="isSearchOpen ? 'is-primary' : ''"
+            :aria-pressed="isSearchOpen"
+            @click="$refs.lyricEditor.toggleSearch()"
+            >Find and Replace</b-button
+          ></b-tooltip
         >
       </div>
       <div class="level-item">
@@ -81,6 +86,7 @@
       :modelValue="lyricText"
       :magic-slashes="magicSlashes"
       @update:modelValue="onLyricInput"
+      @search-toggle="(isOpen) => (isSearchOpen = isOpen)"
     ></lyric-editor>
   </b-tab-item>
 </template>
@@ -142,6 +148,7 @@ export default defineComponent({
       magicSlashes: true,
       // "full" or a track source.
       playerTrackChoice: "full",
+      isSearchOpen: false,
       songKey: 0,
       singleVoiceExample: "Hell/o_from_the_oth/er_side\nI_must_have_called_a_thou/sand_times",
       multiVoiceExample:
@@ -184,9 +191,6 @@ export default defineComponent({
     },
     convertSpaces(e) {
       this.$refs.lyricEditor.convertSpaces();
-    },
-    openSearch() {
-      this.$refs.lyricEditor.openSearch();
     },
   },
 });

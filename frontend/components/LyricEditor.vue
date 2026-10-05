@@ -7,7 +7,7 @@ import { defineComponent, shallowRef } from "vue";
 import { EditorState, Prec, Transaction } from "@codemirror/state";
 import { EditorView, ViewUpdate, keymap } from "@codemirror/view";
 import { defaultKeymap, insertNewline } from "@codemirror/commands";
-import { openSearchPanel } from "@codemirror/search";
+import { closeSearchPanel, openSearchPanel, searchPanelOpen } from "@codemirror/search";
 import { useHistoryStore } from "@/stores/history";
 import { EntryMeta, historyStepFor } from "@/lib/history";
 import { lyricMarkup } from "@/lib/lyricMarkup";
@@ -56,7 +56,7 @@ const EDIT_LABELS: Record<string, string> = {
 };
 
 export default defineComponent({
-  emits: ["update:modelValue"],
+  emits: ["update:modelValue", "search-toggle"],
   props: {
     modelValue: { type: String, default: "" },
     magicSlashes: {
@@ -175,6 +175,10 @@ export default defineComponent({
       return false;
     },
     onUpdate(update: ViewUpdate) {
+      const isSearchOpen = searchPanelOpen(update.state);
+      if (isSearchOpen !== searchPanelOpen(update.startState)) {
+        this.$emit("search-toggle", isSearchOpen);
+      }
       const transaction = update.transactions.find((tr) => tr.docChanged);
       if (!transaction || transaction.annotation(programmatic)) return;
       const value = update.state.doc.toString();
@@ -221,8 +225,13 @@ export default defineComponent({
       const text = this.editor().state.doc.toString();
       this.replace(convertSpacesToUnderscores(text), "Add underscores", this.selection());
     },
-    openSearch() {
-      openSearchPanel(this.editor());
+    toggleSearch() {
+      const view = this.editor();
+      if (searchPanelOpen(view.state)) {
+        closeSearchPanel(view);
+      } else {
+        openSearchPanel(view);
+      }
     },
     /**
      * Replaces the whole text as one undo step, and leaves `selection` selected.
