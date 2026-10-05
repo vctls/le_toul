@@ -16,7 +16,9 @@ import modal
 import modal.exception
 
 APP_NAME = "tuul-separation"
-GPU = "L4"
+# Modal tries these in order, so a shortage of L4s, the cheapest, falls back to an A10,
+# which has the same 24 GB.
+GPU = ["L4", "A10"]
 # SEPARATION_CONCURRENCY on Railway should equal this, so that the songs
 # beyond it wait in Railway's queue, which reports their place in line.
 MAX_GPU_CONTAINERS = 3
