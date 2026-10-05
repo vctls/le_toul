@@ -7,6 +7,7 @@
     @pointermove="onTouchMove"
     @pointerup="onTouchEnd"
     @pointercancel="onTouchEnd"
+    @touchmove="blockPagePinch"
     @pointerdown.capture="onPanStart"
     @pointermove.capture="onPanMove"
     @pointerup.capture="onPanEnd"
@@ -425,6 +426,13 @@ export default defineComponent({
     },
     onTouchEnd(event: PointerEvent) {
       this._touches.delete(event.pointerId);
+    },
+    /**
+     * Keeps the browser from zooming the page under a pinch, which zooms the waveform instead.
+     * Firefox for Android ignores the touch-action that says so.
+     */
+    blockPagePinch(event: TouchEvent) {
+      if (event.touches.length > 1) event.preventDefault();
     },
     /**
      * A tap on the waveform seeks, and one on a region picks it, but not at the end of a swipe or a

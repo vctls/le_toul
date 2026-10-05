@@ -165,6 +165,14 @@ test.describe("Adjust mode on a phone held sideways", () => {
         .locator('.timing-adjustment-tab .wavesurfer-container [part~="wrapper"]')
         .evaluate((wrapper) => wrapper.clientWidth);
     const widthBefore = await wrapperWidth();
+    // Firefox for Android zooms the page under a pinch unless its touch moves are canceled.
+    await page.evaluate(() => {
+      const w = window as Window & { pinchMoves?: boolean[] };
+      w.pinchMoves = [];
+      window.addEventListener("touchmove", (event) => {
+        if (event.touches.length > 1) w.pinchMoves!.push(event.defaultPrevented);
+      });
+    });
 
     await touch(cdp, "touchStart", [
       { x: 400, y },
@@ -180,6 +188,11 @@ test.describe("Adjust mode on a phone held sideways", () => {
 
     await expect.poll(wrapperWidth).toBeGreaterThan(widthBefore * 2);
     expect(await page.evaluate(() => window.visualViewport?.scale)).toBe(1);
+    const pinchMoves = await page.evaluate(
+      () => (window as Window & { pinchMoves?: boolean[] }).pinchMoves,
+    );
+    expect(pinchMoves?.length).toBeGreaterThan(0);
+    expect(pinchMoves).not.toContain(false);
   });
 });
 
