@@ -6,6 +6,7 @@
         @click="togglePlayback"
         :subtitles="subtitles"
         :audioDelay="audioDelay"
+        :videoOffset="videoOffset"
         :fonts="fonts"
         :backgroundColor="backgroundColor"
         :videoBlob="videoBlob"
@@ -71,6 +72,10 @@ export default defineComponent({
     videoBlob: {
       type: Blob,
       required: false,
+    },
+    videoOffset: {
+      type: Number,
+      default: 0.0,
     },
   },
   data() {

@@ -626,6 +626,9 @@ export default defineComponent({
       if (settings.backingTrack) {
         this.mediaStore.renderTrackSource = settings.backingTrack;
       }
+      if (settings.backgroundVideoOffset !== undefined) {
+        this.mediaStore.backgroundVideoOffset = settings.backgroundVideoOffset;
+      }
       if (settings.song.title) {
         this.mediaStore.songTitle = settings.song.title;
       }

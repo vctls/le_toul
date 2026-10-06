@@ -64,6 +64,10 @@ export default defineComponent({
       type: Number,
       default: 0.0,
     },
+    videoOffset: {
+      type: Number,
+      default: 0.0,
+    },
   },
   data() {
     return {
@@ -133,6 +137,10 @@ export default defineComponent({
     },
     currentTime(newTime: number) {
       this.subtitleManager?.setCurrentTime(newTime);
+    },
+    // A paused video would otherwise keep showing the frame from before the change.
+    videoOffset() {
+      this.syncVideo(this.currentTime ?? 0);
     },
     fonts(newFonts, oldFonts) {
       // libass loads fonts when the worker starts, with no way to add one later, so a
@@ -210,6 +218,7 @@ export default defineComponent({
       if (video) {
         syncBackgroundVideo(video, playhead, {
           audioDelay: this.audioDelay,
+          videoOffset: this.videoOffset,
           isPlaying: this.isPlaying,
         });
       }

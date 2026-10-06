@@ -74,6 +74,9 @@ export interface FfmpegParamsOptions {
   backgroundColor: string;
   frame: RenderFrame;
   audioDelayMs: number;
+  // Seconds the background video is moved by. A positive offset delays it, and a negative one
+  // skips its start.
+  videoOffset?: number;
   // The whole video's length. It has to be explicit, since -shortest never ends a filter graph
   // fed by an endless background, which a color source or a looped video is.
   durationSeconds: number;
@@ -85,20 +88,25 @@ export function getFfmpegParams({
   backgroundColor,
   frame: { width, height, frameRate },
   audioDelayMs,
+  videoOffset = 0,
   durationSeconds,
   metadata,
 }: FfmpegParamsOptions) {
+  // Rounded, so the filters don't carry float noise such as 2.7500000000000004.
+  const heldSeconds = Number((audioDelayMs / 1000 + Math.max(0, videoOffset)).toFixed(3));
   const background = hasVideo
     ? {
         // A video shorter than the song loops, and -t cuts a longer one.
         input: ["-stream_loop", "-1", ...BACKGROUND_DECODE_THREADS, "-i", "video.mp4"],
-        // The video covers the frame and is cropped to it, as the preview shows it.
-        // Its first frame repeats during the title delay.
         filters: [
+          // An input -ss would be simpler, but with -stream_loop the first loop then ends early.
+          ...(videoOffset < 0 ? [`trim=start=${-videoOffset}`, "setpts=PTS-STARTPTS"] : []),
           `fps=${frameRate}`,
+          // The video covers the frame and is cropped to it, as the preview shows it.
           `scale=${width}:${height}:force_original_aspect_ratio=increase`,
           `crop=${width}:${height}`,
-          `tpad=start_duration=${audioDelayMs / 1000}:start_mode=clone`,
+          // Its first frame repeats during the title delay and any delay of its own.
+          `tpad=start_duration=${heldSeconds}:start_mode=clone`,
         ],
       }
     : {
@@ -320,6 +328,7 @@ export interface CreateVideoOptions {
   // Every font the subtitles use, keyed by family name.
   fontMap: Record<string, string>;
   backgroundVideo?: Blob | null;
+  backgroundVideoOffset?: number;
   audioDelay?: number;
   alternateTracks?: AlternateAudioTracks | null;
   onProgress?: ProgressCallback;
@@ -333,6 +342,7 @@ async function createVideo({
   metadata,
   fontMap,
   backgroundVideo = null,
+  backgroundVideoOffset = 0,
   audioDelay = 0,
   alternateTracks = null,
   onProgress,
@@ -432,6 +442,7 @@ async function createVideo({
       backgroundColor,
       frame: { ...RESOLUTIONS[videoOptions.resolution], frameRate: videoOptions.frameRate },
       audioDelayMs,
+      videoOffset: backgroundVideoOffset,
       durationSeconds: videoSeconds,
       metadata,
     });

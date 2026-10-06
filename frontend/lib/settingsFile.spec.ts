@@ -284,6 +284,7 @@ describe("serializeSettingsYaml", () => {
     song: { title: "Bohemian Rhapsody", artist: "Queen", duration: 354.2, youtubeUrl: null },
     separationModel: BACKING_VOCALS_HQ_SEPARATOR_MODEL,
     backingTrack: NO_VOCALS_SEPARATOR_MODEL,
+    backgroundVideoOffset: -0.25,
     videoOptions: {
       vocalSeparationModel: NO_VOCALS_SEPARATOR_MODEL,
       addTitleScreen: false,
@@ -351,5 +352,12 @@ describe("serializeSettingsYaml", () => {
     const withoutTracks = yaml.load(serializeSettingsYaml({ ...source, backingTrack: null }));
 
     expect(withoutTracks).not.toHaveProperty("backingTrack");
+  });
+
+  test("writes the background video's offset, and leaves it out while it is zero", () => {
+    expect(parseSettingsYaml(serializeSettingsYaml(source)).backgroundVideoOffset).toBe(-0.25);
+    const unmoved = yaml.load(serializeSettingsYaml({ ...source, backgroundVideoOffset: 0 }));
+
+    expect(unmoved).not.toHaveProperty("backgroundVideoOffset");
   });
 });

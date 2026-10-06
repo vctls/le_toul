@@ -25,17 +25,25 @@ const MAX_RATE_CHANGE = 0.5;
 export function syncBackgroundVideo(
   video: BackgroundVideo,
   playhead: number,
-  { audioDelay, isPlaying }: { audioDelay: number; isPlaying: boolean },
+  {
+    audioDelay,
+    videoOffset = 0,
+    isPlaying,
+  }: { audioDelay: number; videoOffset?: number; isPlaying: boolean },
 ): void {
-  const videoTime = playhead - audioDelay;
-  // The render repeats the video's first frame during the title delay.
-  if (videoTime < 0) {
-    holdAt(video, 0);
-    return;
-  }
+  const videoTime = playhead - audioDelay - videoOffset;
+  // A negative offset skips the video's start, as the render trims it.
+  const start = Math.max(0, -videoOffset);
   // The render loops a video shorter than the song.
   const hasLength = Number.isFinite(video.duration) && video.duration > 0;
-  const target = hasLength ? videoTime % video.duration : videoTime;
+  const target = hasLength
+    ? Math.max(videoTime, start) % video.duration
+    : Math.max(videoTime, start);
+  // The render repeats the video's first frame during the title delay and any delay of its own.
+  if (videoTime < start) {
+    holdAt(video, target);
+    return;
+  }
   if (!isPlaying) {
     holdAt(video, target);
     return;

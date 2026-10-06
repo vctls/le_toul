@@ -30,6 +30,7 @@ const MEDIA_LOCALSTORAGE_KEYS = [
   "media.songDuration",
   "media.runningSeparation",
   "media.renderTrackSource",
+  "media.backgroundVideoOffset",
 ];
 const MEDIA_IDB_KEYS = [
   "media.songFile",
@@ -113,6 +114,9 @@ export const useMediaStore = defineStore("media", () => {
 
   // Background video (if the song is from YouTube)
   const backgroundVideo = shallowRef<Blob | null>(null);
+  // Seconds the background video is moved against the backing track, which need not come from
+  // the video's own audio. A positive offset delays the video, and a negative one skips its start.
+  const backgroundVideoOffset = ref(0);
 
   // The semantic state these map to (timings array, lyric text, separatedTrack.backing) is held elsewhere;
   // these refs exist so the FileUpload widgets can re-display the user's selection after a reload.
@@ -477,6 +481,7 @@ export const useMediaStore = defineStore("media", () => {
       // A loader that brings its own tracks or video has to set them after the song.
       discardSeparatedTrack();
       backgroundVideo.value = null;
+      backgroundVideoOffset.value = 0;
       if (!newFile) {
         songTitle.value = null;
         songArtist.value = null;
@@ -502,6 +507,7 @@ export const useMediaStore = defineStore("media", () => {
   persistJsonRef("media.songDuration", songDuration);
   persistJsonRef("media.runningSeparation", runningSeparation);
   persistJsonRef("media.renderTrackSource", renderTrackSource);
+  persistJsonRef("media.backgroundVideoOffset", backgroundVideoOffset);
 
   // Blobs → IndexedDB (async load)
   Promise.all([
@@ -525,6 +531,7 @@ export const useMediaStore = defineStore("media", () => {
     cancelSeparation();
     songFile.value = null;
     backgroundVideo.value = null;
+    backgroundVideoOffset.value = 0;
     trackPairs.value = null;
     renderTrackSource.value = null;
     timingsFile.value = null;
@@ -551,6 +558,7 @@ export const useMediaStore = defineStore("media", () => {
     // Media files
     songFile,
     backgroundVideo,
+    backgroundVideoOffset,
     timingsFile,
     lyricsFile,
     kbpFile,

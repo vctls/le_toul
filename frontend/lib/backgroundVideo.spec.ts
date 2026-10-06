@@ -159,6 +159,39 @@ describe("syncBackgroundVideo", () => {
     expect(video.play).toHaveBeenCalledOnce();
   });
 
+  it("holds the first frame for longer under a positive offset", () => {
+    const video = new FakeVideo();
+    const options = { audioDelay: 5, videoOffset: 0.5, isPlaying: true };
+
+    syncBackgroundVideo(video, 5.4, options);
+    expect(video.play).not.toHaveBeenCalled();
+
+    syncBackgroundVideo(video, 7.5, options);
+    expect(video.seeks).toEqual([2]);
+    expect(video.play).toHaveBeenCalledOnce();
+  });
+
+  it("skips the start of the video under a negative offset", () => {
+    const video = new FakeVideo();
+    const options = { audioDelay: 5, videoOffset: -1.5, isPlaying: true };
+
+    syncBackgroundVideo(video, 2, options);
+    expect(video.seeks).toEqual([1.5]);
+    expect(video.play).not.toHaveBeenCalled();
+
+    syncBackgroundVideo(video, 7, options);
+    expect(video.seeks).toEqual([1.5, 3.5]);
+    expect(video.play).toHaveBeenCalledOnce();
+  });
+
+  it("loops back to the very start of a trimmed video, as the render does", () => {
+    const video = new FakeVideo(10);
+
+    syncBackgroundVideo(video, 9, { audioDelay: 0, videoOffset: -1.5, isPlaying: false });
+
+    expect(video.seeks).toEqual([0.5]);
+  });
+
   it("loops a video shorter than the song", () => {
     const video = new FakeVideo(10);
 

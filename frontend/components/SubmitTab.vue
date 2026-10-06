@@ -190,6 +190,28 @@
         <b-field v-if="videoBlob" horizontal label="Use Background Video">
           <b-switch v-model="videoOptions.useBackgroundVideo"></b-switch
         ></b-field>
+        <b-field v-if="videoBlob && videoOptions.useBackgroundVideo" horizontal>
+          <template #label>
+            Video Offset
+            <viewport-tooltip
+              wide
+              label="Seconds to move the background video by when it is out of sync with the backing track. A positive offset delays the video, and a negative one skips its start."
+            >
+              <b-icon size="is-small" icon="circle-question"></b-icon>
+            </viewport-tooltip>
+          </template>
+          <b-numberinput
+            expanded
+            :model-value="mediaStore.backgroundVideoOffset"
+            :step="0.05"
+            :min-step="0.01"
+            @update:model-value="
+              (v: number | null | undefined) =>
+                (mediaStore.backgroundVideoOffset = Number(v ?? mediaStore.backgroundVideoOffset))
+            "
+            controls-position="compact"
+          ></b-numberinput>
+        </b-field>
         <b-field v-if="mediaStore.backingSources.length > 0" horizontal label="Backing Track">
           <track-select
             kind="backing"
@@ -481,6 +503,7 @@
           :fonts="fontMap"
           :background-color="videoOptions.color.background.toString()"
           :video-blob="videoOptions.useBackgroundVideo ? (videoBlob ?? undefined) : undefined"
+          :video-offset="mediaStore.backgroundVideoOffset"
         />
         <b-message v-else type="is-info" :closable="false"
           >Upload a song to see the preview.</b-message
@@ -874,6 +897,7 @@ export default defineComponent({
         const videoFile: Uint8Array = await video.createVideo({
           backing: separatedTrack.backing,
           backgroundVideo: videoOptions.useBackgroundVideo ? this.videoBlob : null,
+          backgroundVideoOffset: this.mediaStore.backgroundVideoOffset,
           subtitles: this.allVoicesSubtitles(),
           audioDelay: this.audioDelay,
           videoOptions,

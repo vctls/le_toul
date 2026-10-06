@@ -41,6 +41,7 @@ export interface ParsedSettingsFile {
   song: SettingsFileSong;
   separationModel?: SeparationModel;
   backingTrack?: TrackSource;
+  backgroundVideoOffset?: number;
   videoOptions: Partial<VideoSettings>;
   // Absent when the file says nothing about voice styles, so a caller can tell
   // "no opinion" (leave the current overrides alone) from "explicitly empty".
@@ -58,6 +59,7 @@ export interface SettingsFileSource {
   separationModel: SeparationModel;
   // The source of the backing track the video renders with, or null while there is none.
   backingTrack: TrackSource | null;
+  backgroundVideoOffset: number;
   videoOptions: VideoSettings;
   voiceStyles: Record<VoiceId, VoiceStyleOverride>;
 }
@@ -69,6 +71,7 @@ export function serializeSettingsYaml({
   song,
   separationModel,
   backingTrack,
+  backgroundVideoOffset,
   videoOptions,
   voiceStyles,
 }: SettingsFileSource): string {
@@ -79,6 +82,7 @@ export function serializeSettingsYaml({
     song,
     separationModel,
     ...(backingTrack ? { backingTrack } : {}),
+    ...(backgroundVideoOffset ? { backgroundVideoOffset } : {}),
     videoOptions: {
       ...rest,
       color: Object.fromEntries(
@@ -581,7 +585,14 @@ export function parseSettingsYaml(text: string): ParsedSettingsFile {
   const warnings: string[] = [];
   warnUnknownKeys(
     document,
-    ["song", "separationModel", "backingTrack", "videoOptions", "voiceStyles"],
+    [
+      "song",
+      "separationModel",
+      "backingTrack",
+      "backgroundVideoOffset",
+      "videoOptions",
+      "voiceStyles",
+    ],
     "",
     warnings,
   );
@@ -600,6 +611,9 @@ export function parseSettingsYaml(text: string): ParsedSettingsFile {
 
   const backingTrack = readTrackSource(document.backingTrack, "backingTrack", warnings);
   if (backingTrack !== undefined) parsed.backingTrack = backingTrack;
+
+  const offset = readNumber(document.backgroundVideoOffset, "backgroundVideoOffset", warnings);
+  if (offset !== undefined) parsed.backgroundVideoOffset = offset;
 
   const voiceStyles = parseVoiceStyles(document.voiceStyles, warnings);
   if (voiceStyles !== undefined) parsed.voiceStyles = voiceStyles;

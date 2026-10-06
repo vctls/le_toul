@@ -118,6 +118,28 @@ describe("getFfmpegParams", () => {
     ]);
   });
 
+  it("delays the background video by a positive offset", () => {
+    const filters = videoFilters(params({ hasVideo: true, audioDelayMs: 2500, videoOffset: 0.25 }));
+
+    expect(filters).not.toContainEqual(expect.stringMatching(/^trim/));
+    expect(filters.at(-2)).toBe("tpad=start_duration=2.75:start_mode=clone");
+  });
+
+  it("skips the start of the background video by a negative offset, after looping it", () => {
+    const args = params({ hasVideo: true, audioDelayMs: 2500, videoOffset: -1.5 });
+
+    expect(args).not.toContain("-ss");
+    expect(videoFilters(args)).toEqual([
+      "trim=start=1.5",
+      "setpts=PTS-STARTPTS",
+      "fps=30",
+      "scale=1920:1080:force_original_aspect_ratio=increase",
+      "crop=1920:1080",
+      "tpad=start_duration=2.5:start_mode=clone",
+      "ass=subtitles.ass:fontsdir=/tmp",
+    ]);
+  });
+
   it("encodes with x264's veryfast preset", () => {
     const args = params();
 
