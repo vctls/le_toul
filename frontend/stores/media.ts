@@ -478,10 +478,8 @@ export const useMediaStore = defineStore("media", () => {
     songFile,
     async (newFile) => {
       if (isHydrating) return;
-      // A loader that brings its own tracks or video has to set them after the song.
+      // A loader that brings its own tracks has to set them after the song.
       discardSeparatedTrack();
-      backgroundVideo.value = null;
-      backgroundVideoOffset.value = 0;
       if (!newFile) {
         songTitle.value = null;
         songArtist.value = null;
@@ -495,6 +493,16 @@ export const useMediaStore = defineStore("media", () => {
       songArtist.value = metadata.artist || songArtist.value;
       songDuration.value = durationValue;
       void useLyricsLookupStore().lookUp();
+    },
+    { flush: "sync" },
+  );
+
+  // The offset lines up one particular video, so it starts over with each new background.
+  watch(
+    backgroundVideo,
+    () => {
+      if (isHydrating) return;
+      backgroundVideoOffset.value = 0;
     },
     { flush: "sync" },
   );

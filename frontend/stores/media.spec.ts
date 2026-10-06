@@ -124,7 +124,7 @@ describe("Media Store separation", () => {
     expect(store.hasSeparatedTrack).toBe(false);
   });
 
-  it("discards the tracks and video of the previous song when the song changes", async () => {
+  it("discards the tracks of the previous song when the song changes, but keeps the background", async () => {
     vi.stubGlobal(
       "AudioContext",
       class {
@@ -140,16 +140,30 @@ describe("Media Store separation", () => {
     const signal = await started;
     store.trackPairs = [PAIR];
     store.backingTrackFile = new File(["backing"], "backing.wav");
-    store.backgroundVideo = new Blob(["video"]);
+    const video = new Blob(["video"]);
+    store.backgroundVideo = video;
+    store.backgroundVideoOffset = -0.5;
 
     store.songFile = new File(["other audio"], "other.mp3");
 
     expect(signal.aborted).toBe(true);
     expect(store.separatedTrack).toBeNull();
     expect(store.backingTrackFile).toBeNull();
-    expect(store.backgroundVideo).toBeNull();
+    expect(store.backgroundVideo).toBe(video);
+    expect(store.backgroundVideoOffset).toBe(-0.5);
     await store.metadataSettled();
     vi.unstubAllGlobals();
+  });
+
+  it("resets the background video's offset when a new background arrives", async () => {
+    const store = useMediaStore();
+    await hydrated();
+    store.backgroundVideo = new Blob(["video"]);
+    store.backgroundVideoOffset = 0.75;
+
+    store.backgroundVideo = new Blob(["other video"]);
+
+    expect(store.backgroundVideoOffset).toBe(0);
   });
 
   it("keeps the tracks that are restored along with the song", () => {
