@@ -10,6 +10,7 @@
         :fonts="fonts"
         :backgroundColor="backgroundColor"
         :background="background"
+        :backgroundFit="backgroundFit"
       />
       <smooth-audio-player
         ref="player"
@@ -31,7 +32,8 @@
 /* A component that displays WebVTT subtitles over a black screen, with an audio file provided as a prop */
 // TODO: Incorporate audio delay
 
-import { defineComponent, markRaw } from "vue";
+import { defineComponent, markRaw, PropType } from "vue";
+import type { BackgroundFit } from "@/lib/timing";
 import bufferToWav from "audiobuffer-to-wav";
 import SubtitleDisplay from "./SubtitleDisplay.vue";
 import SmoothAudioPlayer from "./SmoothAudioPlayer.vue";
@@ -68,6 +70,10 @@ export default defineComponent({
     backgroundColor: {
       type: String,
       default: "#000000",
+    },
+    backgroundFit: {
+      type: String as PropType<BackgroundFit>,
+      default: "fill",
     },
     background: {
       type: Blob,

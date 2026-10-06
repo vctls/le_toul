@@ -200,6 +200,21 @@
         <b-field v-if="background" horizontal label="Use Background">
           <b-switch v-model="videoOptions.useBackground"></b-switch
         ></b-field>
+        <b-field v-if="background && videoOptions.useBackground" horizontal>
+          <template #label>
+            Background Fit
+            <viewport-tooltip
+              wide
+              label="Fill covers the whole frame and crops what overflows. Fit shows the whole background, with bars in the background color."
+            >
+              <b-icon size="is-small" icon="circle-question"></b-icon>
+            </viewport-tooltip>
+          </template>
+          <b-select v-model="videoOptions.backgroundFit" expanded>
+            <option value="fill">Fill</option>
+            <option value="fit">Fit</option>
+          </b-select>
+        </b-field>
         <b-field
           v-if="background && videoOptions.useBackground && backgroundKind === 'video'"
           horizontal
@@ -516,6 +531,7 @@
           :fonts="fontMap"
           :background-color="videoOptions.color.background.toString()"
           :background="videoOptions.useBackground ? (background ?? undefined) : undefined"
+          :background-fit="videoOptions.backgroundFit"
           :video-offset="mediaStore.backgroundVideoOffset"
         />
         <b-message v-else type="is-info" :closable="false"

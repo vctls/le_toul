@@ -137,6 +137,23 @@ describe("getFfmpegParams", () => {
     ]);
   });
 
+  it.each([
+    ["video", VIDEO],
+    ["image", IMAGE],
+  ])(
+    "fits the whole background %s in the frame, with bars in the background color",
+    (_, background) => {
+      const filters = videoFilters(params({ background, backgroundFit: "fit" }));
+
+      const scale = filters.findIndex((filter) => filter.startsWith("scale="));
+      expect(filters.slice(scale, scale + 2)).toEqual([
+        "scale=1920:1080:force_original_aspect_ratio=decrease:force_divisible_by=2",
+        "pad=1920:1080:(ow-iw)/2:(oh-ih)/2:color=0x101010",
+      ]);
+      expect(filters).not.toContainEqual(expect.stringMatching(/^crop/));
+    },
+  );
+
   it("decodes the background image once, on a single thread", () => {
     const args = params({ background: IMAGE, audioDelayMs: 2500, videoOffset: 1 });
 

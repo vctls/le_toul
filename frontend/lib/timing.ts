@@ -53,6 +53,11 @@ export type Resolution = keyof typeof RESOLUTIONS;
 export const FRAME_RATES = [20, 30] as const;
 export type FrameRate = (typeof FRAME_RATES)[number];
 
+// Fill covers the frame and crops what overflows. Fit shows the whole background, with bars in the
+// background color.
+export const BACKGROUND_FITS = ["fill", "fit"] as const;
+export type BackgroundFit = (typeof BACKGROUND_FITS)[number];
+
 export const DEFAULT_RESOLUTION: Resolution = "1080p";
 export const DEFAULT_FRAME_RATE: FrameRate = 30;
 
@@ -79,6 +84,7 @@ export interface KaraokeOptions {
   // When this is off, every line follows the automatic rules, but the stored periods are kept.
   useStoredDisplayPeriods: boolean;
   useBackground: boolean;
+  backgroundFit: BackgroundFit;
   outputFormat: OutputFormat;
   resolution: Resolution;
   frameRate: FrameRate;
@@ -123,6 +129,7 @@ export const DEFAULT_KARAOKE_OPTIONS: KaraokeOptions = {
   addStaggeredLines: true,
   useStoredDisplayPeriods: true,
   useBackground: false,
+  backgroundFit: "fill",
   outputFormat: "mp4",
   resolution: DEFAULT_RESOLUTION,
   frameRate: DEFAULT_FRAME_RATE,

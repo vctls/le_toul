@@ -248,6 +248,15 @@ describe("parseSettingsYaml", () => {
     expect(parsed.videoOptions.useBackground).toBe(false);
   });
 
+  test("rejects a background fit it does not know", () => {
+    const parsed = parseSettingsYaml("videoOptions:\n  backgroundFit: stretch\n");
+
+    expect(parsed.videoOptions.backgroundFit).toBeUndefined();
+    expect(parsed.warnings).toEqual([
+      'videoOptions.backgroundFit: expected fill or fit, ignoring "stretch"',
+    ]);
+  });
+
   test("rejects a resolution the render does not offer", () => {
     const parsed = parseSettingsYaml("videoOptions:\n  resolution: 4k\n  frameRate: 60\n");
 
@@ -311,6 +320,7 @@ describe("serializeSettingsYaml", () => {
       instrumentalThreshold: 8,
       addStaggeredLines: true,
       useBackground: true,
+      backgroundFit: "fit",
       outputFormat: "mkv",
       resolution: "720p",
       frameRate: 20,
@@ -349,6 +359,7 @@ describe("serializeSettingsYaml", () => {
     expect(parsed.videoOptions.shadowY).toBe(-1);
     expect(parsed.videoOptions.resolution).toBe("720p");
     expect(parsed.videoOptions.frameRate).toBe(20);
+    expect(parsed.videoOptions.backgroundFit).toBe("fit");
     expect(Object.keys(parsed.voiceStyles ?? {})).toEqual(["Anna"]);
     expect(parsed.voiceStyles?.Anna.primary?.toString()).toBe("#abcdef");
   });

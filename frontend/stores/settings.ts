@@ -1,6 +1,7 @@
 import { defineStore } from "pinia";
 import { reactive, watch, ref, computed, shallowRef } from "vue";
 import {
+  BackgroundFit,
   GlyphCoverage,
   CountInMode,
   DEFAULT_FRAME_RATE,
@@ -155,6 +156,7 @@ export type VideoSettings = {
   addStaggeredLines: boolean;
   useStoredDisplayPeriods: boolean;
   useBackground: boolean;
+  backgroundFit: BackgroundFit;
   outputFormat: OutputFormat;
   resolution: Resolution;
   frameRate: FrameRate;
@@ -196,6 +198,7 @@ const DEFAULT_SETTINGS: VideoSettings = {
   addStaggeredLines: true,
   useStoredDisplayPeriods: true,
   useBackground: false,
+  backgroundFit: "fill",
   outputFormat: "mp4",
   resolution: DEFAULT_RESOLUTION,
   frameRate: DEFAULT_FRAME_RATE,

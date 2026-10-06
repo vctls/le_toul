@@ -3,7 +3,7 @@ import { FFmpeg } from "@ffmpeg/ffmpeg";
 import { fetchFile, toBlobURL } from "@ffmpeg/util";
 
 import { RenderDiagnostics } from "@/lib/renderDiagnostics";
-import { KaraokeOptions, RESOLUTIONS } from "@/lib/timing";
+import { BackgroundFit, KaraokeOptions, RESOLUTIONS } from "@/lib/timing";
 import { BackgroundKind, backgroundExtension, backgroundKind } from "@/lib/background";
 import { audioDuration } from "@/lib/trackLength";
 import jszip from "jszip";
@@ -78,6 +78,7 @@ export interface BackgroundInput {
 
 export interface FfmpegParamsOptions {
   background: BackgroundInput | null;
+  backgroundFit?: BackgroundFit;
   backgroundColor: string;
   frame: RenderFrame;
   audioDelayMs: number;
@@ -97,19 +98,32 @@ export interface FfmpegParamsOptions {
 function backgroundSource(
   background: BackgroundInput | null,
   {
+    backgroundFit,
     backgroundColor,
     width,
     height,
     frameRate,
     heldSeconds,
     videoOffset,
-  }: RenderFrame & { backgroundColor: string; heldSeconds: number; videoOffset: number },
+  }: RenderFrame & {
+    backgroundFit: BackgroundFit;
+    backgroundColor: string;
+    heldSeconds: number;
+    videoOffset: number;
+  },
 ): { input: string[]; filters: string[] } {
-  // The background covers the frame and is cropped to it, as the preview shows it.
-  const cover = [
-    `scale=${width}:${height}:force_original_aspect_ratio=increase`,
-    `crop=${width}:${height}`,
-  ];
+  // As the preview shows it: either covering the frame and cropped to it, or whole and centered.
+  const cover =
+    backgroundFit === "fit"
+      ? [
+          // Chroma is subsampled, so an odd size or offset would shift the colors by a pixel.
+          `scale=${width}:${height}:force_original_aspect_ratio=decrease:force_divisible_by=2`,
+          `pad=${width}:${height}:(ow-iw)/2:(oh-ih)/2:color=${backgroundColor}`,
+        ]
+      : [
+          `scale=${width}:${height}:force_original_aspect_ratio=increase`,
+          `crop=${width}:${height}`,
+        ];
   if (background?.kind === "video") {
     return {
       // A video shorter than the song loops, and -t cuts a longer one.
@@ -140,6 +154,7 @@ function backgroundSource(
 
 export function getFfmpegParams({
   background: backgroundInput,
+  backgroundFit = "fill",
   backgroundColor,
   frame: { width, height, frameRate },
   audioDelayMs,
@@ -150,6 +165,7 @@ export function getFfmpegParams({
   // Rounded, so the filters don't carry float noise such as 2.7500000000000004.
   const heldSeconds = Number((audioDelayMs / 1000 + Math.max(0, videoOffset)).toFixed(3));
   const background = backgroundSource(backgroundInput, {
+    backgroundFit,
     backgroundColor,
     width,
     height,
@@ -486,6 +502,7 @@ async function createVideo({
 
     const ffmpegParams = getFfmpegParams({
       background: backgroundInput,
+      backgroundFit: videoOptions.backgroundFit,
       backgroundColor,
       frame: { ...RESOLUTIONS[videoOptions.resolution], frameRate: videoOptions.frameRate },
       audioDelayMs,

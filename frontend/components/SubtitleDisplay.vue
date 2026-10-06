@@ -1,9 +1,16 @@
 <template>
   <div class="video-container">
-    <img v-if="backgroundKind === 'image'" class="background" :src="backgroundUrl" alt="" />
+    <img
+      v-if="backgroundKind === 'image'"
+      class="background"
+      :style="backgroundStyle"
+      :src="backgroundUrl"
+      alt=""
+    />
     <video
       v-else-if="backgroundKind === 'video'"
       class="background"
+      :style="backgroundStyle"
       ref="video"
       :src="backgroundUrl"
       muted
@@ -25,10 +32,11 @@
 /* A component that displays an .ass file */
 
 import { throttle, mapKeys, isEqual } from "lodash-es";
-import { defineComponent, markRaw } from "vue";
+import { defineComponent, markRaw, PropType } from "vue";
 import SubtitlesOctopus from "libass-wasm";
 import { syncBackgroundVideo } from "@/lib/backgroundVideo";
 import { BackgroundKind, backgroundKind } from "@/lib/background";
+import type { BackgroundFit } from "@/lib/timing";
 
 // Minimal valid ASS file, used when there are no subtitles yet (e.g. the
 // preview is shown before timings exist). SubtitlesOctopus can't handle an
@@ -56,6 +64,10 @@ export default defineComponent({
     backgroundColor: {
       type: String,
       default: "#000000",
+    },
+    backgroundFit: {
+      type: String as PropType<BackgroundFit>,
+      default: "fill",
     },
     // An image or a video.
     background: {
@@ -89,6 +101,12 @@ export default defineComponent({
     };
   },
   computed: {
+    // The render pads a fitted background with the background color.
+    backgroundStyle(): Record<string, string> {
+      return this.backgroundFit === "fit"
+        ? { objectFit: "contain", backgroundColor: this.backgroundColor }
+        : {};
+    },
     backgroundKind(): BackgroundKind | null {
       return this.background ? backgroundKind(this.background) : null;
     },

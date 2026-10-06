@@ -14,6 +14,8 @@ import {
   FRAME_RATES,
   OutputFormat,
   OUTPUT_FORMATS,
+  BackgroundFit,
+  BACKGROUND_FITS,
   Resolution,
   RESOLUTIONS,
   VerticalAlignment,
@@ -135,6 +137,7 @@ const KNOWN_VIDEO_OPTIONS = [
   "countInText",
   "instrumentalThreshold",
   "outputFormat",
+  "backgroundFit",
   "resolution",
   "frameRate",
   "verticalAlignment",
@@ -303,6 +306,23 @@ function readOutputFormat(
   return normalized as OutputFormat;
 }
 
+function readBackgroundFit(
+  value: unknown,
+  path: string,
+  warnings: string[],
+): BackgroundFit | undefined {
+  const name = readString(value, path, warnings);
+  if (name === undefined) return undefined;
+  const normalized = name.trim().toLowerCase();
+  if (!BACKGROUND_FITS.some((fit) => fit === normalized)) {
+    warnings.push(
+      `${path}: expected ${BACKGROUND_FITS.join(" or ")}, ignoring ${JSON.stringify(value)}`,
+    );
+    return undefined;
+  }
+  return normalized as BackgroundFit;
+}
+
 // A hand-written file may well give the height alone, as in `resolution: 1080`.
 function readResolution(value: unknown, path: string, warnings: string[]): Resolution | undefined {
   const name = typeof value === "number" ? `${value}p` : readString(value, path, warnings);
@@ -458,6 +478,9 @@ function parseVideoOptions(raw: unknown, warnings: string[]): Partial<VideoSetti
 
   const outputFormat = readOutputFormat(raw.outputFormat, "videoOptions.outputFormat", warnings);
   if (outputFormat !== undefined) options.outputFormat = outputFormat;
+
+  const fit = readBackgroundFit(raw.backgroundFit, "videoOptions.backgroundFit", warnings);
+  if (fit !== undefined) options.backgroundFit = fit;
 
   const resolution = readResolution(raw.resolution, "videoOptions.resolution", warnings);
   if (resolution !== undefined) options.resolution = resolution;

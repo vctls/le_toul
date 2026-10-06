@@ -38,6 +38,7 @@ const DEFAULT_OPTIONS: KaraokeOptions = {
   addStaggeredLines: true,
   useStoredDisplayPeriods: true,
   useBackground: false,
+  backgroundFit: "fill",
   outputFormat: "mp4",
   resolution: "1080p",
   frameRate: 30,
