@@ -27,9 +27,6 @@ async function mockSyncApi(
 ): Promise<{ sent: unknown[][]; leads: unknown[]; audioNames: string[] }> {
   const requests = { sent: [] as unknown[][], leads: [] as unknown[], audioNames: [] as string[] };
   let count = 0;
-  await context.route("**/alignment/available", (route) =>
-    route.fulfill({ contentType: "application/json", body: JSON.stringify({ available: true }) }),
-  );
   await context.route("**/align_track", async (route, request) => {
     const body = request.postDataBuffer()?.toString() ?? "";
     const json = body.match(/name="request"\r\n\r\n([\s\S]*?)\r\n--/)?.[1] ?? "{}";
@@ -60,7 +57,11 @@ async function mockSyncApi(
 }
 
 test.describe("Syncing automatically", () => {
-  test.beforeEach(async ({ page }) => {
+  test.beforeEach(async ({ page, context }) => {
+    // The page asks whether it can sync once, as it loads, so this must come before it opens.
+    await context.route("**/alignment/available", (route) =>
+      route.fulfill({ contentType: "application/json", body: JSON.stringify({ available: true }) }),
+    );
     await setupTestEnvironment(page);
   });
 
