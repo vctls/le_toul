@@ -101,11 +101,12 @@ export default defineComponent({
     };
   },
   computed: {
-    // The render pads a fitted background with the background color.
+    // The background color fills the bars and shows through a transparent image, as in the render.
     backgroundStyle(): Record<string, string> {
-      return this.backgroundFit === "fit"
-        ? { objectFit: "contain", backgroundColor: this.backgroundColor }
-        : {};
+      return {
+        backgroundColor: this.backgroundColor,
+        ...(this.backgroundFit === "fit" ? { objectFit: "contain" } : {}),
+      };
     },
     backgroundKind(): BackgroundKind | null {
       return this.background ? backgroundKind(this.background) : null;

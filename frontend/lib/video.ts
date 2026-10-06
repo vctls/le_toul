@@ -91,6 +91,14 @@ export interface FfmpegParamsOptions {
   metadata: VideoMetadata;
 }
 
+// An image goes through chains of its own first, and `head` names their outputs.
+interface BackgroundSource {
+  input: string[];
+  chains?: string[];
+  head?: string;
+  filters: string[];
+}
+
 /**
  * The input arguments and the filters that turn the background into frames of the video's size
  * and rate, before the subtitles go over them.
@@ -111,7 +119,14 @@ function backgroundSource(
     heldSeconds: number;
     videoOffset: number;
   },
-): { input: string[]; filters: string[] } {
+): BackgroundSource {
+  const scaled =
+    backgroundFit === "fit"
+      ? [`scale=${width}:${height}:force_original_aspect_ratio=decrease:force_divisible_by=2`]
+      : [
+          `scale=${width}:${height}:force_original_aspect_ratio=increase`,
+          `crop=${width}:${height}`,
+        ];
   // As the preview shows it: either covering the frame and cropped to it, or whole and centered.
   const cover =
     backgroundFit === "fit"
@@ -141,9 +156,17 @@ function backgroundSource(
   if (background?.kind === "image") {
     return {
       input: [...SINGLE_THREAD_DECODE, "-i", background.fileName],
-      // The still is decoded and scaled once, then repeated. An input -loop would decode it again
-      // for every frame.
-      filters: [...cover, "loop=loop=-1:size=1", `fps=${frameRate}`],
+      // Laid over the background color, which fills the bars and shows through any transparency.
+      // Converting to the video's pixel format would otherwise drop the alpha and show whatever
+      // color the image stores under it.
+      chains: [
+        `[0:v]${scaled.join(",")}[img]`,
+        `color=c=${backgroundColor}:s=${width}x${height}[base]`,
+      ],
+      head: "[base][img]",
+      // The still is decoded, scaled and laid over once, then repeated. An input -loop would decode
+      // it again for every frame.
+      filters: ["overlay=(W-w)/2:(H-h)/2:shortest=1", "loop=loop=-1:size=1", `fps=${frameRate}`],
     };
   }
   return {
@@ -174,7 +197,8 @@ export function getFfmpegParams({
     videoOffset,
   });
   const filterGraph = [
-    `[0:v]${[...background.filters, "ass=subtitles.ass:fontsdir=/tmp"].join(",")}[vout]`,
+    ...(background.chains ?? []),
+    `${background.head ?? "[0:v]"}${[...background.filters, "ass=subtitles.ass:fontsdir=/tmp"].join(",")}[vout]`,
     `[1:a]adelay=delays=${audioDelayMs}:all=1[aout]`,
   ].join(";");
 

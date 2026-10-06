@@ -71,8 +71,15 @@ describe("getFfmpegParams", () => {
 
   // The filters the background goes through before the subtitles, in order.
   function videoFilters(args: string[]): string[] {
-    const graph = valueOf(args, "-filter_complex")!;
-    return graph.match(/^\[0:v\](.*?)\[vout\]/)![1].split(",");
+    const chain = graphChains(args).find((each) => each.endsWith("[vout]"))!;
+    return chain
+      .replace(/^(\[[^\]]+\])+/, "")
+      .replace(/\[vout\]$/, "")
+      .split(",");
+  }
+
+  function graphChains(args: string[]): string[] {
+    return valueOf(args, "-filter_complex")!.split(";");
   }
 
   it.each([
@@ -128,31 +135,32 @@ describe("getFfmpegParams", () => {
   ])("covers a %ix%i frame with the background image at %i fps", (width, height, frameRate) => {
     const args = params({ background: IMAGE, frame: { width, height, frameRate } });
 
-    expect(videoFilters(args)).toEqual([
-      `scale=${width}:${height}:force_original_aspect_ratio=increase`,
-      `crop=${width}:${height}`,
-      "loop=loop=-1:size=1",
-      `fps=${frameRate}`,
-      "ass=subtitles.ass:fontsdir=/tmp",
+    expect(graphChains(args).slice(0, 3)).toEqual([
+      `[0:v]scale=${width}:${height}:force_original_aspect_ratio=increase,crop=${width}:${height}[img]`,
+      `color=c=0x101010:s=${width}x${height}[base]`,
+      `[base][img]overlay=(W-w)/2:(H-h)/2:shortest=1,loop=loop=-1:size=1,fps=${frameRate},` +
+        "ass=subtitles.ass:fontsdir=/tmp[vout]",
     ]);
   });
 
-  it.each([
-    ["video", VIDEO],
-    ["image", IMAGE],
-  ])(
-    "fits the whole background %s in the frame, with bars in the background color",
-    (_, background) => {
-      const filters = videoFilters(params({ background, backgroundFit: "fit" }));
+  it("fits the whole background video in the frame, with bars in the background color", () => {
+    const filters = videoFilters(params({ background: VIDEO, backgroundFit: "fit" }));
 
-      const scale = filters.findIndex((filter) => filter.startsWith("scale="));
-      expect(filters.slice(scale, scale + 2)).toEqual([
-        "scale=1920:1080:force_original_aspect_ratio=decrease:force_divisible_by=2",
-        "pad=1920:1080:(ow-iw)/2:(oh-ih)/2:color=0x101010",
-      ]);
-      expect(filters).not.toContainEqual(expect.stringMatching(/^crop/));
-    },
-  );
+    expect(filters.slice(1, 3)).toEqual([
+      "scale=1920:1080:force_original_aspect_ratio=decrease:force_divisible_by=2",
+      "pad=1920:1080:(ow-iw)/2:(oh-ih)/2:color=0x101010",
+    ]);
+    expect(filters).not.toContainEqual(expect.stringMatching(/^crop/));
+  });
+
+  it("fits the whole background image over the background color, which fills the bars", () => {
+    const args = params({ background: IMAGE, backgroundFit: "fit" });
+
+    expect(graphChains(args)[0]).toBe(
+      "[0:v]scale=1920:1080:force_original_aspect_ratio=decrease:force_divisible_by=2[img]",
+    );
+    expect(videoFilters(args)[0]).toBe("overlay=(W-w)/2:(H-h)/2:shortest=1");
+  });
 
   it("decodes the background image once, on a single thread", () => {
     const args = params({ background: IMAGE, audioDelayMs: 2500, videoOffset: 1 });
