@@ -27,6 +27,13 @@ describe("CreateVideoButton", () => {
     expect(wrapper.find("button").attributes("style")).toContain("--progress: 42%");
   });
 
+  it("shows no message while the video renders, only its progress", () => {
+    const wrapper = mountButton({ phase: CreationPhase.CreatingVideo, progress: 0.5 });
+
+    expect(wrapper.find("b-message").exists()).toBe(false);
+    expect(wrapper.find(".progress-label").text()).toBe("Creating video: 50%");
+  });
+
   it("says the video is waiting on a separation that was already running", () => {
     const wrapper = mountButton({ waitingForSeparation: true });
 

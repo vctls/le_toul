@@ -1,10 +1,10 @@
 <template>
   <div class="create-video-button">
     <b-message
-      v-if="submitting"
-      :type="messageType"
+      v-if="submitting && isSeparating"
+      type="is-info"
       has-icon
-      :icon="messageIcon"
+      icon="stopwatch"
       icon-size="is-small"
       :closable="false"
     >
@@ -92,16 +92,7 @@ export default defineComponent({
     isSeparating(): boolean {
       return this.phase == CreationPhase.SeparatingVocals;
     },
-    messageType(): string {
-      return this.isSeparating ? "is-info" : "is-success";
-    },
-    messageIcon(): string {
-      return this.isSeparating ? "stopwatch" : "wand-magic-sparkles";
-    },
     message(): string {
-      if (!this.isSeparating) {
-        return "Creating your karaoke video. This might take a few minutes.";
-      }
       if (this.waitingForSeparation) {
         return "Waiting for the track separation. Your video will start rendering as soon as it finishes.";
       }
