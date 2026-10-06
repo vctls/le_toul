@@ -1,6 +1,14 @@
 <template>
   <div class="video-container">
-    <video class="background-video" v-if="videoBlob" ref="video" :src="videoDataUrl" />
+    <video
+      class="background-video"
+      v-if="videoBlob"
+      ref="video"
+      :src="videoDataUrl"
+      muted
+      loop
+      playsinline
+    />
     <canvas
       class="subtitle-canvas"
       ref="subtitleCanvas"
@@ -18,6 +26,7 @@
 import { throttle, mapKeys, isEqual } from "lodash-es";
 import { defineComponent, markRaw } from "vue";
 import SubtitlesOctopus from "libass-wasm";
+import { syncBackgroundVideo } from "@/lib/backgroundVideo";
 
 // Minimal valid ASS file, used when there are no subtitles yet (e.g. the
 // preview is shown before timings exist). SubtitlesOctopus can't handle an
@@ -60,6 +69,7 @@ export default defineComponent({
     return {
       subtitleManager: null as SubtitlesOctopus | null,
       currentTime: null as number | null,
+      isPlaying: false,
       // The display stays mounted when its tab is hidden, but the subtitles keep changing (every
       // timing tap regenerates them). While hidden we only remember the latest version and hand it to
       // the renderer when the display becomes visible again. Nothing here is rendered, hence markRaw.
@@ -88,8 +98,8 @@ export default defineComponent({
     },
   },
   created() {
-    // Chrome video stutters when currentTime is set frequently, so we throttle it to 15fps
-    this.setVideoPlayhead = throttle(this.setVideoPlayhead, 1000 / 15);
+    // Scrubbing seeks the video, and Chrome stutters when it seeks more often than this.
+    this.syncVideo = throttle(this.syncVideo, 1000 / 15);
   },
   mounted() {
     // The worker renders at the canvas's bitmap size, fixed when it starts,
@@ -193,19 +203,26 @@ export default defineComponent({
     },
     setPlayhead(playhead: number) {
       this.currentTime = playhead;
-      this.setVideoPlayhead(Math.max(0, playhead - this.audioDelay));
+      this.syncVideo(playhead);
     },
-    setVideoPlayhead(playhead: number) {
+    syncVideo(playhead: number) {
       const video = this.$refs.video as HTMLVideoElement | undefined;
       if (video) {
-        video.currentTime = playhead;
+        syncBackgroundVideo(video, playhead, {
+          audioDelay: this.audioDelay,
+          isPlaying: this.isPlaying,
+        });
       }
     },
     pause() {
       this.subtitleManager?.setIsPaused(true, this.currentTime);
+      this.isPlaying = false;
+      this.syncVideo(this.currentTime ?? 0);
     },
     play() {
       this.subtitleManager?.setIsPaused(false, this.currentTime);
+      this.isPlaying = true;
+      this.syncVideo(this.currentTime ?? 0);
     },
   },
 });

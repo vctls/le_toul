@@ -16,6 +16,7 @@
         controls
         @timeupdate="onAudioTimeUpdate"
         @play="onAudioPlaying"
+        @playing="onAudioResumed"
         @pause="onAudioPause"
         @seeking="onAudioSeeking"
         @seeked="onAudioSeeked"
@@ -250,6 +251,11 @@ export default defineComponent({
     onAudioPlaying() {
       this.subtitleDisplayRef()?.play();
       this.$emit("playing");
+    },
+
+    // Playback that resumes after a stall fires `playing` without `play`.
+    onAudioResumed() {
+      this.subtitleDisplayRef()?.play();
     },
 
     onAudioPause() {

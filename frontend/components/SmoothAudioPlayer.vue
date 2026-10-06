@@ -4,6 +4,7 @@
     v-bind="$attrs"
     @play="startTimeUpdateLoop($event)"
     @pause="onPause"
+    @playing="$emit('playing', $event)"
     @seeking="$emit('seeking', $event)"
     @seeked="$emit('seeked', $event)"
     @waiting="$emit('waiting', $event)"
@@ -18,7 +19,7 @@ import { registerPlayer } from "@/lib/exclusivePlayback";
 
 export default defineComponent({
   inheritAttrs: false,
-  emits: ["timeupdate", "seeking", "error", "play", "pause", "seeked", "waiting"],
+  emits: ["timeupdate", "seeking", "error", "play", "playing", "pause", "seeked", "waiting"],
   setup() {
     const audioPlayer = ref<HTMLAudioElement | null>(null);
     return { audioPlayer };
