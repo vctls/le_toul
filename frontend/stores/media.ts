@@ -13,6 +13,7 @@ import {
   takeLegacyBlob,
 } from "@/lib/persistence";
 import { useLyricsLookupStore } from "@/stores/lyricsLookup";
+import { useSettingsStore } from "@/stores/settings";
 import {
   BACKING_VOCALS_SEPARATOR_MODEL,
   NO_VOCALS_SEPARATOR_MODEL,
@@ -34,7 +35,7 @@ const MEDIA_LOCALSTORAGE_KEYS = [
 ];
 const MEDIA_IDB_KEYS = [
   "media.songFile",
-  "media.backgroundVideo",
+  "media.background",
   "media.trackPairs",
   "media.timingsFile",
   "media.lyricsFile",
@@ -112,8 +113,8 @@ export const useMediaStore = defineStore("media", () => {
   // The mixed song file (uploaded by user)
   const songFile = shallowRef<File | null>(null);
 
-  // Background video (if the song is from YouTube)
-  const backgroundVideo = shallowRef<Blob | null>(null);
+  // The image or video behind the lyrics, from a YouTube download or picked on the Submit tab.
+  const background = shallowRef<Blob | null>(null);
   // Seconds the background video is moved against the backing track, which need not come from
   // the video's own audio. A positive offset delays the video, and a negative one skips its start.
   const backgroundVideoOffset = ref(0);
@@ -371,6 +372,16 @@ export const useMediaStore = defineStore("media", () => {
   }
 
   /**
+   * Brings back the background older versions saved, which was always a YouTube download's video.
+   */
+  async function restoreLegacyBackground() {
+    const legacy = await takeLegacyBlob<Blob>("media.backgroundVideo");
+    if (legacy && !background.value) {
+      background.value = new File([legacy], "video.mp4", { type: legacy.type || "video/mp4" });
+    }
+  }
+
+  /**
    * Brings back the single pair older versions saved. The model that made it was not saved,
    * so it goes to the model picked at the time, or to the uploaded files if there were any.
    */
@@ -497,12 +508,15 @@ export const useMediaStore = defineStore("media", () => {
     { flush: "sync" },
   );
 
-  // The offset lines up one particular video, so it starts over with each new background.
+  // A new background is one the user wants to see, and the offset lines up the video it replaces.
   watch(
-    backgroundVideo,
-    () => {
+    background,
+    (newBackground) => {
       if (isHydrating) return;
       backgroundVideoOffset.value = 0;
+      if (newBackground) {
+        useSettingsStore().videoOptions.useBackground = true;
+      }
     },
     { flush: "sync" },
   );
@@ -520,7 +534,7 @@ export const useMediaStore = defineStore("media", () => {
   // Blobs → IndexedDB (async load)
   Promise.all([
     persistBlobRef("media.songFile", songFile),
-    persistBlobRef("media.backgroundVideo", backgroundVideo),
+    persistBlobRef("media.background", background),
     persistBlobRef("media.trackPairs", trackPairs),
     persistBlobRef("media.timingsFile", timingsFile),
     persistBlobRef("media.lyricsFile", lyricsFile),
@@ -529,7 +543,7 @@ export const useMediaStore = defineStore("media", () => {
     persistBlobRef("media.settingsFile", settingsFile),
     persistBlobRef("media.kbpFile", kbpFile),
   ])
-    .then(restoreLegacyTrack)
+    .then(() => Promise.all([restoreLegacyTrack(), restoreLegacyBackground()]))
     .finally(() => {
       isHydrating = false;
       resumeRunningSeparation();
@@ -538,7 +552,7 @@ export const useMediaStore = defineStore("media", () => {
   async function clearSession(): Promise<void> {
     cancelSeparation();
     songFile.value = null;
-    backgroundVideo.value = null;
+    background.value = null;
     backgroundVideoOffset.value = 0;
     trackPairs.value = null;
     renderTrackSource.value = null;
@@ -565,7 +579,7 @@ export const useMediaStore = defineStore("media", () => {
   return {
     // Media files
     songFile,
-    backgroundVideo,
+    background,
     backgroundVideoOffset,
     timingsFile,
     lyricsFile,

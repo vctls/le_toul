@@ -4,6 +4,7 @@ import { fetchFile, toBlobURL } from "@ffmpeg/util";
 
 import { RenderDiagnostics } from "@/lib/renderDiagnostics";
 import { KaraokeOptions, RESOLUTIONS } from "@/lib/timing";
+import { BackgroundKind, backgroundExtension, backgroundKind } from "@/lib/background";
 import { audioDuration } from "@/lib/trackLength";
 import jszip from "jszip";
 
@@ -69,8 +70,14 @@ export interface RenderFrame {
   frameRate: number;
 }
 
+// The background file as written to FFmpeg's filesystem, or none for a plain color.
+export interface BackgroundInput {
+  kind: BackgroundKind;
+  fileName: string;
+}
+
 export interface FfmpegParamsOptions {
-  hasVideo: boolean;
+  background: BackgroundInput | null;
   backgroundColor: string;
   frame: RenderFrame;
   audioDelayMs: number;
@@ -83,8 +90,56 @@ export interface FfmpegParamsOptions {
   metadata: VideoMetadata;
 }
 
+/**
+ * The input arguments and the filters that turn the background into frames of the video's size
+ * and rate, before the subtitles go over them.
+ */
+function backgroundSource(
+  background: BackgroundInput | null,
+  {
+    backgroundColor,
+    width,
+    height,
+    frameRate,
+    heldSeconds,
+    videoOffset,
+  }: RenderFrame & { backgroundColor: string; heldSeconds: number; videoOffset: number },
+): { input: string[]; filters: string[] } {
+  // The background covers the frame and is cropped to it, as the preview shows it.
+  const cover = [
+    `scale=${width}:${height}:force_original_aspect_ratio=increase`,
+    `crop=${width}:${height}`,
+  ];
+  if (background?.kind === "video") {
+    return {
+      // A video shorter than the song loops, and -t cuts a longer one.
+      input: ["-stream_loop", "-1", ...BACKGROUND_DECODE_THREADS, "-i", background.fileName],
+      filters: [
+        // An input -ss would be simpler, but with -stream_loop the first loop then ends early.
+        ...(videoOffset < 0 ? [`trim=start=${-videoOffset}`, "setpts=PTS-STARTPTS"] : []),
+        `fps=${frameRate}`,
+        ...cover,
+        // Its first frame repeats during the title delay and any delay of its own.
+        `tpad=start_duration=${heldSeconds}:start_mode=clone`,
+      ],
+    };
+  }
+  if (background?.kind === "image") {
+    return {
+      input: [...SINGLE_THREAD_DECODE, "-i", background.fileName],
+      // The still is decoded and scaled once, then repeated. An input -loop would decode it again
+      // for every frame.
+      filters: [...cover, "loop=loop=-1:size=1", `fps=${frameRate}`],
+    };
+  }
+  return {
+    input: ["-f", "lavfi", "-i", `color=c=${backgroundColor}:s=${width}x${height}:r=${frameRate}`],
+    filters: [],
+  };
+}
+
 export function getFfmpegParams({
-  hasVideo,
+  background: backgroundInput,
   backgroundColor,
   frame: { width, height, frameRate },
   audioDelayMs,
@@ -94,30 +149,14 @@ export function getFfmpegParams({
 }: FfmpegParamsOptions) {
   // Rounded, so the filters don't carry float noise such as 2.7500000000000004.
   const heldSeconds = Number((audioDelayMs / 1000 + Math.max(0, videoOffset)).toFixed(3));
-  const background = hasVideo
-    ? {
-        // A video shorter than the song loops, and -t cuts a longer one.
-        input: ["-stream_loop", "-1", ...BACKGROUND_DECODE_THREADS, "-i", "video.mp4"],
-        filters: [
-          // An input -ss would be simpler, but with -stream_loop the first loop then ends early.
-          ...(videoOffset < 0 ? [`trim=start=${-videoOffset}`, "setpts=PTS-STARTPTS"] : []),
-          `fps=${frameRate}`,
-          // The video covers the frame and is cropped to it, as the preview shows it.
-          `scale=${width}:${height}:force_original_aspect_ratio=increase`,
-          `crop=${width}:${height}`,
-          // Its first frame repeats during the title delay and any delay of its own.
-          `tpad=start_duration=${heldSeconds}:start_mode=clone`,
-        ],
-      }
-    : {
-        input: [
-          "-f",
-          "lavfi",
-          "-i",
-          `color=c=${backgroundColor}:s=${width}x${height}:r=${frameRate}`,
-        ],
-        filters: [],
-      };
+  const background = backgroundSource(backgroundInput, {
+    backgroundColor,
+    width,
+    height,
+    frameRate,
+    heldSeconds,
+    videoOffset,
+  });
   const filterGraph = [
     `[0:v]${[...background.filters, "ass=subtitles.ass:fontsdir=/tmp"].join(",")}[vout]`,
     `[1:a]adelay=delays=${audioDelayMs}:all=1[aout]`,
@@ -327,7 +366,8 @@ export interface CreateVideoOptions {
   metadata: VideoMetadata;
   // Every font the subtitles use, keyed by family name.
   fontMap: Record<string, string>;
-  backgroundVideo?: Blob | null;
+  // An image or a video.
+  background?: Blob | null;
   backgroundVideoOffset?: number;
   audioDelay?: number;
   alternateTracks?: AlternateAudioTracks | null;
@@ -341,7 +381,7 @@ async function createVideo({
   videoOptions,
   metadata,
   fontMap,
-  backgroundVideo = null,
+  background = null,
   backgroundVideoOffset = 0,
   audioDelay = 0,
   alternateTracks = null,
@@ -433,12 +473,19 @@ async function createVideo({
 
     await ffmpeg.writeFile("subtitles.ass", subtitles);
 
-    if (backgroundVideo) {
-      await ffmpeg.writeFile("video.mp4", await fetchFile(backgroundVideo));
+    // ffmpeg picks a demuxer partly by extension.
+    const backgroundInput = background
+      ? {
+          kind: backgroundKind(background),
+          fileName: `background.${backgroundExtension(background)}`,
+        }
+      : null;
+    if (background && backgroundInput) {
+      await ffmpeg.writeFile(backgroundInput.fileName, await fetchFile(background));
     }
 
     const ffmpegParams = getFfmpegParams({
-      hasVideo: Boolean(backgroundVideo),
+      background: backgroundInput,
       backgroundColor,
       frame: { ...RESOLUTIONS[videoOptions.resolution], frameRate: videoOptions.frameRate },
       audioDelayMs,

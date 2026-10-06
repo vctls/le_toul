@@ -78,7 +78,7 @@ export interface KaraokeOptions {
   addStaggeredLines: boolean;
   // When this is off, every line follows the automatic rules, but the stored periods are kept.
   useStoredDisplayPeriods: boolean;
-  useBackgroundVideo: boolean;
+  useBackground: boolean;
   outputFormat: OutputFormat;
   resolution: Resolution;
   frameRate: FrameRate;
@@ -122,7 +122,7 @@ export const DEFAULT_KARAOKE_OPTIONS: KaraokeOptions = {
   instrumentalThreshold: DEFAULT_INSTRUMENTAL_THRESHOLD,
   addStaggeredLines: true,
   useStoredDisplayPeriods: true,
-  useBackgroundVideo: false,
+  useBackground: false,
   outputFormat: "mp4",
   resolution: DEFAULT_RESOLUTION,
   frameRate: DEFAULT_FRAME_RATE,

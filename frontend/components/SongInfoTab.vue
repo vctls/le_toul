@@ -315,6 +315,12 @@
         v-bind="replacementPrompt.files"
       />
     </confirm-modal>
+    <background-replacement-modal
+      v-model="isConfirmingBackground"
+      :current="mediaStore.background ?? undefined"
+      :replacement="pendingBackground"
+      @confirm="mediaStore.background = pendingBackground"
+    />
   </b-tab-item>
 </template>
 
@@ -347,6 +353,7 @@ import FolderUpload from "@/components/FolderUpload.vue";
 import CircularProgress from "@/components/CircularProgress.vue";
 import SourceFileDownloadLinks from "@/components/SourceFileDownloadLinks.vue";
 import ConfirmModal from "@/components/ConfirmModal.vue";
+import BackgroundReplacementModal from "@/components/BackgroundReplacementModal.vue";
 import ViewportTooltip from "@/components/ViewportTooltip.vue";
 import { CANCEL_ARMING_DELAY_MS } from "@/constants";
 
@@ -374,6 +381,7 @@ interface FolderLosses {
     settings?: string;
     font?: File;
     tracks?: TrackPair[];
+    background?: Blob;
   };
 }
 
@@ -405,6 +413,7 @@ export default defineComponent({
     CircularProgress,
     SourceFileDownloadLinks,
     ConfirmModal,
+    BackgroundReplacementModal,
     ViewportTooltip,
   },
   setup() {
@@ -432,6 +441,8 @@ export default defineComponent({
       SEPARATION_MODEL_GROUPS,
       isConfirmingSeparation: false,
       isConfirmingReplacement: false,
+      isConfirmingBackground: false,
+      pendingBackground: null as File | null,
       // Left in place once the prompt closes, so the prompt doesn't lose its text while it fades out.
       // Only confirming applies it.
       pendingReplacement: null as PendingReplacement | null,
@@ -587,8 +598,13 @@ export default defineComponent({
           this.mediaStore.songArtist = parsedMetadata[0];
           this.mediaStore.songTitle = parsedMetadata[1];
 
-          // Update the media store
-          this.mediaStore.backgroundVideo = videoBlob;
+          const video = new File([videoBlob], "video.mp4", { type: "video/mp4" });
+          if (this.mediaStore.background) {
+            this.pendingBackground = video;
+            this.isConfirmingBackground = true;
+          } else {
+            this.mediaStore.background = video;
+          }
         } catch (e) {
           console.error(e);
           let errorMessage = e instanceof Error ? e.message : String(e);
@@ -914,6 +930,10 @@ export default defineComponent({
         losses.labels.push("font");
         losses.files.font = this.settingsStore.customFont;
       }
+      if (project.background && this.mediaStore.background) {
+        losses.labels.push("background");
+        losses.files.background = this.mediaStore.background;
+      }
       if (includeSettings && project.settings) {
         losses.labels.push("settings");
         losses.files.settings = this.settingsStore.settingsYaml;
@@ -973,6 +993,13 @@ export default defineComponent({
             // The song's own tags land on the title and artist a moment later. Let them,
             // before the settings file puts the project's own values back.
             await this.mediaStore.metadataSettled();
+          });
+        }
+        // A new background resets the video's offset, which the settings file then puts back.
+        if (project.background) {
+          const background = project.background;
+          await apply("the background", background, () => {
+            this.mediaStore.background = background;
           });
         }
         if (project.settings) {

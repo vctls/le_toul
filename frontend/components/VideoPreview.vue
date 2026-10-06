@@ -9,7 +9,7 @@
         :videoOffset="videoOffset"
         :fonts="fonts"
         :backgroundColor="backgroundColor"
-        :videoBlob="videoBlob"
+        :background="background"
       />
       <smooth-audio-player
         ref="player"
@@ -69,7 +69,7 @@ export default defineComponent({
       type: String,
       default: "#000000",
     },
-    videoBlob: {
+    background: {
       type: Blob,
       required: false,
     },

@@ -11,7 +11,7 @@
 
 <script lang="ts">
 import { defineComponent, PropType } from "vue";
-import { trackEntries } from "@/lib/projectFolder";
+import { projectBackgroundEntryName, trackEntries } from "@/lib/projectFolder";
 import type { TrackPair } from "@/stores/media";
 
 export default defineComponent({
@@ -27,6 +27,7 @@ export default defineComponent({
     // More fonts, such as the ones uploaded for single voices.
     fonts: { type: Array as PropType<File[]>, default: () => [] },
     tracks: { type: Array as PropType<TrackPair[]>, default: () => [] },
+    background: Blob,
   },
   computed: {
     files(): { name: string; data: Blob | string }[] {
@@ -39,6 +40,9 @@ export default defineComponent({
         ...(this.settings ? [{ name: "settings.yaml", data: this.settings }] : []),
         ...allFonts.map((font) => ({ name: font.name, data: font })),
         ...trackEntries(this.tracks).map((track) => ({ name: track.name, data: track.blob })),
+        ...(this.background
+          ? [{ name: projectBackgroundEntryName(this.background), data: this.background }]
+          : []),
       ];
     },
   },

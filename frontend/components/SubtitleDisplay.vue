@@ -1,10 +1,11 @@
 <template>
   <div class="video-container">
+    <img v-if="backgroundKind === 'image'" class="background" :src="backgroundUrl" alt="" />
     <video
-      class="background-video"
-      v-if="videoBlob"
+      v-else-if="backgroundKind === 'video'"
+      class="background"
       ref="video"
-      :src="videoDataUrl"
+      :src="backgroundUrl"
       muted
       loop
       playsinline
@@ -13,7 +14,7 @@
       class="subtitle-canvas"
       ref="subtitleCanvas"
       :style="{
-        backgroundColor: videoBlob ? 'transparent' : backgroundColor,
+        backgroundColor: background ? 'transparent' : backgroundColor,
       }"
     >
     </canvas>
@@ -27,6 +28,7 @@ import { throttle, mapKeys, isEqual } from "lodash-es";
 import { defineComponent, markRaw } from "vue";
 import SubtitlesOctopus from "libass-wasm";
 import { syncBackgroundVideo } from "@/lib/backgroundVideo";
+import { BackgroundKind, backgroundKind } from "@/lib/background";
 
 // Minimal valid ASS file, used when there are no subtitles yet (e.g. the
 // preview is shown before timings exist). SubtitlesOctopus can't handle an
@@ -55,7 +57,8 @@ export default defineComponent({
       type: String,
       default: "#000000",
     },
-    videoBlob: {
+    // An image or a video.
+    background: {
       type: Blob,
       required: false,
     },
@@ -86,9 +89,12 @@ export default defineComponent({
     };
   },
   computed: {
-    videoDataUrl() {
-      if (this.videoBlob) {
-        return URL.createObjectURL(this.videoBlob);
+    backgroundKind(): BackgroundKind | null {
+      return this.background ? backgroundKind(this.background) : null;
+    },
+    backgroundUrl() {
+      if (this.background) {
+        return URL.createObjectURL(this.background);
       }
       return undefined;
     },
@@ -245,7 +251,7 @@ export default defineComponent({
   aspect-ratio: 16 / 9;
 }
 
-.background-video {
+.background {
   position: absolute;
   top: 0;
   left: 0;

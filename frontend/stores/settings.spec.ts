@@ -30,7 +30,7 @@ describe("Settings Store", () => {
     expect(settingsStore.videoOptions.countInMode).toBe("screen");
     expect(settingsStore.videoOptions.instrumentalThreshold).toBe(8);
     expect(settingsStore.videoOptions.addStaggeredLines).toBe(true);
-    expect(settingsStore.videoOptions.useBackgroundVideo).toBe(false);
+    expect(settingsStore.videoOptions.useBackground).toBe(false);
     expect(settingsStore.videoOptions.outputFormat).toBe("mp4");
     expect(settingsStore.videoOptions.verticalAlignment).toBe(VerticalAlignment.Middle);
     expect(settingsStore.videoOptions.vocalSeparationModel).toBe(BACKING_VOCALS_SEPARATOR_MODEL);
@@ -71,7 +71,7 @@ describe("Settings Store", () => {
       countInMode: "line",
       instrumentalThreshold: 0,
       addStaggeredLines: false,
-      useBackgroundVideo: true,
+      useBackground: true,
       verticalAlignment: VerticalAlignment.Top,
       vocalSeparationModel: NO_VOCALS_SEPARATOR_MODEL,
       font: {
@@ -95,7 +95,7 @@ describe("Settings Store", () => {
     expect(settingsStore.videoOptions.countInMode).toBe("line");
     expect(settingsStore.videoOptions.instrumentalThreshold).toBe(0);
     expect(settingsStore.videoOptions.addStaggeredLines).toBe(false);
-    expect(settingsStore.videoOptions.useBackgroundVideo).toBe(true);
+    expect(settingsStore.videoOptions.useBackground).toBe(true);
     expect(settingsStore.videoOptions.verticalAlignment).toBe(VerticalAlignment.Top);
     expect(settingsStore.videoOptions.vocalSeparationModel).toBe(NO_VOCALS_SEPARATOR_MODEL);
 
@@ -108,6 +108,18 @@ describe("Settings Store", () => {
     expect(settingsStore.videoOptions.color.background.toString()).toBe("#111111");
     expect(settingsStore.videoOptions.color.primary.toString()).toBe("#222222");
     expect(settingsStore.videoOptions.color.secondary.toString()).toBe("#333333");
+  });
+
+  test("reads the background switch saved under its older name", () => {
+    window.localStorage.videoOptions = JSON.stringify({
+      useBackgroundVideo: true,
+      color: { background: "#000000" },
+    });
+
+    const settingsStore = useSettingsStore();
+
+    expect(settingsStore.videoOptions.useBackground).toBe(true);
+    expect(settingsStore.videoOptions).not.toHaveProperty("useBackgroundVideo");
   });
 
   test("should handle invalid localStorage data", () => {
@@ -134,7 +146,7 @@ describe("Settings Store", () => {
       countInMode: "line",
       instrumentalThreshold: 0,
       addStaggeredLines: false,
-      useBackgroundVideo: true,
+      useBackground: true,
       verticalAlignment: VerticalAlignment.Top,
       vocalSeparationModel: NO_VOCALS_SEPARATOR_MODEL,
       font: {

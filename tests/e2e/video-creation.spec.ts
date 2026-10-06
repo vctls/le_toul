@@ -1,4 +1,6 @@
-import { test } from "@playwright/test";
+import { expect, test } from "@playwright/test";
+import fs from "fs/promises";
+import JSZip from "jszip";
 import {
   defaultTestConfig,
   setupTestEnvironment,
@@ -14,6 +16,7 @@ import {
   loadAndEnterTimings,
   expectSuccessMessage,
   expectFileDownload,
+  getFixturePath,
 } from "./utils";
 
 test.describe("Karaoke Track Creation", () => {
@@ -73,5 +76,40 @@ test.describe("Karaoke Track Creation", () => {
     const VIDEO_CREATION_TIMEOUT = 180000; // 3 minutes
     const videoPath = await expectFileDownload(page, VIDEO_CREATION_TIMEOUT);
     console.log("Video download path:", videoPath);
+  });
+
+  test("Create a karaoke video over a background image", async ({ page, context }) => {
+    await mockSeparateTrackApi(context);
+    await navigateToTab(page, TabId.SongInfo);
+    await uploadAudioFile(
+      page,
+      defaultTestConfig.audioFile,
+      defaultTestConfig.artist,
+      defaultTestConfig.title,
+    );
+    await navigateToTab(page, TabId.LyricInput);
+    await loadAndEnterLyrics(page, defaultTestConfig.lyricsFile);
+    await navigateToTab(page, TabId.SongTiming);
+    await loadAndEnterTimings(page, defaultTestConfig.timingsFile);
+    await expectSuccessMessage(page, ".song-timing-tab");
+    await navigateToTab(page, TabId.Submit);
+
+    await page
+      .locator('[name="background-upload"] [type="file"]')
+      .setInputFiles(getFixturePath("background.png"));
+
+    // A new background turns itself on, and the preview shows it.
+    const useBackground = page.locator(".field", { hasText: "Use Background" }).locator("input");
+    await expect(useBackground).toBeChecked();
+    await expect(page.locator(".preview-column img.background")).toBeVisible();
+    // The offset only moves a video.
+    await expect(page.locator(".field", { hasText: "Video Offset" })).toHaveCount(0);
+
+    await page.click('button:has-text("Create Video")');
+    const zipPath = await expectFileDownload(page, 180000);
+
+    const zip = await JSZip.loadAsync(await fs.readFile(zipPath));
+    expect(zip.file("background.png")).not.toBeNull();
+    expect(await zip.file("settings.yaml")!.async("string")).toContain("useBackground: true");
   });
 });

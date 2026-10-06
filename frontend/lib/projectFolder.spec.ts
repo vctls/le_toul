@@ -1,6 +1,7 @@
 import { describe, expect, test } from "vitest";
 import {
   classifyProjectFolder,
+  projectBackgroundEntryName,
   projectSongEntryName,
   trackEntries,
   trackEntryName,
@@ -22,6 +23,7 @@ const EXPORTED_FOLDER = [
   "settings.yaml",
   "MetalMania.ttf",
   "song.mp4",
+  "background.mp4",
   "vocals.wav",
   "backing.wav",
 ].map((name) => file(`project/${name}`));
@@ -41,6 +43,25 @@ describe("classifyProjectFolder", () => {
     expect(project.timings?.name).toBe("timings.txt");
     expect(project.settings?.name).toBe("settings.yaml");
     expect(project.font?.name).toBe("MetalMania.ttf");
+    expect(project.background?.name).toBe("background.mp4");
+  });
+
+  test.each([["background.png"], ["Background.WEBP"], ["background.mkv"]])(
+    "recognizes %s as the background",
+    (name) => {
+      expect(classifyProjectFolder([file(name)]).background?.name).toBe(name);
+    },
+  );
+
+  test("leaves other videos and images alone", () => {
+    const project = classifyProjectFolder([
+      file("intro.mp4"),
+      file("cover.png"),
+      file("background.txt"),
+    ]);
+
+    expect(project.background).toBeUndefined();
+    expect(project.ignored).toEqual(["background.txt", "cover.png", "intro.mp4"]);
   });
 
   test("ignores the rendered video, and the subtitles it can rebuild", () => {
@@ -253,5 +274,16 @@ describe("trackEntries", () => {
       "MDX-Kara-backing.wav",
       "2-MDX-Kara-backing.wav",
     ]);
+  });
+});
+
+describe("projectBackgroundEntryName", () => {
+  test.each([
+    [new File(["x"], "My Clip.MOV", { type: "video/quicktime" }), "background.mov"],
+    [new File(["x"], "sunset.jpeg"), "background.jpeg"],
+    [new Blob(["x"], { type: "image/webp" }), "background.webp"],
+    [new Blob(["x"]), "background.mp4"],
+  ])("names %o after its role, keeping its extension", (background, expected) => {
+    expect(projectBackgroundEntryName(background)).toBe(expected);
   });
 });

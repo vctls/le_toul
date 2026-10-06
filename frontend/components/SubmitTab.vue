@@ -187,10 +187,23 @@
             </viewport-tooltip> </template
           ><b-switch v-model="videoOptions.useStoredDisplayPeriods"></b-switch
         ></b-field>
-        <b-field v-if="videoBlob" horizontal label="Use Background Video">
-          <b-switch v-model="videoOptions.useBackgroundVideo"></b-switch
+        <file-upload
+          horizontal
+          expanded
+          name="background-upload"
+          label="Background"
+          tooltip="An image or video behind the lyrics, in place of the background color. Loading a YouTube video puts its video here."
+          :accept="backgroundExtensions"
+          :model-value="backgroundFile"
+          @update:model-value="onBackgroundSelect"
+        />
+        <b-field v-if="background" horizontal label="Use Background">
+          <b-switch v-model="videoOptions.useBackground"></b-switch
         ></b-field>
-        <b-field v-if="videoBlob && videoOptions.useBackgroundVideo" horizontal>
+        <b-field
+          v-if="background && videoOptions.useBackground && backgroundKind === 'video'"
+          horizontal
+        >
           <template #label>
             Video Offset
             <viewport-tooltip
@@ -502,7 +515,7 @@
           :audio-delay="audioDelay"
           :fonts="fontMap"
           :background-color="videoOptions.color.background.toString()"
-          :video-blob="videoOptions.useBackgroundVideo ? (videoBlob ?? undefined) : undefined"
+          :background="videoOptions.useBackground ? (background ?? undefined) : undefined"
           :video-offset="mediaStore.backgroundVideoOffset"
         />
         <b-message v-else type="is-info" :closable="false"
@@ -547,6 +560,7 @@
           :settings="settingsYaml"
           :font="customFont ?? undefined"
           :tracks="mediaStore.trackPairs ?? []"
+          :background="background ?? undefined"
         />
         <div v-if="advancedStore.isAdvanced && lyricText.trim()" class="kbp-export is-size-7">
           <span>Karaoke Builder Studio</span>
@@ -575,6 +589,12 @@
         </ul>
       </b-message>
     </div>
+    <background-replacement-modal
+      v-model="isConfirmingBackground"
+      :current="background ?? undefined"
+      :replacement="pendingBackground"
+      @confirm="mediaStore.background = pendingBackground"
+    />
   </b-tab-item>
 </template>
 
@@ -601,7 +621,18 @@ import { useAdvancedStore } from "@/stores/advanced";
 import { useLyricsStore } from "@/stores/lyrics";
 import { useFallbackFontsStore } from "@/stores/fallbackFonts";
 import { abortable } from "@/lib/util";
-import { projectSongEntryName, trackEntries } from "@/lib/projectFolder";
+import {
+  projectBackgroundEntryName,
+  projectSongEntryName,
+  trackEntries,
+} from "@/lib/projectFolder";
+import {
+  BACKGROUND_EXTENSIONS,
+  BackgroundKind,
+  backgroundKind,
+  isBackgroundFile,
+} from "@/lib/background";
+import BackgroundReplacementModal from "@/components/BackgroundReplacementModal.vue";
 import { BUNDLED_FONTS as fonts, COUNT_IN_SYMBOLS } from "@/lib/fonts";
 import { projectFilesToKbp } from "@/lib/kbpConvert";
 import { applyVoiceStyle } from "@/lib/voiceStyle";
@@ -623,6 +654,7 @@ export default defineComponent({
     VoiceStyleSettings,
     ColorField,
     FileUpload,
+    BackgroundReplacementModal,
     SymbolPicker,
     TrackSelect,
     ViewportTooltip,
@@ -657,6 +689,9 @@ export default defineComponent({
       resolutions: Object.keys(RESOLUTIONS),
       frameRates: FRAME_RATES,
       VerticalAlignment,
+      backgroundExtensions: BACKGROUND_EXTENSIONS,
+      isConfirmingBackground: false,
+      pendingBackground: null as File | null,
       isSubmitting: false,
       elapsedSubmissionTime: null as number | null,
       creationPhase: CreationPhase.NotStarted,
@@ -676,9 +711,6 @@ export default defineComponent({
     };
   },
   mounted() {
-    if (this.videoBlob != null) {
-      this.videoOptions.useBackgroundVideo = true;
-    }
     if (!this.isShowingFontsAndColors) {
       (this.$refs.fontsAndColorsBody as HTMLElement).style.display = "none";
     }
@@ -782,8 +814,15 @@ export default defineComponent({
     songDuration() {
       return this.mediaStore.songDuration;
     },
-    videoBlob(): Blob | null {
-      return this.mediaStore.backgroundVideo as Blob | null;
+    background(): Blob | null {
+      return this.mediaStore.background as Blob | null;
+    },
+    // The upload field shows a file, and every background but one saved by an old version is one.
+    backgroundFile(): File | null {
+      return this.background instanceof File ? this.background : null;
+    },
+    backgroundKind(): BackgroundKind | null {
+      return this.background ? backgroundKind(this.background) : null;
     },
     audioDelay(): number {
       return this.timingsStore.audioDelay;
@@ -859,6 +898,23 @@ export default defineComponent({
         this.mediaStore.cancelSeparation();
       }
     },
+    onBackgroundSelect(file: File | null) {
+      if (file && !isBackgroundFile(file)) {
+        this.$buefy.toast.open({
+          message:
+            "A background can be a PNG, JPEG or WebP image, or an MP4, WebM, MOV or MKV video.",
+          type: "is-warning",
+          duration: 5000,
+        });
+        return;
+      }
+      if (this.background) {
+        this.pendingBackground = file;
+        this.isConfirmingBackground = true;
+        return;
+      }
+      this.mediaStore.background = file;
+    },
     async createVideo() {
       const songFile = this.songFile;
       if (!songFile) {
@@ -896,7 +952,7 @@ export default defineComponent({
         const videoOptions = { createTitleScreens: true, ...this.renderOptions };
         const videoFile: Uint8Array = await video.createVideo({
           backing: separatedTrack.backing,
-          backgroundVideo: videoOptions.useBackgroundVideo ? this.videoBlob : null,
+          background: videoOptions.useBackground ? this.background : null,
           backgroundVideoOffset: this.mediaStore.backgroundVideoOffset,
           subtitles: this.allVoicesSubtitles(),
           audioDelay: this.audioDelay,
@@ -973,6 +1029,9 @@ export default defineComponent({
       // so a folder extracted from this zip can tell the source song from the karaoke video beside it.
       if (this.songFile) {
         zip.file(projectSongEntryName(this.songFile.name), this.songFile);
+      }
+      if (this.background) {
+        zip.file(projectBackgroundEntryName(this.background), this.background);
       }
 
       for (const { name, blob } of trackEntries(this.mediaStore.trackPairs ?? [])) {

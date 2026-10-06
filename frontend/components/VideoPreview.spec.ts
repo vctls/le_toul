@@ -9,7 +9,7 @@ describe("VideoPreview", () => {
     fonts: Record<string, any>;
     backgroundColor: string;
     audioDelay: number;
-    videoBlob?: Blob;
+    background?: Blob;
     previewTrack?: string;
   }
 

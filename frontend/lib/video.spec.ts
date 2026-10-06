@@ -54,10 +54,12 @@ describe("getAlternateTrackParams", () => {
 
 describe("getFfmpegParams", () => {
   const FRAME = { width: 1920, height: 1080, frameRate: 30 };
+  const VIDEO = { kind: "video", fileName: "background.webm" } as const;
+  const IMAGE = { kind: "image", fileName: "background.png" } as const;
 
   function params(overrides: Partial<FfmpegParamsOptions> = {}) {
     return getFfmpegParams({
-      hasVideo: false,
+      background: null,
       backgroundColor: "0x101010",
       frame: FRAME,
       audioDelayMs: 0,
@@ -74,18 +76,20 @@ describe("getFfmpegParams", () => {
   }
 
   it.each([
-    ["a background video", true],
-    ["a plain background", false],
-  ])("decodes the backing track on a single thread over %s", (_, hasVideo) => {
-    expect(inputThreads(params({ hasVideo }), "audio.mp4")).toBe("1");
+    ["a background video", VIDEO],
+    ["a background image", IMAGE],
+    ["a plain background", null],
+  ])("decodes the backing track on a single thread over %s", (_, background) => {
+    expect(inputThreads(params({ background }), "audio.mp4")).toBe("1");
   });
 
   it.each([
-    ["a background video", true],
-    ["a plain background", false],
-  ])("runs the filter graph on a single thread over %s", (_, hasVideo) => {
+    ["a background video", VIDEO],
+    ["a background image", IMAGE],
+    ["a plain background", null],
+  ])("runs the filter graph on a single thread over %s", (_, background) => {
     // A thread per core overruns the WASM core's thread pool on a many-core machine.
-    expect(valueOf(params({ hasVideo }), "-filter_complex_threads")).toBe("1");
+    expect(valueOf(params({ background }), "-filter_complex_threads")).toBe("1");
   });
 
   it.each([
@@ -104,7 +108,7 @@ describe("getFfmpegParams", () => {
     [1920, 1080, 30],
   ])("covers a %ix%i frame with the background video at %i fps", (width, height, frameRate) => {
     const args = params({
-      hasVideo: true,
+      background: VIDEO,
       frame: { width, height, frameRate },
       audioDelayMs: 2500,
     });
@@ -118,15 +122,41 @@ describe("getFfmpegParams", () => {
     ]);
   });
 
+  it.each([
+    [1280, 720, 20],
+    [1920, 1080, 30],
+  ])("covers a %ix%i frame with the background image at %i fps", (width, height, frameRate) => {
+    const args = params({ background: IMAGE, frame: { width, height, frameRate } });
+
+    expect(videoFilters(args)).toEqual([
+      `scale=${width}:${height}:force_original_aspect_ratio=increase`,
+      `crop=${width}:${height}`,
+      "loop=loop=-1:size=1",
+      `fps=${frameRate}`,
+      "ass=subtitles.ass:fontsdir=/tmp",
+    ]);
+  });
+
+  it("decodes the background image once, on a single thread", () => {
+    const args = params({ background: IMAGE, audioDelayMs: 2500, videoOffset: 1 });
+
+    expect(args).not.toContain("-loop");
+    expect(args).not.toContain("-stream_loop");
+    expect(inputThreads(args, "background.png")).toBe("1");
+    expect(videoFilters(args)).not.toContainEqual(expect.stringMatching(/^(tpad|trim)/));
+  });
+
   it("delays the background video by a positive offset", () => {
-    const filters = videoFilters(params({ hasVideo: true, audioDelayMs: 2500, videoOffset: 0.25 }));
+    const filters = videoFilters(
+      params({ background: VIDEO, audioDelayMs: 2500, videoOffset: 0.25 }),
+    );
 
     expect(filters).not.toContainEqual(expect.stringMatching(/^trim/));
     expect(filters.at(-2)).toBe("tpad=start_duration=2.75:start_mode=clone");
   });
 
   it("skips the start of the background video by a negative offset, after looping it", () => {
-    const args = params({ hasVideo: true, audioDelayMs: 2500, videoOffset: -1.5 });
+    const args = params({ background: VIDEO, audioDelayMs: 2500, videoOffset: -1.5 });
 
     expect(args).not.toContain("-ss");
     expect(videoFilters(args)).toEqual([
@@ -148,10 +178,10 @@ describe("getFfmpegParams", () => {
   });
 
   it("loops the background video and decodes it on a bounded number of threads", () => {
-    const args = params({ hasVideo: true });
+    const args = params({ background: VIDEO });
 
     expect(args.slice(0, 2)).toEqual(["-stream_loop", "-1"]);
-    expect(inputThreads(args, "video.mp4")).toBe("2");
+    expect(inputThreads(args, "background.webm")).toBe("2");
   });
 
   it("delays the backing track by the title delay", () => {
@@ -162,10 +192,11 @@ describe("getFfmpegParams", () => {
   });
 
   it.each([
-    ["a background video", true],
-    ["a plain background", false],
-  ])("sets the length explicitly over %s", (_, hasVideo) => {
-    const args = params({ hasVideo, durationSeconds: 203.4567 });
+    ["a background video", VIDEO],
+    ["a background image", IMAGE],
+    ["a plain background", null],
+  ])("sets the length explicitly over %s", (_, background) => {
+    const args = params({ background, durationSeconds: 203.4567 });
 
     expect(valueOf(args, "-t")).toBe("203.457");
     // Neither background ever ends, so -shortest would render forever.

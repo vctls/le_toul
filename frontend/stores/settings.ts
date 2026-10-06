@@ -154,7 +154,7 @@ export type VideoSettings = {
   instrumentalThreshold: number;
   addStaggeredLines: boolean;
   useStoredDisplayPeriods: boolean;
-  useBackgroundVideo: boolean;
+  useBackground: boolean;
   outputFormat: OutputFormat;
   resolution: Resolution;
   frameRate: FrameRate;
@@ -195,7 +195,7 @@ const DEFAULT_SETTINGS: VideoSettings = {
   instrumentalThreshold: DEFAULT_INSTRUMENTAL_THRESHOLD,
   addStaggeredLines: true,
   useStoredDisplayPeriods: true,
-  useBackgroundVideo: false,
+  useBackground: false,
   outputFormat: "mp4",
   resolution: DEFAULT_RESOLUTION,
   frameRate: DEFAULT_FRAME_RATE,
@@ -547,6 +547,13 @@ export const useSettingsStore = defineStore("settings", () => {
           ),
         },
       } as VideoSettings;
+
+      // Settings saved before image backgrounds name the switch after the video.
+      const legacyBackground = (options as { useBackgroundVideo?: boolean }).useBackgroundVideo;
+      if (legacyBackground !== undefined) {
+        newVideoOptions.useBackground ??= legacyBackground;
+        delete (newVideoOptions as { useBackgroundVideo?: boolean }).useBackgroundVideo;
+      }
 
       // Settings saved before count-ins gained a "line" mode carry a boolean instead.
       const legacyCountIns = (options as { addCountIns?: boolean }).addCountIns;

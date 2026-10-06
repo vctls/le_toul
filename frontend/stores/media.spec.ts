@@ -4,6 +4,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { Ref } from "vue";
 import { resumeSeparation, separateTrack } from "@/lib/audio";
 import { persistJsonRef, takeLegacyBlob } from "@/lib/persistence";
+import { useSettingsStore } from "@/stores/settings";
 import {
   BACKING_VOCALS_SEPARATOR_MODEL,
   NO_VOCALS_SEPARATOR_MODEL,
@@ -141,7 +142,7 @@ describe("Media Store separation", () => {
     store.trackPairs = [PAIR];
     store.backingTrackFile = new File(["backing"], "backing.wav");
     const video = new Blob(["video"]);
-    store.backgroundVideo = video;
+    store.background = video;
     store.backgroundVideoOffset = -0.5;
 
     store.songFile = new File(["other audio"], "other.mp3");
@@ -149,19 +150,30 @@ describe("Media Store separation", () => {
     expect(signal.aborted).toBe(true);
     expect(store.separatedTrack).toBeNull();
     expect(store.backingTrackFile).toBeNull();
-    expect(store.backgroundVideo).toBe(video);
+    expect(store.background).toBe(video);
     expect(store.backgroundVideoOffset).toBe(-0.5);
     await store.metadataSettled();
     vi.unstubAllGlobals();
   });
 
+  it("turns the background on when a new one arrives", async () => {
+    const store = useMediaStore();
+    const settings = useSettingsStore();
+    await hydrated();
+    settings.videoOptions.useBackground = false;
+
+    store.background = new File(["image"], "sunset.png", { type: "image/png" });
+
+    expect(settings.videoOptions.useBackground).toBe(true);
+  });
+
   it("resets the background video's offset when a new background arrives", async () => {
     const store = useMediaStore();
     await hydrated();
-    store.backgroundVideo = new Blob(["video"]);
+    store.background = new Blob(["video"]);
     store.backgroundVideoOffset = 0.75;
 
-    store.backgroundVideo = new Blob(["other video"]);
+    store.background = new Blob(["other video"]);
 
     expect(store.backgroundVideoOffset).toBe(0);
   });
@@ -292,6 +304,18 @@ describe("Media Store track pairs", () => {
 
     expect(store.trackFor("vocals", "full")).toBeNull();
     expect(store.trackFor("vocals", NO_VOCALS_SEPARATOR_MODEL)).toBeNull();
+  });
+
+  it("brings back the background video an older version saved, as a named video", async () => {
+    vi.mocked(takeLegacyBlob).mockImplementation(async (key) =>
+      key === "media.backgroundVideo" ? new Blob(["video"]) : undefined,
+    );
+    const store = useMediaStore();
+
+    await vi.waitFor(() => expect(store.background).toBeInstanceOf(File));
+    expect((store.background as File).name).toBe("video.mp4");
+    expect(store.background?.type).toBe("video/mp4");
+    vi.mocked(takeLegacyBlob).mockResolvedValue(undefined);
   });
 
   it("brings back the single pair an older version saved", async () => {

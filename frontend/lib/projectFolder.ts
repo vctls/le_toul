@@ -8,6 +8,7 @@
 // A folder holding only some of the files loads those.
 
 import { extensionForBlob } from "@/lib/audio";
+import { backgroundExtension, hasBackgroundExtension } from "@/lib/background";
 import { SEPARATION_MODELS, separationModelShortName } from "@/lib/separationModels";
 import { parseFileSource } from "@/lib/trackSources";
 import type { TrackPair } from "@/stores/media";
@@ -23,6 +24,7 @@ export interface ProjectFolder {
   timings?: File;
   settings?: File;
   font?: File;
+  background?: File;
   // Paths of the other files that matched nothing, or a slot already taken.
   ignored: string[];
 }
@@ -30,6 +32,7 @@ export interface ProjectFolder {
 type Slot = Exclude<keyof ProjectFolder, "ignored" | "modelTracks" | "uploadedTracks">;
 
 const SONG_STEM = "song";
+const BACKGROUND_STEM = "background";
 
 // The stems of the tracks the exporter writes without a model, whose container is a backend
 // setting rather than a fixed extension. Accompaniment is an older name for the backing track.
@@ -54,7 +57,8 @@ const SUPERSEDED_BY: Record<string, string> = { "timings.json": "timings.txt" };
 const DERIVED_NAMES = ["subtitles.ass"];
 
 // What an unrecognized name falls back to. Video extensions are deliberately absent:
-// the rendered karaoke video sits in the same folder, and the source song is matched by name.
+// the rendered karaoke video sits in the same folder, and the song and background are matched by
+// name.
 const EXTENSION_SLOTS: Record<string, Slot> = {
   yaml: "settings",
   yml: "settings",
@@ -159,6 +163,13 @@ export function projectSongEntryName(sourceName: string): string {
   return extension ? `${SONG_STEM}.${extension}` : SONG_STEM;
 }
 
+/**
+ * The name the exporter gives the background, which tells it apart from the rendered video beside it.
+ */
+export function projectBackgroundEntryName(background: Blob): string {
+  return `${BACKGROUND_STEM}.${backgroundExtension(background)}`;
+}
+
 export function classifyProjectFolder(files: File[]): ProjectFolder {
   const project: ProjectFolder = {
     modelTracks: {},
@@ -193,6 +204,9 @@ export function classifyProjectFolder(files: File[]): ProjectFolder {
     const slot =
       NAMED_SLOTS[name] ??
       (stemOf(name) === SONG_STEM ? "song" : undefined) ??
+      (stemOf(name) === BACKGROUND_STEM && hasBackgroundExtension(name)
+        ? "background"
+        : undefined) ??
       EXTENSION_SLOTS[extensionOf(name)];
     const taken = slot ? project[slot] : undefined;
     if (slot && taken && supersedes(name, taken.name.toLowerCase())) {

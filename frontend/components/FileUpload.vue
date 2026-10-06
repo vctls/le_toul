@@ -1,5 +1,5 @@
 <template>
-  <b-field :label="label">
+  <b-field :label="label" :horizontal="horizontal">
     <template #label>
       <span>{{ label }}</span>
       <viewport-tooltip v-if="tooltip" :label="tooltip" position="is-bottom">
@@ -46,6 +46,7 @@ export default defineComponent({
     label: String,
     tooltip: String,
     expanded: Boolean,
+    horizontal: Boolean,
     modelValue: { type: File as unknown as PropType<File | null>, default: null },
     // Extensions or MIME types to filter the file picker with,
     // either as a list of entries or as a ready-made accept string.

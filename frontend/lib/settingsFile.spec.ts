@@ -24,7 +24,7 @@ const EXPORTED_FILE = yaml.dump({
     instrumentalThreshold: 8,
     addStaggeredLines: true,
     useStoredDisplayPeriods: false,
-    useBackgroundVideo: true,
+    useBackground: true,
     outputFormat: "mkv",
     verticalAlignment: VerticalAlignment.Top,
     lineSpacing: 1.381,
@@ -75,7 +75,7 @@ describe("parseSettingsYaml", () => {
     expect(parsed.videoOptions.instrumentalThreshold).toBe(8);
     expect(parsed.videoOptions.addStaggeredLines).toBe(true);
     expect(parsed.videoOptions.useStoredDisplayPeriods).toBe(false);
-    expect(parsed.videoOptions.useBackgroundVideo).toBe(true);
+    expect(parsed.videoOptions.useBackground).toBe(true);
     expect(parsed.videoOptions.outputFormat).toBe("mkv");
     expect(parsed.videoOptions.verticalAlignment).toBe(VerticalAlignment.Top);
     expect(parsed.videoOptions.lineSpacing).toBe(1.381);
@@ -233,6 +233,21 @@ describe("parseSettingsYaml", () => {
     expect(parsed.warnings).toEqual([]);
   });
 
+  test("reads the background switch under its older name", () => {
+    const parsed = parseSettingsYaml("videoOptions:\n  useBackgroundVideo: true\n");
+
+    expect(parsed.videoOptions.useBackground).toBe(true);
+    expect(parsed.warnings).toEqual([]);
+  });
+
+  test("prefers the background switch's current name to its older one", () => {
+    const parsed = parseSettingsYaml(
+      "videoOptions:\n  useBackground: false\n  useBackgroundVideo: true\n",
+    );
+
+    expect(parsed.videoOptions.useBackground).toBe(false);
+  });
+
   test("rejects a resolution the render does not offer", () => {
     const parsed = parseSettingsYaml("videoOptions:\n  resolution: 4k\n  frameRate: 60\n");
 
@@ -295,7 +310,7 @@ describe("serializeSettingsYaml", () => {
       countInDuration: 1.5,
       instrumentalThreshold: 8,
       addStaggeredLines: true,
-      useBackgroundVideo: true,
+      useBackground: true,
       outputFormat: "mkv",
       resolution: "720p",
       frameRate: 20,

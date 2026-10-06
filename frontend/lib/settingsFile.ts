@@ -103,7 +103,7 @@ const BOOLEAN_OPTIONS = [
   "dynamicCountIns",
   "addStaggeredLines",
   "useStoredDisplayPeriods",
-  "useBackgroundVideo",
+  "useBackground",
 ] as const;
 
 const POSITIVE_NUMBER_OPTIONS = ["countInThreshold", "countInDuration"] as const;
@@ -112,6 +112,9 @@ const SHADOW_OFFSET_OPTIONS = ["shadowX", "shadowY"] as const;
 
 // Files written before count-ins gained a "line" mode say addCountIns: true/false.
 const LEGACY_COUNT_IN_KEY = "addCountIns";
+
+// Files written before image backgrounds name the switch after the video.
+const LEGACY_BACKGROUND_KEY = "useBackgroundVideo";
 
 // The exporter writes the enum's numeric value, but a hand-written file is much clearer with a name,
 // so accept either.
@@ -128,6 +131,7 @@ const KNOWN_VIDEO_OPTIONS = [
   "outlineWidth",
   "countInMode",
   LEGACY_COUNT_IN_KEY,
+  LEGACY_BACKGROUND_KEY,
   "countInText",
   "instrumentalThreshold",
   "outputFormat",
@@ -396,6 +400,11 @@ function parseVideoOptions(raw: unknown, warnings: string[]): Partial<VideoSetti
   for (const key of BOOLEAN_OPTIONS) {
     const value = readBoolean(raw[key], `videoOptions.${key}`, warnings);
     if (value !== undefined) options[key] = value;
+  }
+  if (options.useBackground === undefined) {
+    const path = `videoOptions.${LEGACY_BACKGROUND_KEY}`;
+    const legacy = readBoolean(raw[LEGACY_BACKGROUND_KEY], path, warnings);
+    if (legacy !== undefined) options.useBackground = legacy;
   }
 
   for (const key of POSITIVE_NUMBER_OPTIONS) {
