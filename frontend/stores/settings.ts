@@ -1,6 +1,15 @@
 import { defineStore } from "pinia";
 import { reactive, watch, ref, computed, shallowRef } from "vue";
-import { GlyphCoverage, CountInMode, OutputFormat, VerticalAlignment } from "@/lib/timing";
+import {
+  GlyphCoverage,
+  CountInMode,
+  DEFAULT_FRAME_RATE,
+  DEFAULT_RESOLUTION,
+  FrameRate,
+  OutputFormat,
+  Resolution,
+  VerticalAlignment,
+} from "@/lib/timing";
 import { useMediaStore } from "./media";
 import { NO_VOCALS_SEPARATOR_MODEL, BACKING_VOCALS_SEPARATOR_MODEL } from "@/lib/separationModels";
 import Color from "buefy/src/utils/color";
@@ -147,6 +156,8 @@ export type VideoSettings = {
   useStoredDisplayPeriods: boolean;
   useBackgroundVideo: boolean;
   outputFormat: OutputFormat;
+  resolution: Resolution;
+  frameRate: FrameRate;
   verticalAlignment: VerticalAlignment;
   lineSpacing: number;
   topMargin: number;
@@ -186,6 +197,8 @@ const DEFAULT_SETTINGS: VideoSettings = {
   useStoredDisplayPeriods: true,
   useBackgroundVideo: false,
   outputFormat: "mp4",
+  resolution: DEFAULT_RESOLUTION,
+  frameRate: DEFAULT_FRAME_RATE,
   verticalAlignment: VerticalAlignment.Middle,
   lineSpacing: DEFAULT_LINE_SPACING,
   topMargin: DEFAULT_TOP_MARGIN,

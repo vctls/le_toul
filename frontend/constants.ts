@@ -30,7 +30,7 @@ export const LYRIC_MARKERS = {
 // in sync with the header written by renderAssDocument: laying out against a different height than
 // we declare puts the text off-centre and can push the lowest lane off the bottom of the frame.
 //
-// 16:9, to match the frame we render into (1280x720, see lib/video.ts). libass takes the font scale
+// 16:9, to match every frame size in RESOLUTIONS (lib/timing.ts). libass takes the font scale
 // from PlayResY alone and scales X by frame width / PlayResX, so a canvas of a different aspect than
 // the frame comes out anamorphically stretched. Height is libass's own default.
 export const SUBTITLE_CANVAS = {

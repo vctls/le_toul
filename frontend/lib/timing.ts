@@ -43,6 +43,19 @@ import type { TimedSegment } from "./timedSegments";
 export const OUTPUT_FORMATS = ["mp4", "mkv"] as const;
 export type OutputFormat = (typeof OUTPUT_FORMATS)[number];
 
+// Every size is 16:9, so libass scales the subtitle canvas evenly.
+export const RESOLUTIONS = {
+  "720p": { width: 1280, height: 720 },
+  "1080p": { width: 1920, height: 1080 },
+} as const;
+export type Resolution = keyof typeof RESOLUTIONS;
+
+export const FRAME_RATES = [20, 30] as const;
+export type FrameRate = (typeof FRAME_RATES)[number];
+
+export const DEFAULT_RESOLUTION: Resolution = "1080p";
+export const DEFAULT_FRAME_RATE: FrameRate = 30;
+
 // Which gaps get a count-in: none at all, only the gap before a screen's first line, or
 // the gap before any line.
 export const COUNT_IN_MODES = ["none", "screen", "line"] as const;
@@ -67,6 +80,8 @@ export interface KaraokeOptions {
   useStoredDisplayPeriods: boolean;
   useBackgroundVideo: boolean;
   outputFormat: OutputFormat;
+  resolution: Resolution;
+  frameRate: FrameRate;
   verticalAlignment: VerticalAlignment;
   // From one line's top to the next, as a multiple of the font size.
   lineSpacing: number;
@@ -109,6 +124,8 @@ export const DEFAULT_KARAOKE_OPTIONS: KaraokeOptions = {
   useStoredDisplayPeriods: true,
   useBackgroundVideo: false,
   outputFormat: "mp4",
+  resolution: DEFAULT_RESOLUTION,
+  frameRate: DEFAULT_FRAME_RATE,
   verticalAlignment: VerticalAlignment.Middle,
   lineSpacing: DEFAULT_LINE_SPACING,
   topMargin: DEFAULT_TOP_MARGIN,

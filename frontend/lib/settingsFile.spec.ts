@@ -226,6 +226,24 @@ describe("parseSettingsYaml", () => {
     ]);
   });
 
+  test.each([["1080p"], ["1080P"], [1080]])("reads the resolution %j", (value) => {
+    const parsed = parseSettingsYaml(`videoOptions:\n  resolution: ${value}\n`);
+
+    expect(parsed.videoOptions.resolution).toBe("1080p");
+    expect(parsed.warnings).toEqual([]);
+  });
+
+  test("rejects a resolution the render does not offer", () => {
+    const parsed = parseSettingsYaml("videoOptions:\n  resolution: 4k\n  frameRate: 60\n");
+
+    expect(parsed.videoOptions.resolution).toBeUndefined();
+    expect(parsed.videoOptions.frameRate).toBeUndefined();
+    expect(parsed.warnings).toEqual([
+      'videoOptions.resolution: expected 720p or 1080p, ignoring "4k"',
+      "videoOptions.frameRate: expected 20 or 30, ignoring 60",
+    ]);
+  });
+
   test("rejects an unknown separation model", () => {
     const parsed = parseSettingsYaml("separationModel: some_other_model.ckpt\n");
 
@@ -278,6 +296,8 @@ describe("serializeSettingsYaml", () => {
       addStaggeredLines: true,
       useBackgroundVideo: true,
       outputFormat: "mkv",
+      resolution: "720p",
+      frameRate: 20,
       verticalAlignment: VerticalAlignment.Top,
       font: { size: 30, name: "Impact", bold: false, italic: true },
       color: {
@@ -311,6 +331,8 @@ describe("serializeSettingsYaml", () => {
     expect(parsed.videoOptions.color?.shadow.toString()).toBe("#555555");
     expect(parsed.videoOptions.outlineWidth).toBe(2);
     expect(parsed.videoOptions.shadowY).toBe(-1);
+    expect(parsed.videoOptions.resolution).toBe("720p");
+    expect(parsed.videoOptions.frameRate).toBe(20);
     expect(Object.keys(parsed.voiceStyles ?? {})).toEqual(["Anna"]);
     expect(parsed.voiceStyles?.Anna.primary?.toString()).toBe("#abcdef");
   });

@@ -1,4 +1,5 @@
 import {
+  FfmpegParamsOptions,
   RenderProgress,
   getAlternateTrackParams,
   getFfmpegParams,
@@ -52,13 +53,101 @@ describe("getAlternateTrackParams", () => {
 });
 
 describe("getFfmpegParams", () => {
+  const FRAME = { width: 1920, height: 1080, frameRate: 30 };
+
+  function params(overrides: Partial<FfmpegParamsOptions> = {}) {
+    return getFfmpegParams({
+      hasVideo: false,
+      backgroundColor: "0x101010",
+      frame: FRAME,
+      audioDelayMs: 0,
+      durationSeconds: 200,
+      metadata: METADATA,
+      ...overrides,
+    });
+  }
+
+  // The filters the background goes through before the subtitles, in order.
+  function videoFilters(args: string[]): string[] {
+    const graph = valueOf(args, "-filter_complex")!;
+    return graph.match(/^\[0:v\](.*?)\[vout\]/)![1].split(",");
+  }
+
   it.each([
     ["a background video", true],
     ["a plain background", false],
   ])("decodes the backing track on a single thread over %s", (_, hasVideo) => {
-    const args = getFfmpegParams(hasVideo, "0x000000", 0, METADATA);
+    expect(inputThreads(params({ hasVideo }), "audio.mp4")).toBe("1");
+  });
 
-    expect(inputThreads(args, "audio.mp4")).toBe("1");
+  it.each([
+    ["a background video", true],
+    ["a plain background", false],
+  ])("runs the filter graph on a single thread over %s", (_, hasVideo) => {
+    // A thread per core overruns the WASM core's thread pool on a many-core machine.
+    expect(valueOf(params({ hasVideo }), "-filter_complex_threads")).toBe("1");
+  });
+
+  it.each([
+    [1280, 720, 20],
+    [1920, 1080, 30],
+  ])("generates a plain %ix%i background at %i fps", (width, height, frameRate) => {
+    const args = params({ frame: { width, height, frameRate } });
+
+    expect(valueOf(args, "-f")).toBe("lavfi");
+    expect(valueOf(args, "-i")).toBe(`color=c=0x101010:s=${width}x${height}:r=${frameRate}`);
+    expect(videoFilters(args)).toEqual(["ass=subtitles.ass:fontsdir=/tmp"]);
+  });
+
+  it.each([
+    [1280, 720, 20],
+    [1920, 1080, 30],
+  ])("covers a %ix%i frame with the background video at %i fps", (width, height, frameRate) => {
+    const args = params({
+      hasVideo: true,
+      frame: { width, height, frameRate },
+      audioDelayMs: 2500,
+    });
+
+    expect(videoFilters(args)).toEqual([
+      `fps=${frameRate}`,
+      `scale=${width}:${height}:force_original_aspect_ratio=increase`,
+      `crop=${width}:${height}`,
+      "tpad=start_duration=2.5:start_mode=clone",
+      "ass=subtitles.ass:fontsdir=/tmp",
+    ]);
+  });
+
+  it("encodes with x264's veryfast preset", () => {
+    const args = params();
+
+    expect(valueOf(args, "-c:v")).toBe("libx264");
+    expect(valueOf(args, "-preset")).toBe("veryfast");
+  });
+
+  it("loops the background video and decodes it on a bounded number of threads", () => {
+    const args = params({ hasVideo: true });
+
+    expect(args.slice(0, 2)).toEqual(["-stream_loop", "-1"]);
+    expect(inputThreads(args, "video.mp4")).toBe("2");
+  });
+
+  it("delays the backing track by the title delay", () => {
+    const args = params({ audioDelayMs: 2500 });
+
+    expect(valueOf(args, "-filter_complex")).toContain("[1:a]adelay=delays=2500:all=1[aout]");
+    expect(args.join(" ")).toContain("-map [vout] -map [aout]");
+  });
+
+  it.each([
+    ["a background video", true],
+    ["a plain background", false],
+  ])("sets the length explicitly over %s", (_, hasVideo) => {
+    const args = params({ hasVideo, durationSeconds: 203.4567 });
+
+    expect(valueOf(args, "-t")).toBe("203.457");
+    // Neither background ever ends, so -shortest would render forever.
+    expect(args).not.toContain("-shortest");
   });
 });
 

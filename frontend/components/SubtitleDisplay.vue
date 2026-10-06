@@ -212,7 +212,7 @@ export default defineComponent({
 </script>
 
 <style scoped>
-/* The shape of the output video, which frontend/lib/video.ts renders at 1280x720. */
+/* The shape of the output video, 16:9 at every resolution. */
 .video-container {
   position: relative;
   width: 100%;

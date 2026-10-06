@@ -219,6 +219,18 @@
             </option>
           </b-select>
         </b-field>
+        <b-field horizontal label="Resolution">
+          <b-select v-model="videoOptions.resolution" expanded>
+            <option v-for="resolution in resolutions" :key="resolution" :value="resolution">
+              {{ resolution }}
+            </option>
+          </b-select>
+        </b-field>
+        <b-field horizontal label="Frame Rate">
+          <b-select v-model="videoOptions.frameRate" expanded>
+            <option v-for="rate in frameRates" :key="rate" :value="rate">{{ rate }} fps</option>
+          </b-select>
+        </b-field>
         <div class="card fonts-and-colors">
           <button
             type="button"
@@ -546,7 +558,7 @@
 <script lang="ts">
 import { defineComponent, markRaw } from "vue";
 import { storeToRefs } from "pinia";
-import { OutputFormat, VerticalAlignment } from "@/lib/timing";
+import { FRAME_RATES, OutputFormat, RESOLUTIONS, VerticalAlignment } from "@/lib/timing";
 import VideoPreview from "@/components/VideoPreview.vue";
 import SourceFileDownloadLinks from "@/components/SourceFileDownloadLinks.vue";
 import CreateVideoButton from "@/components/CreateVideoButton.vue";
@@ -619,6 +631,8 @@ export default defineComponent({
       fonts,
       countInSymbols: COUNT_IN_SYMBOLS,
       outputFormatLabels,
+      resolutions: Object.keys(RESOLUTIONS),
+      frameRates: FRAME_RATES,
       VerticalAlignment,
       isSubmitting: false,
       elapsedSubmissionTime: null as number | null,

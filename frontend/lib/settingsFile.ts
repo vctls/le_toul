@@ -10,8 +10,12 @@ import Color from "buefy/src/utils/color";
 import {
   CountInMode,
   COUNT_IN_MODES,
+  FrameRate,
+  FRAME_RATES,
   OutputFormat,
   OUTPUT_FORMATS,
+  Resolution,
+  RESOLUTIONS,
   VerticalAlignment,
 } from "@/lib/timing";
 import {
@@ -123,6 +127,8 @@ const KNOWN_VIDEO_OPTIONS = [
   "countInText",
   "instrumentalThreshold",
   "outputFormat",
+  "resolution",
+  "frameRate",
   "verticalAlignment",
   "lineSpacing",
   "topMargin",
@@ -289,6 +295,32 @@ function readOutputFormat(
   return normalized as OutputFormat;
 }
 
+// A hand-written file may well give the height alone, as in `resolution: 1080`.
+function readResolution(value: unknown, path: string, warnings: string[]): Resolution | undefined {
+  const name = typeof value === "number" ? `${value}p` : readString(value, path, warnings);
+  if (name === undefined) return undefined;
+  const normalized = name.trim().toLowerCase();
+  if (!(normalized in RESOLUTIONS)) {
+    warnings.push(
+      `${path}: expected ${Object.keys(RESOLUTIONS).join(" or ")}, ignoring ${JSON.stringify(value)}`,
+    );
+    return undefined;
+  }
+  return normalized as Resolution;
+}
+
+function readFrameRate(value: unknown, path: string, warnings: string[]): FrameRate | undefined {
+  const rate = readNumber(value, path, warnings);
+  if (rate === undefined) return undefined;
+  if (!FRAME_RATES.some((allowed) => allowed === rate)) {
+    warnings.push(
+      `${path}: expected ${FRAME_RATES.join(" or ")}, ignoring ${JSON.stringify(value)}`,
+    );
+    return undefined;
+  }
+  return rate as FrameRate;
+}
+
 function readSeparationModel(
   value: unknown,
   path: string,
@@ -413,6 +445,11 @@ function parseVideoOptions(raw: unknown, warnings: string[]): Partial<VideoSetti
 
   const outputFormat = readOutputFormat(raw.outputFormat, "videoOptions.outputFormat", warnings);
   if (outputFormat !== undefined) options.outputFormat = outputFormat;
+
+  const resolution = readResolution(raw.resolution, "videoOptions.resolution", warnings);
+  if (resolution !== undefined) options.resolution = resolution;
+  const frameRate = readFrameRate(raw.frameRate, "videoOptions.frameRate", warnings);
+  if (frameRate !== undefined) options.frameRate = frameRate;
 
   // The exporter writes the separation model at the top level, but accept the store's own field name too,
   // since that is what a settings dump from localStorage looks like.
