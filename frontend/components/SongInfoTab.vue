@@ -22,7 +22,8 @@
             name="song-file-upload"
             label="Upload a file from your computer"
             tooltip="The full song, as audio or video. Its vocals are separated out to make the backing track."
-            v-model="mediaStore.songFile"
+            :model-value="mediaStore.songFile"
+            @update:model-value="onSongFileSelect"
           ></file-upload>
           <b-field label="Or paste a YouTube video URL" :type="youtubeError ? 'is-danger' : ''">
             <template #message>
@@ -340,7 +341,7 @@ import { useLyricsLookupStore } from "@/stores/lyricsLookup";
 import { useSettingsStore } from "@/stores/settings";
 import { useProjectFolderRequestStore } from "@/stores/projectFolderRequest";
 import { parseSettingsYaml } from "@/lib/settingsFile";
-import { classifyProjectFolder, ProjectFolder } from "@/lib/projectFolder";
+import { classifyProjectFolder, ProjectFolder, trackEntries } from "@/lib/projectFolder";
 import { MAX_UPLOADED_TRACKS, parseFileSource } from "@/lib/trackSources";
 import { tracksOffLength } from "@/lib/trackLength";
 import { kbpToProjectFiles, KbpImport } from "@/lib/kbpConvert";
@@ -605,6 +606,7 @@ export default defineComponent({
           } else {
             this.mediaStore.background = video;
           }
+          await this.warnAboutKeptTracks();
         } catch (e) {
           console.error(e);
           let errorMessage = e instanceof Error ? e.message : String(e);
@@ -941,15 +943,11 @@ export default defineComponent({
       return losses;
     },
     /**
-     * The tracks loading the folder would discard. A new song discards all of them, even when the
-     * folder has none. Otherwise a track in the folder replaces its model's pair, or the uploaded
-     * file of the same kind and name.
+     * The tracks loading the folder would discard. A track in the folder replaces its model's pair,
+     * or the uploaded file of the same kind and name.
      */
     replacedTracks(project: ProjectFolder): TrackPair[] {
       const pairs = this.mediaStore.trackPairs ?? [];
-      if (project.song) {
-        return pairs;
-      }
       return pairs.filter((pair) => {
         const file = parseFileSource(pair.source);
         return file
@@ -1089,7 +1087,10 @@ export default defineComponent({
           ...project.uploadedTracks.vocals,
           ...Object.values(project.modelTracks).flatMap((tracks) => Object.values(tracks)),
         ].filter((file) => !skippedTracks.includes(file));
-        const lengthWarning = await this.lengthWarning(folderTracks);
+        // A new song is compared with the tracks kept from before it too.
+        const lengthWarning = await this.lengthWarning(
+          project.song ? this.currentTrackFiles() : folderTracks,
+        );
         if (lengthWarning) {
           trackWarnings.push(lengthWarning);
         }
@@ -1119,7 +1120,7 @@ export default defineComponent({
           duration: 5000,
         });
       } else if (file) {
-        await this.warnAboutLength(file);
+        await this.warnAboutLength([file]);
       }
     },
     /**
@@ -1142,11 +1143,33 @@ export default defineComponent({
         `so the timings may not line up with ${one ? "it" : "them"}.`
       );
     },
-    async warnAboutLength(track: File) {
-      const message = await this.lengthWarning([track]);
+    async warnAboutLength(tracks: File[]) {
+      const message = await this.lengthWarning(tracks);
       if (message) {
         this.$buefy.toast.open({ message, type: "is-warning", duration: 8000 });
       }
+    },
+    // A new song keeps the tracks, which may still belong to the old one.
+    onSongFileSelect(file: File | null) {
+      this.mediaStore.songFile = file;
+      if (file) {
+        void this.warnAboutKeptTracks();
+      }
+    },
+    /**
+     * Warns about the tracks that don't match a new song's length once it has been measured.
+     */
+    async warnAboutKeptTracks() {
+      await this.mediaStore.metadataSettled();
+      await this.warnAboutLength(this.currentTrackFiles());
+    },
+    /**
+     * Every track loaded, under the name the project download gives it.
+     */
+    currentTrackFiles(): File[] {
+      return trackEntries(this.mediaStore.trackPairs ?? []).map(
+        ({ name, blob }) => new File([blob], name, { type: blob.type }),
+      );
     },
     // Separating again with a model replaces the tracks it made before, so ask first.
     separateTrack() {

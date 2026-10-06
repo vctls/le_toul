@@ -107,25 +107,7 @@ describe("Media Store separation", () => {
     expect(store.isProcessing).toBe(true);
   });
 
-  it("discards the separated track and calls off the run that would replace it", async () => {
-    const store = useMediaStore();
-    const started = pendingSeparation();
-    store.startSeparation(SONG, BACKING_VOCALS_SEPARATOR_MODEL);
-    const signal = await started;
-    store.trackPairs = [PAIR];
-    store.backingTrackFile = new File(["backing"], "backing.wav");
-    store.vocalTrackFile = new File(["vocals"], "vocals.wav");
-
-    store.discardSeparatedTrack();
-
-    expect(signal.aborted).toBe(true);
-    expect(store.separatedTrack).toBeNull();
-    expect(store.backingTrackFile).toBeNull();
-    expect(store.vocalTrackFile).toBeNull();
-    expect(store.hasSeparatedTrack).toBe(false);
-  });
-
-  it("discards the tracks of the previous song when the song changes, but keeps the background", async () => {
+  it("keeps the tracks and background when the song changes, but calls off a separation", async () => {
     vi.stubGlobal(
       "AudioContext",
       class {
@@ -140,7 +122,8 @@ describe("Media Store separation", () => {
     store.startSeparation(SONG, BACKING_VOCALS_SEPARATOR_MODEL);
     const signal = await started;
     store.trackPairs = [PAIR];
-    store.backingTrackFile = new File(["backing"], "backing.wav");
+    const backing = new File(["backing"], "backing.wav");
+    store.backingTrackFile = backing;
     const video = new Blob(["video"]);
     store.background = video;
     store.backgroundVideoOffset = -0.5;
@@ -148,8 +131,8 @@ describe("Media Store separation", () => {
     store.songFile = new File(["other audio"], "other.mp3");
 
     expect(signal.aborted).toBe(true);
-    expect(store.separatedTrack).toBeNull();
-    expect(store.backingTrackFile).toBeNull();
+    expect(store.trackPairs).toEqual([PAIR]);
+    expect(store.backingTrackFile).toBe(backing);
     expect(store.background).toBe(video);
     expect(store.backgroundVideoOffset).toBe(-0.5);
     await store.metadataSettled();

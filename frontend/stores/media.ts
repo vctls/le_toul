@@ -329,15 +329,6 @@ export const useMediaStore = defineStore("media", () => {
   // Drops the tracks uploads or earlier separations left behind,
   // so a render waits for the next separation instead of using an old backing track.
   // Calls off a run still in flight first: its result would otherwise land here after the clear.
-  function discardSeparatedTrack() {
-    cancelSeparation();
-    trackPairs.value = null;
-    renderTrackSource.value = null;
-    backingTrackFile.value = null;
-    vocalTrackFile.value = null;
-    error.value = null;
-  }
-
   function oneSided(kind: TrackKind, track: Blob): SeparatedTrack {
     return kind === "backing"
       ? { backing: track, vocals: new Blob() }
@@ -489,8 +480,10 @@ export const useMediaStore = defineStore("media", () => {
     songFile,
     async (newFile) => {
       if (isHydrating) return;
-      // A loader that brings its own tracks has to set them after the song.
-      discardSeparatedTrack();
+      // The tracks stay, since they may well come from elsewhere. A separation still running
+      // would bring tracks of the old song.
+      cancelSeparation();
+      error.value = null;
       if (!newFile) {
         songTitle.value = null;
         songArtist.value = null;
@@ -618,7 +611,6 @@ export const useMediaStore = defineStore("media", () => {
     putTrackPair,
     startSeparation,
     cancelSeparation,
-    discardSeparatedTrack,
     replaceUploadedTrack,
     clearSession,
   };

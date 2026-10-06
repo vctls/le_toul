@@ -263,7 +263,7 @@ test.describe("Project Folder Upload", () => {
     await expect(page.locator('.toast:has-text("vocals.mp3 is not")')).toHaveCount(0);
   });
 
-  test("counts the tracks a new song discards, and offers them but not the song", async ({
+  test("keeps the tracks when the folder brings a new song, and asks only about the song", async ({
     page,
   }) => {
     const folder = await makeFolder("song-only");
@@ -278,18 +278,38 @@ test.describe("Project Folder Upload", () => {
 
     await loadProjectFolder(page, folder);
     await expect(page.locator(".modal-card-title")).toHaveText("Load this project folder?");
-    await expect(page.locator(".modal-card-body")).toContainText(
-      "replace your song and backing track",
-    );
-    const links = page.locator(".modal-card-body .source-file-links");
-    await expect(links).toContainText("backing.");
-    await expect(links).not.toContainText(defaultTestConfig.audioFile);
+    await expect(page.locator(".modal-card-body")).toContainText("replace your song.");
+    await expect(page.locator(".modal-card-body .source-file-links")).toHaveCount(0);
     await page.click('.modal-card-foot button:has-text("Load folder")');
 
     await expect(page.locator('.toast:has-text("Loaded")')).toBeVisible();
     await expect(page.locator('[name="song-file-upload"] .file-name')).toHaveText("song.mp3");
     await expect(page.locator('[name="backing-track-upload"] .file-name')).toHaveText(
-      "No file chosen",
+      defaultTestConfig.audioFile,
+    );
+  });
+
+  test("warns when a new song does not match the length of the tracks it keeps", async ({
+    page,
+  }) => {
+    await navigateToTab(page, TabId.SongInfo);
+    await page
+      .locator('[name="song-file-upload"] input[type="file"]')
+      .setInputFiles(getFixturePath(defaultTestConfig.audioFile));
+    await page
+      .locator('[name="backing-track-upload"] input[type="file"]')
+      .setInputFiles(getFixturePath(defaultTestConfig.audioFile));
+
+    // Over two minutes, against a backing track of under twenty seconds.
+    await page
+      .locator('[name="song-file-upload"] input[type="file"]')
+      .setInputFiles(getFixturePath("youtube/audio"));
+
+    await expect(
+      page.locator(".toast", { hasText: "is not the same length as the song" }),
+    ).toBeVisible({ timeout: 10000 });
+    await expect(page.locator('[name="backing-track-upload"] .file-name')).toHaveText(
+      defaultTestConfig.audioFile,
     );
   });
 });
