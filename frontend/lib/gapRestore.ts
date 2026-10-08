@@ -157,8 +157,20 @@ function gapsBetween(muted: Span[], duration: number, minGap: number): Span[] {
 }
 
 /**
- * The backing track with the original blended in over each gap.
- * Each fade lies inside its gap, and there is none at the song's own start or end.
+ * How long a gap fades in and out, in seconds. Each fade lies inside its gap, and there is none at
+ * the song's own start or end.
+ */
+export function gapFades(
+  gap: Span,
+  fade: number,
+  duration: number,
+): { fadeIn: number; fadeOut: number } {
+  const length = Math.min(fade, (gap.end - gap.start) / 2);
+  return { fadeIn: gap.start > 0 ? length : 0, fadeOut: gap.end < duration ? length : 0 };
+}
+
+/**
+ * The backing track with the original blended in over each gap, with the fades of `gapFades`.
  * A channel either track lacks is taken from its last one, so mono mixes with stereo.
  */
 export function mixGaps(
@@ -179,9 +191,13 @@ export function mixGaps(
     if (end <= first) {
       continue;
     }
-    const fadeLength = Math.min(Math.round(fade * sampleRate), Math.floor((end - first) / 2));
-    const fadeIn = first > 0 ? fadeLength : 0;
-    const fadeOut = end < length ? fadeLength : 0;
+    const fades = gapFades(
+      { start: first / sampleRate, end: end / sampleRate },
+      fade,
+      length / sampleRate,
+    );
+    const fadeIn = Math.floor(fades.fadeIn * sampleRate);
+    const fadeOut = Math.floor(fades.fadeOut * sampleRate);
     for (let c = 0; c < channels; c++) {
       const out = mixed[c];
       const from = channel(original, c);

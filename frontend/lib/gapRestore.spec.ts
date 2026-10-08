@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { gapDifference, GapRestoreSettings, mixGaps, planGaps } from "./gapRestore";
+import { gapDifference, gapFades, GapRestoreSettings, mixGaps, planGaps } from "./gapRestore";
 
 const settings: GapRestoreSettings = {
   preRoll: 0.5,
@@ -175,6 +175,15 @@ describe("planGaps", () => {
       { start: 12.5, end: 19.5 },
       { start: 22.5, end: 30 },
     ]);
+  });
+});
+
+describe("gapFades", () => {
+  it("fades each side of a gap, up to half its length, but not at the song's edges", () => {
+    expect(gapFades({ start: 2, end: 8 }, 1, 10)).toEqual({ fadeIn: 1, fadeOut: 1 });
+    expect(gapFades({ start: 2, end: 3 }, 1, 10)).toEqual({ fadeIn: 0.5, fadeOut: 0.5 });
+    expect(gapFades({ start: 0, end: 3 }, 1, 10)).toEqual({ fadeIn: 0, fadeOut: 1 });
+    expect(gapFades({ start: 7, end: 10 }, 1, 10)).toEqual({ fadeIn: 1, fadeOut: 0 });
   });
 });
 
