@@ -69,14 +69,18 @@ export interface SettingsFileSource {
 /**
  * The settings.yaml the project download carries, and the prompts offer before replacing settings.
  */
-export function serializeSettingsYaml({
+export function serializeSettingsYaml(source: SettingsFileSource): string {
+  return yaml.dump(settingsDocument(source));
+}
+
+function settingsDocument({
   song,
   separationModel,
   backingTrack,
   backgroundVideoOffset,
   videoOptions,
   voiceStyles,
-}: SettingsFileSource): string {
+}: SettingsFileSource): Record<string, unknown> {
   // The video options' own model gives way to `separationModel`, the one the user actually picked.
   const { vocalSeparationModel, color, ...rest } = videoOptions;
   const styledVoices = Object.entries(voiceStyles).filter(([, style]) => !isEmptyOverride(style));
@@ -97,7 +101,103 @@ export function serializeSettingsYaml({
       styledVoices.map(([voice, style]) => [voice, serializeVoiceStyle(style)]),
     );
   }
-  return yaml.dump(document);
+  return document;
+}
+
+// The video options the subtitles have no trace of.
+const VIDEO_OPTIONS_OUTSIDE_SUBTITLES = [
+  "useBackground",
+  "backgroundFit",
+  "outputFormat",
+  "resolution",
+  "frameRate",
+];
+
+// The video options that shape the subtitles without always showing in them:
+// a count-in, a staggered line or an instrumental screen only appears where a gap earns one,
+// and the top margin only counts when the lyrics are aligned to the top.
+// The ASS import keeps them only where they reproduce the file.
+export const SUBTITLE_HINT_OPTIONS = [
+  "countInMode",
+  "dynamicCountIns",
+  "countInText",
+  "countInThreshold",
+  "countInDuration",
+  "addStaggeredLines",
+  "topMargin",
+  "instrumentalThreshold",
+] as const;
+
+export type SubtitleHints = Partial<Pick<VideoSettings, (typeof SUBTITLE_HINT_OPTIONS)[number]>>;
+
+/**
+ * Copy of the value without its missing entries, or undefined when nothing is left.
+ */
+function compact(value: Record<string, unknown>): Record<string, unknown> | undefined {
+  const entries = Object.entries(value).filter(
+    ([, entry]) => entry !== undefined && entry !== null,
+  );
+  return entries.length > 0 ? Object.fromEntries(entries) : undefined;
+}
+
+/**
+ * The part of a settings document that a subtitles file can't show: the audio and video around
+ * the subtitles, and the song's title and artist when no title screen draws them.
+ * The ASS export carries it, and the ASS import applies it as it is.
+ * The hints the export also carries go through the import's fit,
+ * so the subtitles stay the only source of everything else.
+ */
+export function settingsOutsideSubtitles(
+  document: Record<string, unknown>,
+  titleScreen: boolean,
+): Record<string, unknown> {
+  const song = isMapping(document.song) ? document.song : {};
+  const options = isMapping(document.videoOptions) ? document.videoOptions : {};
+  const color = isMapping(options.color) ? options.color : {};
+  return (
+    compact({
+      song: compact({
+        ...(titleScreen ? {} : { title: song.title, artist: song.artist }),
+        duration: song.duration,
+        youtubeUrl: song.youtubeUrl,
+      }),
+      separationModel: document.separationModel,
+      backingTrack: document.backingTrack,
+      backgroundVideoOffset: document.backgroundVideoOffset,
+      videoOptions: compact({
+        ...Object.fromEntries(VIDEO_OPTIONS_OUTSIDE_SUBTITLES.map((key) => [key, options[key]])),
+        color: compact({ background: color.background }),
+      }),
+    }) ?? {}
+  );
+}
+
+/**
+ * The settings outside the subtitles and the hints, as a single line of YAML for the ASS export.
+ */
+export function serializeSubtitleSettings(source: SettingsFileSource): string {
+  const document = settingsOutsideSubtitles(
+    settingsDocument(source),
+    source.videoOptions.addTitleScreen,
+  );
+  const hints = compact(
+    Object.fromEntries(SUBTITLE_HINT_OPTIONS.map((key) => [key, source.videoOptions[key]])),
+  );
+  const videoOptions = { ...(document.videoOptions as Record<string, unknown>), ...hints };
+  return yaml.dump({ ...document, videoOptions }, { flowLevel: 0, lineWidth: -1 }).trim();
+}
+
+/**
+ * The hints in a line the ASS export wrote. Throws when the line isn't a YAML mapping.
+ */
+export function readSubtitleHints(line: string): SubtitleHints {
+  const { videoOptions } = parseSettingsYaml(line);
+  return Object.fromEntries(
+    SUBTITLE_HINT_OPTIONS.filter((key) => videoOptions[key] !== undefined).map((key) => [
+      key,
+      videoOptions[key],
+    ]),
+  );
 }
 
 const BOOLEAN_OPTIONS = [

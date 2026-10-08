@@ -30,7 +30,11 @@ import {
   sameBinding,
 } from "@/lib/timingKeys";
 import { readFont } from "@/lib/fontFile";
-import { serializeSettingsYaml } from "@/lib/settingsFile";
+import {
+  serializeSettingsYaml,
+  serializeSubtitleSettings,
+  SettingsFileSource,
+} from "@/lib/settingsFile";
 import {
   DEFAULT_COUNT_IN_MODE,
   DEFAULT_COUNT_IN_TEXT,
@@ -397,9 +401,9 @@ export const useSettingsStore = defineStore("settings", () => {
 
   // Built from the picked font, not the uploaded one:
   // a settings file naming a font it can't carry would no longer load back.
-  const settingsYaml = computed(() => {
+  const settingsSource = computed((): SettingsFileSource => {
     const media = useMediaStore();
-    return serializeSettingsYaml({
+    return {
       song: {
         title: media.songTitle,
         artist: media.songArtist,
@@ -411,8 +415,11 @@ export const useSettingsStore = defineStore("settings", () => {
       backgroundVideoOffset: media.backgroundVideoOffset,
       videoOptions,
       voiceStyles: voiceStyles.value,
-    });
+    };
   });
+  const settingsYaml = computed(() => serializeSettingsYaml(settingsSource.value));
+  // What the exported subtitles carry of the settings, which is only what they can't show.
+  const subtitleSettings = computed(() => serializeSubtitleSettings(settingsSource.value));
 
   // What everything that renders lyrics should use: `videoOptions` is raw UI state, where
   // the font picker keeps its own value even while an uploaded font overrides it.
@@ -606,6 +613,7 @@ export const useSettingsStore = defineStore("settings", () => {
     videoOptions,
     renderOptions,
     settingsYaml,
+    subtitleSettings,
     voiceStyles,
     timingKeys,
     customFont,

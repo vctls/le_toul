@@ -4,13 +4,16 @@
 //
 // The app lays out its own screens, so only the words, their timings, the voices and their styles
 // are carried over. A file the app wrote has its title screen, count-ins and instrumental screens
-// dropped too, since the settings bring them back.
+// dropped too, and the settings that bring them back are fitted to the file (see assFit.ts).
 
 import yaml from "js-yaml";
 import { SUBTITLE_CANVAS, TITLE_SCREEN_DURATION, appName } from "@/constants";
 import { AssDocument, AssEvent, AssStyle, parseAss, parseKaraoke } from "./ass";
+import { fitOwnRender, FitVoice } from "./assFit";
 import { ImportedSyllable, importedTimings, lineMarkup, voiceNames } from "./importedLyrics";
 import { fontLeftOut, MARKUP_REMOVED, Warnings } from "./importWarnings";
+import { readSubtitleHints, settingsOutsideSubtitles, SubtitleHints } from "./settingsFile";
+import { PROJECT_SETTINGS_KEY } from "./timing";
 import { TimedSegment } from "./timedSegments";
 import { DEFAULT_VOICE_ID, VoiceId } from "./voices";
 
@@ -31,6 +34,10 @@ export const SCREENS_GUESSED =
   "Screen breaks were placed at pauses in the singing, since the file has none";
 export const RENDERED_EFFECTS =
   "Most lines are a single positioned word or syllable, as rendered karaoke effects are, so the lyrics are likely unusable";
+export const LAYOUT_DIFFERS =
+  "No settings reproduce the file exactly, so some lines are shown at other times or heights";
+export const PROJECT_SETTINGS_UNREADABLE =
+  "The file's project settings couldn't be read, so the video and track settings were left out";
 export const DELAY_UNKNOWN = `The file doesn't say whether its title screen delayed the song, so the timings may be ${TITLE_SCREEN_DURATION} s late`;
 
 export interface AssImport {
@@ -49,6 +56,7 @@ interface ImportedLine {
   end: number;
   // On the app's own files, the height of the line on its screen.
   marginV: number;
+  event: AssEvent;
   breakBefore: boolean;
 }
 
@@ -56,6 +64,8 @@ interface Song {
   title?: string;
   artist?: string;
 }
+
+type Mapping = Record<string, unknown>;
 
 /**
  * The app's own files carry its Audio Delay field. Older ones only carry its name.
@@ -194,13 +204,11 @@ function importLine(
 
   syllables.forEach((syllable, i) => {
     const { start, end } = times[i];
-    // An end at the next start is left open, as the app writes it.
-    const open = i + 1 < times.length && times[i + 1].start <= end;
     syllable.start = start / 100;
-    syllable.end = open || end <= start ? undefined : end / 100;
+    syllable.end = end <= start ? undefined : end / 100;
   });
   // A commented-out source line's period is when it is sung, not when it is shown.
-  // The app's own periods are mostly automatic ones.
+  // The app's own periods are mostly automatic, so the fit keeps only the others.
   if (!event.comment && !own) {
     syllables[0].displayStart = lineStart / 100;
     syllables[0].displayEnd = lineEnd / 100;
@@ -221,8 +229,22 @@ function importedLine(
     start,
     end,
     marginV: event.marginV,
+    event,
     breakBefore: false,
   };
+}
+
+/**
+ * Leave open each end at the next syllable's start, as the app writes it.
+ * The next syllable may be on the next line.
+ */
+function openEnds(syllables: ImportedSyllable[]) {
+  syllables.forEach((syllable, i) => {
+    const next = syllables[i + 1]?.start;
+    if (syllable.end !== undefined && next !== undefined && next <= syllable.end) {
+      syllable.end = undefined;
+    }
+  });
 }
 
 /**
@@ -282,6 +304,35 @@ function breakAtPauses(lines: ImportedLine[], warnings: Warnings) {
 }
 
 /**
+ * The settings the app's export carries because its subtitles can't show them,
+ * and the hints for the ones they may not show.
+ * The song's title and artist only count when no title screen shows them.
+ */
+function projectSettings(
+  document: AssDocument,
+  titleScreen: boolean,
+  warnings: Warnings,
+): { outside: Mapping; hints: SubtitleHints } {
+  const line = document.info[PROJECT_SETTINGS_KEY];
+  if (line === undefined) {
+    return { outside: {}, hints: {} };
+  }
+  try {
+    const parsed = yaml.load(line);
+    if (typeof parsed === "object" && parsed !== null && !Array.isArray(parsed)) {
+      return {
+        outside: settingsOutsideSubtitles(parsed as Mapping, titleScreen),
+        hints: readSubtitleHints(line),
+      };
+    }
+  } catch {
+    // Reported below, like a value that isn't a mapping.
+  }
+  warnings.add(PROJECT_SETTINGS_UNREADABLE);
+  return { outside: {}, hints: {} };
+}
+
+/**
  * The script's height, where libass's defaults fill in a missing one.
  */
 function playResY(info: Record<string, string>): number {
@@ -297,7 +348,7 @@ function styleSettings(
   voiceStyles: [VoiceId, AssStyle | undefined][],
   fonts: string[],
   warnings: Warnings,
-): Record<string, unknown> {
+): { videoOptions: Record<string, unknown>; voiceStyles: Record<VoiceId, unknown> } {
   const scale = SUBTITLE_CANVAS.height / playResY(document.info);
   const fontName = (style: AssStyle): string | undefined => {
     if (fonts.includes(style.fontName)) {
@@ -370,6 +421,10 @@ export function assToProjectFiles(text: string, options: { fonts: string[] }): A
     song.title = document.info.Title;
   }
 
+  const { outside, hints } = projectSettings(document, title !== null, warnings);
+  const outsideSong = (outside.song ?? {}) as Mapping;
+  const outsideOptions = (outside.videoOptions ?? {}) as Mapping;
+
   const fileOrder = events.flatMap((event) => importLine(event, own, delay, warnings) ?? []);
   if (fileOrder.length === 0) {
     throw new Error("The file has no lyrics.");
@@ -391,39 +446,86 @@ export function assToProjectFiles(text: string, options: { fonts: string[] }): A
     breakAtPauses(lines, warnings);
   }
 
-  const pages: string[][] = [];
   const syllablesByVoice: Record<VoiceId, ImportedSyllable[]> = {};
-  let previousVoice: VoiceId | null = null;
+  const markups = new Map<ImportedLine, string>();
   for (const line of lines) {
-    if (pages.length === 0 || line.breakBefore) {
-      pages.push([]);
-    }
-    const voice = voiceOf(line);
-    let markup = lineMarkup(line.syllables, warnings);
-    if (multiVoice && voice !== previousVoice) {
-      markup = `[${voice}] ${markup}`;
-    }
-    previousVoice = voice;
-    pages[pages.length - 1].push(markup);
-    (syllablesByVoice[voice] ??= []).push(...line.syllables);
+    markups.set(line, lineMarkup(line.syllables, warnings));
+    (syllablesByVoice[voiceOf(line)] ??= []).push(...line.syllables);
   }
-  const lyrics = pages.map((page) => page.join("\n")).join("\n\n");
-  const timings = importedTimings(lyrics, syllablesByVoice, warnings);
+  Object.values(syllablesByVoice).forEach(openEnds);
+  // A line's spacers follow its voice tag, so that they belong to its voice.
+  const writeLyrics = (head?: (line: ImportedLine) => TimedSegment) => {
+    const pages: string[][] = [];
+    let previousVoice: VoiceId | null = null;
+    for (const line of lines) {
+      if (pages.length === 0 || line.breakBefore) {
+        pages.push([]);
+      }
+      const voice = voiceOf(line);
+      const tag = multiVoice && voice !== previousVoice ? `[${voice}] ` : "";
+      previousVoice = voice;
+      const { spacersBefore = 0, spacersAfter = 0 } = head?.(line) ?? {};
+      pages[pages.length - 1].push(
+        tag + "/\n".repeat(spacersBefore) + markups.get(line) + "\n/".repeat(spacersAfter),
+      );
+    }
+    return pages.map((page) => page.join("\n")).join("\n\n");
+  };
+  let lyrics = writeLyrics();
+  let timings = importedTimings(lyrics, syllablesByVoice, warnings);
 
-  const styles = styleSettings(
+  const voiceStyles: [VoiceId, AssStyle | undefined][] = sources.map((source) => {
+    const first = lines.find((line) => sourceOf(line) === source) as ImportedLine;
+    return [voiceOf(first), document.styles.find((style) => style.name === first.style)];
+  });
+  const { videoOptions, voiceStyles: styleOverrides } = styleSettings(
     document,
-    sources.map((source) => {
-      const first = lines.find((line) => sourceOf(line) === source) as ImportedLine;
-      return [voiceOf(first), document.styles.find((style) => style.name === first.style)];
-    }),
+    voiceStyles,
     options.fonts,
     warnings,
   );
 
+  if (own) {
+    const voices = voiceStyles.map(([voice, style]): FitVoice => {
+      const syllables = syllablesByVoice[voice];
+      const events = new Map(
+        lines
+          .filter((line) => voiceOf(line) === voice)
+          .map((line) => [syllables.indexOf(line.syllables[0]), line.event]),
+      );
+      return { voice, style, segments: timings[voice], events };
+    });
+    const duration = typeof outsideSong.duration === "number" ? outsideSong.duration : undefined;
+    const fit = fitOwnRender(document, voices, { song: title, delay, duration, hints });
+    timings = fit.segments;
+    const headIndex = (line: ImportedLine) =>
+      syllablesByVoice[voiceOf(line)].indexOf(line.syllables[0]);
+    // The fit may have moved a single voice's page breaks.
+    if (!multiVoice) {
+      for (const line of lines.slice(1)) {
+        line.breakBefore = timings[DEFAULT_VOICE_ID][headIndex(line) - 1].text.endsWith("\n\n");
+      }
+    }
+    lyrics = writeLyrics((line) => timings[voiceOf(line)][headIndex(line)]);
+    Object.assign(videoOptions, fit.options);
+    if (fit.mismatches > 0) {
+      warnings.add(LAYOUT_DIFFERS);
+    }
+  }
+
   return {
     lyrics,
     timings,
-    settings: yaml.dump({ song, ...styles }),
+    settings: yaml.dump({
+      ...outside,
+      song: { ...outsideSong, ...song },
+      videoOptions: {
+        ...outsideOptions,
+        ...videoOptions,
+        color: { ...(outsideOptions.color as Mapping), ...(videoOptions.color as Mapping) },
+      },
+      voiceStyles: styleOverrides,
+    }),
     warnings: warnings.list(),
   };
 }

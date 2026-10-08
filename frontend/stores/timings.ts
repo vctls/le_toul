@@ -400,6 +400,7 @@ export const useTimingsStore = defineStore("timings", {
             mediaStore.songTitle ?? "",
             mediaStore.songArtist ?? "",
             settingsStore.glyphCoverage,
+            settingsStore.subtitleSettings,
           );
         } catch (e) {
           console.error("Failed to create multi-voice subtitles", e);

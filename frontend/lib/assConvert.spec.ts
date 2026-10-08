@@ -1,16 +1,24 @@
 import { describe, expect, it } from "vitest";
 import yaml from "js-yaml";
 import {
+  AssImport,
   assToProjectFiles,
   DELAY_UNKNOWN,
   FORMATTING_DROPPED,
+  PROJECT_SETTINGS_UNREADABLE,
   RENDERED_EFFECTS,
   SCREENS_GUESSED,
   TEMPLATE_LINES_DROPPED,
   UNTIMED_LINES,
 } from "./assConvert";
 import { MARKUP_REMOVED } from "./importWarnings";
-import { createMultiVoiceAssFile, DEFAULT_KARAOKE_OPTIONS, KaraokeOptions } from "./timing";
+import { parseSettingsYaml } from "./settingsFile";
+import {
+  createMultiVoiceAssFile,
+  DEFAULT_KARAOKE_OPTIONS,
+  KaraokeOptions,
+  VerticalAlignment,
+} from "./timing";
 import { TimedSegment } from "./timedSegments";
 
 const FONTS = ["Arial Narrow", "Georgia"];
@@ -34,14 +42,32 @@ function ass(
   ].join("\n");
 }
 
-function roundTrip(tracks: { voice: string; segments: TimedSegment[] }[], options: KaraokeOptions) {
-  const text = createMultiVoiceAssFile(
+function render(tracks: { voice: string; segments: TimedSegment[] }[], options: KaraokeOptions) {
+  return createMultiVoiceAssFile(
     tracks.map((track) => ({ ...track, options })),
     SONG_DURATION,
     "Pale Moon",
     "The Placeholders",
   );
-  return assToProjectFiles(text, { fonts: FONTS });
+}
+
+function roundTrip(tracks: { voice: string; segments: TimedSegment[] }[], options: KaraokeOptions) {
+  return assToProjectFiles(render(tracks, options), { fonts: FONTS });
+}
+
+/**
+ * The file the imported project renders, on default settings overridden by the imported ones.
+ */
+function rerender(imported: AssImport): string {
+  const { videoOptions } = parseSettingsYaml(imported.settings);
+  const options = {
+    ...DEFAULT_KARAOKE_OPTIONS,
+    ...videoOptions,
+    font: { ...DEFAULT_KARAOKE_OPTIONS.font, ...videoOptions.font },
+    color: { ...DEFAULT_KARAOKE_OPTIONS.color, ...videoOptions.color },
+  };
+  const tracks = Object.entries(imported.timings).map(([voice, segments]) => ({ voice, segments }));
+  return render(tracks, options);
 }
 
 describe("assToProjectFiles on the app's own files", () => {
@@ -103,6 +129,169 @@ describe("assToProjectFiles on the app's own files", () => {
     const options = { ...DEFAULT_KARAOKE_OPTIONS, dynamicCountIns: false, countInText: "♪" };
     const imported = roundTrip([{ voice: "Voice 1", segments }], options);
     expect(imported.timings).toEqual({ "Voice 1": segments });
+  });
+
+  describe("fits the settings and display periods", () => {
+    const options: KaraokeOptions = {
+      ...DEFAULT_KARAOKE_OPTIONS,
+      countInMode: "line",
+      countInText: "•••",
+      countInThreshold: 1.9,
+      instrumentalThreshold: 5.5,
+      verticalAlignment: VerticalAlignment.Top,
+      lineSpacing: 1.8,
+      topMargin: 1.2,
+      shadowX: 1,
+      shadowY: -1,
+    };
+
+    it("that reproduce the file", () => {
+      const text = render([{ voice: "Voice 1", segments }], options);
+      const imported = assToProjectFiles(text, { fonts: FONTS });
+
+      expect(imported.warnings).toEqual([]);
+      expect(rerender(imported)).toBe(text);
+      expect(yaml.load(imported.settings)).toMatchObject({
+        videoOptions: {
+          countInMode: "line",
+          countInText: "•••",
+          countInThreshold: 1.9,
+          verticalAlignment: VerticalAlignment.Top,
+          lineSpacing: 1.8,
+          topMargin: 1.2,
+          shadowX: 1,
+          shadowY: -1,
+        },
+      });
+    });
+
+    it("but leaves out the ones the file doesn't show", () => {
+      const imported = roundTrip([{ voice: "Voice 1", segments }], options);
+      const { videoOptions } = yaml.load(imported.settings) as Record<string, any>;
+      // Dynamic count-ins last the threshold, whatever the duration.
+      expect(videoOptions).not.toHaveProperty("countInDuration");
+      expect(videoOptions).not.toHaveProperty("useStoredDisplayPeriods");
+    });
+
+    it("keeping only the display periods the automatic ones don't give", () => {
+      const stored = segments.map((segment) =>
+        segment.text === "Bright_" ? { ...segment, displayStart: 12.2 } : segment,
+      );
+      const text = render([{ voice: "Voice 1", segments: stored }], options);
+      const imported = assToProjectFiles(text, { fonts: FONTS });
+
+      expect(imported.timings).toEqual({ "Voice 1": stored });
+      expect(rerender(imported)).toBe(text);
+      expect(yaml.load(imported.settings)).toMatchObject({
+        videoOptions: { useStoredDisplayPeriods: true },
+      });
+    });
+
+    it("with the page breaks and spacers that put each line at its height", () => {
+      const spaced: TimedSegment[] = [
+        { text: "Hel/", start: 10 },
+        { text: "lo_", start: 10.5 },
+        { text: "moon\n", start: 11, end: 12 },
+        { text: "Bright_", start: 13 },
+        { text: "night\n\n", start: 13.5, end: 14.5 },
+        { text: "After_", start: 15.5, spacersBefore: 2 },
+        { text: "the_", start: 16, end: 16.3 },
+        { text: "break", start: 16.5, end: 17.5 },
+      ];
+      const text = render([{ voice: "Voice 1", segments: spaced }], DEFAULT_KARAOKE_OPTIONS);
+      const imported = assToProjectFiles(text, { fonts: FONTS });
+
+      expect(imported.lyrics).toBe("Hel/lo_moon\nBright_night\n\n/\n/\nAfter_the_break");
+      expect(rerender(imported)).toBe(text);
+    });
+  });
+
+  describe("reads back the settings the subtitles can't show", () => {
+    const withSettings = (settings: string) =>
+      createMultiVoiceAssFile(
+        [{ voice: "Voice 1", segments, options: DEFAULT_KARAOKE_OPTIONS }],
+        SONG_DURATION,
+        "Pale Moon",
+        "The Placeholders",
+        {},
+        settings,
+      );
+
+    it("but not a hint the subtitles contradict", () => {
+      const text = withSettings(
+        "{song: {title: Other, duration: 61.5}, separationModel: x.ckpt, " +
+          "videoOptions: {resolution: 720p, countInMode: none, color: {background: '#123456', primary: '#000000'}}}",
+      );
+      expect(text).toMatch(/^Project Settings: \{/m);
+
+      const imported = assToProjectFiles(text, { fonts: FONTS });
+      const settings = yaml.load(imported.settings) as Record<string, any>;
+      expect(imported.warnings).toEqual([]);
+      expect(settings.song).toEqual({
+        title: "Pale Moon",
+        artist: "The Placeholders",
+        duration: 61.5,
+      });
+      expect(settings.separationModel).toBe("x.ckpt");
+      expect(settings.videoOptions).toMatchObject({
+        resolution: "720p",
+        color: { background: "#123456", primary: "#FF00FF" },
+      });
+      expect(settings.videoOptions.countInMode).not.toBe("none");
+    });
+
+    it("with the hints the subtitles can't tell from other values", () => {
+      const text = withSettings(
+        "{videoOptions: {topMargin: 1.2, countInDuration: 0.5, instrumentalThreshold: 5.6}}",
+      );
+
+      const imported = assToProjectFiles(text, { fonts: FONTS });
+      expect(yaml.load(imported.settings)).toMatchObject({
+        videoOptions: { topMargin: 1.2, countInDuration: 0.5, instrumentalThreshold: 5.6 },
+      });
+    });
+
+    it("with a count-in text no gap is long enough to show whole", () => {
+      // The first gap earns two marks of three, and the others one.
+      const short: TimedSegment[] = [
+        { text: "Hel/", start: 2.5 },
+        { text: "lo\n", start: 3, end: 3.5 },
+        { text: "moon", start: 4.5, end: 5.5 },
+      ];
+      const options = { ...DEFAULT_KARAOKE_OPTIONS, countInText: "•••" };
+      const text = render([{ voice: "Voice 1", segments: short }], options);
+      const settingsOf = (imported: AssImport) =>
+        (yaml.load(imported.settings) as Record<string, any>).videoOptions;
+
+      const unhinted = assToProjectFiles(text, { fonts: FONTS });
+      expect(settingsOf(unhinted)).toMatchObject({ countInText: "••", countInThreshold: 2 });
+
+      const hinted = assToProjectFiles(
+        text.replace(
+          /^Audio Delay: .*$/m,
+          "$&\nProject Settings: {videoOptions: {countInText: •••, countInThreshold: 3}}",
+        ),
+        { fonts: FONTS },
+      );
+      expect(settingsOf(hinted)).toMatchObject({ countInText: "•••", countInThreshold: 3 });
+      expect(rerender(hinted)).toBe(text);
+    });
+
+    it("and warns when they can't be read", () => {
+      const imported = assToProjectFiles(withSettings("{unclosed"), { fonts: FONTS });
+      expect(imported.warnings).toEqual([PROJECT_SETTINGS_UNREADABLE]);
+    });
+  });
+
+  it("leaves open an end at the start of the next line", () => {
+    const open: TimedSegment[] = [
+      { text: "Hello_", start: 10 },
+      { text: "moon\n", start: 10.5 },
+      { text: "Bright_", start: 11.5 },
+      { text: "night", start: 12, end: 13 },
+    ];
+    const imported = roundTrip([{ voice: "Voice 1", segments: open }], DEFAULT_KARAOKE_OPTIONS);
+    expect(imported.timings).toEqual({ "Voice 1": open });
   });
 
   it("reads each voice back from the actor field, with its screens", () => {

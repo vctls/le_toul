@@ -1,7 +1,13 @@
 import { describe, expect, test } from "vitest";
 import yaml from "js-yaml";
 import Color from "buefy/src/utils/color";
-import { parseSettingsYaml, serializeSettingsYaml, SettingsFileSource } from "./settingsFile";
+import {
+  parseSettingsYaml,
+  serializeSettingsYaml,
+  readSubtitleHints,
+  serializeSubtitleSettings,
+  SettingsFileSource,
+} from "./settingsFile";
 import { VerticalAlignment } from "./timing";
 import type { VideoSettings } from "@/stores/settings";
 import { BACKING_VOCALS_HQ_SEPARATOR_MODEL, NO_VOCALS_SEPARATOR_MODEL } from "@/stores/media";
@@ -385,5 +391,73 @@ describe("serializeSettingsYaml", () => {
     const unmoved = yaml.load(serializeSettingsYaml({ ...source, backgroundVideoOffset: 0 }));
 
     expect(unmoved).not.toHaveProperty("backgroundVideoOffset");
+  });
+});
+
+describe("serializeSubtitleSettings", () => {
+  const source: SettingsFileSource = {
+    song: { title: "Humanised", artist: "Sola Rosa", duration: 211.14, youtubeUrl: null },
+    separationModel: BACKING_VOCALS_HQ_SEPARATOR_MODEL,
+    backingTrack: NO_VOCALS_SEPARATOR_MODEL,
+    backgroundVideoOffset: 0,
+    videoOptions: {
+      addTitleScreen: true,
+      countInMode: "line",
+      countInText: "",
+      instrumentalThreshold: 5.6,
+      verticalAlignment: VerticalAlignment.Middle,
+      useBackground: false,
+      backgroundFit: "fill",
+      outputFormat: "mkv",
+      resolution: "1080p",
+      frameRate: 30,
+      font: { size: 33, name: "Verdana" },
+      color: {
+        background: Color.parse("#000000"),
+        primary: Color.parse("#7e06ee"),
+        secondary: Color.parse("#ffffff"),
+        outline: Color.parse("#000000"),
+        shadow: Color.parse("#000000"),
+      },
+    } as VideoSettings,
+    voiceStyles: {},
+  };
+
+  test("writes one line with the settings the subtitles can't show, and hints for the ones they may not", () => {
+    const line = serializeSubtitleSettings(source);
+
+    expect(line).not.toContain("\n");
+    expect(yaml.load(line)).toEqual({
+      song: { duration: 211.14 },
+      separationModel: BACKING_VOCALS_HQ_SEPARATOR_MODEL,
+      backingTrack: NO_VOCALS_SEPARATOR_MODEL,
+      videoOptions: {
+        useBackground: false,
+        backgroundFit: "fill",
+        outputFormat: "mkv",
+        resolution: "1080p",
+        frameRate: 30,
+        color: { background: "#000000" },
+        countInMode: "line",
+        countInText: "",
+        instrumentalThreshold: 5.6,
+      },
+    });
+    expect(readSubtitleHints(line)).toEqual({
+      countInMode: "line",
+      countInText: "",
+      instrumentalThreshold: 5.6,
+    });
+  });
+
+  test("writes the title and artist when no title screen shows them", () => {
+    const untitled = {
+      ...source,
+      videoOptions: { ...source.videoOptions, addTitleScreen: false },
+    };
+
+    expect(yaml.load(serializeSubtitleSettings(untitled))).toMatchObject({
+      song: { title: "Humanised", artist: "Sola Rosa", duration: 211.14 },
+    });
   });
 });
