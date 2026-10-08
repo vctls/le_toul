@@ -58,7 +58,7 @@ export type FrameRate = (typeof FRAME_RATES)[number];
 export const BACKGROUND_FITS = ["fill", "fit"] as const;
 export type BackgroundFit = (typeof BACKGROUND_FITS)[number];
 
-export const DEFAULT_RESOLUTION: Resolution = "1080p";
+export const DEFAULT_RESOLUTION: Resolution = "720p";
 export const DEFAULT_FRAME_RATE: FrameRate = 30;
 
 // Which gaps get a count-in: none at all, only the gap before a screen's first line, or

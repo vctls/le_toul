@@ -220,7 +220,7 @@ describe("assToProjectFiles on the app's own files", () => {
     it("but not a hint the subtitles contradict", () => {
       const text = withSettings(
         "{song: {title: Other, duration: 61.5}, separationModel: x.ckpt, " +
-          "videoOptions: {resolution: 720p, countInMode: none, color: {background: '#123456', primary: '#000000'}}}",
+          "videoOptions: {resolution: 1080p, countInMode: none, color: {background: '#123456', primary: '#000000'}}}",
       );
       expect(text).toMatch(/^Project Settings: \{/m);
 
@@ -234,7 +234,7 @@ describe("assToProjectFiles on the app's own files", () => {
       });
       expect(settings.separationModel).toBe("x.ckpt");
       expect(settings.videoOptions).toMatchObject({
-        resolution: "720p",
+        resolution: "1080p",
         color: { background: "#123456", primary: "#FF00FF" },
       });
       expect(settings.videoOptions.countInMode).not.toBe("none");

@@ -269,14 +269,14 @@
             </option>
           </b-select>
         </b-field>
-        <b-field horizontal label="Resolution">
+        <b-field v-if="advancedStore.isAdvanced" horizontal label="Resolution">
           <b-select v-model="videoOptions.resolution" expanded>
             <option v-for="resolution in resolutions" :key="resolution" :value="resolution">
               {{ resolution }}
             </option>
           </b-select>
         </b-field>
-        <b-field horizontal label="Frame Rate">
+        <b-field v-if="advancedStore.isAdvanced" horizontal label="Frame Rate">
           <b-select v-model="videoOptions.frameRate" expanded>
             <option v-for="rate in frameRates" :key="rate" :value="rate">{{ rate }} fps</option>
           </b-select>
