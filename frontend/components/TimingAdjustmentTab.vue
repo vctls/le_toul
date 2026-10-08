@@ -498,7 +498,22 @@
       @selection-change="(indices: number[]) => (selectedSegments = indices)"
       @play="isPlaying = true"
       @pause="onPlaybackPause"
-    />
+      @playback-loaded="onPlaybackLoaded"
+    >
+      <span
+        v-if="mixStatus"
+        class="mix-status tag"
+        :class="mixStatus === 'applied' ? 'is-success' : 'is-info'"
+        role="status"
+      >
+        <b-icon
+          :icon="mixStatus === 'applied' ? 'check' : 'spinner'"
+          :custom-class="mixStatus === 'applied' ? '' : 'fa-spin'"
+          size="is-small"
+        />
+        <span>{{ mixStatus === "applied" ? "Mix updated" : "Updating the mix" }}</span>
+      </span>
+    </timing-adjuster>
     <tap-buttons
       v-if="songFile && (isImmersive || (isTapMode && showTapButtons))"
       :timing-buttons="isTapMode"
@@ -650,6 +665,9 @@ const EMPTY_GAP_DB = -40;
 
 // The mix is rebuilt from the whole song, so a run of setting changes only rebuilds it once.
 const MIX_PLAYBACK_DELAY_MS = 400;
+
+// How long the waveform says the mix was updated.
+const MIX_APPLIED_MS = 1500;
 
 const GAP_FIELDS = [
   { option: "gapPreRoll", label: "Mute before a line (seconds)", step: 0.1 },
@@ -826,6 +844,9 @@ export default defineComponent({
       gapLevels: null as { gaps: Span[]; levels: number[] } | null,
       mixRequest: 0,
       _mixTimer: null as ReturnType<typeof setTimeout> | null,
+      // Whether the mix playing is behind the settings, or has just caught up with them.
+      mixStatus: null as "updating" | "applied" | null,
+      _mixStatusTimer: null as ReturnType<typeof setTimeout> | null,
     };
   },
   computed: {
@@ -1102,6 +1123,9 @@ export default defineComponent({
     if (this._mixTimer) {
       clearTimeout(this._mixTimer);
     }
+    if (this._mixStatusTimer) {
+      clearTimeout(this._mixStatusTimer);
+    }
   },
   watch: {
     mixInputs: {
@@ -1334,6 +1358,7 @@ export default defineComponent({
       this.settingsScrolled = (event.target as HTMLElement).scrollTop > 1;
     },
     scheduleMixPlayback() {
+      this.setMixStatus(this.mixMode && this.mixBacking ? "updating" : null);
       if (this._mixTimer) clearTimeout(this._mixTimer);
       this._mixTimer = setTimeout(() => {
         this._mixTimer = null;
@@ -1350,6 +1375,7 @@ export default defineComponent({
       const song = this.songFile;
       if (!this.mixMode || !backing || !song) {
         this.mixPlayback = null;
+        this.setMixStatus(null);
         return;
       }
       const { gaps } = this.timingsStore.gapPlan;
@@ -1359,10 +1385,32 @@ export default defineComponent({
           gapDifferences(backing, song, gaps),
         ]);
         if (request !== this.mixRequest) return;
+        // The same mix is already playing, so no load will come to mark it applied.
+        if (mix === this.mixPlayback) this.setMixStatus("applied");
         this.mixPlayback = mix;
         this.gapLevels = { gaps, levels };
       } catch (error) {
         console.error("Could not build the mix", error);
+        this.setMixStatus(null);
+      }
+    },
+    onPlaybackLoaded(track: Blob) {
+      if (this.mixStatus === "updating" && track === this.mixPlayback) {
+        this.setMixStatus("applied");
+      }
+    },
+    /**
+     * Show the mix's status. "applied" only shows for a moment.
+     */
+    setMixStatus(status: "updating" | "applied" | null) {
+      if (this._mixStatusTimer) clearTimeout(this._mixStatusTimer);
+      this._mixStatusTimer = null;
+      this.mixStatus = status;
+      if (status === "applied") {
+        this._mixStatusTimer = setTimeout(() => {
+          this._mixStatusTimer = null;
+          this.mixStatus = null;
+        }, MIX_APPLIED_MS);
       }
     },
     setMode(mode: AdjustMode) {
@@ -1733,6 +1781,16 @@ Its rule ties on specificity with the one above. */
   gap: 0.25em;
   color: var(--region-review-lost);
   font-weight: var(--bulma-weight-semibold);
+}
+
+/* The mix's status sits in the waveform's top right corner, over the frames. */
+.mix-status {
+  position: absolute;
+  top: 0.5rem;
+  right: 0.5rem;
+  z-index: 5;
+  gap: 0.35em;
+  pointer-events: none;
 }
 
 /* Bulma's padding would push four buttons past the width of the other controls.

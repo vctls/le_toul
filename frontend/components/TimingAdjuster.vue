@@ -31,6 +31,7 @@
         @scroll-change="$emit('scroll-change', $event)"
       />
       <tap-queue v-if="tapMode" :items="queue" @pick="$emit('segment-picked', $event)" />
+      <slot />
     </div>
   </div>
 </template>
@@ -110,6 +111,8 @@ export default defineComponent({
     "zoom-change",
     "zoom-by",
     "scroll-change",
+    // A track given as `playbackTrack` is now the one playing.
+    "playback-loaded",
   ],
   components: {
     Wavesurfer,
@@ -288,9 +291,12 @@ export default defineComponent({
     },
     loadPlaybackSource(blob: Blob | undefined) {
       if (!blob) return;
-      this.player.load(blob).catch((error) => {
-        console.error("Could not decode the track:", error);
-      });
+      this.player
+        .load(blob)
+        .then(() => this.$emit("playback-loaded", blob))
+        .catch((error) => {
+          console.error("Could not decode the track:", error);
+        });
     },
     onRegionUpdated(region: Region) {
       this.onRegionsUpdated([region]);
