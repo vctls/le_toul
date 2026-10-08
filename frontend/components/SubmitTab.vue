@@ -249,6 +249,17 @@
             @update:model-value="(v: TrackSource) => (mediaStore.renderTrackSource = v)"
           />
         </b-field>
+        <b-field horizontal :message="restoreGapsMessage">
+          <template #label>
+            Restore Gaps
+            <viewport-tooltip
+              wide
+              label="Play the original song instead of the backing track where nobody sings, so only the sung parts lose what the separation removed"
+            >
+              <b-icon size="is-small" icon="circle-question"></b-icon>
+            </viewport-tooltip> </template
+          ><b-switch v-model="videoOptions.restoreGaps"></b-switch
+        ></b-field>
         <b-field horizontal>
           <template #label>
             Video Format
@@ -526,6 +537,8 @@
           :song-file="songFile"
           :backing-track="previewBacking ?? undefined"
           :preview-track="previewBacking ? 'backing' : 'full'"
+          :gaps="timingsStore.restoredGaps"
+          :gap-fade="videoOptions.gapFade"
           :subtitles="allVoicesSubtitles()"
           :audio-delay="audioDelay"
           :fonts="fontMap"
@@ -653,6 +666,7 @@ import { BUNDLED_FONTS as fonts, COUNT_IN_SYMBOLS } from "@/lib/fonts";
 import { projectFilesToKbp } from "@/lib/kbpConvert";
 import { applyVoiceStyle } from "@/lib/voiceStyle";
 import { slide } from "@/lib/slide";
+import { restoredBacking } from "@/lib/gapMix";
 
 // The rest of the bar is the zip, which carries the source song and both separated tracks.
 const RENDER_SHARE = 0.95;
@@ -827,6 +841,13 @@ export default defineComponent({
     previewBacking(): Blob | null {
       return this.mediaStore.trackFor("backing", this.previewTrack);
     },
+    restoreGapsMessage(): string {
+      return this.videoOptions.restoreGaps &&
+        this.timingsStore.hasAnyTimings &&
+        !this.timingsStore.gapPlan.complete
+        ? "The gaps are restored once every syllable is timed."
+        : "";
+    },
     songDuration() {
       return this.mediaStore.songDuration;
     },
@@ -966,8 +987,16 @@ export default defineComponent({
         this.creationPhase = CreationPhase.CreatingVideo;
         this.waitingForSeparation = false;
         const videoOptions = { createTitleScreens: true, ...this.renderOptions };
+        const gaps = this.timingsStore.restoredGaps;
+        if (gaps.length > 0) {
+          this.creationStep = "restoring the gaps";
+        }
+        const backing = await abortable(
+          restoredBacking(separatedTrack.backing, songFile, gaps, videoOptions.gapFade),
+          abort.signal,
+        );
         const videoFile: Uint8Array = await video.createVideo({
-          backing: separatedTrack.backing,
+          backing,
           background: videoOptions.useBackground ? this.background : null,
           backgroundVideoOffset: this.mediaStore.backgroundVideoOffset,
           subtitles: this.allVoicesSubtitles(),
@@ -979,7 +1008,11 @@ export default defineComponent({
             duration: this.mediaStore.songDuration ?? undefined,
           },
           fontMap: this.renderFontMap,
-          alternateTracks: { vocals: separatedTrack.vocals, original: songFile },
+          alternateTracks: {
+            ...(backing !== separatedTrack.backing && { backing: separatedTrack.backing }),
+            vocals: separatedTrack.vocals,
+            original: songFile,
+          },
           signal: abort.signal,
           onProgress: (progress, step) => {
             this.videoProgress = progress * RENDER_SHARE;

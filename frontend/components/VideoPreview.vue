@@ -35,6 +35,8 @@
 import { defineComponent, markRaw, PropType } from "vue";
 import type { BackgroundFit } from "@/lib/timing";
 import bufferToWav from "audiobuffer-to-wav";
+import { restoredBacking } from "@/lib/gapMix";
+import type { Span } from "@/lib/gapRestore";
 import SubtitleDisplay from "./SubtitleDisplay.vue";
 import SmoothAudioPlayer from "./SmoothAudioPlayer.vue";
 
@@ -55,6 +57,15 @@ export default defineComponent({
     previewTrack: {
       type: String,
       default: "full",
+    },
+    // Where the backing track gives way to the song, as the video plays it.
+    gaps: {
+      type: Array as PropType<Span[]>,
+      default: () => [],
+    },
+    gapFade: {
+      type: Number,
+      default: 0,
     },
     subtitles: {
       type: String,
@@ -104,6 +115,11 @@ export default defineComponent({
         // and apply it when the preview becomes visible again.
         isDisplayed: true,
         pendingAudioUpdate: null as { audio: Blob; silence: number } | null,
+        // Each restored backing track is a new blob of a whole song, so only the one playing
+        // and the latest are kept.
+        restoredTracks: new Set<Blob>(),
+        // An update that finishes after a later one started is dropped.
+        audioRequest: 0,
         visibilityObserver: null as IntersectionObserver | null,
       }),
     };
@@ -114,6 +130,9 @@ export default defineComponent({
         return this.backingTrack;
       }
       return this.songFile;
+    },
+    restoredGapsKey(): string {
+      return this.activeAudio === this.songFile ? "" : JSON.stringify([this.gaps, this.gapFade]);
     },
   },
   mounted() {
@@ -134,6 +153,9 @@ export default defineComponent({
     },
     audioDelay(newDelay: number) {
       this.scheduleAudioUpdate(this.activeAudio, newDelay);
+    },
+    restoredGapsKey() {
+      this.scheduleAudioUpdate(this.activeAudio, this.audioDelay);
     },
   },
   methods: {
@@ -173,7 +195,25 @@ export default defineComponent({
       }
       this.subtitleDisplayRef()?.setPlayhead(playhead);
     },
-    async updateAudio(audioData: Blob, silence: number) {
+    async updateAudio(source: Blob, silence: number) {
+      const request = ++this.view.audioRequest;
+      let audioData = source;
+      if (source !== this.songFile) {
+        try {
+          audioData = await restoredBacking(source, this.songFile, this.gaps, this.gapFade);
+        } catch (error) {
+          console.error(
+            "Could not restore the gaps, so the preview plays the backing track",
+            error,
+          );
+        }
+      }
+      if (request !== this.view.audioRequest) {
+        return;
+      }
+      if (audioData !== source) {
+        this.view.restoredTracks.add(audioData);
+      }
       let urlsBySilence = this.view.preparedTrackUrls.get(audioData);
       if (!urlsBySilence) {
         urlsBySilence = new Map<number, string>();
@@ -185,9 +225,13 @@ export default defineComponent({
         url = URL.createObjectURL(audioWithSilence);
         urlsBySilence.set(silence, url);
       }
+      if (request !== this.view.audioRequest) {
+        return;
+      }
       if (url === this.audioDataUrl) {
         return;
       }
+      this.dropRestoredTracks(audioData);
 
       // Capture the playhead/play state right before swapping the source,
       // since reloading the <audio> element resets playback to 0 and pauses.
@@ -210,6 +254,20 @@ export default defineComponent({
         }
       };
       audio.addEventListener("loadedmetadata", onLoaded, { once: true });
+    },
+    /**
+     * Revoke the restored backing tracks other than `kept` and the one playing.
+     */
+    dropRestoredTracks(kept: Blob) {
+      for (const track of this.view.restoredTracks) {
+        const urls = this.view.preparedTrackUrls.get(track);
+        if (track === kept || [...(urls?.values() ?? [])].includes(this.audioDataUrl)) {
+          continue;
+        }
+        urls?.forEach((url) => URL.revokeObjectURL(url));
+        this.view.preparedTrackUrls.delete(track);
+        this.view.restoredTracks.delete(track);
+      }
     },
     async prependSilence(audioData: Blob, secondsOfSilence: number): Promise<Blob> {
       if (secondsOfSilence == 0) {

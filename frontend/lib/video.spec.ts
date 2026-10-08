@@ -247,6 +247,19 @@ describe("getMkvMuxParams", () => {
     expect(valueOf(args, "-metadata")).toBe("artist=The Bolks");
   });
 
+  it("names the main track after the restored gaps when the plain backing track is an alternate", () => {
+    const args = getMkvMuxParams(
+      [{ fileName: "backing.m4a", title: "Backing track" }, ...ALTERNATES],
+      METADATA,
+      true,
+    );
+
+    expect(valueOf(args, "-metadata:s:a:0")).toBe("title=Backing track, gaps restored");
+    expect(valueOf(args, "-metadata:s:a:1")).toBe("title=Backing track");
+    expect(valueOf(args, "-disposition:a:0")).toBe("default");
+    expect(valueOf(args, "-disposition:a:1")).toBe("0");
+  });
+
   it("leaves out an alternate that never arrived", () => {
     const args = getMkvMuxParams([ALTERNATES[0]], METADATA);
 

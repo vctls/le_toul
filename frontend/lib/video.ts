@@ -17,7 +17,10 @@ interface VideoMetadata {
 }
 
 // The additional audio tracks an MKV render carries alongside the backing track.
+// A track left undefined isn't wanted, and a null or empty one is missing.
 export interface AlternateAudioTracks {
+  // The plain backing track, when the main track restores the gaps.
+  backing?: Blob | null;
   vocals?: Blob | null;
   original?: Blob | null;
 }
@@ -30,8 +33,10 @@ interface EncodedTrack {
 const RENDERED_VIDEO_FILE = "karaoke.mp4";
 const MKV_FILE = "karaoke.mkv";
 const BACKING_TRACK_TITLE = "Backing track";
+const RESTORED_BACKING_TRACK_TITLE = "Backing track, gaps restored";
 
 const ALTERNATE_TRACKS = [
+  { key: "backing", title: BACKING_TRACK_TITLE },
   { key: "vocals", title: "Vocals" },
   { key: "original", title: "Original mix" },
 ] as const satisfies readonly { key: keyof AlternateAudioTracks; title: string }[];
@@ -253,8 +258,13 @@ export function getAlternateTrackParams(
 }
 
 // Copy only: nothing here re-encodes.
-export function getMkvMuxParams(alternates: EncodedTrack[], metadata: VideoMetadata) {
-  const titles = [BACKING_TRACK_TITLE, ...alternates.map(({ title }) => title)];
+export function getMkvMuxParams(
+  alternates: EncodedTrack[],
+  metadata: VideoMetadata,
+  gapsRestored = false,
+) {
+  const main = gapsRestored ? RESTORED_BACKING_TRACK_TITLE : BACKING_TRACK_TITLE;
+  const titles = [main, ...alternates.map(({ title }) => title)];
   return [
     "-i",
     RENDERED_VIDEO_FILE,
@@ -378,6 +388,9 @@ function usableAlternates(tracks: AlternateAudioTracks | null): AlternateSource[
   const usable: AlternateSource[] = [];
   for (const { key, title } of ALTERNATE_TRACKS) {
     const source = tracks?.[key];
+    if (source === undefined) {
+      continue;
+    }
     if (!source || source.size === 0) {
       console.warn(`No ${title.toLowerCase()} track available, leaving it out of the MKV`);
       continue;
@@ -557,7 +570,7 @@ async function createVideo({
     }
     await runFfmpeg(
       ffmpeg,
-      getMkvMuxParams(encoded, metadata),
+      getMkvMuxParams(encoded, metadata, alternateTracks?.backing !== undefined),
       muxStep,
       progress,
       diagnostics,
