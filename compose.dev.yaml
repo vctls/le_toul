@@ -18,6 +18,8 @@ services:
         FROM node:22-slim
         ARG UID
         ARG GID
+        ENV COREPACK_ENABLE_DOWNLOAD_PROMPT=0
+        RUN corepack enable
         RUN mkdir -p /app/node_modules && chown $$UID:$$GID /app/node_modules
       args:
         UID: ${UID:-1000}
@@ -25,7 +27,7 @@ services:
     # The host user, so files written into the bind mount aren't root-owned.
     user: "${UID:-1000}:${GID:-1000}"
     working_dir: /app
-    command: ["npm", "run", "dev", "--", "--host", "0.0.0.0"]
+    command: ["pnpm", "run", "dev", "--host", "0.0.0.0"]
     environment:
       TUUL_API_HOSTNAME: ""
       TUUL_DONATE_URL: ${TUUL_DONATE_URL-}
@@ -44,15 +46,15 @@ services:
       # so its HTML report server (port 9323) is also published here.
       - "9323:9323"
     # The volume outlives image rebuilds,
-    # so `npm clean-install` reruns whenever package-lock.json differs from the last install.
+    # so `pnpm install` reruns whenever pnpm-lock.yaml differs from the last install.
     entrypoint: &install-dependencies
       - sh
       - -c
       - |
         set -e
-        lock=$$(sha256sum package-lock.json)
+        lock=$$(sha256sum pnpm-lock.yaml)
         if [ "$$(cat node_modules/.lock-hash 2>/dev/null)" != "$$lock" ]; then
-          npm clean-install
+          pnpm install --frozen-lockfile --store-dir node_modules/.pnpm-store
           echo "$$lock" > node_modules/.lock-hash
         fi
         exec "$$@"
@@ -99,7 +101,7 @@ services:
 
   # End-to-end tests. Not started by `up`; run on demand with:
   #   docker compose -f compose.dev.yaml run --rm playwright
-  # Pass extra args after the service name, e.g. `... playwright npx playwright test lyrics-tab-functionality`.
+  # Pass extra args after the service name, e.g. `... playwright pnpm exec playwright test lyrics-tab-functionality`.
   #
   # Shares the vite container's network namespace so the browser navigates to http://localhost:5173.
   # Chromium treats loopback as a secure context,
@@ -111,6 +113,8 @@ services:
         FROM mcr.microsoft.com/playwright:v1.60.0-jammy
         ARG UID
         ARG GID
+        ENV COREPACK_ENABLE_DOWNLOAD_PROMPT=0
+        RUN corepack enable
         RUN mkdir -p /app/node_modules && chown $$UID:$$GID /app/node_modules
       args:
         UID: ${UID:-1000}
@@ -123,7 +127,7 @@ services:
       - .:/app
       - playwright-node-modules:/app/node_modules
     entrypoint: *install-dependencies
-    command: ["npx", "playwright", "test"]
+    command: ["pnpm", "exec", "playwright", "test"]
     network_mode: "service:vite"
     profiles: ["e2e"]
     depends_on:

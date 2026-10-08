@@ -12,8 +12,8 @@ ENV TUUL_API_HOSTNAME=$TUUL_API_HOSTNAME \
 WORKDIR /app
 
 # Copy frontend source files
-COPY package.json package-lock.json ./
-RUN npm clean-install
+COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
+RUN corepack enable && pnpm install --frozen-lockfile
 
 # Copy the rest of the frontend source
 COPY frontend/ ./frontend/
@@ -23,7 +23,7 @@ COPY api/assets ./api/assets
 COPY api/templates ./api/templates
 
 # Build the frontend
-RUN npm run build
+RUN pnpm run build
 
 # Use an official lightweight Python image.
 # https://hub.docker.com/_/python

@@ -12,7 +12,7 @@ const APP_PORT = 8011;
  * as a new deployment would.
  */
 export function buildApp(env: Record<string, string> = {}): void {
-  execSync("npm run build", { cwd: ROOT, env: { ...process.env, ...env }, stdio: "ignore" });
+  execSync("pnpm run build", { cwd: ROOT, env: { ...process.env, ...env }, stdio: "ignore" });
 }
 
 /**

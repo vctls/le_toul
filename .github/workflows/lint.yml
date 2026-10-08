@@ -19,17 +19,21 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v7
 
+      # pnpm must be on the PATH before setup-node for its cache to work.
+      - name: Install pnpm
+        uses: pnpm/action-setup@v6
+
       - name: Set up Node
         uses: actions/setup-node@v7
         with:
           node-version: 22
-          cache: npm
+          cache: pnpm
 
       - name: Install dependencies
-        run: npm ci
+        run: pnpm install --frozen-lockfile
 
       - name: Check formatting
-        run: npm run format:check
+        run: pnpm run format:check
 
   ruff:
     name: Ruff

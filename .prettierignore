@@ -9,7 +9,7 @@ test-results/
 .gif-frames/
 
 # Generated / vendored
-package-lock.json
+pnpm-lock.yaml
 poetry.lock
 frontend/jsmediatags.min.js
 api/pretrained_models/

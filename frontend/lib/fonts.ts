@@ -119,7 +119,8 @@ export const FALLBACK_FONTS = [
 ];
 
 // The symbols each bundled font draws, as [first, last] code point ranges.
-// It is generated from the font files by fonts.spec.ts. Run `npx vitest run -u` after changing a font.
+// It is generated from the font files by fonts.spec.ts.
+// Run `pnpm exec vitest run -u` after changing a font.
 // Only the CJK font draws CJK characters, so none are listed.
 export const BUNDLED_SYMBOLS: Readonly<Record<string, ReadonlySet<number>>> = Object.fromEntries(
   Object.entries(bundledSymbolRanges as Record<string, number[][]>).map(([family, ranges]) => [

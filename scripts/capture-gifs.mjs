@@ -2,7 +2,7 @@
  * Generates the animated GIFs the README uses, by driving the running app with
  * Playwright, capturing frame sequences, and assembling them with ffmpeg.
  *
- * Prereqs: the Vite dev server must be running (npm run dev, port 5173) and
+ * Prereqs: the Vite dev server must be running (pnpm run dev, port 5173) and
  * ffmpeg must be on PATH.
  *
  *   node scripts/capture-gifs.mjs [feature...]

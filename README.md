@@ -186,7 +186,7 @@ test suites, and Docker Compose stacks for dev, production and GPU-backed separa
 
 The dev stack runs either on the host directly, or in Docker.
 
-To run locally, it requires python 3.13, [poetry](http://python-poetry.org), npm and FFmpeg.
+To run locally, it requires python 3.13, [poetry](http://python-poetry.org), pnpm and FFmpeg.
 Install it on the host with `make install`.
 
 Copy .env.example to .env and fill out the variables.
