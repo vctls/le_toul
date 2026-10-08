@@ -3,6 +3,7 @@
 .idea
 .vscode
 __pycache__
+.venv
 # Model binaries, downloaded on first use by audio-separator and torchaudio.
 # See README "Credits" for sources. Keep metadata JSONs/YAMLs tracked so we
 # don't have to rebuild them on a clean clone.

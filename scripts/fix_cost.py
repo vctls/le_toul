@@ -1,6 +1,6 @@
 """Estimate the work a sync leaves to fix by hand, and rank syncing configurations by it.
 
-    poetry run python scripts/fix_cost.py ROWS... [--sweep] [--per-song] [--flags both]
+    uv run python scripts/fix_cost.py ROWS... [--sweep] [--per-song] [--flags both]
 
 Each ROWS file is what `scripts/align.py --rows` wrote for one configuration, which takes the
 file's name. Only the voices every file holds are compared, and songs with several voices

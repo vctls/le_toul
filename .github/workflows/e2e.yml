@@ -34,20 +34,20 @@ jobs:
           node-version: 22
           cache: pnpm
 
-      # Poetry must be on the PATH before setup-python for its cache to work.
-      - name: Install Poetry
-        run: pipx install poetry
-
       - name: Set up Python
         uses: actions/setup-python@v7
         with:
           python-version-file: .python-version
-          cache: poetry
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v10
+        with:
+          enable-cache: true
 
       - name: Install dependencies
         run: |
           pnpm install --frozen-lockfile
-          poetry install
+          uv sync
 
       - name: Install browsers
         run: pnpm exec playwright install --with-deps chromium firefox

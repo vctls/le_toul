@@ -1,6 +1,6 @@
 """Line starts from LRCLIB's synced lyrics, matched to a project's lyrics.
 
-    poetry run python scripts/lrc.py fetch local/lrclib-check.jsonl
+    uv run python scripts/lrc.py fetch local/lrclib-check.jsonl
 
 `fetch` saves the synced record the lookup picked for each song that
 scripts/lrclib_check.py checked, so scripts/align.py can anchor lines on it offline.

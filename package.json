@@ -20,7 +20,7 @@
     "build": "vite build --mode production --config vite.config.prod.ts",
     "build-dev": "vite build --config vite.config.dev.ts",
     "watch": "vite build --config vite.config.dev.ts --watch --host",
-    "version": "(cd api/ && poetry version $npm_package_version) && git add pyproject.toml",
+    "version": "uv version --no-sync $npm_package_version && git add pyproject.toml uv.lock",
     "prepare": "husky"
   },
   "repository": {
@@ -93,8 +93,8 @@
   "lint-staged": {
     "*.{ts,mts,js,mjs,cjs,vue,json,jsonc,css,scss,html,md,yaml,yml}": "prettier --write",
     "*.py": [
-      "poetry run ruff check --fix",
-      "poetry run ruff format"
+      "uv run ruff check --fix",
+      "uv run ruff format"
     ]
   }
 }

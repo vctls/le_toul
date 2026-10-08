@@ -10,7 +10,7 @@ test-results/
 
 # Generated / vendored
 pnpm-lock.yaml
-poetry.lock
+uv.lock
 frontend/jsmediatags.min.js
 api/pretrained_models/
 api/assets/

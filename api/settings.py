@@ -14,7 +14,7 @@ BASE_DIR = Path(__file__).resolve().parent
 def _app_version() -> str:
     try:
         with open(BASE_DIR.parent / "pyproject.toml", "rb") as f:
-            return tomllib.load(f)["tool"]["poetry"]["version"]
+            return tomllib.load(f)["project"]["version"]
     except (OSError, KeyError, tomllib.TOMLDecodeError):
         return "unknown"
 

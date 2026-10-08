@@ -22,10 +22,10 @@ export class AppServer {
   private process: ChildProcess | null = null;
 
   async start(): Promise<void> {
-    this.process = spawn("poetry", ["run", "uvicorn", "api.main:app", "--port", String(APP_PORT)], {
+    this.process = spawn("uv", ["run", "uvicorn", "api.main:app", "--port", String(APP_PORT)], {
       cwd: ROOT,
       env: { ...process.env, DEBUG: "False", SEPARATION_BACKEND: "passthrough" },
-      // Its own process group, so that stop() reaches uvicorn behind poetry.
+      // Its own process group, so that stop() reaches uvicorn behind uv.
       detached: true,
       stdio: "ignore",
     });

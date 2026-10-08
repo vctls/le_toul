@@ -1,6 +1,6 @@
 """Check which test songs LRCLIB has lyrics for, and whether the lookup picks the right record.
 
-    poetry run python scripts/lrclib_check.py [--projects FOLDER] [--rows rows.jsonl]
+    uv run python scripts/lrclib_check.py [--projects FOLDER] [--rows rows.jsonl]
 
 Each song is looked up with the app's own provider, as the app would look it up, then
 searched more widely. Every record found is compared with the song's hand-timed lyrics,

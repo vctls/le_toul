@@ -4,8 +4,8 @@ Each project folder holds a vocals stem (`vocals.*`) and a `timings.txt`, or an
 older `timings.json` with its `lyrics.txt`, as the app's project download writes them.
 Every segment of every voice is synced, then compared with the hand timings.
 
-    poetry run python scripts/align.py [--aligner mms_fa] [--rows rows.jsonl] PROJECT...
-    poetry run python scripts/align.py --search FOLDER
+    uv run python scripts/align.py [--aligner mms_fa] [--rows rows.jsonl] PROJECT...
+    uv run python scripts/align.py --search FOLDER
 
 With --anchor-lines, each line's first syllable keeps its hand timing, as if a person
 had tapped only the line starts, and the rest of the line is synced around it.

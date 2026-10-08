@@ -25,9 +25,8 @@ backend's Poetry environment, which has numpy.
    ffmpeg -i tests/fixtures/project/song.mp3 -ac 1 -ar 48000 -f f32le song.f32
    ```
 
-2. In a working directory, start `poetry -C <repo> run python <repo>/tools/playback-measure/receive.py`
-   and leave it running. `poetry -C` changes to the repo first, so call the environment's own
-   `python` (`poetry env info -p` gives it) to keep the files in the working directory.
+2. In a working directory, start `uv run --project <repo> python <repo>/tools/playback-measure/receive.py`
+   and leave it running. It writes its files to the working directory.
 3. Open the project's Timing tab in Adjust mode, in a browser driven by a browser tool, such as
    the Firefox or Chrome DevTools MCP servers. Click its Play button once through the tool, and
    pause. That click is a real user gesture. The page's own synthetic clicks aren't, and Firefox

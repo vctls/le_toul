@@ -35,8 +35,6 @@ FILES_MOUNT = "/files"
 MODELS_MOUNT = "/models"
 
 _REPO = Path(__file__).resolve().parents[1]
-_PYPROJECT = str(_REPO / "pyproject.toml")
-_LOCKFILE = str(_REPO / "poetry.lock")
 
 # librosa compiles its numba functions on import, which takes half a minute. It
 # caches them, but only once a container has paid for it, so the build pays instead.
@@ -48,7 +46,7 @@ _WARM_NUMBA_CACHE = (
 
 web_image = (
     modal.Image.debian_slim(python_version="3.13")
-    .poetry_install_from_file(_PYPROJECT, _LOCKFILE, without=["dev"])
+    .uv_sync(str(_REPO), extra_options="--no-dev")
     .add_local_python_source("api")
 )
 
@@ -57,16 +55,16 @@ web_image = (
 gpu_image = (
     modal.Image.debian_slim(python_version="3.13")
     .apt_install("ffmpeg")
-    .poetry_install_from_file(_PYPROJECT, _LOCKFILE, with_=["ml"], without=["dev"])
-    .pip_install(
+    .uv_sync(str(_REPO), groups=["ml"], extra_options="--no-dev")
+    .uv_pip_install(
         "torch==2.7.1+cu128",
         "torchaudio==2.7.1+cu128",
         "torchvision==0.22.1+cu128",
-        index_url="https://download.pytorch.org/whl/cu128",
-        extra_index_url="https://pypi.org/simple",
+        extra_index_url="https://download.pytorch.org/whl/cu128",
     )
-    .run_commands("python -m pip uninstall -y onnxruntime")
-    .pip_install("onnxruntime-gpu==1.22.0")
+    # The uv_sync venv has no pip. /.uv/uv is where uv_sync copies the uv binary.
+    .run_commands("/.uv/uv pip uninstall --python $(command -v python) onnxruntime")
+    .uv_pip_install("onnxruntime-gpu==1.22.0")
     .env(
         {
             "MODELS_DIR": MODELS_MOUNT,

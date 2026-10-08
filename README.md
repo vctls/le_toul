@@ -186,7 +186,7 @@ test suites, and Docker Compose stacks for dev, production and GPU-backed separa
 
 The dev stack runs either on the host directly, or in Docker.
 
-To run locally, it requires python 3.13, [poetry](http://python-poetry.org), pnpm and FFmpeg.
+To run locally, it requires python 3.13, [uv](https://docs.astral.sh/uv/), pnpm and FFmpeg.
 Install it on the host with `make install`.
 
 Copy .env.example to .env and fill out the variables.
@@ -200,7 +200,7 @@ docker compose -f compose.dev.yaml up
 
 And open it on http://localhost:5173
 
-Alternatively, run it directly with Poetry:
+Alternatively, run it directly on the host:
 
 ```
 > make dev
@@ -210,7 +210,7 @@ And open it on http://localhost:8000
 
 ### Running Separate Separator App
 
-`poetry run python -m api.separator_server`
+`uv run python -m api.separator_server`
 
 It listens on port 8001, and both separates and syncs. The app sends both to it with
 `SEPARATION_BACKEND=remote`, with `SEPARATION_REMOTE_URL` pointing at it.
@@ -231,11 +231,11 @@ Both need the NVIDIA container toolkit.
 
 ### Separating and syncing on Modal
 
-`api/modal_app.py` serves the same job protocol from a Modal GPU. Install its SDK with
-`poetry install --with modal`, then serve it from the repository root:
+`api/modal_app.py` serves the same job protocol from a Modal GPU. Serve it from the repository
+root. The first run installs the Modal SDK.
 
 ```
-poetry run modal serve -m api.modal_app
+uv run --group modal modal serve -m api.modal_app
 ```
 
 To run the app against it, set `MODAL_SEPARATION_URL`, `MODAL_PROXY_KEY` and `MODAL_PROXY_SECRET` in

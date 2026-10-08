@@ -47,11 +47,16 @@ jobs:
         with:
           python-version-file: .python-version
 
-      - name: Install Poetry
-        run: pipx install poetry
+      - name: Install uv
+        uses: astral-sh/setup-uv@v10
+        with:
+          enable-cache: true
 
       - name: Install dev dependencies
-        run: poetry install --only dev
+        run: uv sync --only-group dev
 
+      # Without this, uv run would install the app's dependencies as well.
       - name: Lint and check formatting
         run: make lint-backend
+        env:
+          UV_NO_SYNC: 1

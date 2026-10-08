@@ -33,30 +33,27 @@ ENV APP_HOME=/app
 # Setting this ensures print statements and log messages
 # promptly appear in Cloud Logging.
 ENV PYTHONUNBUFFERED=TRUE \
-    POETRY_VERSION=2.1.2 \
-    POETRY_VIRTUALENVS_IN_PROJECT=1 \
-    POETRY_VIRTUALENVS_CREATE=1 \
-    POETRY_CACHE_DIR=/tmp/poetry_cache
+    UV_COMPILE_BYTECODE=1 \
+    UV_LINK_MODE=copy \
+    UV_PYTHON_DOWNLOADS=never
 WORKDIR $APP_HOME
 
-# prepend poetry and venv to path
-# ENV PATH "$POETRY_HOME/bin:$PATH"
+COPY --from=ghcr.io/astral-sh/uv:0.12.23 /uv /usr/local/bin/uv
 
 # Install dependencies.
 RUN apt-get update \
-    && apt-get install -y --no-install-recommends build-essential \
-    && pip install "poetry==$POETRY_VERSION"
+    && apt-get install -y --no-install-recommends build-essential
 
-COPY ./poetry.lock ./pyproject.toml ./
+COPY ./uv.lock ./pyproject.toml ./
 
 # Torch is roughly 2 GB of the image and is needed only where separation or syncing
 # runs in this container. A deployment that runs both elsewhere leaves this false.
 ARG INSTALL_ML=false
 
 RUN if [ "$INSTALL_ML" = "true" ]; then \
-        poetry install --without dev --with ml --no-root --no-interaction --no-ansi; \
+        uv sync --frozen --no-dev --group ml --no-cache; \
     else \
-        poetry install --without dev --no-root --no-interaction --no-ansi; \
+        uv sync --frozen --no-dev --no-cache; \
     fi
 
 # The lock pins the CPU builds. `cuda` swaps them for the CUDA builds of the same
@@ -65,12 +62,11 @@ RUN if [ "$INSTALL_ML" = "true" ]; then \
 ARG SEPARATION_DEVICE=cpu
 
 RUN if [ "$INSTALL_ML" = "true" ] && [ "$SEPARATION_DEVICE" = "cuda" ]; then \
-        .venv/bin/python -m pip install --no-cache-dir \
-            --index-url https://download.pytorch.org/whl/cu128 \
-            --extra-index-url https://pypi.org/simple \
+        uv pip install --python .venv/bin/python --no-cache \
+            --extra-index-url https://download.pytorch.org/whl/cu128 \
             "torch==2.7.1+cu128" "torchvision==0.22.1+cu128" "torchaudio==2.7.1+cu128" \
-        && .venv/bin/python -m pip uninstall -y onnxruntime \
-        && .venv/bin/python -m pip install --no-cache-dir "onnxruntime-gpu==1.22.0"; \
+        && uv pip uninstall --python .venv/bin/python onnxruntime \
+        && uv pip install --python .venv/bin/python --no-cache "onnxruntime-gpu==1.22.0"; \
     fi
 
 #
@@ -112,7 +108,7 @@ RUN apt-get update \
 # Copy local code to the container image.
 COPY api api
 # Copy gunicorn configuration
-COPY gunicorn.conf.py pyproject.toml poetry.lock ${APP_HOME}
+COPY gunicorn.conf.py pyproject.toml uv.lock ${APP_HOME}
 
 # Copy frontend static files from the node builder to the correct location
 # for FastAPI to serve them

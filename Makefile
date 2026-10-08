@@ -4,14 +4,14 @@ dev:
 	trap 'printf "\n↪ shutting down…\n"; kill 0; exit 0' INT TERM; \
 	pnpm run dev & \
 	VITE_PID=$$!; \
-	DEBUG=true LYRICS_PROVIDER=$${LYRICS_PROVIDER-lrclib} poetry run gunicorn --config gunicorn.conf.py api.main:app & \
+	DEBUG=true LYRICS_PROVIDER=$${LYRICS_PROVIDER-lrclib} uv run gunicorn --config gunicorn.conf.py api.main:app & \
 	GUNICORN_PID=$$!; \
 	wait $$VITE_PID $$GUNICORN_PID || { kill $$VITE_PID $$GUNICORN_PID 2>/dev/null || true; }
 
 install:
 	@set -e; \
 	pnpm install; \
-	poetry lock && poetry install --with ml
+	uv sync --group ml
 
 bump-version-minor:
 	@set -e; \
@@ -25,8 +25,8 @@ bump-version-patch:
 
 format-backend:
 	@set -e; \
-	poetry run ruff check --fix .; \
-	poetry run ruff format .;
+	uv run ruff check --fix .; \
+	uv run ruff format .;
 
 format-frontend:
 	@set -e; \
@@ -36,16 +36,16 @@ format: format-backend format-frontend
 
 run-api:
 	@set -e; \
-	poetry run gunicorn --config gunicorn.conf.py api.main:app;
+	uv run gunicorn --config gunicorn.conf.py api.main:app;
 
 lint-backend:
 	@set -e; \
-	poetry run ruff check .; \
-	poetry run ruff format --check .;
+	uv run ruff check .; \
+	uv run ruff format --check .;
 
 test-api:
 	@set -e; \
-	poetry run python -c "from api.main import app; print('✅ FastAPI app loads successfully')";
+	uv run python -c "from api.main import app; print('✅ FastAPI app loads successfully')";
 
 test-frontend-docker:
 	@set -e; \
