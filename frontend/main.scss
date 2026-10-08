@@ -1,7 +1,7 @@
 // Buefy and other global style adjustments
 
-@import "buefy/dist/css/buefy.css";
-@import "./codeEditor.scss";
+@use "buefy/dist/css/buefy";
+@use "./codeEditor";
 
 // Buefy's palette from before Bulma 1. The `-invert` lightnesses (the text drawn
 // on the colour) stay fixed at Bulma's own defaults, so white has to be restated.
