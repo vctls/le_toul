@@ -8,7 +8,7 @@ from enum import Enum
 from pathlib import Path
 
 from api import settings
-from api.karaoke import audio_input, gpu, separation_progress
+from api.karaoke import audio_input, gpu, loudness, separation_progress
 from api.karaoke.separation_progress import ProgressCallback
 
 """
@@ -185,6 +185,7 @@ def split_song(
     """
     Split song into instrumental and vocal tracks.
     Returns the paths to the accompaniment and vocal tracks.
+    The accompaniment is scaled to be as loud as the song.
 
     Args:
         songfile: Path to the input audio file
@@ -205,6 +206,10 @@ def split_song(
         raise ValueError(
             f"Invalid method '{method}'. Must be SeparationMethod.API or SeparationMethod.CLI"
         )
+
+    if on_progress:
+        on_progress(1.0, separation_progress.MATCHING_VOLUME_STAGE)
+    loudness.match(result.accompaniment, songfile)
 
     logging.info(
         f"Got vocals: {result.vocals.name}, Accompaniment: {result.accompaniment.name}"

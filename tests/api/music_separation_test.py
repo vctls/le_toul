@@ -6,6 +6,13 @@ import pytest
 from karaoke.music_separation import DEFAULT_MODEL, SeparationMethod, split_song
 
 
+@pytest.fixture(autouse=True)
+def match_loudness():
+    """Stub out the loudness match, which runs ffmpeg through the subprocess.run these tests mock."""
+    with mock.patch("api.karaoke.loudness.match") as match:
+        yield match
+
+
 @pytest.fixture
 def audio_file():
     """Fixture providing a test audio file."""
@@ -80,6 +87,17 @@ def test_split_song_subprocess_method(audio_file, temp_output_dir):
         assert "--model_filename" in call_args
         assert DEFAULT_MODEL in call_args
         assert "--custom_output_names" in call_args
+
+
+def test_split_song_matches_the_accompaniment_to_the_songs_loudness(
+    audio_file, temp_output_dir, match_loudness
+):
+    with mock.patch("audio_separator.separator.Separator"):
+        separated = split_song(
+            audio_file, temp_output_dir, DEFAULT_MODEL, method=SeparationMethod.API
+        )
+
+    match_loudness.assert_called_once_with(separated.accompaniment, audio_file)
 
 
 def test_split_song_invalid_method(audio_file, temp_output_dir):
