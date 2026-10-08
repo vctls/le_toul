@@ -604,7 +604,7 @@ import { onSchemeChange } from "@/lib/colorScheme";
 import { loadJsonFromStorage } from "@/lib/persistence";
 import { findLast, findLastIndex, isEqual, pick, throttle } from "lodash-es";
 import { gapDifferences, restoredBacking } from "@/lib/gapMix";
-import type { Span } from "@/lib/gapRestore";
+import { gapFades, type Span } from "@/lib/gapRestore";
 import type { MixFrame, MixGap } from "@/lib/wavesurferPlugins/MixPlugin";
 import { CJK_FONT, SYMBOL_FONT } from "@/lib/fonts";
 import { useFallbackFontsStore } from "@/stores/fallbackFonts";
@@ -1045,8 +1045,10 @@ export default defineComponent({
       if (!this.mixMode) return [];
       const { gaps } = this.timingsStore.gapPlan;
       const measured = isEqual(this.gapLevels?.gaps, gaps) ? this.gapLevels?.levels : undefined;
+      const duration = this.mediaStore.songDuration ?? 0;
       return gaps.map((gap, i) => ({
         ...gap,
+        ...gapFades(gap, this.videoOptions.gapFade, duration),
         empty: measured !== undefined && measured[i] < EMPTY_GAP_DB,
       }));
     },

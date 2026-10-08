@@ -1,5 +1,5 @@
 // Draws the gap restore plan: each line in a waveform row of its own, framed by its muted period,
-// and the gaps where the video plays the original song shaded across every row.
+// and the original song's level as a line across the waveform, shaded below where it plays.
 // A gap where the original sounds like the backing track is hatched, since restoring it changes
 // nothing. Nothing here can be dragged.
 
@@ -16,7 +16,11 @@ export interface MixFrame extends Span {
 
 export interface MixGap extends Span {
   empty: boolean;
+  fadeIn: number;
+  fadeOut: number;
 }
+
+const SVG_NS = "http://www.w3.org/2000/svg";
 
 // Keep in sync with the region rows in OpenEndedRegionPlugin.
 const ROWS = 5;
@@ -24,6 +28,10 @@ const ROW_INSET = 3;
 const FRAME_COLOR = "var(--region-label-on-waveform)";
 const OPEN_END_COLOR = "var(--bulma-warning)";
 const GAP_FILL = "color-mix(in srgb, var(--bulma-primary) 18%, transparent)";
+const ENVELOPE_COLOR = "var(--bulma-primary)";
+// The original's full level is drawn this far below the top, as a percentage of the height, so
+// the whole line stays in view.
+const FULL_LEVEL_TOP = 3;
 const EMPTY_GAP_FILL =
   "repeating-linear-gradient(135deg, color-mix(in srgb, var(--bulma-primary) 14%, transparent) " +
   "0 4px, transparent 4px 10px)";
@@ -77,24 +85,30 @@ class MixPlugin extends BasePlugin<BasePluginEvents, undefined> {
     if (!duration) return;
     const percent = (time: number) => `${(time / duration) * 100}%`;
 
+    const opacity = this.enabled ? "1" : "0.4";
     for (const gap of this.gaps) {
+      const length = gap.end - gap.start;
+      const rise = (gap.fadeIn / length) * 100;
+      const fall = 100 - (gap.fadeOut / length) * 100;
       createElement(
         "div",
         {
           part: gap.empty ? "mix-gap mix-gap-empty" : "mix-gap",
           style: {
             position: "absolute",
-            top: "0",
-            height: "100%",
+            top: `${FULL_LEVEL_TOP}%`,
+            bottom: "0",
             left: percent(gap.start),
-            width: percent(gap.end - gap.start),
+            width: percent(length),
             background: gap.empty ? EMPTY_GAP_FILL : GAP_FILL,
-            opacity: this.enabled ? "1" : "0.4",
+            clipPath: `polygon(0 100%, ${rise}% 0, ${fall}% 0, 100% 100%)`,
+            opacity,
           },
         },
         this.container,
       );
     }
+    this.drawEnvelope(duration, opacity);
 
     for (const frame of this.frames) {
       const row = createElement(
@@ -168,6 +182,45 @@ class MixPlugin extends BasePlugin<BasePluginEvents, undefined> {
         row,
       );
     }
+  }
+
+  /**
+   * The original's level as one line from the song's start to its end. The SVG stretches with the
+   * waveform, so the line follows every zoom, and its stroke keeps its width.
+   */
+  private drawEnvelope(duration: number, opacity: string) {
+    const y = (level: number) => 100 - (100 - FULL_LEVEL_TOP) * level;
+    const points: Array<[number, number]> = [[0, y(0)]];
+    for (const gap of this.gaps) {
+      points.push(
+        [gap.start, y(0)],
+        [gap.start + gap.fadeIn, y(1)],
+        [gap.end - gap.fadeOut, y(1)],
+        [gap.end, y(0)],
+      );
+    }
+    points.push([duration, y(0)]);
+    const svg = document.createElementNS(SVG_NS, "svg");
+    svg.setAttribute("part", "mix-envelope");
+    svg.setAttribute("viewBox", `0 0 ${duration} 100`);
+    svg.setAttribute("preserveAspectRatio", "none");
+    Object.assign(svg.style, {
+      position: "absolute",
+      inset: "0",
+      width: "100%",
+      height: "100%",
+      overflow: "visible",
+      opacity,
+    });
+    const line = document.createElementNS(SVG_NS, "polyline");
+    line.setAttribute("points", points.map(([x, y]) => `${x},${y}`).join(" "));
+    line.setAttribute("fill", "none");
+    line.setAttribute("stroke", ENVELOPE_COLOR);
+    line.setAttribute("stroke-width", "1.5");
+    line.setAttribute("stroke-linejoin", "round");
+    line.setAttribute("vector-effect", "non-scaling-stroke");
+    svg.appendChild(line);
+    this.container.appendChild(svg);
   }
 }
 
