@@ -631,6 +631,54 @@ describe("fast lines display early by slot", () => {
     expect(second.lines[0].customDisplayStartTime).toBe(3.75);
   });
 
+  describe("after a taller screen", () => {
+    const options = { ...DEFAULT_OPTIONS, verticalAlignment: VerticalAlignment.Middle };
+    const { size } = options.font;
+    const tops = (screen: LyricsScreen) =>
+      screen.lines.map((_, i) =>
+        screen.getLineY(screen.slotOf(i), size, options.verticalAlignment, options),
+      );
+    const [, taller, settling, next] = displayQuickLinesEarly(
+      denormalizeTimestamps(
+        [
+          new LyricsScreen(),
+          ...compileLyricTimings([
+            { text: "one\n", start: 1 },
+            { text: "two\n", start: 2 },
+            { text: "three\n\n", start: 3 },
+            { text: "four\n", start: 4 },
+            { text: "five\n\n", start: 5 },
+            { text: "six\n", start: 6 },
+            { text: "seven", start: 7 },
+          ]),
+        ],
+        8,
+      ),
+      options,
+    );
+
+    it("returns the screen after next to its own layout", () => {
+      const own = new LyricsScreen(next.lines);
+      expect(next.positionAsSlotCount).toBeUndefined();
+      expect(tops(next)).toEqual(tops(own));
+    });
+
+    it("keeps the next screen's first line in the taller screen's first slot", () => {
+      expect(tops(settling)[0]).toBe(tops(taller)[0]);
+      expect(settling.lines[0].customDisplayStartTime).toBe(3.75);
+    });
+
+    it("lowers the next screen's second line and shows it once the taller screen ends", () => {
+      expect(tops(settling)[1]).toBe(tops(next)[1]);
+      expect(settling.lines[1].customDisplayStartTime).toBeUndefined();
+      expect(taller.lines.map((line) => line.customDisplayEndTime)).toEqual([
+        3.5,
+        undefined,
+        undefined,
+      ]);
+    });
+  });
+
   it("leaves a screen alone when only spacers are in those slots", () => {
     const [, first, second] = stagger([
       { text: "one\n", start: 1, spacersBefore: 2 },

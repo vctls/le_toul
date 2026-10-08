@@ -13,6 +13,7 @@ import {
   GLYPH_BLOCK_RATIO,
 } from "../constants";
 import { concat } from "lodash-es";
+import { sameHeight } from "./screenSlots";
 
 const FIRST_SCREEN_QUICK_START_THRESHOLD: Timestamp = 1.0;
 const SCREEN_QUICK_START_THRESHOLD: Timestamp = 2.0;
@@ -409,7 +410,7 @@ export function displayQuickLinesEarly(
       (_, j) => nextScreen.slotOf(j) < leavingSlots,
     );
     nextScreen.earlySlots = leavingSlots;
-    placeStaggeredScreen(screen, nextScreen, displayOptions);
+    placeStaggeredScreen(screens, i + 1, displayOptions);
 
     earlyDisplayLines.forEach((line) => {
       line.customDisplayStartTime = earlyDisplayTime;
@@ -422,19 +423,83 @@ export function displayQuickLinesEarly(
  * Lay a staggered screen out as if it had the previous screen's slot count
  * when its own would put its first slot below the previous screen's first slot.
  * That puts its early lines in the slots the previous screen's first lines leave.
+ * If the previous screen is laid out that way too, its lines that stay until it ends may return to
+ * its own layout, so that this screen keeps its own.
+ * Otherwise every screen after a taller one would keep the taller one's layout.
  */
-function placeStaggeredScreen(
-  previous: LyricsScreen,
-  screen: LyricsScreen,
-  options: KaraokeOptions,
-): void {
+function placeStaggeredScreen(screens: LyricsScreen[], i: number, options: KaraokeOptions): void {
+  const previous = screens[i - 1];
+  const screen = screens[i];
   const { size } = options.font;
   const alignment = options.verticalAlignment;
   screen.positionAsSlotCount = undefined;
   if (
-    previous.getLineY(0, size, alignment, options) < screen.getLineY(0, size, alignment, options)
+    previous.getLineY(0, size, alignment, options) >= screen.getLineY(0, size, alignment, options)
   ) {
-    screen.positionAsSlotCount = previous.positionAsSlotCount ?? previous.slots;
+    return;
+  }
+  if (
+    previous.positionAsSlotCount !== undefined &&
+    settleStayingLines(screens[i - 2], previous, screen, options)
+  ) {
+    return;
+  }
+  screen.positionAsSlotCount = previous.positionAsSlotCount ?? previous.slots;
+}
+
+/**
+ * Settle the lines of `screen` that stay until it ends, unless they would meet the next screen's
+ * early lines in the next screen's own layout.
+ * A settled line that would meet a line the screen before keeps until it ends is no longer shown
+ * early, and the line it replaces in that screen stays until then too.
+ */
+function settleStayingLines(
+  before: LyricsScreen,
+  screen: LyricsScreen,
+  next: LyricsScreen,
+  options: KaraokeOptions,
+): boolean {
+  const { size } = options.font;
+  const alignment = options.verticalAlignment;
+  const heights = (s: LyricsScreen, inSlot: (slot: number) => boolean) =>
+    s.lines
+      .map((line, i) => ({ line, slot: s.slotOf(i) }))
+      .filter(({ slot }) => inSlot(slot))
+      .map(({ line, slot }) => {
+        const top = s.getLineY(slot, size, alignment, options);
+        return { line, slot, top, bottom: top + size * GLYPH_BLOCK_RATIO };
+      });
+  const settledBefore = screen.settledFromSlot;
+  screen.settledFromSlot = next.earlySlots;
+  const staying = heights(screen, (slot) => slot >= next.earlySlots);
+  const early = heights(next, (slot) => slot < next.earlySlots);
+  if (early.some((line) => staying.some((other) => sameHeight(line, other)))) {
+    screen.settledFromSlot = settledBefore;
+    return false;
+  }
+  const keptByBefore = heights(before, (slot) => slot >= screen.earlySlots);
+  for (const settled of staying) {
+    if (
+      settled.slot < screen.earlySlots &&
+      keptByBefore.some((other) => sameHeight(settled, other))
+    ) {
+      showAtScreenStart(settled.line, screen, options);
+      before.lines
+        .filter((_, i) => before.slotOf(i) === settled.slot)
+        .forEach((line) => (line.customDisplayEndTime = undefined));
+    }
+  }
+  return true;
+}
+
+/**
+ * Show a staggered screen's early line when the screen starts.
+ */
+function showAtScreenStart(line: LyricsLine, screen: LyricsScreen, options: KaraokeOptions): void {
+  line.customDisplayStartTime = undefined;
+  // An overlapping count-in may only have fit because the line was shown early.
+  if (line.timestamp < countInEarliestStart(line, screen, options)) {
+    line.segments = line.segments.filter((segment) => !segment.countIn);
   }
 }
 
@@ -452,12 +517,9 @@ export function unstagger(
     line.customDisplayEndTime = undefined;
   }
   for (const line of early(screen)) {
-    line.customDisplayStartTime = undefined;
-    // An overlapping count-in may only have fit because the line was shown early.
-    if (line.timestamp < countInEarliestStart(line, screen, options)) {
-      line.segments = line.segments.filter((segment) => !segment.countIn);
-    }
+    showAtScreenStart(line, screen, options);
   }
+  previous.settledFromSlot = undefined;
   screen.earlySlots = 0;
   screen.positionAsSlotCount = undefined;
 }
@@ -465,11 +527,12 @@ export function unstagger(
 /**
  * Place every staggered screen again, once voice lanes have moved the blocks.
  * A screen in a lane is centred in it whatever the alignment, so the first placement no longer holds.
+ * A screen settled by the first placement stays settled, which fits any placement of the next one.
  */
 export function placeStaggeredScreens(screens: LyricsScreen[], options: KaraokeOptions): void {
   for (const [i, screen] of screens.entries()) {
     if (i > 0 && screen.staggered) {
-      placeStaggeredScreen(screens[i - 1], screen, options);
+      placeStaggeredScreen(screens, i, options);
     }
   }
 }

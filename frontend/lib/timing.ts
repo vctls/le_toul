@@ -547,6 +547,9 @@ export class LyricsScreen {
   // screen's first lines leave, so the block may be laid out as if it had that screen's slot count
   // instead of its own (see placeStaggeredScreens).
   positionAsSlotCount?: number;
+  // The lines from this slot down ignore positionAsSlotCount and sit where this screen's own slot
+  // count puts them, which leaves the next screen room to return to its own layout.
+  settledFromSlot?: number;
   // Staggered lines show this screen's lines in its first `earlySlots` slots
   // while the previous screen is still displayed.
   earlySlots = 0;
@@ -603,7 +606,8 @@ export class LyricsScreen {
     const lineHeight = fontSize * spacing.lineSpacing;
     // The block is normally as tall as this screen's own slots, but a staggered screen is
     // positioned as if it had the previous screen's slot count (see positionAsSlotCount).
-    const slotCount = this.positionAsSlotCount ?? this.slots;
+    const settled = slot >= (this.settledFromSlot ?? Infinity);
+    const slotCount = settled ? this.slots : (this.positionAsSlotCount ?? this.slots);
     // libass draws each line from the top of its slot,
     // so the slack between the glyphs and the slot all ends up below the last line.
     // Centre on the glyphs rather than the slots, or the block sits half that slack too high.
