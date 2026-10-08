@@ -420,6 +420,16 @@
                 </template>
                 <b-switch v-model="videoOptions.restorePausesInLines"></b-switch>
               </b-field>
+              <b-field label="Mix settings" horizontal>
+                <b-button
+                  class="reset-mix"
+                  icon-left="eraser"
+                  label="Reset to defaults"
+                  title="Put the settings above back on their defaults"
+                  :disabled="settingsStore.mixSettingsAreDefault"
+                  @click="settingsStore.resetMixSettings()"
+                />
+              </b-field>
             </template>
             <b-field v-if="isAdjustMode" label="Shift all timings (ms)" horizontal>
               <b-numberinput
@@ -1845,7 +1855,8 @@ The Apply button wraps under its control until there is room for it too. */
 
 .adjustment-fields :deep(.b-numberinput),
 .adjustment-fields :deep(.select),
-.adjustment-fields :deep(.switch) {
+.adjustment-fields :deep(.switch),
+.reset-mix {
   width: 14em;
 }
 
@@ -1891,7 +1902,8 @@ Buefy's margin after it, and the padding of its empty label, would push it off t
 
 .is-in-drawer .mode-switch,
 .is-in-drawer .adjustment-fields :deep(.b-numberinput),
-.is-in-drawer .adjustment-fields :deep(.select) {
+.is-in-drawer .adjustment-fields :deep(.select),
+.is-in-drawer .reset-mix {
   width: 100%;
 }
 

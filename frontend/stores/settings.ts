@@ -243,6 +243,16 @@ const DEFAULT_SETTINGS: VideoSettings = {
   },
 };
 
+// The settings Mix mode tunes, which its reset puts back. The Restore Gaps switch is a choice, not
+// a tuning, so it stays as the user left it.
+const MIX_SETTINGS = [
+  "gapPreRoll",
+  "gapPostRoll",
+  "gapMinLength",
+  "gapFade",
+  "restorePausesInLines",
+] as const;
+
 // A shallow spread would hand out DEFAULT_SETTINGS' own font and color objects, so
 // writing a font name or color would rewrite the defaults.
 function defaultSettings(): VideoSettings {
@@ -619,6 +629,17 @@ export const useSettingsStore = defineStore("settings", () => {
     }
   }
 
+  const mixSettingsAreDefault = computed(() =>
+    MIX_SETTINGS.every((key) => videoOptions[key] === DEFAULT_SETTINGS[key]),
+  );
+
+  function resetMixSettings(): void {
+    Object.assign(
+      videoOptions,
+      Object.fromEntries(MIX_SETTINGS.map((key) => [key, DEFAULT_SETTINGS[key]])),
+    );
+  }
+
   function resetSettings(): void {
     Object.assign(videoOptions, defaultSettings());
     voiceStyles.value = {};
@@ -653,5 +674,7 @@ export const useSettingsStore = defineStore("settings", () => {
     loadSettings,
     saveSettings,
     resetSettings,
+    mixSettingsAreDefault,
+    resetMixSettings,
   };
 });

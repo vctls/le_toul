@@ -210,6 +210,35 @@ describe("Settings Store", () => {
     expect(settingsStore.videoOptions.color.shadow.toString()).toBe("#000000");
   });
 
+  test("resets the mix settings, and leaves the Restore Gaps switch and the rest alone", () => {
+    window.localStorage.clear();
+    const settingsStore = useSettingsStore();
+    expect(settingsStore.mixSettingsAreDefault).toBe(true);
+    Object.assign(settingsStore.videoOptions, {
+      restoreGaps: false,
+      gapPreRoll: 0,
+      gapPostRoll: 0,
+      gapMinLength: 1,
+      gapFade: 0,
+      restorePausesInLines: true,
+      instrumentalThreshold: 0,
+    });
+    expect(settingsStore.mixSettingsAreDefault).toBe(false);
+
+    settingsStore.resetMixSettings();
+
+    expect(settingsStore.mixSettingsAreDefault).toBe(true);
+    expect(settingsStore.videoOptions).toMatchObject({
+      restoreGaps: false,
+      gapPreRoll: 0.5,
+      gapPostRoll: 1.5,
+      gapMinLength: 3,
+      gapFade: 0.3,
+      restorePausesInLines: false,
+      instrumentalThreshold: 0,
+    });
+  });
+
   test("count-in duration is capped by the threshold", async () => {
     window.localStorage.clear();
     const settingsStore = useSettingsStore();
