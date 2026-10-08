@@ -1725,14 +1725,15 @@ Its rule ties on specificity with the one above. */
   font-weight: var(--bulma-weight-semibold);
 }
 
-/* Bulma's padding would push three buttons past the 10em of the other controls. */
+/* Bulma's padding would push four buttons past the width of the other controls.
+Each button grows from its label's width, so a short label leaves room to a long one. */
 .mode-switch {
   flex-wrap: nowrap;
-  width: 10em;
+  width: 14em;
 }
 
 .mode-switch :deep(.button) {
-  flex: 1 1 0;
+  flex: 1 1 auto;
   padding-inline: 0.4em;
 }
 
@@ -1800,9 +1801,9 @@ but BFieldBody generates these wrappers itself and forwards no class, so it has 
 }
 
 /* Labels move beside their control once each column can hold both,
-13rem of label and 10em of control.
+13rem of label and 14em of control.
 The Apply button wraps under its control until there is room for it too. */
-@container (min-width: 50rem) {
+@container (min-width: 58rem) {
   /* Every column gets the same label and control tracks, so every field is the same width.
   The floor clears the longest label.
   max-content grows a longer one rather than clipping it,
@@ -1836,7 +1837,7 @@ The Apply button wraps under its control until there is room for it too. */
 }
 
 /* Three columns once each fits its label and control on one line, Apply button included. */
-@container (min-width: 83rem) {
+@container (min-width: 95rem) {
   .adjustment-fields {
     --columns: 3;
   }
@@ -1845,7 +1846,7 @@ The Apply button wraps under its control until there is room for it too. */
 .adjustment-fields :deep(.b-numberinput),
 .adjustment-fields :deep(.select),
 .adjustment-fields :deep(.switch) {
-  width: 10em;
+  width: 14em;
 }
 
 /* A switch takes the room of the other controls, so its row is as tall as theirs,
@@ -1928,13 +1929,13 @@ The width follows from the height, so the frame is centred. */
 /* Once the preview fits beside the settings at its floor height, the two share a row,
 which leaves the height to the waveform.
 As on the Submit tab, the settings take a third and the preview the rest.
-The settings need about 31rem for one column with their labels beside them.
+The settings need about 35rem for one column with their labels beside them.
 The preview's width sets its height, so it is capped at 400px to leave the waveform on screen,
 and centred in its column.
 These rules come last so they win over the form's own column rules. */
-@container adjust-tab (min-width: 60rem) {
+@container adjust-tab (min-width: 64rem) {
   .adjust-top {
-    --settings-width: max(31rem, (100cqw - 1.5rem) / 3);
+    --settings-width: max(35rem, (100cqw - 1.5rem) / 3);
     flex-direction: row;
     align-items: center;
     gap: 1.5rem;
@@ -1984,7 +1985,7 @@ These rules come last so they win over the form's own column rules. */
   keep their width and place when a mode without those buttons hides them. */
   .adjustment-fields {
     grid-template-columns:
-      minmax(0, 1fr) minmax(13rem, max-content) minmax(calc(14.75em + 0.75rem), auto)
+      minmax(0, 1fr) minmax(13rem, max-content) minmax(calc(18.75em + 0.75rem), auto)
       minmax(0, 1fr);
     column-gap: 0.75rem;
     justify-items: stretch;
