@@ -33,6 +33,8 @@ import { default as BuefyColor } from "buefy/src/utils/color";
 
 // Pinned rather than taken from the default, which is now empty and draws marks instead.
 const TEST_COUNT_IN_TEXT = "••• ";
+// A fixed count-in as it is drawn.
+const FIXED_COUNT_IN = `{\\alpha&H00&}${TEST_COUNT_IN_TEXT}`;
 
 const DEFAULT_OPTIONS: KaraokeOptions = {
   addTitleScreen: true,
@@ -108,7 +110,7 @@ test("count-ins use the configured text, threshold and duration", () => {
   );
 
   const countIn = screens[0].lines[0].segments[0];
-  expect(countIn.text).toBe("1 2 3 ");
+  expect(countIn.text).toBe("{\\alpha&H00&}1 2 3 ");
   expect(countIn.timestamp).toBe(27.0);
   expect(countIn.endTimestamp).toBe(30.0);
 });
@@ -163,7 +165,7 @@ test("line mode gives a mid-screen line its own count-in", () => {
 
   expect(screen.lines[0].segments[0].text).toBe("first line\n");
   const countIn = screen.lines[1].segments[0];
-  expect(countIn.text).toBe(TEST_COUNT_IN_TEXT);
+  expect(countIn.text).toBe(FIXED_COUNT_IN);
   expect(countIn.timestamp).toBe(17.0);
   expect(countIn.endTimestamp).toBe(20.0);
 });
@@ -447,7 +449,7 @@ test("no count-in on a line that follows on from the previous one", () => {
     options,
   );
 
-  expect(screens[0].lines[0].segments[0].text).toBe(TEST_COUNT_IN_TEXT);
+  expect(screens[0].lines[0].segments[0].text).toBe(FIXED_COUNT_IN);
   expect(screens[0].lines[1].segments[0].text).toBe("second line");
 });
 
@@ -465,7 +467,7 @@ test("quick start count-in uses the configured text and duration", () => {
   const adjusted = addQuickStartCountIn(screens, options);
 
   const countIn = adjusted[0].lines[0].segments[0];
-  expect(countIn.text).toBe("go! ");
+  expect(countIn.text).toBe("{\\alpha&H00&}go! ");
   expect(countIn.timestamp).toBe(0.0);
   expect(countIn.endTimestamp).toBe(3.0);
   expect(adjusted[0].audioDelay).toBe(3.0 - shortIntroTestEvents[0][0]);

@@ -105,6 +105,18 @@ function countInMarks(
   });
 }
 
+/**
+ * A count-in showing the whole text. Its alpha tag changes nothing on screen,
+ * but marks the syllable as a count-in for an ASS import, as the dynamic marks' own alpha tags do.
+ */
+function fixedCountIn(
+  options: KaraokeOptions,
+  timestamp: Timestamp,
+  endTimestamp: Timestamp,
+): LyricSegment {
+  return new LyricSegment(`{\\alpha&H00&}${options.countInText}`, timestamp, endTimestamp, true);
+}
+
 // Dynamic count-ins spend a fixed time per mark,
 // so they tick at the same rate whatever the gap and fit inside it.
 // A gap too short for one mark gets one later, from addOverlappingCountIns.
@@ -120,7 +132,7 @@ function countInSegments(
       return [];
     }
     const timestamp = endTimestamp - options.countInDuration;
-    return [new LyricSegment(options.countInText, timestamp, endTimestamp, true)];
+    return [fixedCountIn(options, timestamp, endTimestamp)];
   }
   const marks = countInMarkTexts(options);
   const step = options.countInThreshold / marks.length;
@@ -180,7 +192,7 @@ export function addQuickStartCountIn(
   adjustedScreens[0].lines[0].addSegmentsToFront(
     options.dynamicCountIns
       ? countInMarks(options, marks, marks.length, newFirstSegment.timestamp)
-      : [new LyricSegment(options.countInText, 0.0, newFirstSegment.timestamp, true)],
+      : [fixedCountIn(options, 0.0, newFirstSegment.timestamp)],
   );
 
   return adjustedScreens;

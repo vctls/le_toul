@@ -43,6 +43,7 @@ const MEDIA_IDB_KEYS = [
   "media.vocalTrackFile",
   "media.settingsFile",
   "media.kbpFile",
+  "media.assFile",
 ];
 
 export interface SeparatedTrack {
@@ -124,6 +125,7 @@ export const useMediaStore = defineStore("media", () => {
   const timingsFile = shallowRef<File | null>(null);
   const lyricsFile = shallowRef<File | null>(null);
   const kbpFile = shallowRef<File | null>(null);
+  const assFile = shallowRef<File | null>(null);
   const backingTrackFile = shallowRef<File | null>(null);
   const vocalTrackFile = shallowRef<File | null>(null);
   const settingsFile = shallowRef<File | null>(null);
@@ -535,6 +537,7 @@ export const useMediaStore = defineStore("media", () => {
     persistBlobRef("media.vocalTrackFile", vocalTrackFile),
     persistBlobRef("media.settingsFile", settingsFile),
     persistBlobRef("media.kbpFile", kbpFile),
+    persistBlobRef("media.assFile", assFile),
   ])
     .then(() => Promise.all([restoreLegacyTrack(), restoreLegacyBackground()]))
     .finally(() => {
@@ -555,6 +558,7 @@ export const useMediaStore = defineStore("media", () => {
     vocalTrackFile.value = null;
     settingsFile.value = null;
     kbpFile.value = null;
+    assFile.value = null;
     projectFolderName.value = null;
     songTitle.value = null;
     songArtist.value = null;
@@ -577,6 +581,7 @@ export const useMediaStore = defineStore("media", () => {
     timingsFile,
     lyricsFile,
     kbpFile,
+    assFile,
     backingTrackFile,
     vocalTrackFile,
     settingsFile,

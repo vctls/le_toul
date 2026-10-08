@@ -155,6 +155,13 @@ describe("classifyProjectFolder", () => {
     expect(project.ignored).toEqual(["Pale Moon.kbp", "song.kbp"]);
   });
 
+  test("never loads ASS subtitles other than its own derived ones", () => {
+    const project = classifyProjectFolder([file("song.ass"), file("subtitles.ass")]);
+
+    expect(project.song).toBeUndefined();
+    expect(project.ignored).toEqual(["song.ass"]);
+  });
+
   test("puts each model's tracks in its own pair, apart from the uploaded ones", () => {
     const project = classifyProjectFolder([
       file("backing.mp3"),

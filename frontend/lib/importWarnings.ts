@@ -1,5 +1,5 @@
 // Messages shared by the importers,
-// so a KBP file and a timings file report the same change the same way.
+// so every kind of imported file reports the same change the same way.
 export const MARKUP_REMOVED =
   "A / or _ in the lyrics was removed, since the app uses both as markup";
 export const BRACKETS_REMOVED =
@@ -8,6 +8,10 @@ export const SPACER_PAGE_DROPPED = "A page holding only blank spacer lines was d
 export const SPACER_BOUNDS_DROPPED =
   "A blank spacer line's display times were dropped, since it shows nothing";
 export const DISPLAY_PERIOD_WIDENED = "A line's display period was widened to contain its timings";
+
+export function fontLeftOut(fontName: string): string {
+  return `The font "${fontName}" isn't bundled with the app, so it was left out`;
+}
 
 /**
  * Counts each kind of dropped item once, so a long song yields a short list.

@@ -249,6 +249,31 @@
             </ul>
           </b-message>
         </div>
+        <div v-if="advancedStore.isAdvanced" class="box ass-files">
+          <h3 class="title is-5">ASS Subtitles</h3>
+          <file-upload
+            expanded
+            name="ass-file-upload"
+            :accept="['.ass']"
+            label="ASS File"
+            tooltip="Karaoke subtitles, such as an Aegisub file or the subtitles.ass this app exports. Replaces the lyrics, timings, song details and styles. Project folders don't load .ass files, so use this input for them."
+            :model-value="mediaStore.assFile"
+            @update:model-value="onAssFileSelect"
+          />
+          <b-message
+            v-if="assWarnings.length"
+            class="import-warnings"
+            type="is-warning"
+            size="is-small"
+            title="Some parts couldn't be carried over"
+            closable
+            @close="assWarnings = []"
+          >
+            <ul>
+              <li v-for="warning in assWarnings" :key="warning">{{ warning }}</li>
+            </ul>
+          </b-message>
+        </div>
       </div>
     </div>
 
@@ -344,7 +369,8 @@ import { parseSettingsYaml } from "@/lib/settingsFile";
 import { classifyProjectFolder, ProjectFolder, trackEntries } from "@/lib/projectFolder";
 import { MAX_UPLOADED_TRACKS, parseFileSource } from "@/lib/trackSources";
 import { tracksOffLength } from "@/lib/trackLength";
-import { kbpToProjectFiles, KbpImport } from "@/lib/kbpConvert";
+import { kbpToProjectFiles, ProjectFiles } from "@/lib/kbpConvert";
+import { assToProjectFiles } from "@/lib/assConvert";
 import { BUNDLED_FONTS } from "@/lib/fonts";
 import { isTimingsFile } from "@/lib/timedSegments";
 import { isTimingsText, parseTimingsText, TIMINGS_TEXT_VERSION } from "@/lib/timingsText";
@@ -386,14 +412,16 @@ interface FolderLosses {
   };
 }
 
-// A lyrics, timings or KBP file waiting for the user to agree to replace what is loaded.
+// A lyrics, timings, KBP or ASS file waiting for the user to agree to replace what is loaded.
 // A null file clears the data instead.
 interface PendingReplacement {
-  kind: "lyrics" | "timings" | "kbp";
+  kind: "lyrics" | "timings" | "kbp" | "ass";
   file: File | null;
   // A timings.txt whose lyrics differ from the ones loaded replaces those too.
   replacesLyrics?: boolean;
 }
+
+type ConvertedProject = ProjectFiles & { warnings: string[] };
 
 const OUTCOME_LABELS = {
   succeeded: "Succeeded in",
@@ -451,6 +479,7 @@ export default defineComponent({
       // Kept after the prompt closes, like `pendingReplacement`.
       pendingFolder: null as { project: ProjectFolder; name: string | null } | null,
       kbpWarnings: [] as string[],
+      assWarnings: [] as string[],
       timingsWarnings: [] as string[],
     };
   },
@@ -479,6 +508,11 @@ export default defineComponent({
     "mediaStore.kbpFile"(file: File | null) {
       if (!file) {
         this.kbpWarnings = [];
+      }
+    },
+    "mediaStore.assFile"(file: File | null) {
+      if (!file) {
+        this.assWarnings = [];
       }
     },
     "mediaStore.timingsFile"(file: File | null) {
@@ -515,7 +549,7 @@ export default defineComponent({
           files: { lyrics, timings },
         };
       }
-      if (kind === "kbp") {
+      if (kind === "kbp" || kind === "ass") {
         return {
           title: "Replace your lyrics and timings?",
           subject: "lyrics, timings, song details and styles",
@@ -789,6 +823,9 @@ export default defineComponent({
       } else if (replacement?.kind === "kbp" && replacement.file) {
         this.mediaStore.kbpFile = replacement.file;
         this.onKbpFileChange(replacement.file);
+      } else if (replacement?.kind === "ass" && replacement.file) {
+        this.mediaStore.assFile = replacement.file;
+        this.onAssFileChange(replacement.file);
       }
     },
     // Clearing the input leaves what the file loaded alone, as clearing the lyrics file does.
@@ -804,11 +841,10 @@ export default defineComponent({
       }
     },
     /**
-     * Converts the project to the app's own three files and loads them the way their own inputs would.
+     * Loads a project converted to the app's own three files the way their own inputs would.
      * Returns the converter's warnings together with the settings file's.
      */
-    async applyKbpFile(file: File): Promise<KbpImport> {
-      const converted = kbpToProjectFiles(await file.text(), { fonts: Object.keys(BUNDLED_FONTS) });
+    async applyConvertedProject<T extends ConvertedProject>(converted: T): Promise<T> {
       this.lyricsStore.setLyrics(converted.lyrics);
       this.timingsStore.setAllSegments(converted.timings);
       // The import also changes the settings, which the history doesn't cover.
@@ -825,7 +861,9 @@ export default defineComponent({
     async onKbpFileChange(file: File) {
       return this.lyricsLookupStore.whileLoading(async () => {
         try {
-          const { warnings, audioName } = await this.applyKbpFile(file);
+          const { warnings, audioName } = await this.applyConvertedProject(
+            kbpToProjectFiles(await file.text(), { fonts: Object.keys(BUNDLED_FONTS) }),
+          );
           this.kbpWarnings = warnings;
           const song = audioName && !this.mediaStore.songFile ? ` Its song is ${audioName}.` : "";
           this.$buefy.toast.open({
@@ -841,6 +879,43 @@ export default defineComponent({
           this.kbpWarnings = [];
           this.$buefy.toast.open({
             message: `Couldn't read that KBP file: ${(e as Error).message}`,
+            type: "is-danger",
+            duration: 5000,
+          });
+        }
+      });
+    },
+    onAssFileSelect(file: File | null) {
+      const hasData = this.lyricsStore.lyricText.trim() !== "" || this.timingsStore.hasAnyTimings;
+      if (file && hasData) {
+        this.askToReplace({ kind: "ass", file });
+        return;
+      }
+      this.mediaStore.assFile = file;
+      if (file) {
+        this.onAssFileChange(file);
+      }
+    },
+    async onAssFileChange(file: File) {
+      return this.lyricsLookupStore.whileLoading(async () => {
+        try {
+          const { warnings } = await this.applyConvertedProject(
+            assToProjectFiles(await file.text(), { fonts: Object.keys(BUNDLED_FONTS) }),
+          );
+          this.assWarnings = warnings;
+          this.$buefy.toast.open({
+            message: warnings.length
+              ? "Subtitles loaded, with a few changes listed under the ASS File input."
+              : "Subtitles loaded!",
+            type: warnings.length ? "is-warning" : "is-success",
+            duration: warnings.length ? 6000 : 2000,
+          });
+        } catch (e) {
+          console.error(e);
+          this.mediaStore.assFile = null;
+          this.assWarnings = [];
+          this.$buefy.toast.open({
+            message: `Couldn't read that ASS file: ${(e as Error).message}`,
             type: "is-danger",
             duration: 5000,
           });

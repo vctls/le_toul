@@ -13,18 +13,12 @@ import {
   parseKbp,
   serializeKbp,
 } from "./kbp";
-import { parseLyrics } from "./timing";
-import { clampDisplayPeriods, fromLyric, TimedSegment } from "./timedSegments";
+import { TimedSegment } from "./timedSegments";
 import { DEFAULT_VOICE_ID, parseAnnotatedLyrics, TAG_PATTERN, VoiceId } from "./voices";
 import { ParsedSettingsFile, parseSettingsYaml } from "./settingsFile";
 import { convertSpacesToUnderscores } from "./lyrics";
-import {
-  BRACKETS_REMOVED,
-  DISPLAY_PERIOD_WIDENED,
-  MARKUP_REMOVED,
-  SPACER_PAGE_DROPPED,
-  Warnings,
-} from "./importWarnings";
+import { ImportedSyllable, importedTimings, lineMarkup, voiceNames } from "./importedLyrics";
+import { fontLeftOut, MARKUP_REMOVED, SPACER_PAGE_DROPPED, Warnings } from "./importWarnings";
 
 // KBS lays out lines on a 216-high CDG canvas.
 const CDG_SCALE = SUBTITLE_CANVAS.height / 216;
@@ -93,17 +87,6 @@ function basename(path: string): string | null {
   return name ? name : null;
 }
 
-interface ImportedSyllable {
-  // The segment text without its separator, as parseLyrics will yield it.
-  word: string;
-  wordEnd: boolean;
-  start?: number;
-  end?: number;
-  // The line's display period, on its first syllable only.
-  displayStart?: number;
-  displayEnd?: number;
-}
-
 function styleFor(document: KbpDocument, letter: string, warnings: Warnings): KbpStyle {
   const number = letter.toUpperCase().charCodeAt(0) - "A".charCodeAt(0);
   const style = document.styles.find((s) => s.number === number);
@@ -150,8 +133,8 @@ function importSyllables(line: KbpLine, style: KbpStyle, warnings: Warnings): Im
   if (fixed && syllables.length > 0) {
     warnings.add("A fixed line was imported untimed, since the app has no text without a wipe");
   } else if (syllables.length > 0) {
-    syllables[0].displayStart = line.start;
-    syllables[0].displayEnd = line.end;
+    syllables[0].displayStart = line.start / 100;
+    syllables[0].displayEnd = line.end / 100;
   }
   return syllables;
 }
@@ -161,34 +144,6 @@ function importSyllables(line: KbpLine, style: KbpStyle, warnings: Warnings): Im
  */
 function isSpacer(line: KbpLine): boolean {
   return line.syllables.every((syllable) => syllable.text.replace(/[/_]/g, "").trim() === "");
-}
-
-function lineMarkup(syllables: ImportedSyllable[]): string {
-  return syllables
-    .map((s, i) => (i === syllables.length - 1 ? s.word : s.word + (s.wordEnd ? "_" : "/")))
-    .join("");
-}
-
-/**
- * Style names become voice tags, where `+` separates voices and brackets delimit the tag.
- */
-function voiceNames(styles: KbpStyle[]): Map<number, VoiceId> {
-  const names = new Map<number, VoiceId>();
-  const taken = new Set<string>();
-  for (const style of styles) {
-    const base =
-      style.name
-        .replace(/[+[\]]/g, " ")
-        .replace(/\s+/g, " ")
-        .trim() || `Style ${style.number}`;
-    let name = base;
-    for (let n = 2; taken.has(name); n++) {
-      name = `${base} ${n}`;
-    }
-    taken.add(name);
-    names.set(style.number, name);
-  }
-  return names;
 }
 
 /**
@@ -207,10 +162,6 @@ function toSegmentTimes(syllables: ImportedSyllable[]): void {
   });
 }
 
-function segmentWord(text: string): string {
-  return text.replace(/(\n\n|[\n/_])$/, "").trim();
-}
-
 function styleSettings(
   document: KbpDocument,
   base: KbpStyle | undefined,
@@ -223,7 +174,7 @@ function styleSettings(
     if (fonts.includes(style.fontName)) {
       return style.fontName;
     }
-    warnings.add(`The font "${style.fontName}" isn't bundled with the app, so it was left out`);
+    warnings.add(fontLeftOut(style.fontName));
     return undefined;
   };
   const fontSize = (style: KbpStyle) => Math.round(style.fontSize * FONT_SCALE);
@@ -331,10 +282,13 @@ export function kbpToProjectFiles(text: string, options: { fonts: string[] }): K
       return { line, style };
     }),
   );
-  const names = voiceNames(used);
+  const names = voiceNames(
+    used.map((style) => style.name),
+    (i) => `Style ${used[i].number}`,
+  );
   const multiVoice = used.length > 1;
   const voiceOf = (style: KbpStyle): VoiceId =>
-    multiVoice ? (names.get(style.number) as VoiceId) : DEFAULT_VOICE_ID;
+    multiVoice ? names[used.indexOf(style)] : DEFAULT_VOICE_ID;
 
   const pageTexts: string[] = [];
   const syllablesByVoice: Record<VoiceId, ImportedSyllable[]> = {};
@@ -345,12 +299,7 @@ export function kbpToProjectFiles(text: string, options: { fonts: string[] }): K
         return null;
       }
       const syllables = importSyllables(line, style, warnings);
-      let markup = lineMarkup(syllables);
-      if (markup.startsWith("[")) {
-        warnings.add(BRACKETS_REMOVED);
-        markup = markup.replace(/[[\]]/g, "");
-        syllables.forEach((s) => (s.word = s.word.replace(/[[\]]/g, "")));
-      }
+      const markup = lineMarkup(syllables, warnings);
       return { voice: voiceOf(style), markup, syllables };
     });
     const voices = imported.flatMap((entry) => (entry ? [entry.voice] : []));
@@ -385,34 +334,10 @@ export function kbpToProjectFiles(text: string, options: { fonts: string[] }): K
     ? unsyncedLyrics(document.unsyncedLyrics)
     : pageTexts.join("\n\n");
 
-  const timings: Record<VoiceId, TimedSegment[]> = {};
-  const annotated = parseAnnotatedLyrics(lyrics);
-  for (const [voice, syllables] of Object.entries(syllablesByVoice)) {
+  for (const syllables of Object.values(syllablesByVoice)) {
     toSegmentTimes(syllables);
-    const segments = parseLyrics(annotated.lyricTextByVoice[voice] ?? "", true);
-    const mismatch =
-      segments.length !== syllables.length ||
-      segments.some((segment, i) => segmentWord(segment.text) !== syllables[i].word);
-    if (mismatch) {
-      throw new Error(`The converted timings for ${voice} don't line up with its lyrics.`);
-    }
-    const clamped = clampDisplayPeriods(
-      segments.map((segment, i): TimedSegment => {
-        const { start, end, displayStart, displayEnd } = syllables[i];
-        return {
-          ...fromLyric(segment),
-          ...(start !== undefined ? { start } : {}),
-          ...(end !== undefined ? { end } : {}),
-          ...(displayStart !== undefined ? { displayStart: displayStart / 100 } : {}),
-          ...(displayEnd !== undefined ? { displayEnd: displayEnd / 100 } : {}),
-        };
-      }),
-    );
-    for (let i = 0; i < clamped.widened; i++) {
-      warnings.add(DISPLAY_PERIOD_WIDENED);
-    }
-    timings[voice] = clamped.segments;
   }
+  const timings = importedTimings(lyrics, syllablesByVoice, warnings);
 
   const base =
     used.find((s) => s.number === 0) ?? used[0] ?? document.styles.find((s) => s.number === 0);

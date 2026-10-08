@@ -185,9 +185,9 @@ export function classifyProjectFolder(files: File[]): ProjectFolder {
     if (name.startsWith(".") || DERIVED_NAMES.includes(name)) {
       continue;
     }
-    // A .kbp loads through its own input only. Without this, song.kbp would take the song slot,
-    // since the stems are matched by name whatever their extension.
-    if (extensionOf(name) === "kbp") {
+    // A .kbp or .ass loads through its own input only. Without this, song.kbp would take the song
+    // slot, since the stems are matched by name whatever their extension.
+    if (["kbp", "ass"].includes(extensionOf(name))) {
       project.ignored.push(pathOf(file));
       continue;
     }
