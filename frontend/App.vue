@@ -317,8 +317,7 @@ export default defineComponent({
         },
         {
           label: "Advanced",
-          tooltip:
-            "Show or hide the advanced features: the Edit tab, Karaoke Builder Studio files and line display times",
+          tooltip: "Show or hide the advanced features",
           icon: "sliders",
           isPressed: this.advancedStore.isAdvanced,
           onClick: () => this.advancedStore.toggleAdvanced(),
