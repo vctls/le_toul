@@ -6,6 +6,17 @@ import { displayText, resolveStarts } from "./timing";
 import { TimedSegment } from "./timedSegments";
 import { VoiceId } from "./voices";
 
+// The gain is only trusted when the two tracks agree at least this well over the gaps. Sounds the
+// separation removed lower the agreement, so the bar is low. A backing track from another
+// recording falls far below it.
+const MIN_GAIN_CORRELATION = 0.5;
+const MAX_GAIN = 4;
+
+// The raised backing track's peaks are kept under this, about -0.5 dBFS.
+const LIMIT_CEILING = 10 ** (-0.5 / 20);
+const LIMIT_LOOKAHEAD_SECONDS = 0.005;
+const LIMIT_RELEASE_SECONDS = 0.08;
+
 export interface GapRestoreSettings {
   preRoll: number;
   postRoll: number;
@@ -169,8 +180,113 @@ export function gapFades(
   return { fadeIn: gap.start > 0 ? length : 0, fadeOut: gap.end < duration ? length : 0 };
 }
 
+function channel(tracks: Float32Array[], c: number): Float32Array {
+  return tracks[Math.min(c, tracks.length - 1)];
+}
+
+/**
+ * The scale that brings the backing track to the original's level over the gaps, by least squares.
+ * Sounds the separation removed don't lean on it, since they don't follow the backing track.
+ * It is 1 when there is nothing to measure, or when the two tracks don't line up.
+ */
+export function gapGain(
+  backing: Float32Array[],
+  original: Float32Array[],
+  sampleRate: number,
+  gaps: Span[],
+): number {
+  const usable = Math.min(backing[0]?.length ?? 0, original[0]?.length ?? 0);
+  const channels = Math.max(backing.length, original.length);
+  let cross = 0;
+  let backingEnergy = 0;
+  let originalEnergy = 0;
+  for (const gap of gaps) {
+    const first = Math.max(0, Math.round(gap.start * sampleRate));
+    const end = Math.min(usable, Math.round(gap.end * sampleRate));
+    for (let c = 0; c < channels; c++) {
+      const b = channel(backing, c);
+      const o = channel(original, c);
+      for (let i = first; i < end; i++) {
+        cross += o[i] * b[i];
+        backingEnergy += b[i] * b[i];
+        originalEnergy += o[i] * o[i];
+      }
+    }
+  }
+  if (backingEnergy === 0 || originalEnergy === 0) {
+    return 1;
+  }
+  if (cross / Math.sqrt(backingEnergy * originalEnergy) < MIN_GAIN_CORRELATION) {
+    return 1;
+  }
+  return Math.min(MAX_GAIN, Math.max(1 / MAX_GAIN, cross / backingEnergy));
+}
+
+/**
+ * Turn down the peaks past `ceiling` in place, by the same gain on every channel.
+ * The gain starts falling a look-ahead before each peak and recovers over the release, so it never
+ * steps.
+ */
+export function limitPeaks(
+  channels: Float32Array[],
+  sampleRate: number,
+  ceiling = LIMIT_CEILING,
+): void {
+  const length = channels[0]?.length ?? 0;
+  const lookahead = Math.max(1, Math.round(LIMIT_LOOKAHEAD_SECONDS * sampleRate));
+  // The gain each sample needs on its own.
+  const gain = new Float32Array(length);
+  let over = false;
+  for (let i = 0; i < length; i++) {
+    let peak = 0;
+    for (const samples of channels) {
+      peak = Math.max(peak, Math.abs(samples[i]));
+    }
+    gain[i] = peak > ceiling ? ceiling / peak : 1;
+    over ||= peak > ceiling;
+  }
+  if (!over) {
+    return;
+  }
+
+  // The lowest gain needed from each sample to a look-ahead after it, kept by a monotonic queue
+  // of indices.
+  const lowest = new Float32Array(length);
+  const queue = new Int32Array(lookahead + 2);
+  let head = 0;
+  let size = 0;
+  const at = (k: number) => queue[(head + k) % queue.length];
+  for (let i = length - 1; i >= 0; i--) {
+    while (size > 0 && gain[at(size - 1)] >= gain[i]) size--;
+    queue[(head + size) % queue.length] = i;
+    size++;
+    while (at(0) > i + lookahead) {
+      head = (head + 1) % queue.length;
+      size--;
+    }
+    lowest[i] = gain[at(0)];
+  }
+
+  // Averaged over the look-ahead before each sample, every value in the average already covers
+  // the peak, so the gain ramps down into it and still reaches what it needs.
+  let sum = lowest[0] * (lookahead + 1);
+  const release = 1 - Math.exp(-1 / (LIMIT_RELEASE_SECONDS * sampleRate));
+  let previous = 1;
+  for (let i = 0; i < length; i++) {
+    if (i > 0) {
+      sum += lowest[i] - lowest[Math.max(0, i - lookahead - 1)];
+    }
+    const smoothed = sum / (lookahead + 1);
+    previous = Math.min(smoothed, previous + (1 - previous) * release);
+    for (const samples of channels) {
+      samples[i] *= previous;
+    }
+  }
+}
+
 /**
  * The backing track with the original blended in over each gap, with the fades of `gapFades`.
+ * The backing track is scaled by `gain` first, and limited when that raises it.
  * A channel either track lacks is taken from its last one, so mono mixes with stereo.
  */
 export function mixGaps(
@@ -179,12 +295,21 @@ export function mixGaps(
   sampleRate: number,
   gaps: Span[],
   fade: number,
+  gain = 1,
 ): Float32Array[] {
   const length = backing[0]?.length ?? 0;
   const usable = Math.min(length, original[0]?.length ?? 0);
   const channels = Math.max(backing.length, original.length);
-  const channel = (tracks: Float32Array[], c: number) => tracks[Math.min(c, tracks.length - 1)];
-  const mixed = range(channels).map((c) => Float32Array.from(channel(backing, c)));
+  const mixed = range(channels).map((c) => {
+    const samples = Float32Array.from(channel(backing, c));
+    if (gain !== 1) {
+      for (let i = 0; i < samples.length; i++) samples[i] *= gain;
+    }
+    return samples;
+  });
+  if (gain > 1) {
+    limitPeaks(mixed, sampleRate);
+  }
   for (const gap of gaps) {
     const first = Math.max(0, Math.round(gap.start * sampleRate));
     const end = Math.min(usable, Math.round(gap.end * sampleRate));
@@ -215,14 +340,16 @@ export function mixGaps(
 }
 
 /**
- * The loudest that the original and the backing track differ over a gap, in dBFS, measured in
- * short windows. Restoring a gap far below the music changes nothing anyone hears.
+ * The loudest that the original and the backing track, scaled by `gain`, differ over a gap, in
+ * dBFS, measured in short windows. Restoring a gap far below the music changes nothing anyone
+ * hears.
  */
 export function gapDifference(
   backing: Float32Array[],
   original: Float32Array[],
   sampleRate: number,
   gap: Span,
+  gain = 1,
 ): number {
   const window = Math.max(1, Math.round(sampleRate * 0.05));
   const first = Math.max(0, Math.round(gap.start * sampleRate));
@@ -239,7 +366,7 @@ export function gapDifference(
       const o = original[Math.min(c, original.length - 1)];
       let sum = 0;
       for (let i = start; i < stop; i++) {
-        const d = o[i] - b[i];
+        const d = o[i] - b[i] * gain;
         sum += d * d;
       }
       loudest = Math.max(loudest, sum / (stop - start));

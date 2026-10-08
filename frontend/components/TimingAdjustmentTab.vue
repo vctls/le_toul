@@ -420,6 +420,18 @@
                 </template>
                 <b-switch v-model="videoOptions.restorePausesInLines"></b-switch>
               </b-field>
+              <b-field v-if="mixGainLabel" horizontal>
+                <template #label>
+                  Backing track gain
+                  <viewport-tooltip
+                    wide
+                    label="How far the backing track is turned up or down to match the original between lines, measured from the two tracks. Peaks that turning it up would clip are limited. It is not applied when the two tracks don't line up."
+                  >
+                    <b-icon size="is-small" icon="circle-question"></b-icon>
+                  </viewport-tooltip>
+                </template>
+                <span class="mix-gain">{{ mixGainLabel }}</span>
+              </b-field>
               <b-field label="Mix settings" horizontal>
                 <b-button
                   class="reset-mix"
@@ -841,7 +853,7 @@ export default defineComponent({
       gapFields: GAP_FIELDS,
       // What Mix mode plays, once built, and how loud each gap differs between the two tracks.
       mixPlayback: null as Blob | null,
-      gapLevels: null as { gaps: Span[]; levels: number[] } | null,
+      gapLevels: null as { gaps: Span[]; gain: number; levels: number[] } | null,
       mixRequest: 0,
       _mixTimer: null as ReturnType<typeof setTimeout> | null,
       // Whether the mix playing is behind the settings, or has just caught up with them.
@@ -1033,6 +1045,17 @@ export default defineComponent({
         return "Separate the song or load a backing track to hear the mix.";
       }
       return "";
+    },
+    // The gain the mix applies to the backing track, once measured for the current gaps.
+    mixGainLabel(): string {
+      const { restoreGaps } = this.videoOptions;
+      const { gaps, complete } = this.timingsStore.gapPlan;
+      if (!restoreGaps || !complete || !isEqual(this.gapLevels?.gaps, gaps)) return "";
+      // A gain of exactly 1 is what the measurement gives back when the tracks don't line up.
+      const gain = this.gapLevels!.gain;
+      if (gain === 1) return "Not applied";
+      const db = 20 * Math.log10(gain);
+      return `${db > 0 ? "+" : ""}${db.toFixed(1)} dB`;
     },
     mixFrames(): MixFrame[] {
       if (!this.mixMode) return [];
@@ -1382,7 +1405,7 @@ export default defineComponent({
       }
       const { gaps } = this.timingsStore.gapPlan;
       try {
-        const [mix, levels] = await Promise.all([
+        const [mix, { gain, levels }] = await Promise.all([
           restoredBacking(backing, song, this.timingsStore.restoredGaps, this.videoOptions.gapFade),
           gapDifferences(backing, song, gaps),
         ]);
@@ -1390,7 +1413,7 @@ export default defineComponent({
         // The same mix is already playing, so no load will come to mark it applied.
         if (mix === this.mixPlayback) this.setMixStatus("applied");
         this.mixPlayback = mix;
-        this.gapLevels = { gaps, levels };
+        this.gapLevels = { gaps, gain, levels };
       } catch (error) {
         console.error("Could not build the mix", error);
         this.setMixStatus(null);
@@ -1783,6 +1806,17 @@ Its rule ties on specificity with the one above. */
   gap: 0.25em;
   color: var(--region-review-lost);
   font-weight: var(--bulma-weight-semibold);
+}
+
+/* The gain reads like the value of the controls above it. */
+.mix-gain {
+  display: inline-block;
+  width: 14em;
+  text-align: center;
+}
+
+.is-in-drawer .mix-gain {
+  width: 100%;
 }
 
 /* The mix's status sits in the waveform's top right corner, over the frames. */

@@ -1,7 +1,7 @@
 // Builds the restored backing track in the browser, for the render, the preview and the Timing tab.
 
 import bufferToWav from "audiobuffer-to-wav";
-import { gapDifference, mixGaps, Span } from "./gapRestore";
+import { gapDifference, gapGain, mixGaps, Span } from "./gapRestore";
 
 // The separator writes its stems at this rate, so the backing track is decoded without resampling.
 const SAMPLE_RATE = 44100;
@@ -47,7 +47,7 @@ function decodePair(backing: Blob, original: Blob): DecodedPair["channels"] {
 
 /**
  * The backing track with the original song over the gaps, as a WAV, or the backing track itself
- * when there is no gap.
+ * when there is no gap. The backing track is brought to the original's level in the gaps.
  */
 export function restoredBacking(
   backing: Blob,
@@ -66,7 +66,9 @@ export function restoredBacking(
     return cached.result;
   }
   const result = decodePair(backing, original).then((channels) => {
-    const mixed = mixGaps(channels.backing, channels.original, SAMPLE_RATE, gaps, fade);
+    const { backing, original } = channels;
+    const gain = gapGain(backing, original, SAMPLE_RATE, gaps);
+    const mixed = mixGaps(backing, original, SAMPLE_RATE, gaps, fade, gain);
     const wav = bufferToWav({
       numberOfChannels: mixed.length,
       sampleRate: SAMPLE_RATE,
@@ -84,13 +86,20 @@ export function restoredBacking(
 }
 
 /**
- * How loud the original and the backing track differ over each gap, in dBFS.
+ * The gain that brings the backing track to the original's level over the gaps, and how loud the
+ * two then differ over each gap, in dBFS.
  */
 export async function gapDifferences(
   backing: Blob,
   original: Blob,
   gaps: Span[],
-): Promise<number[]> {
+): Promise<{ gain: number; levels: number[] }> {
   const channels = await decodePair(backing, original);
-  return gaps.map((gap) => gapDifference(channels.backing, channels.original, SAMPLE_RATE, gap));
+  const gain = gapGain(channels.backing, channels.original, SAMPLE_RATE, gaps);
+  return {
+    gain,
+    levels: gaps.map((gap) =>
+      gapDifference(channels.backing, channels.original, SAMPLE_RATE, gap, gain),
+    ),
+  };
 }

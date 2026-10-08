@@ -1,5 +1,13 @@
 import { describe, expect, it } from "vitest";
-import { gapDifference, gapFades, GapRestoreSettings, mixGaps, planGaps } from "./gapRestore";
+import {
+  gapDifference,
+  gapFades,
+  gapGain,
+  GapRestoreSettings,
+  limitPeaks,
+  mixGaps,
+  planGaps,
+} from "./gapRestore";
 
 const settings: GapRestoreSettings = {
   preRoll: 0.5,
@@ -234,10 +242,77 @@ describe("mixGaps", () => {
     ]);
   });
 
+  it("scales the backing track, and blends the original in as it is", () => {
+    const [mixed] = mixGaps(
+      [new Float32Array(10).fill(0.25)],
+      original,
+      1,
+      [{ start: 6, end: 10 }],
+      0,
+      2,
+    );
+
+    expect([...mixed]).toEqual([0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 3, 3, 3, 3]);
+  });
+
   it("leaves the backing track's own samples alone", () => {
     mixGaps(backing, original, 1, [{ start: 0, end: 10 }], 0);
 
     expect([...backing[0]]).toEqual(Array(10).fill(1));
+  });
+});
+
+describe("gapGain", () => {
+  const tone = (length: number, scale: number) =>
+    Float32Array.from({ length }, (_, i) => scale * Math.sin(i / 3));
+
+  it("finds the scale from the backing track to the original over the gaps", () => {
+    const backing = [tone(100, 0.5)];
+    const original = [tone(100, 0.8)];
+    original[0].fill(0, 50);
+
+    expect(gapGain(backing, original, 10, [{ start: 0, end: 5 }])).toBeCloseTo(1.6);
+  });
+
+  it("ignores a sound the separation removed, which doesn't follow the backing track", () => {
+    const backing = [tone(100, 0.5)];
+    const original = [Float32Array.from(tone(100, 0.8), (x, i) => x + 0.3 * Math.sin(i / 0.7))];
+
+    expect(gapGain(backing, original, 10, [{ start: 0, end: 10 }])).toBeCloseTo(1.6, 1);
+  });
+
+  it("leaves the level alone when the tracks don't line up, or there is no gap", () => {
+    const backing = [tone(100, 0.5)];
+    const original = [Float32Array.from({ length: 100 }, (_, i) => Math.sin(i / 0.7))];
+
+    expect(gapGain(backing, original, 10, [{ start: 0, end: 10 }])).toBe(1);
+    expect(gapGain(backing, [tone(100, 0.8)], 10, [])).toBe(1);
+  });
+});
+
+describe("limitPeaks", () => {
+  it("keeps every peak under the ceiling, with a gain that never steps", () => {
+    const samples = Float32Array.from({ length: 4000 }, (_, i) => 0.5 * Math.sin(i / 5));
+    samples[2000] = 1.6;
+    const before = Float32Array.from(samples);
+
+    limitPeaks([samples], 1000, 0.9);
+
+    expect(Math.max(...samples.map(Math.abs))).toBeLessThanOrEqual(0.9 + 1e-6);
+    const gains = [...samples].map((x, i) => (before[i] === 0 ? 1 : x / before[i]));
+    const steps = gains.slice(1).map((gain, i) => Math.abs(gain - gains[i]));
+    expect(Math.max(...steps)).toBeLessThan(0.15);
+    // Well before the peak and well after its release, the samples are as they were.
+    expect(samples.slice(0, 1900)).toEqual(before.slice(0, 1900));
+    expect(samples[3999]).toBeCloseTo(before[3999], 3);
+  });
+
+  it("leaves samples under the ceiling alone", () => {
+    const samples = Float32Array.from([0.1, -0.5, 0.8]);
+
+    limitPeaks([samples], 1000, 0.9);
+
+    expect([...samples]).toEqual([...Float32Array.from([0.1, -0.5, 0.8])]);
   });
 });
 
