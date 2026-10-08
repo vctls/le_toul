@@ -9,6 +9,7 @@ import { useTimingsStore } from "@/stores/timings";
 import { useLyricsLookupStore } from "@/stores/lyricsLookup";
 import { applyThemePreference, loadThemePreference } from "@/lib/colorScheme";
 import { appName } from "@/constants";
+import { registerServiceWorker } from "@/lib/serviceWorker";
 
 // Import our optimized FontAwesome configuration
 import FontAwesomeIcon from "./plugins/fontawesome";
@@ -42,5 +43,18 @@ window.addEventListener("load", function () {
 
   void useLyricsLookupStore().loadProvider();
 
-  app.mount("#app");
+  const root = app.mount("#app");
+
+  if (import.meta.env.PROD && "serviceWorker" in navigator) {
+    registerServiceWorker((activate) =>
+      root.$buefy.snackbar.open({
+        message: "A new version is available.",
+        actionText: "Reload",
+        onAction: activate,
+        cancelText: "Later",
+        indefinite: true,
+        position: "is-bottom",
+      }),
+    );
+  }
 });

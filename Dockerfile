@@ -18,6 +18,9 @@ RUN npm clean-install
 # Copy the rest of the frontend source
 COPY frontend/ ./frontend/
 COPY vite.config.*.ts tsconfig.json ./
+# The service worker's precache revisions hash the page template and the static files.
+COPY api/assets ./api/assets
+COPY api/templates ./api/templates
 
 # Build the frontend
 RUN npm run build

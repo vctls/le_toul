@@ -13,6 +13,7 @@
     },
     "types": ["vitest/globals"]
   },
+  "exclude": ["node_modules", "frontend/sw.ts"],
   "vueCompilerOptions": {
     "strictTemplates": true,
     "target": 3.5

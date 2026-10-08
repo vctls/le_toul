@@ -27,6 +27,11 @@ DEBUG = os.getenv("DEBUG", "True") != "False"
 # The name shown in the page title and header.
 APP_NAME = os.getenv("APP_NAME", "Le Toul")
 
+# Serve a service worker that removes itself and its caches, in place of the app's.
+# This is the way back from a broken worker,
+# since browsers keep running one until it's replaced.
+SERVICE_WORKER_KILL_SWITCH = os.getenv("SERVICE_WORKER_KILL_SWITCH", "False") == "True"
+
 # Google Cloud Storage bucket for caching separated tracks
 SEPARATED_TRACKS_BUCKET = os.getenv("SEPARATED_TRACKS_BUCKET", "")
 

@@ -580,6 +580,30 @@ async def index(request: Request):
     return templates.TemplateResponse("index.html", context)
 
 
+SERVICE_WORKER = settings.STATIC_DIR / "bundles" / "sw.js"
+SERVICE_WORKER_KILL_SWITCH = settings.BASE_DIR / "sw-kill.js"
+
+
+@app.get("/sw.js")
+async def service_worker():
+    """Serve the service worker, or the one that removes it.
+
+    The worker lives here rather than under /static/bundles/,
+    so that its scope is the whole app.
+    """
+    use_kill_switch = (
+        settings.DEBUG
+        or settings.SERVICE_WORKER_KILL_SWITCH
+        or not SERVICE_WORKER.exists()
+    )
+    return FileResponse(
+        SERVICE_WORKER_KILL_SWITCH if use_kill_switch else SERVICE_WORKER,
+        media_type="text/javascript",
+        # Browsers otherwise reuse a cached worker script for up to a day before checking.
+        headers={"Cache-Control": "no-cache"},
+    )
+
+
 @app.post("/separate_track")
 async def separate_track(
     request: Request,
