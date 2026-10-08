@@ -5,6 +5,10 @@ export type Engine = "buffer" | "stretch";
 // A start scheduled this far ahead of the audio clock lands exactly where it was asked for.
 const SCHEDULE_AHEAD = 0.03;
 
+// A track loaded during playback fades in over the one it replaces for this long, since cutting
+// one mid-waveform clicks.
+const SWAP_FADE_SECONDS = 0.02;
+
 // The stretch node keeps working on silence until it is stopped, which it is this long after its
 // output has been cut.
 const STRETCH_IDLE_SECONDS = 0.1;
@@ -28,6 +32,8 @@ interface Playing {
   end: number;
   outputEnd: number;
   source: AudioBufferSourceNode | null;
+  // The buffer source's own gain, which fades it out when another track replaces it.
+  fader: GainNode | null;
 }
 
 interface Stretch {
@@ -282,6 +288,10 @@ export class WebAudioPlayer extends EventTarget {
 
   private setBuffer(buffer: AudioBuffer) {
     const playing = this.playing;
+    if (playing?.fader && engineFor(this.rate, this.pitch) === "buffer") {
+      this.crossfadeTo(playing, buffer);
+      return;
+    }
     if (playing) {
       this.position = this.songTimeAtContextTime(playing, playing.context.currentTime);
       this.stopNodes(playing, playing.context.currentTime);
@@ -355,26 +365,51 @@ export class WebAudioPlayer extends EventTarget {
   }
 
   /**
-   * Play from the last of `spans` up to the range's end, or the track's, through `stretch` if
-   * given and through a buffer source otherwise.
+   * Fade `buffer` in over the buffer source playing, from the same song time, so the swap has
+   * neither a gap nor a click. Playback about to end is left to end on the old track.
    */
-  private begin(context: AudioContext, stretch: Stretch | null, spans: Span[]) {
+  private crossfadeTo(playing: Playing, buffer: AudioBuffer) {
+    const output = playing.context.currentTime + SCHEDULE_AHEAD;
+    this.buffer = buffer;
+    this.dispatchEvent(new Event("loadeddata"));
+    if (output >= playing.outputEnd) return;
+    const input = songTimeAt(playing.spans, output);
+    const spans = playing.spans.filter((span) => span.output < output);
+    const fadeEnd = output + SWAP_FADE_SECONDS;
+    playing.fader?.gain.setValueAtTime(1, output);
+    playing.fader?.gain.linearRampToValueAtTime(0, fadeEnd);
+    playing.source?.stop(fadeEnd);
+    this.begin(playing.context, null, [...spans, { input, output, rate: this.rate }], true);
+  }
+
+  /**
+   * Play from the last of `spans` up to the range's end, or the track's, through `stretch` if
+   * given and through a buffer source otherwise. A buffer source can fade in.
+   */
+  private begin(context: AudioContext, stretch: Stretch | null, spans: Span[], fadeIn = false) {
     const buffer = this.buffer as AudioBuffer;
     const { input, output, rate } = spans[spans.length - 1];
     const end = this.range?.end ?? buffer.duration;
     const outputEnd = output + Math.max(0, end - input) / rate;
     let source: AudioBufferSourceNode | null = null;
+    let fader: GainNode | null = null;
     if (stretch) {
       this.scheduleStretch(context, stretch, input, output, rate, outputEnd);
     } else {
       source = context.createBufferSource();
       source.buffer = buffer;
       source.playbackRate.value = rate;
-      source.connect(context.destination);
+      fader = context.createGain();
+      if (fadeIn) {
+        fader.gain.setValueAtTime(0, output);
+        fader.gain.linearRampToValueAtTime(1, output + SWAP_FADE_SECONDS);
+      }
+      source.connect(fader);
+      fader.connect(context.destination);
       source.start(output, input, Math.max(0, end - input));
     }
     const engine = stretch ? "stretch" : "buffer";
-    this.playing = { context, engine, spans, end, outputEnd, source };
+    this.playing = { context, engine, spans, end, outputEnd, source, fader };
   }
 
   private scheduleStretch(

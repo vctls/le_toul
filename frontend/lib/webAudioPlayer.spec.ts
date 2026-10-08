@@ -13,6 +13,10 @@ class FakeParam {
   cancelScheduledValues(time: number) {
     this.events.push(["cancel", time]);
   }
+
+  linearRampToValueAtTime(value: number, time: number) {
+    this.events.push(["ramp", value, time]);
+  }
 }
 
 class FakeSource {
@@ -243,6 +247,30 @@ describe("WebAudioPlayer", () => {
       input: expect.closeTo(1.12, 6),
       rate: 0.5,
     });
+  });
+
+  it("fades a track loaded during playback in over the one it replaces", async () => {
+    const { player, contexts } = await loadedPlayer();
+    player.currentTime = 5;
+    await player.play();
+
+    contexts[0].currentTime = 11;
+    await player.load(new Blob());
+
+    const [before, after] = contexts[0].sources;
+    const [beforeFader, afterFader] = contexts[0].gains;
+    expect(before.stop).toHaveBeenCalledWith(expect.closeTo(11.05, 6));
+    expect(beforeFader.events).toEqual([
+      ["set", 1, expect.closeTo(11.03, 6)],
+      ["ramp", 0, expect.closeTo(11.05, 6)],
+    ]);
+    // The old track has reached 6 s by the time the new one starts.
+    expect(after.start).toHaveBeenCalledWith(expect.closeTo(11.03, 6), expect.closeTo(6, 6), 14);
+    expect(afterFader.events).toEqual([
+      ["set", 0, expect.closeTo(11.03, 6)],
+      ["ramp", 1, expect.closeTo(11.05, 6)],
+    ]);
+    expect(player.paused).toBe(false);
   });
 
   it("emits ended before pause once a range has played", async () => {
