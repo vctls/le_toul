@@ -106,7 +106,7 @@
           @click="timingsStore.clearDisplayPeriods(activeVoice)"
         />
         <b-button
-          v-else
+          v-else-if="!mixMode"
           icon-left="eraser"
           aria-label="Reset timings"
           title="Clear every timing of this voice"
@@ -181,6 +181,21 @@
             of one moves that edge of every selected frame.
           </p>
         </template>
+        <template v-else-if="mixMode">
+          <p>
+            The video plays the original song where nobody sings, so only the sung parts lose what
+            the separation removed. Each line gets a frame for the time the backing track plays
+            around it. The shaded stretches between frames play the original, and playback here
+            plays the mix as the video will.
+          </p>
+          <p>
+            The settings below set how far the frames reach before and after each line, the shortest
+            gap worth restoring, and how long the fades last. A hatched gap sounds the same in both
+            tracks, so restoring it changes nothing. A line marked with ⚠ ends on a syllable without
+            an end, which runs on to the next line and leaves no gap after it. Set that end in
+            Adjust mode to restore what follows.
+          </p>
+        </template>
         <template v-else>
           <p>
             Drag the left edge of a rectangle to change when a syllable starts, and the right edge
@@ -220,13 +235,13 @@
             The eraser puts every line of this voice back on automatic times, which you can undo
             too.
           </template>
-          <template v-else>
+          <template v-else-if="!mixMode">
             The eraser clears every timing of this voice, which you can undo too.
           </template>
           Press <kbd>{{ keyLabels.switchMode }}</kbd> to switch to Tap mode. The keyboard button at
           the top of the page lists every key, and lets you change them.
         </p>
-        <p v-if="reviewIndices.length > 0 && !displayMode">
+        <p v-if="reviewIndices.length > 0 && !displayMode && !mixMode">
           Syllables to check are drawn in red, orange or yellow, with a line across the waveform at
           each. Red ones lost their timing in a lyric edit and sit where the syllables around them
           put them. Orange ones took their timing from a word a lyric edit replaced. Yellow ones
@@ -309,6 +324,16 @@
                 >
                   Lines
                 </b-button>
+                <b-button
+                  v-if="advancedStore.isAdvanced"
+                  :type="mixMode ? 'is-primary' : ''"
+                  :aria-pressed="mixMode"
+                  :disabled="!hasTimings"
+                  :title="`See where the video plays the original song (${keyLabels.switchMode})`"
+                  @click="setMode('mix')"
+                >
+                  Mix
+                </b-button>
               </div>
             </b-field>
             <b-field label="Playback rate" horizontal>
@@ -348,9 +373,54 @@
                 controls-position="compact"
               />
             </b-field>
-            <b-field v-if="vocalTrack" label="Playback track" horizontal>
+            <b-field v-if="vocalTrack && !mixMode" label="Playback track" horizontal>
               <track-select kind="vocals" expanded v-model="playbackTrackChoice" />
             </b-field>
+            <template v-if="mixMode">
+              <b-field horizontal :message="mixMessage">
+                <template #label>
+                  Restore gaps
+                  <viewport-tooltip
+                    wide
+                    label="Play the original song instead of the backing track where nobody sings"
+                  >
+                    <b-icon size="is-small" icon="circle-question"></b-icon>
+                  </viewport-tooltip>
+                </template>
+                <b-switch v-model="videoOptions.restoreGaps"></b-switch>
+              </b-field>
+              <b-field
+                v-for="field in gapFields"
+                :key="field.option"
+                :label="field.label"
+                horizontal
+              >
+                <b-numberinput
+                  expanded
+                  :model-value="videoOptions[field.option]"
+                  @update:model-value="
+                    (v: number | null | undefined) =>
+                      (videoOptions[field.option] = Number(v ?? videoOptions[field.option]))
+                  "
+                  :min="0"
+                  :step="field.step"
+                  :min-step="0.01"
+                  controls-position="compact"
+                />
+              </b-field>
+              <b-field horizontal>
+                <template #label>
+                  Restore pauses in lines
+                  <viewport-tooltip
+                    wide
+                    label="Treat a long pause between two syllables of a line like a gap between lines"
+                  >
+                    <b-icon size="is-small" icon="circle-question"></b-icon>
+                  </viewport-tooltip>
+                </template>
+                <b-switch v-model="videoOptions.restorePausesInLines"></b-switch>
+              </b-field>
+            </template>
             <b-field v-if="isAdjustMode" label="Shift all timings (ms)" horizontal>
               <b-numberinput
                 expanded
@@ -386,6 +456,10 @@
       ref="timing-adjuster"
       :segments="displayedSegments"
       :displayMode="displayMode"
+      :mixMode="mixMode"
+      :mixFrames="mixFrames"
+      :mixGaps="mixGaps"
+      :mixEnabled="mixEnabled"
       :tapMode="isTapMode"
       :growing="pass?.growing"
       :head="tapHead"
@@ -503,7 +577,10 @@ import { BandUpdate, DisplayBand, displayBands } from "@/lib/displayBands";
 import { resolveThemeColor } from "@/lib/themeColor";
 import { onSchemeChange } from "@/lib/colorScheme";
 import { loadJsonFromStorage } from "@/lib/persistence";
-import { findLast, findLastIndex, pick, throttle } from "lodash-es";
+import { findLast, findLastIndex, isEqual, pick, throttle } from "lodash-es";
+import { gapDifferences, restoredBacking } from "@/lib/gapMix";
+import type { Span } from "@/lib/gapRestore";
+import type { MixFrame, MixGap } from "@/lib/wavesurferPlugins/MixPlugin";
 import { CJK_FONT, SYMBOL_FONT } from "@/lib/fonts";
 import { useFallbackFontsStore } from "@/stores/fallbackFonts";
 import { default as BuefyColor } from "buefy/src/utils/color";
@@ -555,7 +632,21 @@ interface AdjustVoiceState {
 }
 
 // Lines mode edits when each line is on screen.
-type AdjustMode = "tap" | "adjust" | "lines";
+// Mix mode shows where the video plays the original song instead of the backing track.
+type AdjustMode = "tap" | "adjust" | "lines" | "mix";
+
+// The original and the backing track differ by less than this over a gap that changes nothing.
+const EMPTY_GAP_DB = -40;
+
+// The mix is rebuilt from the whole song, so a run of setting changes only rebuilds it once.
+const MIX_PLAYBACK_DELAY_MS = 400;
+
+const GAP_FIELDS = [
+  { option: "gapPreRoll", label: "Mute before a line (seconds)", step: 0.1 },
+  { option: "gapPostRoll", label: "Mute after a line (seconds)", step: 0.1 },
+  { option: "gapMinLength", label: "Shortest gap (seconds)", step: 0.5 },
+  { option: "gapFade", label: "Fade (seconds)", step: 0.05 },
+] as const;
 
 // How far the voice is timed: every segment has an unflagged start, and the last one an end too.
 type TimingStatus = "almost" | "done";
@@ -719,6 +810,12 @@ export default defineComponent({
       isSyncOpen: false,
       // Whether the server can sync, which it is asked once the tab is mounted.
       isSyncAvailable: false,
+      gapFields: GAP_FIELDS,
+      // What Mix mode plays, once built, and how loud each gap differs between the two tracks.
+      mixPlayback: null as Blob | null,
+      gapLevels: null as { gaps: Span[]; levels: number[] } | null,
+      mixRequest: 0,
+      _mixTimer: null as ReturnType<typeof setTimeout> | null,
     };
   },
   computed: {
@@ -775,6 +872,9 @@ export default defineComponent({
       );
     },
     playbackTrack(): Blob | null {
+      if (this.mixMode) {
+        return this.mixPlayback ?? this.songFile;
+      }
       return this.mediaStore.trackFor("vocals", this.playbackTrackChoice) ?? this.songFile;
     },
     // DejaVu Sans has no CJK glyphs, so CJK text is still tagged with the CJK font.
@@ -868,17 +968,68 @@ export default defineComponent({
       ) as Record<TimingAction, string>;
     },
     canSync(): boolean {
-      return this.isSyncAvailable && !this.displayMode;
+      return this.isSyncAvailable && !this.displayMode && !this.mixMode;
     },
     // Lines mode is Adjust mode while advanced mode is off, and comes back with it.
     displayMode(): boolean {
       return this.advancedStore.isAdvanced && this.mode === "lines" && !this.isTapMode;
     },
+    // Like Lines mode, Mix mode is Adjust mode while advanced mode is off.
+    mixMode(): boolean {
+      return this.advancedStore.isAdvanced && this.mode === "mix" && !this.isTapMode;
+    },
     isAdjustMode(): boolean {
-      return !this.isTapMode && !this.displayMode;
+      return !this.isTapMode && !this.displayMode && !this.mixMode;
     },
     editModeName(): string {
-      return this.lastEditMode === "lines" && this.advancedStore.isAdvanced ? "Lines" : "Adjust";
+      if (!this.advancedStore.isAdvanced) return "Adjust";
+      return { adjust: "Adjust", lines: "Lines", mix: "Mix" }[this.lastEditMode];
+    },
+    videoOptions() {
+      return this.settingsStore.videoOptions;
+    },
+    mixBacking(): Blob | null {
+      return this.mediaStore.separatedTrack?.backing ?? null;
+    },
+    mixEnabled(): boolean {
+      return this.videoOptions.restoreGaps;
+    },
+    mixMessage(): string {
+      if (!this.timingsStore.gapPlan.complete) {
+        return "The gaps are restored once every syllable of every voice is timed.";
+      }
+      if (!this.mixBacking) {
+        return "Separate the song or load a backing track to hear the mix.";
+      }
+      return "";
+    },
+    mixFrames(): MixFrame[] {
+      if (!this.mixMode) return [];
+      return this.timingsStore.gapPlan.lines.map((line, index) => ({
+        ...pick(line, ["start", "end", "text", "syllables", "openEnd"]),
+        row: index % 5,
+      }));
+    },
+    mixGaps(): MixGap[] {
+      if (!this.mixMode) return [];
+      const { gaps } = this.timingsStore.gapPlan;
+      const measured = isEqual(this.gapLevels?.gaps, gaps) ? this.gapLevels?.levels : undefined;
+      return gaps.map((gap, i) => ({
+        ...gap,
+        empty: measured !== undefined && measured[i] < EMPTY_GAP_DB,
+      }));
+    },
+    // What changes the mix that Mix mode plays.
+    mixInputs(): unknown[] {
+      if (!this.mixMode) return [false];
+      return [
+        this.mixMode,
+        this.mixBacking,
+        this.songFile,
+        JSON.stringify(this.timingsStore.restoredGaps),
+        JSON.stringify(this.timingsStore.gapPlan.gaps),
+        this.videoOptions.gapFade,
+      ];
     },
     activeVoiceHasDisplayPeriods(): boolean {
       return this.timingsStore.activeSegments.some(hasDisplayPeriod);
@@ -938,8 +1089,17 @@ export default defineComponent({
     if (this._subtitleDebounceTimer) {
       clearTimeout(this._subtitleDebounceTimer);
     }
+    if (this._mixTimer) {
+      clearTimeout(this._mixTimer);
+    }
   },
   watch: {
+    mixInputs: {
+      handler() {
+        this.scheduleMixPlayback();
+      },
+      immediate: true,
+    },
     activeVoice(newVoice: VoiceId, oldVoice?: VoiceId) {
       this.endPass();
       // Save the outgoing voice's control state and load the incoming voice's.
@@ -1162,6 +1322,38 @@ export default defineComponent({
     onSettingsScroll(event: Event) {
       // Sub-pixel leftovers are rounding, not content.
       this.settingsScrolled = (event.target as HTMLElement).scrollTop > 1;
+    },
+    scheduleMixPlayback() {
+      if (this._mixTimer) clearTimeout(this._mixTimer);
+      this._mixTimer = setTimeout(() => {
+        this._mixTimer = null;
+        this.updateMixPlayback();
+      }, MIX_PLAYBACK_DELAY_MS);
+    },
+    /**
+     * Build the mix that Mix mode plays, and measure its gaps. Outside Mix mode, the mix is
+     * dropped.
+     */
+    async updateMixPlayback() {
+      const request = ++this.mixRequest;
+      const backing = this.mixBacking;
+      const song = this.songFile;
+      if (!this.mixMode || !backing || !song) {
+        this.mixPlayback = null;
+        return;
+      }
+      const { gaps } = this.timingsStore.gapPlan;
+      try {
+        const [mix, levels] = await Promise.all([
+          restoredBacking(backing, song, this.timingsStore.restoredGaps, this.videoOptions.gapFade),
+          gapDifferences(backing, song, gaps),
+        ]);
+        if (request !== this.mixRequest) return;
+        this.mixPlayback = mix;
+        this.gapLevels = { gaps, levels };
+      } catch (error) {
+        console.error("Could not build the mix", error);
+      }
     },
     setMode(mode: AdjustMode) {
       if (mode !== "tap" && !this.hasTimings) return;

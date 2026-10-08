@@ -19,6 +19,7 @@ import WaveSurfer from "wavesurfer.js";
 import type { GenericPlugin } from "wavesurfer.js/dist/base-plugin.js";
 import RegionsPlugin, { Region, RegionParams } from "@/lib/wavesurferPlugins/OpenEndedRegionPlugin";
 import DisplayBandsPlugin from "@/lib/wavesurferPlugins/DisplayBandsPlugin";
+import MixPlugin, { MixFrame, MixGap } from "@/lib/wavesurferPlugins/MixPlugin";
 import { DisplayBand } from "@/lib/displayBands";
 import { onSchemeChange } from "@/lib/colorScheme";
 import { drawPeaks, peakLevelsFor } from "@/lib/waveformPeaks";
@@ -73,6 +74,19 @@ export default defineComponent({
       type: Boolean,
       default: true,
     },
+    // The gap restore plan. Empty hides it.
+    mixFrames: {
+      type: Array as PropType<MixFrame[]>,
+      default: () => [],
+    },
+    mixGaps: {
+      type: Array as PropType<MixGap[]>,
+      default: () => [],
+    },
+    mixEnabled: {
+      type: Boolean,
+      default: true,
+    },
     // This is where the view was scrolled to, in seconds. It is applied once, when the waveform
     // is laid out.
     initialScroll: {
@@ -105,6 +119,7 @@ export default defineComponent({
       // and the raw instances its own events carry would no longer compare equal to them.
       regionsPlugin: markRaw(RegionsPlugin.create()),
       bandsPlugin: markRaw(DisplayBandsPlugin.create()),
+      mixPlugin: markRaw(MixPlugin.create()),
       isVisible: false,
       _observer: null as IntersectionObserver | null,
       _resizeObserver: null as ResizeObserver | null,
@@ -185,6 +200,7 @@ export default defineComponent({
       plugins: [
         this.regionsPlugin as unknown as GenericPlugin,
         this.bandsPlugin as unknown as GenericPlugin,
+        this.mixPlugin as unknown as GenericPlugin,
       ],
     });
     if (this.audioData) this.wavesurfer.loadBlob(this.audioData);
@@ -211,6 +227,7 @@ export default defineComponent({
     this.wavesurfer.on("ready", () => {
       this.updateRegions(this.regions);
       this.bandsPlugin.setBands(this.bands, this.bandsEnabled);
+      this.updateMix();
       this.applyZoom();
       this.applyInitialScroll();
     });
@@ -271,6 +288,15 @@ export default defineComponent({
     bandsEnabled(enabled: boolean) {
       this.bandsPlugin.setBands(this.bands, enabled);
     },
+    mixFrames() {
+      this.updateMix();
+    },
+    mixGaps() {
+      this.updateMix();
+    },
+    mixEnabled() {
+      this.updateMix();
+    },
     regions: {
       handler: function (newRegions) {
         // A drag just moved this region in place, so the prop change is only the store value catching up.
@@ -305,6 +331,9 @@ export default defineComponent({
     "scrub",
   ],
   methods: {
+    updateMix() {
+      this.mixPlugin.setPlan(this.mixFrames, this.mixGaps, this.mixEnabled);
+    },
     schemeColors() {
       return {
         waveColor: this.waveColor ?? schemeColor("--waveform-wave", "rgba(0, 0, 0, 0.1)"),

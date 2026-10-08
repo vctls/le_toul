@@ -7,9 +7,12 @@
       <wavesurfer
         ref="wavesurfer"
         :audioData="vocalTrack || audioData"
-        :regions="displayMode ? [] : regions"
+        :regions="displayMode || mixMode ? [] : regions"
         :bands="bands"
         :bandsEnabled="bandsEnabled"
+        :mixFrames="mixFrames"
+        :mixGaps="mixGaps"
+        :mixEnabled="mixEnabled"
         :selectable="!tapMode"
         :centered="tapMode"
         :mediaControls="false"
@@ -45,6 +48,7 @@ import { registerPlayer } from "@/lib/exclusivePlayback";
 import { WebAudioPlayer } from "@/lib/webAudioPlayer";
 import { TimedSegment } from "@/lib/timedSegments";
 import { DisplayBand } from "@/lib/displayBands";
+import type { MixFrame, MixGap } from "@/lib/wavesurferPlugins/MixPlugin";
 
 // The Tap queue runs across the middle of the waveform.
 // An even number of channels leaves the middle between two of them.
@@ -116,6 +120,7 @@ export default defineComponent({
     segments: Array<TimedSegment>,
     // Display mode draws each line's display period in place of the timing regions.
     displayMode: { type: Boolean, default: false },
+    mixMode: { type: Boolean, default: false },
     // Tap mode draws the regions without handles, and a click on one doesn't select it.
     tapMode: { type: Boolean, default: false },
     // In Tap mode, the segment being tapped, whose region grows up to the playhead.
@@ -129,6 +134,9 @@ export default defineComponent({
     queue: { type: Array as PropType<QueueItem[]>, default: () => [] },
     bands: { type: Array as PropType<DisplayBand[]>, default: () => [] },
     bandsEnabled: { type: Boolean, default: true },
+    mixFrames: { type: Array as PropType<MixFrame[]>, default: () => [] },
+    mixGaps: { type: Array as PropType<MixGap[]>, default: () => [] },
+    mixEnabled: { type: Boolean, default: true },
     audioData: Blob,
     // URL to the vocal track audio file
     vocalTrack: { type: Blob, required: false },
