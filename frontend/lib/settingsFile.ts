@@ -106,6 +106,12 @@ function settingsDocument({
 
 // The video options the subtitles have no trace of.
 const VIDEO_OPTIONS_OUTSIDE_SUBTITLES = [
+  "restoreGaps",
+  "gapPreRoll",
+  "gapPostRoll",
+  "gapMinLength",
+  "gapFade",
+  "restorePausesInLines",
   "useBackground",
   "backgroundFit",
   "outputFormat",
@@ -205,10 +211,14 @@ const BOOLEAN_OPTIONS = [
   "dynamicCountIns",
   "addStaggeredLines",
   "useStoredDisplayPeriods",
+  "restoreGaps",
+  "restorePausesInLines",
   "useBackground",
 ] as const;
 
 const POSITIVE_NUMBER_OPTIONS = ["countInThreshold", "countInDuration"] as const;
+
+const GAP_SECONDS_OPTIONS = ["gapPreRoll", "gapPostRoll", "gapMinLength", "gapFade"] as const;
 
 const SHADOW_OFFSET_OPTIONS = ["shadowX", "shadowY"] as const;
 
@@ -229,6 +239,7 @@ const ALIGNMENT_NAMES: Record<string, VerticalAlignment> = {
 const KNOWN_VIDEO_OPTIONS = [
   ...BOOLEAN_OPTIONS,
   ...POSITIVE_NUMBER_OPTIONS,
+  ...GAP_SECONDS_OPTIONS,
   ...SHADOW_OFFSET_OPTIONS,
   "outlineWidth",
   "countInMode",
@@ -555,6 +566,11 @@ function parseVideoOptions(raw: unknown, warnings: string[]): Partial<VideoSetti
     warnings,
   );
   if (instrumentalThreshold !== undefined) options.instrumentalThreshold = instrumentalThreshold;
+
+  for (const key of GAP_SECONDS_OPTIONS) {
+    const value = readSecondsOrZero(raw[key], `videoOptions.${key}`, warnings);
+    if (value !== undefined) options[key] = value;
+  }
 
   const countInMode = readCountInMode(raw.countInMode, "videoOptions.countInMode", warnings);
   if (countInMode !== undefined) options.countInMode = countInMode;

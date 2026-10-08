@@ -45,6 +45,10 @@ import {
   DEFAULT_OUTLINE_WIDTH,
   DEFAULT_DYNAMIC_COUNT_INS,
   DEFAULT_INSTRUMENTAL_THRESHOLD,
+  DEFAULT_GAP_PRE_ROLL,
+  DEFAULT_GAP_POST_ROLL,
+  DEFAULT_GAP_MIN_LENGTH,
+  DEFAULT_GAP_FADE,
 } from "@/constants";
 
 const VOICE_STYLES_STORAGE_KEY = "voiceStyles";
@@ -159,6 +163,13 @@ export type VideoSettings = {
   instrumentalThreshold: number;
   addStaggeredLines: boolean;
   useStoredDisplayPeriods: boolean;
+  // Play the original song instead of the backing track between sung parts.
+  restoreGaps: boolean;
+  gapPreRoll: number;
+  gapPostRoll: number;
+  gapMinLength: number;
+  gapFade: number;
+  restorePausesInLines: boolean;
   useBackground: boolean;
   backgroundFit: BackgroundFit;
   outputFormat: OutputFormat;
@@ -201,6 +212,12 @@ const DEFAULT_SETTINGS: VideoSettings = {
   instrumentalThreshold: DEFAULT_INSTRUMENTAL_THRESHOLD,
   addStaggeredLines: true,
   useStoredDisplayPeriods: true,
+  restoreGaps: true,
+  gapPreRoll: DEFAULT_GAP_PRE_ROLL,
+  gapPostRoll: DEFAULT_GAP_POST_ROLL,
+  gapMinLength: DEFAULT_GAP_MIN_LENGTH,
+  gapFade: DEFAULT_GAP_FADE,
+  restorePausesInLines: false,
   useBackground: false,
   backgroundFit: "fill",
   outputFormat: "mp4",

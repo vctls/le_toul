@@ -159,6 +159,24 @@ describe("parseSettingsYaml", () => {
     expect(parsed.warnings.join("\n")).toContain("videoOptions.instrumentalThreshold");
   });
 
+  test("reads the gap restore settings, and skips a negative margin", () => {
+    const parsed = parseSettingsYaml(
+      "videoOptions:\n  restoreGaps: false\n  restorePausesInLines: true\n" +
+        "  gapPreRoll: 0\n  gapPostRoll: 2\n  gapMinLength: 4\n  gapFade: -1\n",
+    );
+    expect(parsed.videoOptions).toMatchObject({
+      restoreGaps: false,
+      restorePausesInLines: true,
+      gapPreRoll: 0,
+      gapPostRoll: 2,
+      gapMinLength: 4,
+    });
+    expect(parsed.videoOptions.gapFade).toBeUndefined();
+    expect(parsed.warnings).toEqual([
+      "videoOptions.gapFade: expected a number of seconds, or zero, ignoring -1",
+    ]);
+  });
+
   test("accepts named vertical alignments for hand-written files", () => {
     expect(
       parseSettingsYaml("videoOptions:\n  verticalAlignment: bottom\n").videoOptions

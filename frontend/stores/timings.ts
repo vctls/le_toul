@@ -34,6 +34,7 @@ import { VoiceId, DEFAULT_VOICE_ID, parseAnnotatedLyrics } from "@/lib/voices";
 import { loadJsonFromStorage } from "@/lib/persistence";
 import { writeTimingsText } from "@/lib/timingsText";
 import { PendingSync, SyncResult, withSyncResult } from "@/lib/alignment";
+import { GapPlan, planGaps } from "@/lib/gapRestore";
 
 const SEGMENTS_STORAGE_KEY = "timings._segments";
 // This key is read-only now.
@@ -407,6 +408,40 @@ export const useTimingsStore = defineStore("timings", {
           return "";
         }
       };
+    },
+
+    /**
+     * Each line's muted period, and the gaps where the video plays the original song, for every
+     * voice the lyrics name. A voice with lyrics but no segments yet counts as untimed.
+     */
+    gapPlan(state): GapPlan {
+      const lyricsStore = useLyricsStore();
+      const duration = useMediaStore().songDuration;
+      if (!duration) {
+        return { lines: [], gaps: [], complete: false };
+      }
+      const options = useSettingsStore().videoOptions;
+      const voices = Object.fromEntries(
+        lyricsStore.voices.map((voice) => [
+          voice,
+          state._segmentsByVoice[voice] ?? lyricsStore.segmentsForVoice(voice).map(fromLyric),
+        ]),
+      );
+      return planGaps(voices, duration, {
+        preRoll: options.gapPreRoll,
+        postRoll: options.gapPostRoll,
+        minGap: options.gapMinLength,
+        fade: options.gapFade,
+        pausesInLines: options.restorePausesInLines,
+      });
+    },
+
+    /**
+     * The gaps the video restores, which is none while the switch is off or the song is partly
+     * timed.
+     */
+    restoredGaps(): GapPlan["gaps"] {
+      return useSettingsStore().videoOptions.restoreGaps ? this.gapPlan.gaps : [];
     },
 
     /**
