@@ -136,6 +136,21 @@ export function songOffset(render: VoiceTrackRender): Timestamp {
 }
 
 /**
+ * The middle of the time the title and artist are both shown, or null when there is no title
+ * screen or nothing written on it.
+ */
+export function titleFrameTime(render: VoiceTrackRender): Timestamp | null {
+  const screen = render.screens.find(({ kind }) => kind === "title");
+  const lines = screen?.lines.filter((line) => line.segments.some(({ text }) => text.trim())) ?? [];
+  if (!screen || lines.length === 0) {
+    return null;
+  }
+  const start = Math.max(...lines.map((line) => displayStartOf(line, screen)));
+  const end = Math.min(...lines.map((line) => displayEndOf(line, screen)));
+  return end > start ? (start + end) / 2 : null;
+}
+
+/**
  * Fade every lyrics line in before it animates and out after it has been sung.
  * The title lines fade in and out all together, as the title screen starts and ends.
  * A fade never overlaps the line's own animation, so it may be shorter than LINE_FADE, or absent.

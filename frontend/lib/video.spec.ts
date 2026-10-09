@@ -4,6 +4,7 @@ import {
   getAlternateTrackParams,
   getFfmpegParams,
   getMkvMuxParams,
+  getTitleFrameParams,
   parseYouTubeTitle,
   fetchYouTubeVideo,
 } from "./video";
@@ -234,6 +235,18 @@ describe("getFfmpegParams", () => {
     expect(valueOf(args, "-t")).toBe("203.457");
     // Neither background ever ends, so -shortest would render forever.
     expect(args).not.toContain("-shortest");
+  });
+});
+
+describe("getTitleFrameParams", () => {
+  it("writes one frame of the rendered video on one thread, seeking before decoding", () => {
+    const args = getTitleFrameParams(1.23456);
+
+    expect(valueOf(args, "-ss")).toBe("1.235");
+    expect(args.indexOf("-ss")).toBeLessThan(args.indexOf("-i"));
+    expect(inputThreads(args, "karaoke.mp4")).toBe("1");
+    expect(valueOf(args, "-frames:v")).toBe("1");
+    expect(args.slice(-4)).toEqual(["-threads", "1", "-y", "title.png"]);
   });
 });
 

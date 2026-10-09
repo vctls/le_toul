@@ -18,6 +18,7 @@ function file(relativePath: string): File {
 const EXPORTED_FOLDER = [
   "Queen - Bohemian Rhapsody [karaoke].mp4",
   "subtitles.ass",
+  "title.png",
   "lyrics.txt",
   "timings.txt",
   "settings.yaml",
@@ -64,7 +65,7 @@ describe("classifyProjectFolder", () => {
     expect(project.ignored).toEqual(["background.txt", "cover.png", "intro.mp4"]);
   });
 
-  test("ignores the rendered video, and the subtitles it can rebuild", () => {
+  test("ignores the rendered video, and the subtitles and title frame made from the rest", () => {
     const project = classifyProjectFolder(EXPORTED_FOLDER);
 
     expect(project.ignored).toEqual(["project/Queen - Bohemian Rhapsody [karaoke].mp4"]);

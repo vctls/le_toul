@@ -67,6 +67,7 @@ test.describe("MKV Output", () => {
       // Named before the first run reports, while the FFmpeg core is still loading.
       "Creating video",
       "Rendering the video",
+      "Capturing the title frame",
       "Encoding the vocals track",
       "Encoding the original mix track",
       "Writing the MKV",

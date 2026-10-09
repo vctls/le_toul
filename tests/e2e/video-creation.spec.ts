@@ -110,6 +110,10 @@ test.describe("Karaoke Track Creation", () => {
 
     const zip = await JSZip.loadAsync(await fs.readFile(zipPath));
     expect(zip.file("background.png")).not.toBeNull();
+    const titleFrame = await zip.file("title.png")!.async("uint8array");
+    expect([...titleFrame.slice(1, 4)].map((byte) => String.fromCharCode(byte)).join("")).toBe(
+      "PNG",
+    );
     expect(await zip.file("settings.yaml")!.async("string")).toContain("useBackground: true");
   });
 });

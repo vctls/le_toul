@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { DEFAULT_KARAOKE_OPTIONS, KaraokeOptions, layOutVoices, LyricsScreen } from "./timing";
 import { TimedSegment } from "./timedSegments";
-import { LINE_FADE } from "./screenSlots";
+import { LINE_FADE, titleFrameTime } from "./screenSlots";
 import { displayEndOf } from "./adjustments";
 import { TITLE_SCREEN_DURATION } from "@/constants";
 
@@ -118,5 +118,38 @@ describe("fadeLines", () => {
 
     expect([title.customDisplayEndTime, title.fadeOutDuration]).toEqual([3, LINE_FADE]);
     expect([artist.customDisplayEndTime, artist.fadeOutDuration]).toEqual([3, LINE_FADE]);
+  });
+});
+
+describe("titleFrameTime", () => {
+  const titled = { ...options, addTitleScreen: true };
+  const frameTime = (segments: TimedSegment[], title: string, artist: string) =>
+    titleFrameTime(layOutVoices([{ voice: "v", segments, options: titled }], 30, title, artist)[0]);
+
+  it("falls in the middle of the title screen", () => {
+    expect(frameTime([{ text: "a", start: 10, end: 11 }], "Song", "Band")).toBe(
+      TITLE_SCREEN_DURATION / 2,
+    );
+  });
+
+  it("falls in the middle of a title screen cut short by a stored display start", () => {
+    expect(frameTime([{ text: "a", start: 10, end: 11, displayStart: 3 }], "Song", "Band")).toBe(
+      1.5,
+    );
+  });
+
+  it("is null without a title screen", () => {
+    const render = layOutVoices(
+      [{ voice: "v", segments: [{ text: "a", start: 10, end: 11 }], options }],
+      30,
+      "Song",
+      "Band",
+    )[0];
+
+    expect(titleFrameTime(render)).toBeNull();
+  });
+
+  it("is null when there is neither a title nor an artist", () => {
+    expect(frameTime([{ text: "a", start: 10, end: 11 }], "", " ")).toBeNull();
   });
 });

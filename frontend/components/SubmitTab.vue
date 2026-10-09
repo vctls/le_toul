@@ -678,6 +678,7 @@ import { useLyricsStore } from "@/stores/lyrics";
 import { useFallbackFontsStore } from "@/stores/fallbackFonts";
 import { abortable } from "@/lib/util";
 import {
+  TITLE_FRAME_ENTRY_NAME,
   projectBackgroundEntryName,
   projectSongEntryName,
   trackEntries,
@@ -1031,12 +1032,13 @@ export default defineComponent({
           }),
           abort.signal,
         );
-        const videoFile: Uint8Array = await video.createVideo({
+        const { video: videoFile, titleFrame } = await video.createVideo({
           backing,
           background: videoOptions.useBackground ? this.background : null,
           backgroundVideoOffset: this.mediaStore.backgroundVideoOffset,
           subtitles: this.allVoicesSubtitles(),
           audioDelay: this.audioDelay,
+          titleFrameTime: this.timingsStore.titleFrameTime,
           videoOptions,
           metadata: {
             artist: this.mediaStore.songArtist ?? undefined,
@@ -1055,7 +1057,7 @@ export default defineComponent({
             this.creationStep = step;
           },
         });
-        await this.zipAndSendFiles(videoFile, abort.signal);
+        await this.zipAndSendFiles(videoFile, titleFrame, abort.signal);
       } catch (e) {
         if (!abort.signal.aborted) {
           console.error(e);
@@ -1098,10 +1100,17 @@ export default defineComponent({
       anchor.download = filename;
       anchor.click();
     },
-    async zipAndSendFiles(videoBlob: Uint8Array, signal?: AbortSignal) {
+    async zipAndSendFiles(
+      videoBlob: Uint8Array,
+      titleFrame: Uint8Array | null,
+      signal?: AbortSignal,
+    ) {
       signal?.throwIfAborted();
       const zip = new jszip();
       zip.file(this.videoFileName, videoBlob);
+      if (titleFrame) {
+        zip.file(TITLE_FRAME_ENTRY_NAME, titleFrame);
+      }
       zip.file("subtitles.ass", this.allVoicesSubtitles());
       zip.file("lyrics.txt", this.lyricText);
       zip.file("timings.txt", this.timingsText);

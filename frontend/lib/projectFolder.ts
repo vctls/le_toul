@@ -53,8 +53,10 @@ const NAMED_SLOTS: Record<string, Slot> = {
 // The legacy names, which give way to the current one whichever sorts first.
 const SUPERSEDED_BY: Record<string, string> = { "timings.json": "timings.txt" };
 
-// Rebuilt from the lyrics and timings, so there is nothing to load back.
-const DERIVED_NAMES = ["subtitles.ass"];
+export const TITLE_FRAME_ENTRY_NAME = "title.png";
+
+// Made from the rest of the project, so there is nothing to load back.
+const DERIVED_NAMES = ["subtitles.ass", TITLE_FRAME_ENTRY_NAME];
 
 // What an unrecognized name falls back to. Video extensions are deliberately absent:
 // the rendered karaoke video sits in the same folder, and the song and background are matched by

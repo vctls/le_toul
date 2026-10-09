@@ -17,7 +17,7 @@ import {
   VoiceTrack,
 } from "@/lib/timing";
 import { LinePlacement, placeLines } from "@/lib/linePlacements";
-import { songOffset } from "@/lib/screenSlots";
+import { songOffset, titleFrameTime } from "@/lib/screenSlots";
 import {
   TimedSegment,
   clearRetimedFlags,
@@ -470,6 +470,29 @@ export const useTimingsStore = defineStore("timings", {
       } catch (e) {
         console.error("Failed to compute the audio delay", e);
         return 0;
+      }
+    },
+
+    /**
+     * When the video shows the title and artist, or null when it doesn't show them.
+     */
+    titleFrameTime(): number | null {
+      const mediaStore = useMediaStore();
+      const tracks = this.voiceTracks();
+      if (tracks.length === 0) {
+        return null;
+      }
+      try {
+        const [primary] = layOutVoices(
+          tracks,
+          mediaStore.songDuration ?? 0,
+          mediaStore.songTitle ?? "",
+          mediaStore.songArtist ?? "",
+        );
+        return titleFrameTime(primary);
+      } catch (e) {
+        console.error("Failed to find the title frame", e);
+        return null;
       }
     },
 

@@ -32,6 +32,7 @@ interface EncodedTrack {
 
 const RENDERED_VIDEO_FILE = "karaoke.mp4";
 const MKV_FILE = "karaoke.mkv";
+const TITLE_FRAME_FILE = "title.png";
 const BACKING_TRACK_TITLE = "Backing track";
 const RESTORED_BACKING_TRACK_TITLE = "Backing track, gaps restored";
 
@@ -297,6 +298,23 @@ export function getMkvMuxParams(
   ];
 }
 
+export function getTitleFrameParams(seconds: number) {
+  return [
+    "-ss",
+    seconds.toFixed(3),
+    ...SINGLE_THREAD_DECODE,
+    "-i",
+    RENDERED_VIDEO_FILE,
+    "-frames:v",
+    "1",
+    // The PNG encoder otherwise starts a thread per core too.
+    "-threads",
+    "1",
+    "-y",
+    TITLE_FRAME_FILE,
+  ];
+}
+
 // ffmpeg picks a demuxer partly by extension, so a named source keeps its own.
 function withSourceExtension(baseName: string, source: Blob): string {
   const sourceName = source instanceof File ? source.name : "";
@@ -335,6 +353,7 @@ export interface RenderStep {
 // From the encode speeds the WASM core reports.
 const STEP_WEIGHTS = {
   render: 0.85,
+  titleFrame: 0.01,
   alternateTrack: 0.06,
   mux: 0.03,
 };
@@ -429,9 +448,16 @@ export interface CreateVideoOptions {
   background?: Blob | null;
   backgroundVideoOffset?: number;
   audioDelay?: number;
+  // When the video shows the title and artist. A PNG of the frame there comes back with the video.
+  titleFrameTime?: number | null;
   alternateTracks?: AlternateAudioTracks | null;
   onProgress?: ProgressCallback;
   signal?: AbortSignal;
+}
+
+export interface CreatedVideo {
+  video: Uint8Array;
+  titleFrame: Uint8Array | null;
 }
 
 async function createVideo({
@@ -443,10 +469,11 @@ async function createVideo({
   background = null,
   backgroundVideoOffset = 0,
   audioDelay = 0,
+  titleFrameTime = null,
   alternateTracks = null,
   onProgress,
   signal,
-}: CreateVideoOptions): Promise<Uint8Array> {
+}: CreateVideoOptions): Promise<CreatedVideo> {
   // Create the video using ffmpeg.wasm v0.12
   const songFileName = "audio.mp4";
   const isMkv = videoOptions.outputFormat === "mkv";
@@ -508,7 +535,15 @@ async function createVideo({
       weight: STEP_WEIGHTS.alternateTrack,
     }));
     const muxStep: RenderStep = { phrase: "writing the MKV", weight: STEP_WEIGHTS.mux };
-    const plan = isMkv ? [renderStep, ...trackSteps, muxStep] : [renderStep];
+    const titleFrameStep: RenderStep = {
+      phrase: "capturing the title frame",
+      weight: STEP_WEIGHTS.titleFrame,
+    };
+    const plan = [
+      renderStep,
+      ...(titleFrameTime === null ? [] : [titleFrameStep]),
+      ...(isMkv ? [...trackSteps, muxStep] : []),
+    ];
     const videoSeconds = (await backingSeconds(backing, metadata.duration)) + audioDelay;
     const progress = onProgress ? new RenderProgress(plan, videoSeconds, onProgress) : null;
     if (progress) {
@@ -556,8 +591,27 @@ async function createVideo({
     });
     await runFfmpeg(ffmpeg, ffmpegParams, renderStep, progress, diagnostics, signal);
 
+    let titleFrame: Uint8Array | null = null;
+    if (titleFrameTime !== null) {
+      // The video is what was asked for, so a missing frame only leaves out the PNG.
+      try {
+        await runFfmpeg(
+          ffmpeg,
+          getTitleFrameParams(titleFrameTime),
+          titleFrameStep,
+          progress,
+          diagnostics,
+          signal,
+        );
+        titleFrame = (await ffmpeg.readFile(TITLE_FRAME_FILE)) as Uint8Array;
+      } catch (error) {
+        signal?.throwIfAborted();
+        console.warn("Couldn't capture the title frame", error);
+      }
+    }
+
     if (!isMkv) {
-      return (await ffmpeg.readFile(RENDERED_VIDEO_FILE)) as Uint8Array;
+      return { video: (await ffmpeg.readFile(RENDERED_VIDEO_FILE)) as Uint8Array, titleFrame };
     }
 
     const encoded: EncodedTrack[] = [];
@@ -584,7 +638,7 @@ async function createVideo({
       signal,
     );
 
-    return (await ffmpeg.readFile(MKV_FILE)) as Uint8Array;
+    return { video: (await ffmpeg.readFile(MKV_FILE)) as Uint8Array, titleFrame };
   } catch (error) {
     // A terminated run surfaces as an ffmpeg failure, which is not what the caller asked for.
     signal?.throwIfAborted();
