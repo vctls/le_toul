@@ -177,6 +177,18 @@ describe("parseSettingsYaml", () => {
     ]);
   });
 
+  test("reads a pre-roll down to the lead allowed", () => {
+    expect(parseSettingsYaml("videoOptions:\n  gapPreRoll: -0.2\n").videoOptions.gapPreRoll).toBe(
+      -0.2,
+    );
+
+    const parsed = parseSettingsYaml("videoOptions:\n  gapPreRoll: -0.5\n");
+    expect(parsed.videoOptions.gapPreRoll).toBeUndefined();
+    expect(parsed.warnings).toEqual([
+      "videoOptions.gapPreRoll: expected a number at least -0.2, ignoring -0.5",
+    ]);
+  });
+
   test("accepts named vertical alignments for hand-written files", () => {
     expect(
       parseSettingsYaml("videoOptions:\n  verticalAlignment: bottom\n").videoOptions

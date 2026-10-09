@@ -184,6 +184,24 @@ describe("planGaps", () => {
       { start: 22.5, end: 30 },
     ]);
   });
+
+  it("starts the mute inside a line for a negative pre-roll, up to the lead allowed", () => {
+    const voices = {
+      "Voice 1": [
+        { text: "a_", start: 10, end: 11 },
+        { text: "b\n", start: 11, end: 12 },
+        { text: "c", start: 20, end: 20.1 },
+      ],
+    };
+
+    const plan = planGaps(voices, 30, { ...settings, preRoll: -0.5 });
+    expect(plan.lines.map(({ start }) => start)).toEqual([10.2, 20.1]);
+    expect(plan.gaps).toEqual([
+      { start: 0, end: 10.2 },
+      { start: 13.5, end: 20.1 },
+      { start: 21.6, end: 30 },
+    ]);
+  });
 });
 
 describe("gapFades", () => {

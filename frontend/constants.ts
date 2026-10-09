@@ -64,6 +64,8 @@ export const DEFAULT_GAP_PRE_ROLL = 0.5;
 export const DEFAULT_GAP_POST_ROLL = 1.5;
 export const DEFAULT_GAP_MIN_LENGTH = 1.0;
 export const DEFAULT_GAP_FADE = 0.1;
+// A tap tends to come before the syllable is heard, so a line's mute may start this long after it.
+export const GAP_MAX_LEAD = 0.2;
 
 // A button that turns into Cancel under the pointer that just clicked it ignores clicks this long,
 // so a double click doesn't call off what it started.

@@ -1,7 +1,8 @@
 // Draws the gap restore plan: each line in a waveform row of its own, framed by its muted period,
 // and the original song's level as a line across the waveform, shaded below where it plays.
 // A gap where the original sounds like the backing track is hatched, since restoring it changes
-// nothing. Nothing here can be dragged.
+// nothing. A frame that starts after the line's first tap is shaded over the part of the line the
+// original still plays. Nothing here can be dragged.
 
 import { BasePlugin, BasePluginEvents } from "wavesurfer.js/dist/base-plugin.js";
 import createElement from "wavesurfer.js/dist/dom.js";
@@ -26,7 +27,8 @@ const SVG_NS = "http://www.w3.org/2000/svg";
 const ROWS = 5;
 const ROW_INSET = 3;
 const FRAME_COLOR = "var(--region-label-on-waveform)";
-const OPEN_END_COLOR = "var(--bulma-warning)";
+const WARNING_COLOR = "var(--bulma-warning)";
+const LEAD_FILL = "color-mix(in srgb, var(--bulma-warning) 35%, transparent)";
 const GAP_FILL = "color-mix(in srgb, var(--bulma-primary) 18%, transparent)";
 const ENVELOPE_COLOR = "var(--bulma-primary)";
 // The original's full level is drawn this far below the top, as a percentage of the height, so
@@ -141,6 +143,25 @@ class MixPlugin extends BasePlugin<BasePluginEvents, undefined> {
           row,
         );
       }
+      const firstTap = frame.syllables[0]?.start ?? frame.start;
+      const leads = frame.start > firstTap;
+      if (leads) {
+        createElement(
+          "div",
+          {
+            part: "mix-frame-lead",
+            style: {
+              position: "absolute",
+              top: "0",
+              bottom: "0",
+              left: percent(firstTap),
+              width: percent(frame.start - firstTap),
+              backgroundColor: LEAD_FILL,
+            },
+          },
+          row,
+        );
+      }
       createElement(
         "div",
         {
@@ -153,7 +174,7 @@ class MixPlugin extends BasePlugin<BasePluginEvents, undefined> {
             overflow: "hidden",
             whiteSpace: "nowrap",
             fontSize: "0.85em",
-            color: frame.openEnd ? OPEN_END_COLOR : FRAME_COLOR,
+            color: frame.openEnd ? WARNING_COLOR : FRAME_COLOR,
             textShadow: Array(3).fill("0 0 3px var(--bulma-scheme-main)").join(", "),
           },
         },
@@ -173,9 +194,10 @@ class MixPlugin extends BasePlugin<BasePluginEvents, undefined> {
             border: `1px solid ${FRAME_COLOR}`,
             borderLeftWidth: "2px",
             borderRight: `2px ${frame.openEnd ? "solid" : "dashed"} ${
-              frame.openEnd ? OPEN_END_COLOR : FRAME_COLOR
+              frame.openEnd ? WARNING_COLOR : FRAME_COLOR
             }`,
-            borderLeftStyle: "dashed",
+            borderLeftStyle: leads ? "solid" : "dashed",
+            borderLeftColor: leads ? WARNING_COLOR : FRAME_COLOR,
             borderRadius: "4px",
           },
         },

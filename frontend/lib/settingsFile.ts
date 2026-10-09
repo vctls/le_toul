@@ -7,6 +7,7 @@
 
 import yaml from "js-yaml";
 import Color from "buefy/src/utils/color";
+import { GAP_MAX_LEAD } from "@/constants";
 import {
   CountInMode,
   COUNT_IN_MODES,
@@ -218,7 +219,7 @@ const BOOLEAN_OPTIONS = [
 
 const POSITIVE_NUMBER_OPTIONS = ["countInThreshold", "countInDuration"] as const;
 
-const GAP_SECONDS_OPTIONS = ["gapPreRoll", "gapPostRoll", "gapMinLength", "gapFade"] as const;
+const GAP_SECONDS_OPTIONS = ["gapPostRoll", "gapMinLength", "gapFade"] as const;
 
 const SHADOW_OFFSET_OPTIONS = ["shadowX", "shadowY"] as const;
 
@@ -241,6 +242,7 @@ const KNOWN_VIDEO_OPTIONS = [
   ...POSITIVE_NUMBER_OPTIONS,
   ...GAP_SECONDS_OPTIONS,
   ...SHADOW_OFFSET_OPTIONS,
+  "gapPreRoll",
   "outlineWidth",
   "countInMode",
   LEGACY_COUNT_IN_KEY,
@@ -290,6 +292,23 @@ function readPositiveNumber(value: unknown, path: string, warnings: string[]): n
     warnings.push(
       `${path}: expected a number of seconds above zero, ignoring ${JSON.stringify(value)}`,
     );
+    return undefined;
+  }
+  return parsed;
+}
+
+function readNumberBetween(
+  value: unknown,
+  path: string,
+  warnings: string[],
+  min: number,
+  max = Infinity,
+): number | undefined {
+  const parsed = readNumber(value, path, warnings);
+  if (parsed === undefined) return undefined;
+  if (parsed < min || parsed > max) {
+    const expected = max === Infinity ? `at least ${min}` : `from ${min} to ${max}`;
+    warnings.push(`${path}: expected a number ${expected}, ignoring ${JSON.stringify(value)}`);
     return undefined;
   }
   return parsed;
@@ -571,6 +590,13 @@ function parseVideoOptions(raw: unknown, warnings: string[]): Partial<VideoSetti
     const value = readSecondsOrZero(raw[key], `videoOptions.${key}`, warnings);
     if (value !== undefined) options[key] = value;
   }
+  const preRoll = readNumberBetween(
+    raw.gapPreRoll,
+    "videoOptions.gapPreRoll",
+    warnings,
+    -GAP_MAX_LEAD,
+  );
+  if (preRoll !== undefined) options.gapPreRoll = preRoll;
 
   const countInMode = readCountInMode(raw.countInMode, "videoOptions.countInMode", warnings);
   if (countInMode !== undefined) options.countInMode = countInMode;

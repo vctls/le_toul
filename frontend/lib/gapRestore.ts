@@ -2,6 +2,7 @@
 // removed sounds that weren't lead vocals, and the backing track everywhere else.
 
 import { range } from "lodash-es";
+import { GAP_MAX_LEAD } from "@/constants";
 import { displayText, resolveStarts } from "./timing";
 import { TimedSegment } from "./timedSegments";
 import { VoiceId } from "./voices";
@@ -18,6 +19,7 @@ const LIMIT_LOOKAHEAD_SECONDS = 0.005;
 const LIMIT_RELEASE_SECONDS = 0.08;
 
 export interface GapRestoreSettings {
+  // A negative pre-roll, down to -GAP_MAX_LEAD, starts the mute inside the first syllable.
   preRoll: number;
   postRoll: number;
   // Shorter gaps between muted periods stay muted.
@@ -59,8 +61,14 @@ export function planGaps(
   duration: number,
   settings: GapRestoreSettings,
 ): GapPlan {
+  const preRoll = Math.max(settings.preRoll, -GAP_MAX_LEAD);
+  // The mute never starts after the first syllable has ended.
+  const mute = (start: number, firstEnd: number, end: number): Span => ({
+    start: Math.max(0, Math.min(start - preRoll, firstEnd)),
+    end: Math.min(duration, end + settings.postRoll),
+  });
   const lines: MutedLine[] = [];
-  const sung: Span[] = [];
+  const muted: Span[] = [];
   let complete = true;
   for (const [voice, segments] of Object.entries(voices)) {
     const resolved = resolveStarts(segments);
@@ -74,8 +82,7 @@ export function planGaps(
         continue;
       }
       const spans = timed.map((i) => syllables.get(i) as Span);
-      const start = spans[0].start;
-      const end = Math.max(...spans.map((span) => span.end));
+      const line = mute(spans[0].start, spans[0].end, Math.max(...spans.map((span) => span.end)));
       lines.push({
         voice,
         segmentIndex: first,
@@ -85,24 +92,21 @@ export function planGaps(
           .join("")
           .trim(),
         syllables: spans,
-        start: Math.max(0, start - settings.preRoll),
-        end: Math.min(duration, end + settings.postRoll),
+        ...line,
         openEnd: resolved[timed[timed.length - 1]].end === undefined,
       });
-      sung.push(...(settings.pausesInLines ? spans : [{ start, end }]));
+      muted.push(
+        ...(settings.pausesInLines
+          ? spans.map((span) => mute(span.start, span.end, span.end))
+          : [line]),
+      );
     }
   }
   lines.sort((a, b) => a.start - b.start);
-  if (!complete || sung.length === 0) {
-    return { lines, gaps: [], complete: complete && sung.length > 0 };
+  if (!complete || muted.length === 0) {
+    return { lines, gaps: [], complete: complete && muted.length > 0 };
   }
-  const muted = mergeSpans(
-    sung.map(({ start, end }) => ({
-      start: Math.max(0, start - settings.preRoll),
-      end: Math.min(duration, end + settings.postRoll),
-    })),
-  );
-  return { lines, gaps: gapsBetween(muted, duration, settings.minGap), complete };
+  return { lines, gaps: gapsBetween(mergeSpans(muted), duration, settings.minGap), complete };
 }
 
 /**

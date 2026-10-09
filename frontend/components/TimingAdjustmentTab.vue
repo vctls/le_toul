@@ -402,7 +402,7 @@
                     (v: number | null | undefined) =>
                       (videoOptions[field.option] = Number(v ?? videoOptions[field.option]))
                   "
-                  :min="0"
+                  :min="field.min"
                   :step="field.step"
                   :min-step="0.01"
                   controls-position="compact"
@@ -621,7 +621,7 @@ import type { MixFrame, MixGap } from "@/lib/wavesurferPlugins/MixPlugin";
 import { CJK_FONT, SYMBOL_FONT } from "@/lib/fonts";
 import { useFallbackFontsStore } from "@/stores/fallbackFonts";
 import { default as BuefyColor } from "buefy/src/utils/color";
-import { DEFAULT_OUTLINE_WIDTH } from "@/constants";
+import { DEFAULT_OUTLINE_WIDTH, GAP_MAX_LEAD } from "@/constants";
 
 // The arrow keys step by the playhead preroll,
 // so stepping and the preview jump after a drag agree on what one step is worth.
@@ -682,10 +682,10 @@ const MIX_PLAYBACK_DELAY_MS = 400;
 const MIX_APPLIED_MS = 1500;
 
 const GAP_FIELDS = [
-  { option: "gapPreRoll", label: "Mute before a line (seconds)", step: 0.1 },
-  { option: "gapPostRoll", label: "Mute after a line (seconds)", step: 0.1 },
-  { option: "gapMinLength", label: "Shortest gap (seconds)", step: 0.5 },
-  { option: "gapFade", label: "Fade (seconds)", step: 0.05 },
+  { option: "gapPreRoll", label: "Mute before a line (seconds)", step: 0.1, min: -GAP_MAX_LEAD },
+  { option: "gapPostRoll", label: "Mute after a line (seconds)", step: 0.1, min: 0 },
+  { option: "gapMinLength", label: "Shortest gap (seconds)", step: 0.5, min: 0 },
+  { option: "gapFade", label: "Fade (seconds)", step: 0.05, min: 0 },
 ] as const;
 
 // How far the voice is timed: every segment has an unflagged start, and the last one an end too.
