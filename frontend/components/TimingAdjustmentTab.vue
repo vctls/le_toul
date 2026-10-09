@@ -1832,6 +1832,7 @@ The row owns the spacing instead. */
   display: flex;
   align-items: center;
   gap: 0.5rem;
+  min-height: var(--bulma-control-height);
 }
 
 /* Bulma's button group pulls itself up by the margin it leaves under each button for wrapping.
