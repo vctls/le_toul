@@ -443,7 +443,7 @@
                   Restore pauses in lines
                   <viewport-tooltip
                     wide
-                    label="Treat a long pause between two syllables of a line like a gap between lines"
+                    label="Treat a long pause between two syllables of a line like a gap between lines. These are not stored and can't be adjusted."
                   >
                     <b-icon size="is-small" icon="circle-question"></b-icon>
                   </viewport-tooltip>
@@ -452,10 +452,10 @@
               </b-field>
               <b-field horizontal :message="mixLevelLabel">
                 <template #label>
-                  Match the level
+                  Match levels
                   <viewport-tooltip
                     wide
-                    label="The backing track is usually quieter than the original between lines, by an amount measured from the two tracks. Turn the original down to it, or turn the backing track up, which limits the peaks that would clip. Nothing is changed when the two tracks don't line up."
+                    label="The backing track is often quieter than the original between lines. Turn the original down, or turn the backing track up, engaging the limiter. Nothing is changed when the two tracks don't line up."
                   >
                     <b-icon size="is-small" icon="circle-question"></b-icon>
                   </viewport-tooltip>
@@ -466,7 +466,7 @@
                     @update:model-value="
                       (v: number | [number, number]) => (videoOptions.gapLevelBalance = Number(v))
                     "
-                    aria-label="Match the level"
+                    aria-label="Match levels"
                     :min="0"
                     :max="1"
                     :step="0.05"
@@ -481,10 +481,10 @@
               </b-field>
               <b-field horizontal>
                 <template #label>
-                  Hear at the backing track's level
+                  Compensate gain
                   <viewport-tooltip
                     wide
-                    label="Turn what plays here down by what raised the backing track, so moving the slider above only changes the limiting. The video keeps its level."
+                    label="Compensate gain to listen for possible distortion when the limiter is on. Preview only."
                   >
                     <b-icon size="is-small" icon="circle-question"></b-icon>
                   </viewport-tooltip>
