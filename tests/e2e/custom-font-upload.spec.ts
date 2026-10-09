@@ -92,16 +92,14 @@ test.describe("Custom Font Upload", () => {
     );
     await uploadTimingsFile(page, defaultTestConfig.timingsFile);
     await openFontSettings(page);
-    // The first line is already showing at 0 seconds,
-    // so a non-blank canvas alone doesn't mean the seek below has been drawn.
-    await expect.poll(() => isCanvasBlank(page)).toBe(false);
-    const atStart = await canvasPixels(page);
     // Seeking paints the frame at that moment, since libass only draws on a time update.
     await page.locator(".submit-tab .preview-container audio").evaluate((el: HTMLAudioElement) => {
       el.muted = true;
       el.currentTime = 1;
     });
-    await expect.poll(() => canvasPixels(page)).not.toBe(atStart);
+    // The title fades in from nothing at 0 seconds,
+    // so only the frame after the seek can be non-blank.
+    await expect.poll(() => isCanvasBlank(page)).toBe(false);
     const beforeUpload = await canvasPixels(page);
     // The frame at a fixed time is stable, so a difference after the upload can only come
     // from the font libass drew with.
