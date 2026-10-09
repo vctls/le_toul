@@ -25,6 +25,12 @@
         and the Submit tab's <b>Use Line Display Times</b> turns them off in the video.
       </p>
       <p>
+        A second time on those rows holds when Restore Gaps starts and stops playing the backing
+        track around the line. It's left out when the app sets it. The mute may start up to 0.2
+        seconds after the line's first syllable, and a time that cuts further into the line is moved
+        back on Apply.
+      </p>
+      <p>
         Edit the times to fine-tune them, or copy times from one place and paste them elsewhere to
         reuse the exact same timing. Comments that start with <code>#</code> are dropped on Apply.
       </p>

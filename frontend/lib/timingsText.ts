@@ -1,5 +1,5 @@
 // The `timings.txt` format: every voice's segments laid out in pages and lines,
-// with each line's display period in its header and footer rows.
+// with each line's display period, then its muted period, in its header and footer rows.
 // Times are read and written in centiseconds, which is the precision of ASS and KBP.
 
 import { findLastIndex } from "lodash-es";
@@ -7,14 +7,18 @@ import {
   BRACKETS_REMOVED,
   DISPLAY_PERIOD_WIDENED,
   MARKUP_REMOVED,
+  MUTE_PERIOD_WIDENED,
   SPACER_BOUNDS_DROPPED,
+  SPACER_MUTE_DROPPED,
   SPACER_PAGE_DROPPED,
   Warnings,
 } from "./importWarnings";
-import { TimedSegment, clampDisplayPeriods } from "./timedSegments";
+import { TimedSegment, clampDisplayPeriods, clampMuteBounds } from "./timedSegments";
 import { DEFAULT_VOICE_ID, VoiceId } from "./voices";
 
-export const TIMINGS_TEXT_VERSION = 1;
+export const TIMINGS_TEXT_VERSION = 2;
+// Version 1 has no muted periods, so it reads as version 2 with every mute bound automatic.
+const READ_VERSIONS = [1, TIMINGS_TEXT_VERSION];
 const SIGNATURE = "Toul timings";
 
 const TIME = String.raw`\d{1,3}:[0-5]\d\.\d{2}`;
@@ -23,7 +27,7 @@ const QUOTED = String.raw`"((?:[^"\\]|\\.)*)"`;
 const SIGNATURE_ROW = new RegExp(`^${SIGNATURE}\\s+(\\d+)$`);
 const VOICE_ROW = new RegExp(`^voice\\s+${QUOTED}$`);
 const PAGE_ROW = /^page$/;
-const BOUND_ROW = new RegExp(`^${VALUE}$`);
+const BOUND_ROW = new RegExp(`^${VALUE}(?:\\s+${VALUE})?$`);
 const SYLLABLE_ROW = new RegExp(`^${QUOTED}(?:\\s+${VALUE})?(?:\\s+${VALUE})?$`);
 
 // The separators that can end a stored segment, whitespace included for segments stored before
@@ -51,6 +55,8 @@ interface ParsedLine {
   header: number;
   displayStart?: number;
   displayEnd?: number;
+  muteStart?: number;
+  muteEnd?: number;
   syllables: ParsedSyllable[];
   // A line with no syllables is a spacer, and its neighbours count it.
   spacersBefore?: number;
@@ -129,11 +135,15 @@ export function keepReviewFlags(stored: TimedSegment[], parsed: TimedSegment[]):
 
 function voiceSegments(pages: ParsedPage[], warnings: Warnings): TimedSegment[] {
   validateTimes(pages);
-  const clamped = clampDisplayPeriods(toSegments(pages, warnings));
-  for (let i = 0; i < clamped.widened; i++) {
+  const displayed = clampDisplayPeriods(toSegments(pages, warnings));
+  for (let i = 0; i < displayed.widened; i++) {
     warnings.add(DISPLAY_PERIOD_WIDENED);
   }
-  return clamped.segments;
+  const muted = clampMuteBounds(displayed.segments);
+  for (let i = 0; i < muted.clamped; i++) {
+    warnings.add(MUTE_PERIOD_WIDENED);
+  }
+  return muted.segments;
 }
 
 function parseSections(input: string, wholeFile: boolean): Map<VoiceId, ParsedPage[]> {
@@ -175,7 +185,7 @@ function parseSections(input: string, wholeFile: boolean): Map<VoiceId, ParsedPa
           `A timings file starts with "${SIGNATURE} ${TIMINGS_TEXT_VERSION}".`,
         );
       }
-      if (Number(match[1]) !== TIMINGS_TEXT_VERSION) {
+      if (!READ_VERSIONS.includes(Number(match[1]))) {
         throw new TimingsTextError(
           row,
           `Version ${match[1]} of the timings format isn't supported.`,
@@ -212,11 +222,12 @@ function parseSections(input: string, wholeFile: boolean): Map<VoiceId, ParsedPa
       }
     } else if ((match = content.match(BOUND_ROW))) {
       const current = section();
-      const bound = centiseconds(match[1]);
+      const [display, mute] = [centiseconds(match[1]), centiseconds(match[2])];
       if (!line) {
-        line = { header: row, displayStart: bound, syllables: [] };
+        line = { header: row, displayStart: display, muteStart: mute, syllables: [] };
       } else {
-        line.displayEnd = bound;
+        line.displayEnd = display;
+        line.muteEnd = mute;
         current[current.length - 1].push(line);
         line = undefined;
         afterFooter = true;
@@ -356,12 +367,12 @@ function toSegments(pages: ParsedPage[], warnings: Warnings): TimedSegment[] {
       segment.end = syllable.end / 100;
     }
     if (syllable.firstOfLine) {
-      const { displayStart, displayEnd, spacersBefore, spacersAfter } = syllable.line;
-      if (displayStart !== undefined) {
-        segment.displayStart = displayStart / 100;
-      }
-      if (displayEnd !== undefined) {
-        segment.displayEnd = displayEnd / 100;
+      const { spacersBefore, spacersAfter } = syllable.line;
+      for (const key of ["displayStart", "displayEnd", "muteStart", "muteEnd"] as const) {
+        const bound = syllable.line[key];
+        if (bound !== undefined) {
+          segment[key] = bound / 100;
+        }
       }
       if (spacersBefore) {
         segment.spacersBefore = spacersBefore;
@@ -394,6 +405,9 @@ function countSpacers(page: ParsedPage, warnings: Warnings): ParsedLine[] {
     if (line.displayStart !== undefined || line.displayEnd !== undefined) {
       warnings.add(SPACER_BOUNDS_DROPPED);
     }
+    if (line.muteStart !== undefined || line.muteEnd !== undefined) {
+      warnings.add(SPACER_MUTE_DROPPED);
+    }
     spacers++;
   }
   lines[lines.length - 1].spacersAfter = spacers;
@@ -416,6 +430,8 @@ function separatorOf(syllable: Syllable, isLast: boolean): string {
 interface WrittenLine {
   displayStart?: number;
   displayEnd?: number;
+  muteStart?: number;
+  muteEnd?: number;
   spacersBefore?: number;
   spacersAfter?: number;
   syllables: { text: string; start?: number; end?: number }[];
@@ -515,8 +531,16 @@ function toPages(segments: TimedSegment[]): WrittenLine[][] {
   let line: WrittenLine | undefined;
   kept.forEach(({ segment, word, separators }, i) => {
     if (!line) {
-      const { displayStart, displayEnd, spacersBefore, spacersAfter } = segment;
-      line = { displayStart, displayEnd, spacersBefore, spacersAfter, syllables: [] };
+      const { displayStart, displayEnd, muteStart, muteEnd, spacersBefore, spacersAfter } = segment;
+      line = {
+        displayStart,
+        displayEnd,
+        muteStart,
+        muteEnd,
+        spacersBefore,
+        spacersAfter,
+        syllables: [],
+      };
     }
     const kind: Break = i >= lastKeptText ? "none" : breakOf(separators);
     line.syllables.push({
@@ -556,7 +580,19 @@ function lineRows(line: WrittenLine): string[] {
     }
     return quoted[i] + " ".repeat(column - width(quoted[i])) + values.join("  ");
   });
-  return [boundText(line.displayStart), ...syllableRows, boundText(line.displayEnd)];
+  return [
+    boundRow(line.displayStart, line.muteStart),
+    ...syllableRows,
+    boundRow(line.displayEnd, line.muteEnd),
+  ];
+}
+
+/**
+ * A header or footer row: the display bound, then the mute bound, which is left out when it's
+ * automatic.
+ */
+function boundRow(display: number | undefined, mute: number | undefined): string {
+  return mute === undefined ? boundText(display) : `${boundText(display)}  ${formatTimecode(mute)}`;
 }
 
 export function formatTimecode(seconds: number): string {

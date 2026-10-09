@@ -155,6 +155,16 @@ describe("TimingEditTab", () => {
     expect(useTimingsStore().activeSegments[0].displayStart).toBe(0.5);
   });
 
+  it("applies a mute bound in the second column of a time row", () => {
+    const wrapper = mountTab();
+    wrapper.vm.draft = wrapper.vm.draft.replace(/^-$/m, "-  00:00.25");
+    wrapper.vm.apply();
+
+    expect(wrapper.vm.error).toBe("");
+    expect(useTimingsStore().activeSegments[0].muteStart).toBe(0.25);
+    expect(wrapper.vm.draft).toMatch(/^-  00:00\.25$/m);
+  });
+
   it("writes changed words back to the lyrics of a single voice", () => {
     const wrapper = mountTab();
     wrapper.vm.draft = wrapper.vm.draft.replace('"world"', '"there"');

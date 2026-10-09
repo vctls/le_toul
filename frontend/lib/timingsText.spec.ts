@@ -3,7 +3,9 @@ import {
   BRACKETS_REMOVED,
   DISPLAY_PERIOD_WIDENED,
   MARKUP_REMOVED,
+  MUTE_PERIOD_WIDENED,
   SPACER_BOUNDS_DROPPED,
+  SPACER_MUTE_DROPPED,
   SPACER_PAGE_DROPPED,
 } from "./importWarnings";
 import { parseLyrics } from "./timing";
@@ -19,7 +21,7 @@ import {
 } from "./timingsText";
 
 const file = (...rows: string[]) => rows.join("\n") + "\n";
-const signed = (...rows: string[]) => file("Toul timings 1", ...rows);
+const signed = (...rows: string[]) => file("Toul timings 2", ...rows);
 const voice = (text: string, name = "Voice 1") => parseTimingsText(text).voices[name];
 const texts = (segments: TimedSegment[]) => segments.map(({ text }) => text);
 
@@ -167,14 +169,14 @@ describe("parseTimingsText", () => {
 
     test("requires the signature", () => {
       expect(() => parseTimingsText(file("", "-", '"a"', "-"))).toThrow(
-        'Row 2: A timings file starts with "Toul timings 1".',
+        'Row 2: A timings file starts with "Toul timings 2".',
       );
       expect(() => parseTimingsText("")).toThrow("Row 1:");
     });
 
     test("refuses an unknown version", () => {
-      expect(() => parseTimingsText(file("Toul timings 2"))).toThrow(
-        "Row 1: Version 2 of the timings format isn't supported.",
+      expect(() => parseTimingsText(file("Toul timings 3"))).toThrow(
+        "Row 1: Version 3 of the timings format isn't supported.",
       );
     });
 
@@ -387,9 +389,78 @@ describe("parseTimingsText", () => {
       expect(voices["Voice 1"][1].displayEnd).toBe(3);
     });
   });
+
+  describe("muted periods", () => {
+    test("follow the display bounds in the header and footer", () => {
+      const { voices, warnings } = parseTimingsText(
+        signed(
+          "00:25.33  00:25.10",
+          '"Been "  00:27.99',
+          '"a "     00:28.37',
+          '"long "  00:28.74  00:29.50',
+          "-  00:31.20",
+        ),
+      );
+      expect(voices["Voice 1"][0]).toEqual({
+        text: "Been_",
+        start: 27.99,
+        displayStart: 25.33,
+        muteStart: 25.1,
+        muteEnd: 31.2,
+      });
+      expect(warnings).toEqual([]);
+    });
+
+    test("are automatic in a version 1 file", () => {
+      const [segment] = voice(file("Toul timings 1", "00:00.50", '"a"  00:01.00', "-"));
+      expect(segment).toEqual({ text: "a", start: 1, displayStart: 0.5 });
+    });
+
+    test("are clamped to the line's timings, with one warning", () => {
+      const { voices, warnings } = parseTimingsText(
+        signed(
+          "-  00:01.50",
+          '"a "  00:01.00  00:01.10',
+          '"b"   00:01.20  00:02.00',
+          "-  00:01.80",
+          "-  00:03.50",
+          '"c"  00:03.00  00:04.00',
+          "-",
+        ),
+      );
+      expect(voices["Voice 1"][0]).toMatchObject({ muteStart: 1.1, muteEnd: 2 });
+      expect(voices["Voice 1"][2]).toMatchObject({ muteStart: 3.2 });
+      expect(warnings).toEqual([`${MUTE_PERIOD_WIDENED} (×2)`]);
+    });
+
+    test("are dropped on a spacer", () => {
+      const { voices, warnings } = parseTimingsText(
+        signed("-  00:01.00", "-", "-", '"a"  00:03.00', "-"),
+      );
+      expect(voices["Voice 1"]).toEqual([{ text: "a", start: 3, spacersBefore: 1 }]);
+      expect(warnings).toEqual([SPACER_MUTE_DROPPED]);
+    });
+  });
 });
 
 describe("writeTimingsText", () => {
+  test("writes a stored mute bound after the display bound, and leaves out an automatic one", () => {
+    const segments: TimedSegment[] = [
+      { text: "Been_", start: 27.99, displayStart: 25.33, muteStart: 25.1, muteEnd: 31.2 },
+      { text: "long", start: 28.74, end: 29.5 },
+    ];
+    expect(writeVoiceTimingsText(segments)).toBe(
+      file(
+        "page",
+        "",
+        "00:25.33  00:25.10",
+        '"Been "  00:27.99',
+        '"long"   00:28.74  00:29.50',
+        "-  00:31.20",
+      ),
+    );
+  });
+
   test("lays out pages and lines, aligning the times per line", () => {
     const segments: TimedSegment[] = [
       { text: "Been_", start: 27.99, displayStart: 25.33, displayEnd: 35.71 },
@@ -403,7 +474,7 @@ describe("writeTimingsText", () => {
     ];
     expect(writeTimingsText({ "Voice 1": segments }, ["Voice 1"])).toBe(
       file(
-        "Toul timings 1",
+        "Toul timings 2",
         "",
         'voice "Voice 1"',
         "",
@@ -432,7 +503,7 @@ describe("writeTimingsText", () => {
     const text = writeTimingsText({ 'A "b"': [{ text: 'x"\\', end: 1 }] }, ['A "b"']);
     expect(text).toBe(
       file(
-        "Toul timings 1",
+        "Toul timings 2",
         "",
         'voice "A \\"b\\""',
         "",
@@ -535,9 +606,9 @@ describe("round trip", () => {
   const lyricSegments = (lyrics: string): TimedSegment[] =>
     parseLyrics(lyrics, true).map(fromLyric);
 
-  test("keeps holes, open ends, ends with no start, textless timings, display periods and spacers", () => {
+  test("keeps holes, open ends, ends with no start, textless timings, display and muted periods, and spacers", () => {
     const anna = lyricSegments("/\nHel/lo_world\n/\nsec/ond_line\n/\n\nnext_page\n/");
-    Object.assign(anna[0], { start: 1, displayStart: 0.5 });
+    Object.assign(anna[0], { start: 1, displayStart: 0.5, muteStart: 0.25, muteEnd: 2.5 });
     Object.assign(anna[1], { start: 1.25 });
     Object.assign(anna[2], { start: 1.5, end: 1.75 });
     Object.assign(anna[3], { end: 2.1, displayEnd: 4 });

@@ -8,6 +8,9 @@ export const SPACER_PAGE_DROPPED = "A page holding only blank spacer lines was d
 export const SPACER_BOUNDS_DROPPED =
   "A blank spacer line's display times were dropped, since it shows nothing";
 export const DISPLAY_PERIOD_WIDENED = "A line's display period was widened to contain its timings";
+export const SPACER_MUTE_DROPPED =
+  "A blank spacer line's mute times were dropped, since nobody sings it";
+export const MUTE_PERIOD_WIDENED = "A line's muted period was widened to cover its timings";
 
 export function fontLeftOut(fontName: string): string {
   return `The font "${fontName}" isn't bundled with the app, so it was left out`;
