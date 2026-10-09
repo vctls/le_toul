@@ -25,6 +25,8 @@ import {
   fromLyric,
   hasDisplayPeriod,
   normalizeDisplayPeriods,
+  hasMuteBounds,
+  normalizeMuteBounds,
   reconcile,
   toEvents,
 } from "@/lib/timedSegments";
@@ -326,6 +328,10 @@ export const useTimingsStore = defineStore("timings", {
       );
     },
 
+    hasMuteBounds(state): boolean {
+      return Object.values(state._segmentsByVoice).some((segments) => segments.some(hasMuteBounds));
+    },
+
     /**
      * How many segments each voice has to review after a lyric edit.
      */
@@ -498,20 +504,27 @@ export const useTimingsStore = defineStore("timings", {
     },
 
     /**
-     * Keep every voice's stored display periods valid after a timing write.
+     * Keep every voice's stored display and muted periods valid after a timing write.
      * Voices without any are left as they are, so timing a song that uses none costs nothing.
      */
-    normalizeDisplayPeriods() {
-      const hasPeriods = (segments: TimedSegment[]) => segments.some(hasDisplayPeriod);
-      if (!Object.values(this._segmentsByVoice).some(hasPeriods)) {
-        return;
-      }
-      this._segmentsByVoice = Object.fromEntries(
-        Object.entries(this._segmentsByVoice).map(([voice, segments]) => [
-          voice,
-          hasPeriods(segments) ? normalizeDisplayPeriods(segments) : segments,
-        ]),
-      );
+    normalizeLineBounds() {
+      const normalize = (
+        has: (segment: TimedSegment) => boolean,
+        fix: (segments: TimedSegment[]) => TimedSegment[],
+      ) => {
+        const uses = (segments: TimedSegment[]) => segments.some(has);
+        if (!Object.values(this._segmentsByVoice).some(uses)) {
+          return;
+        }
+        this._segmentsByVoice = Object.fromEntries(
+          Object.entries(this._segmentsByVoice).map(([voice, segments]) => [
+            voice,
+            uses(segments) ? fix(segments) : segments,
+          ]),
+        );
+      };
+      normalize(hasDisplayPeriod, normalizeDisplayPeriods);
+      normalize(hasMuteBounds, normalizeMuteBounds);
     },
 
     /**
@@ -526,6 +539,22 @@ export const useTimingsStore = defineStore("timings", {
         ),
         "Reset display periods",
       );
+    },
+
+    /**
+     * Put every line of every voice back on the automatic mute rules, as one edit that can be
+     * undone.
+     */
+    clearMuteBounds() {
+      useHistoryStore().record({ label: "Reset mute times", tab: "adjust" }, () => {
+        this._segmentsByVoice = Object.fromEntries(
+          Object.entries(this._segmentsByVoice).map(([voice, segments]) => [
+            voice,
+            segments.map(({ muteStart: _start, muteEnd: _end, ...segment }) => segment),
+          ]),
+        );
+        this.commitBaseline();
+      });
     },
 
     /**
@@ -551,7 +580,7 @@ export const useTimingsStore = defineStore("timings", {
           ? segments
           : clearRetimedFlags(this._segmentsByVoice[voice] ?? [], segments);
         this._segmentsByVoice = { ...this._segmentsByVoice, [voice]: copySegments(written) };
-        this.normalizeDisplayPeriods();
+        this.normalizeLineBounds();
         this.commitBaseline();
       });
     },
@@ -633,7 +662,7 @@ export const useTimingsStore = defineStore("timings", {
         this.handleConflictWithPreviousSegment(timestamp);
         segments[currentSegmentNum].start = timestamp;
         delete segments[currentSegmentNum].review;
-        this.normalizeDisplayPeriods();
+        this.normalizeLineBounds();
         this.commitBaseline();
         return;
       }
@@ -649,7 +678,7 @@ export const useTimingsStore = defineStore("timings", {
         segments[started].end = timestamp;
         delete segments[started].review;
       }
-      this.normalizeDisplayPeriods();
+      this.normalizeLineBounds();
       this.commitBaseline();
     },
 
@@ -687,7 +716,7 @@ export const useTimingsStore = defineStore("timings", {
         segment.end = undefined;
         delete segment.review;
       }
-      this.normalizeDisplayPeriods();
+      this.normalizeLineBounds();
       this.commitBaseline();
     },
 
@@ -696,7 +725,7 @@ export const useTimingsStore = defineStore("timings", {
         ...this._segmentsByVoice,
         [this.activeVoice]: copySegments(segments),
       };
-      this.normalizeDisplayPeriods();
+      this.normalizeLineBounds();
       this.commitBaseline();
     },
 
@@ -714,7 +743,7 @@ export const useTimingsStore = defineStore("timings", {
      */
     setAllSegments(byVoice: SegmentsByVoice) {
       this._segmentsByVoice = copySegmentsByVoice(byVoice);
-      this.normalizeDisplayPeriods();
+      this.normalizeLineBounds();
       this.commitBaseline();
       this.reconcileVoices();
     },
@@ -805,7 +834,7 @@ export const useTimingsStore = defineStore("timings", {
         lyricsStore.voices,
         (voice) => lyricsStore.segmentsForVoice(voice),
       );
-      this.normalizeDisplayPeriods();
+      this.normalizeLineBounds();
     },
 
     /**

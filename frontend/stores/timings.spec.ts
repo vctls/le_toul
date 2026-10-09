@@ -629,6 +629,60 @@ describe("Timings Store", () => {
     });
   });
 
+  describe("muted periods", () => {
+    test("a tap past a line's stored mute end pushes it", () => {
+      const timings = useTimingsStore();
+      useLyricsStore().setLyrics("one_two");
+      timings.setAllSegments({
+        [DEFAULT_VOICE_ID]: [{ text: "one_", start: 1, end: 2, muteEnd: 3 }, { text: "two" }],
+      });
+
+      timings.add(1, LYRIC_MARKERS.SEGMENT_START, 2.5);
+      timings.add(1, LYRIC_MARKERS.SEGMENT_END, 4);
+
+      expect(timings.activeSegments[0].muteEnd).toBe(4);
+    });
+
+    test("a lyric edit keeps a line's mute on the line, and a split on its first half", async () => {
+      const timings = useTimingsStore();
+      const lyrics = useLyricsStore();
+      lyrics.setLyrics("one_two\nthree");
+      timings.setAllSegments({
+        [DEFAULT_VOICE_ID]: [
+          { text: "one_", start: 1, muteStart: 0.5, muteEnd: 2.5 },
+          { text: "two\n", start: 2, end: 2.4 },
+          { text: "three", start: 3 },
+        ],
+      });
+      timings.setupSegmentReconciliation();
+
+      lyrics.setLyrics("one\ntwo\nthree");
+      await nextTick();
+      expect(timings.activeSegments.map(({ muteStart, muteEnd }) => [muteStart, muteEnd])).toEqual([
+        [0.5, 2.5],
+        [undefined, undefined],
+        [undefined, undefined],
+      ]);
+    });
+
+    test("clearing drops every voice's mute bounds and keeps everything else", () => {
+      const timings = useTimingsStore();
+      useLyricsStore().setLyrics("[Anna] hello\n[Ben] world");
+      timings.setAllSegments({
+        Anna: [{ text: "hello", start: 1, end: 2, displayStart: 0.5, muteStart: 0.5 }],
+        Ben: [{ text: "world", start: 5, muteEnd: 7 }],
+      });
+
+      timings.clearMuteBounds();
+
+      expect(timings.segmentsByVoice).toEqual({
+        Anna: [{ text: "hello", start: 1, end: 2, displayStart: 0.5 }],
+        Ben: [{ text: "world", start: 5 }],
+      });
+      expect(timings.hasMuteBounds).toBe(false);
+    });
+  });
+
   describe("existing projects", () => {
     test("a legacy single-voice timings.json still loads", () => {
       const timings = useTimingsStore();
