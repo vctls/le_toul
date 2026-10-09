@@ -42,6 +42,7 @@ const DEFAULT_OPTIONS: KaraokeOptions = {
   outputFormat: "mp4",
   resolution: "1080p",
   frameRate: 30,
+  quality: "standard",
   verticalAlignment: VerticalAlignment.Middle,
   lineSpacing: 1.5,
   topMargin: 1.5,

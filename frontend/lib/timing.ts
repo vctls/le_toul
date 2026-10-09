@@ -53,6 +53,9 @@ export type Resolution = keyof typeof RESOLUTIONS;
 export const FRAME_RATES = [20, 30] as const;
 export type FrameRate = (typeof FRAME_RATES)[number];
 
+export const RENDER_QUALITIES = ["standard", "high"] as const;
+export type RenderQuality = (typeof RENDER_QUALITIES)[number];
+
 // Fill covers the frame and crops what overflows. Fit shows the whole background, with bars in the
 // background color.
 export const BACKGROUND_FITS = ["fill", "fit"] as const;
@@ -60,6 +63,7 @@ export type BackgroundFit = (typeof BACKGROUND_FITS)[number];
 
 export const DEFAULT_RESOLUTION: Resolution = "720p";
 export const DEFAULT_FRAME_RATE: FrameRate = 30;
+export const DEFAULT_RENDER_QUALITY: RenderQuality = "standard";
 
 // Which gaps get a count-in: none at all, only the gap before a screen's first line, or
 // the gap before any line.
@@ -88,6 +92,7 @@ export interface KaraokeOptions {
   outputFormat: OutputFormat;
   resolution: Resolution;
   frameRate: FrameRate;
+  quality: RenderQuality;
   verticalAlignment: VerticalAlignment;
   // From one line's top to the next, as a multiple of the font size.
   lineSpacing: number;
@@ -133,6 +138,7 @@ export const DEFAULT_KARAOKE_OPTIONS: KaraokeOptions = {
   outputFormat: "mp4",
   resolution: DEFAULT_RESOLUTION,
   frameRate: DEFAULT_FRAME_RATE,
+  quality: DEFAULT_RENDER_QUALITY,
   verticalAlignment: VerticalAlignment.Middle,
   lineSpacing: DEFAULT_LINE_SPACING,
   topMargin: DEFAULT_TOP_MARGIN,

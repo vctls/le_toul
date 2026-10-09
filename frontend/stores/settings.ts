@@ -5,9 +5,11 @@ import {
   GlyphCoverage,
   CountInMode,
   DEFAULT_FRAME_RATE,
+  DEFAULT_RENDER_QUALITY,
   DEFAULT_RESOLUTION,
   FrameRate,
   OutputFormat,
+  RenderQuality,
   Resolution,
   VerticalAlignment,
 } from "@/lib/timing";
@@ -179,6 +181,7 @@ export type VideoSettings = {
   outputFormat: OutputFormat;
   resolution: Resolution;
   frameRate: FrameRate;
+  quality: RenderQuality;
   verticalAlignment: VerticalAlignment;
   lineSpacing: number;
   topMargin: number;
@@ -228,6 +231,7 @@ const DEFAULT_SETTINGS: VideoSettings = {
   outputFormat: "mp4",
   resolution: DEFAULT_RESOLUTION,
   frameRate: DEFAULT_FRAME_RATE,
+  quality: DEFAULT_RENDER_QUALITY,
   verticalAlignment: VerticalAlignment.Middle,
   lineSpacing: DEFAULT_LINE_SPACING,
   topMargin: DEFAULT_TOP_MARGIN,

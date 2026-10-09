@@ -3,7 +3,7 @@ import { FFmpeg } from "@ffmpeg/ffmpeg";
 import { fetchFile, toBlobURL } from "@ffmpeg/util";
 
 import { RenderDiagnostics } from "@/lib/renderDiagnostics";
-import { BackgroundFit, KaraokeOptions, RESOLUTIONS } from "@/lib/timing";
+import { BackgroundFit, KaraokeOptions, RESOLUTIONS, RenderQuality } from "@/lib/timing";
 import { BackgroundKind, backgroundExtension, backgroundKind } from "@/lib/background";
 import { audioDuration } from "@/lib/trackLength";
 import jszip from "jszip";
@@ -68,6 +68,8 @@ const FILTER_THREADS = ["-filter_complex_threads", "1"];
 // Against the default medium, this renders about 3.5 times faster in the browser,
 // with files of the same size and nearly the same quality.
 const VIDEO_ENCODER = ["-c:v", "libx264", "-preset", "veryfast"];
+// A slower preset barely improves on veryfast at the same CRF, so only the CRF changes.
+const QUALITY_CRF: Record<RenderQuality, number> = { standard: 23, high: 18 };
 
 export interface RenderFrame {
   width: number;
@@ -86,6 +88,7 @@ export interface FfmpegParamsOptions {
   backgroundFit?: BackgroundFit;
   backgroundColor: string;
   frame: RenderFrame;
+  quality?: RenderQuality;
   audioDelayMs: number;
   // Seconds the background video is moved by. A positive offset delays it, and a negative one
   // skips its start.
@@ -185,6 +188,7 @@ export function getFfmpegParams({
   backgroundFit = "fill",
   backgroundColor,
   frame: { width, height, frameRate },
+  quality = "standard",
   audioDelayMs,
   videoOffset = 0,
   durationSeconds,
@@ -223,6 +227,8 @@ export function getFfmpegParams({
     durationSeconds.toFixed(3),
     "-y",
     ...VIDEO_ENCODER,
+    "-crf",
+    String(QUALITY_CRF[quality]),
     "-threads",
     "3",
     ...ffmpegMetadataArgs(metadata),
@@ -542,6 +548,7 @@ async function createVideo({
       backgroundFit: videoOptions.backgroundFit,
       backgroundColor,
       frame: { ...RESOLUTIONS[videoOptions.resolution], frameRate: videoOptions.frameRate },
+      quality: videoOptions.quality,
       audioDelayMs,
       videoOffset: backgroundVideoOffset,
       durationSeconds: videoSeconds,

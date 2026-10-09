@@ -17,6 +17,8 @@ import {
   OUTPUT_FORMATS,
   BackgroundFit,
   BACKGROUND_FITS,
+  RenderQuality,
+  RENDER_QUALITIES,
   Resolution,
   RESOLUTIONS,
   VerticalAlignment,
@@ -119,6 +121,7 @@ const VIDEO_OPTIONS_OUTSIDE_SUBTITLES = [
   "outputFormat",
   "resolution",
   "frameRate",
+  "quality",
 ];
 
 // The video options that shape the subtitles without always showing in them:
@@ -255,6 +258,7 @@ const KNOWN_VIDEO_OPTIONS = [
   "backgroundFit",
   "resolution",
   "frameRate",
+  "quality",
   "verticalAlignment",
   "lineSpacing",
   "topMargin",
@@ -481,6 +485,23 @@ function readFrameRate(value: unknown, path: string, warnings: string[]): FrameR
   return rate as FrameRate;
 }
 
+function readRenderQuality(
+  value: unknown,
+  path: string,
+  warnings: string[],
+): RenderQuality | undefined {
+  const name = readString(value, path, warnings);
+  if (name === undefined) return undefined;
+  const normalized = name.trim().toLowerCase();
+  if (!RENDER_QUALITIES.some((quality) => quality === normalized)) {
+    warnings.push(
+      `${path}: expected ${RENDER_QUALITIES.join(" or ")}, ignoring ${JSON.stringify(value)}`,
+    );
+    return undefined;
+  }
+  return normalized as RenderQuality;
+}
+
 function readSeparationModel(
   value: unknown,
   path: string,
@@ -638,6 +659,8 @@ function parseVideoOptions(raw: unknown, warnings: string[]): Partial<VideoSetti
   if (resolution !== undefined) options.resolution = resolution;
   const frameRate = readFrameRate(raw.frameRate, "videoOptions.frameRate", warnings);
   if (frameRate !== undefined) options.frameRate = frameRate;
+  const quality = readRenderQuality(raw.quality, "videoOptions.quality", warnings);
+  if (quality !== undefined) options.quality = quality;
 
   // The exporter writes the separation model at the top level, but accept the store's own field name too,
   // since that is what a settings dump from localStorage looks like.

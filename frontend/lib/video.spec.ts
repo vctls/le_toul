@@ -195,11 +195,19 @@ describe("getFfmpegParams", () => {
     ]);
   });
 
-  it("encodes with x264's veryfast preset", () => {
+  it("encodes with x264's veryfast preset at its default CRF", () => {
     const args = params();
 
     expect(valueOf(args, "-c:v")).toBe("libx264");
     expect(valueOf(args, "-preset")).toBe("veryfast");
+    expect(valueOf(args, "-crf")).toBe("23");
+  });
+
+  it("lowers the CRF for the high quality, on the same preset", () => {
+    const args = params({ quality: "high" });
+
+    expect(valueOf(args, "-preset")).toBe("veryfast");
+    expect(valueOf(args, "-crf")).toBe("18");
   });
 
   it("loops the background video and decodes it on a bounded number of threads", () => {

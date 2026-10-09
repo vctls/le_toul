@@ -292,6 +292,26 @@
             <option v-for="rate in frameRates" :key="rate" :value="rate">{{ rate }} fps</option>
           </b-select>
         </b-field>
+        <b-field v-if="advancedStore.isAdvanced" horizontal>
+          <template #label>
+            Quality
+            <viewport-tooltip
+              wide
+              label="High keeps more of the background's detail, for files two to four times as large and a render about a quarter slower"
+            >
+              <b-icon size="is-small" icon="circle-question"></b-icon>
+            </viewport-tooltip>
+          </template>
+          <b-select
+            expanded
+            :model-value="videoOptions.quality"
+            @update:model-value="(v: string) => (videoOptions.quality = v as RenderQuality)"
+          >
+            <option v-for="(label, quality) in qualityLabels" :key="quality" :value="quality">
+              {{ label }}
+            </option>
+          </b-select>
+        </b-field>
         <div class="card fonts-and-colors">
           <button
             type="button"
@@ -631,7 +651,13 @@
 <script lang="ts">
 import { defineComponent, markRaw } from "vue";
 import { storeToRefs } from "pinia";
-import { FRAME_RATES, OutputFormat, RESOLUTIONS, VerticalAlignment } from "@/lib/timing";
+import {
+  FRAME_RATES,
+  OutputFormat,
+  RESOLUTIONS,
+  RenderQuality,
+  VerticalAlignment,
+} from "@/lib/timing";
 import VideoPreview from "@/components/VideoPreview.vue";
 import SourceFileDownloadLinks from "@/components/SourceFileDownloadLinks.vue";
 import CreateVideoButton from "@/components/CreateVideoButton.vue";
@@ -677,6 +703,11 @@ const outputFormatLabels: Record<OutputFormat, string> = {
   mkv: "MKV, with vocal and original tracks",
 };
 
+const qualityLabels: Record<RenderQuality, string> = {
+  standard: "Standard",
+  high: "High",
+};
+
 export default defineComponent({
   components: {
     VideoPreview,
@@ -717,6 +748,7 @@ export default defineComponent({
       fonts,
       countInSymbols: COUNT_IN_SYMBOLS,
       outputFormatLabels,
+      qualityLabels,
       resolutions: Object.keys(RESOLUTIONS),
       frameRates: FRAME_RATES,
       VerticalAlignment,

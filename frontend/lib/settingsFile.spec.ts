@@ -296,13 +296,17 @@ describe("parseSettingsYaml", () => {
   });
 
   test("rejects a resolution the render does not offer", () => {
-    const parsed = parseSettingsYaml("videoOptions:\n  resolution: 4k\n  frameRate: 60\n");
+    const parsed = parseSettingsYaml(
+      "videoOptions:\n  resolution: 4k\n  frameRate: 60\n  quality: lossless\n",
+    );
 
     expect(parsed.videoOptions.resolution).toBeUndefined();
     expect(parsed.videoOptions.frameRate).toBeUndefined();
+    expect(parsed.videoOptions.quality).toBeUndefined();
     expect(parsed.warnings).toEqual([
       'videoOptions.resolution: expected 720p or 1080p, ignoring "4k"',
       "videoOptions.frameRate: expected 20 or 30, ignoring 60",
+      'videoOptions.quality: expected standard or high, ignoring "lossless"',
     ]);
   });
 
@@ -362,6 +366,7 @@ describe("serializeSettingsYaml", () => {
       outputFormat: "mkv",
       resolution: "720p",
       frameRate: 20,
+      quality: "high",
       verticalAlignment: VerticalAlignment.Top,
       font: { size: 30, name: "Impact", bold: false, italic: true },
       color: {
@@ -397,6 +402,7 @@ describe("serializeSettingsYaml", () => {
     expect(parsed.videoOptions.shadowY).toBe(-1);
     expect(parsed.videoOptions.resolution).toBe("720p");
     expect(parsed.videoOptions.frameRate).toBe(20);
+    expect(parsed.videoOptions.quality).toBe("high");
     expect(parsed.videoOptions.backgroundFit).toBe("fit");
     expect(Object.keys(parsed.voiceStyles ?? {})).toEqual(["Anna"]);
     expect(parsed.voiceStyles?.Anna.primary?.toString()).toBe("#abcdef");
@@ -443,6 +449,7 @@ describe("serializeSubtitleSettings", () => {
       outputFormat: "mkv",
       resolution: "1080p",
       frameRate: 30,
+      quality: "standard",
       font: { size: 33, name: "Verdana" },
       color: {
         background: Color.parse("#000000"),
@@ -469,6 +476,7 @@ describe("serializeSubtitleSettings", () => {
         outputFormat: "mkv",
         resolution: "1080p",
         frameRate: 30,
+        quality: "standard",
         color: { background: "#000000" },
         countInMode: "line",
         countInText: "",
