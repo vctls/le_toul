@@ -13,6 +13,7 @@ import { useAdvancedStore } from "@/stores/advanced";
 import { LYRIC_MARKERS } from "@/constants";
 import { DEFAULT_VOICE_ID } from "@/lib/voices";
 import { isDragging } from "@/lib/wavesurferPlugins/OpenEndedRegionPlugin";
+import type { MixFrame } from "@/lib/wavesurferPlugins/MixPlugin";
 
 vi.mock("@/lib/wavesurferPlugins/OpenEndedRegionPlugin", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@/lib/wavesurferPlugins/OpenEndedRegionPlugin")>()),
@@ -646,6 +647,81 @@ describe("TimingAdjustmentTab shortcuts", () => {
       const wrapper = mountTab();
 
       expect(wrapper.vm.displayMode).toBe(true);
+    });
+  });
+
+  describe("mix mode", () => {
+    const adjuster = (wrapper: ReturnType<typeof mountTab>) =>
+      wrapper.findComponent({ name: "TimingAdjuster" });
+    const resetButton = (wrapper: ReturnType<typeof mountTab>) =>
+      wrapper.find('b-button-stub[aria-label="Reset mute times"]');
+
+    beforeEach(() => {
+      useAdvancedStore().isAdvanced = true;
+    });
+
+    // Each voice sings one line, and Ben's second segment is untimed.
+    const twoVoices = () => {
+      const wrapper = mountTab();
+      useMediaStore().songDuration = 30;
+      useLyricsStore().setLyrics("[Anna] hello\n[Ben] wide_world");
+      useTimingsStore().setAllSegments({
+        Anna: [{ text: "hello", start: 1, end: 2 }],
+        Ben: [{ text: "wide_", start: 5, end: 6 }, { text: "world" }],
+      });
+      wrapper.vm.setMode("mix");
+      return wrapper;
+    };
+
+    it("hands the adjuster each line's frame with how far its edges can go", async () => {
+      const wrapper = twoVoices();
+      await nextTick();
+
+      expect(adjuster(wrapper).vm.$attrs.mixFrames).toMatchObject([
+        { voice: "Anna", segmentIndex: 0, latestStart: 1.2, earliestEnd: 2, startStored: false },
+        { voice: "Ben", segmentIndex: 0, latestStart: 5.2, earliestEnd: 6, endStored: false },
+      ]);
+    });
+
+    it("stores a dragged edge in the line's own voice, and clears it on a double-click", async () => {
+      const wrapper = twoVoices();
+      await nextTick();
+      const [, ben] = adjuster(wrapper).vm.$attrs.mixFrames as MixFrame[];
+
+      adjuster(wrapper).vm.$emit("mute-updated", ben, "start", 4);
+      adjuster(wrapper).vm.$emit("mute-updated", ben, "end", 8);
+      expect(useTimingsStore().timedSegmentsForVoice("Ben")[0]).toMatchObject({
+        muteStart: 4,
+        muteEnd: 8,
+      });
+      expect(useTimingsStore().timedSegmentsForVoice("Anna")[0].muteStart).toBeUndefined();
+
+      await nextTick();
+      const [, stored] = adjuster(wrapper).vm.$attrs.mixFrames as MixFrame[];
+      expect(stored).toMatchObject({ start: 4, end: 8, startStored: true, endStored: true });
+      adjuster(wrapper).vm.$emit("mute-reset", stored, "start");
+      expect(useTimingsStore().timedSegmentsForVoice("Ben")[0]).toMatchObject({ muteEnd: 8 });
+      expect(useTimingsStore().timedSegmentsForVoice("Ben")[0].muteStart).toBeUndefined();
+    });
+
+    it("resets every voice's mute times with the eraser, which can be undone", async () => {
+      const wrapper = twoVoices();
+      await nextTick();
+      expect(wrapper.find('b-button-stub[aria-label="Reset timings"]').exists()).toBe(false);
+      expect(resetButton(wrapper).attributes("disabled")).toBe("true");
+
+      const [anna, ben] = adjuster(wrapper).vm.$attrs.mixFrames as MixFrame[];
+      adjuster(wrapper).vm.$emit("mute-updated", anna, "end", 3);
+      adjuster(wrapper).vm.$emit("mute-updated", ben, "start", 4);
+      await nextTick();
+      expect(resetButton(wrapper).attributes("disabled")).toBe("false");
+
+      await resetButton(wrapper).trigger("click");
+      expect(useTimingsStore().hasMuteBounds).toBe(false);
+
+      pressKey("KeyZ", { key: "z", ctrlKey: true });
+      expect(useTimingsStore().timedSegmentsForVoice("Anna")[0].muteEnd).toBe(3);
+      expect(useTimingsStore().timedSegmentsForVoice("Ben")[0].muteStart).toBe(4);
     });
   });
 

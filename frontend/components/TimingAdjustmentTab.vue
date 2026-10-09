@@ -106,7 +106,15 @@
           @click="timingsStore.clearDisplayPeriods(activeVoice)"
         />
         <b-button
-          v-else-if="!mixMode"
+          v-else-if="mixMode"
+          icon-left="eraser"
+          aria-label="Reset mute times"
+          title="Put every line of every voice back on its automatic mute times"
+          :disabled="!timingsStore.hasMuteBounds"
+          @click="timingsStore.clearMuteBounds()"
+        />
+        <b-button
+          v-else
           icon-left="eraser"
           aria-label="Reset timings"
           title="Clear every timing of this voice"
@@ -195,6 +203,12 @@
             an end, which runs on to the next line and leaves no gap after it. Set that end in
             Adjust mode to restore what follows.
           </p>
+          <p>
+            Drag a frame's edges to mute more or less of the song around one line, or double-click
+            an edge to go back to the settings. A frame always keeps its line's syllables inside it,
+            except that it may start up to 0.2 seconds after the first one, in the part shaded
+            yellow. Dashed edges follow the settings, and solid ones were set by hand.
+          </p>
         </template>
         <template v-else>
           <p>
@@ -235,7 +249,11 @@
             The eraser puts every line of this voice back on automatic times, which you can undo
             too.
           </template>
-          <template v-else-if="!mixMode">
+          <template v-else-if="mixMode">
+            The eraser puts every line of every voice back on the settings above, which you can undo
+            too.
+          </template>
+          <template v-else>
             The eraser clears every timing of this voice, which you can undo too.
           </template>
           Press <kbd>{{ keyLabels.switchMode }}</kbd> to switch to Tap mode. The keyboard button at
@@ -388,7 +406,7 @@
               </b-field>
               <b-field horizontal :message="mixMessage">
                 <template #label>
-                  Restore gaps
+                  <span id="mix-restore-gaps-label">Restore gaps</span>
                   <viewport-tooltip
                     wide
                     label="Play the original song instead of the backing track where nobody sings"
@@ -396,7 +414,10 @@
                     <b-icon size="is-small" icon="circle-question"></b-icon>
                   </viewport-tooltip>
                 </template>
-                <b-switch v-model="videoOptions.restoreGaps"></b-switch>
+                <b-switch
+                  v-model="videoOptions.restoreGaps"
+                  aria-labelledby="mix-restore-gaps-label"
+                ></b-switch>
               </b-field>
               <b-field
                 v-for="field in gapFields"
@@ -539,6 +560,8 @@
       @segmentschange="onSegmentsChange"
       @bands-updated="onBandsUpdated"
       @band-reset="onBandReset"
+      @mute-updated="onMuteUpdated"
+      @mute-reset="onMuteReset"
       @zoom-change="onZoomChange"
       @zoom-by="onZoomBy"
       @scroll-change="onScrollChange"
@@ -1104,7 +1127,19 @@ export default defineComponent({
     mixFrames(): MixFrame[] {
       if (!this.mixMode) return [];
       return this.timingsStore.gapPlan.lines.map((line, index) => ({
-        ...pick(line, ["start", "end", "text", "syllables", "openEnd"]),
+        ...pick(line, [
+          "start",
+          "end",
+          "voice",
+          "segmentIndex",
+          "text",
+          "syllables",
+          "openEnd",
+          "startStored",
+          "endStored",
+          "latestStart",
+          "earliestEnd",
+        ]),
         row: index % 5,
       }));
     },
@@ -1740,6 +1775,26 @@ export default defineComponent({
       const segments = this.timingsStore.activeSegments.map((segment) => ({ ...segment }));
       delete segments[segmentIndex][side === "start" ? "displayStart" : "displayEnd"];
       this.timingsStore.applyAdjustEdit(segments, "Display time");
+    },
+    onMuteUpdated(frame: MixFrame, side: "start" | "end", time: number) {
+      this.writeMuteBound(frame, side, time);
+    },
+    onMuteReset(frame: MixFrame, side: "start" | "end") {
+      if (side === "start" ? frame.startStored : frame.endStored) {
+        this.writeMuteBound(frame, side, undefined);
+      }
+    },
+    /**
+     * Store or clear one edge of a line's muted period, in whichever voice the line belongs to.
+     */
+    writeMuteBound(frame: MixFrame, side: "start" | "end", time: number | undefined) {
+      const segments = this.timingsStore
+        .timedSegmentsForVoice(frame.voice)
+        .map((segment) => ({ ...segment }));
+      const key = side === "start" ? "muteStart" : "muteEnd";
+      if (time === undefined) delete segments[frame.segmentIndex][key];
+      else segments[frame.segmentIndex][key] = time;
+      this.timingsStore.applyVoiceEdit(frame.voice, segments, "Mute time");
     },
     onSegmentsChange(newSegments: Array<TimedSegment>) {
       // Guard against a committed overlap (an end past the next segment's start).

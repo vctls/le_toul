@@ -238,6 +238,12 @@ export default defineComponent({
     this.bandsPlugin.on("band-reset", (segmentIndex, side) => {
       this.$emit("band-reset", segmentIndex, side);
     });
+    this.mixPlugin.on("mute-updated", (frame, side, time) => {
+      this.$emit("mute-updated", frame, side, time);
+    });
+    this.mixPlugin.on("mute-reset", (frame, side) => {
+      this.$emit("mute-reset", frame, side);
+    });
 
     this.regionsPlugin.on("region-updated", (region: Region) => {
       // The DOM is already at its final position.
@@ -325,6 +331,8 @@ export default defineComponent({
     "selection-change",
     "bands-updated",
     "band-reset",
+    "mute-updated",
+    "mute-reset",
     "zoom-change",
     "zoom-by",
     "scroll-change",

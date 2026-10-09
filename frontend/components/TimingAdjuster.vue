@@ -22,6 +22,8 @@
         @regions-updated="onRegionsUpdated"
         @bands-updated="$emit('bands-updated', $event)"
         @band-reset="(...args: unknown[]) => $emit('band-reset', ...args)"
+        @mute-updated="(...args: unknown[]) => $emit('mute-updated', ...args)"
+        @mute-reset="(...args: unknown[]) => $emit('mute-reset', ...args)"
         @seeking="onWavesurferSeeking"
         @region-clicked="onRegionClicked"
         @selection-change="onSelectionChange"
@@ -102,6 +104,8 @@ export default defineComponent({
     "segmentschange",
     "bands-updated",
     "band-reset",
+    "mute-updated",
+    "mute-reset",
     "timeupdate",
     "seeking",
     "play",
