@@ -49,6 +49,7 @@ import {
   DEFAULT_GAP_POST_ROLL,
   DEFAULT_GAP_MIN_LENGTH,
   DEFAULT_GAP_FADE,
+  DEFAULT_GAP_LEVEL_BALANCE,
 } from "@/constants";
 
 const VOICE_STYLES_STORAGE_KEY = "voiceStyles";
@@ -169,6 +170,9 @@ export type VideoSettings = {
   gapPostRoll: number;
   gapMinLength: number;
   gapFade: number;
+  // How the backing track is brought to the original's level in the gaps, from 0, which lowers
+  // the original by the whole gain, to 1, which raises the backing track by it.
+  gapLevelBalance: number;
   restorePausesInLines: boolean;
   useBackground: boolean;
   backgroundFit: BackgroundFit;
@@ -217,6 +221,7 @@ const DEFAULT_SETTINGS: VideoSettings = {
   gapPostRoll: DEFAULT_GAP_POST_ROLL,
   gapMinLength: DEFAULT_GAP_MIN_LENGTH,
   gapFade: DEFAULT_GAP_FADE,
+  gapLevelBalance: DEFAULT_GAP_LEVEL_BALANCE,
   restorePausesInLines: false,
   useBackground: false,
   backgroundFit: "fill",
@@ -250,6 +255,7 @@ const MIX_SETTINGS = [
   "gapPostRoll",
   "gapMinLength",
   "gapFade",
+  "gapLevelBalance",
   "restorePausesInLines",
 ] as const;
 

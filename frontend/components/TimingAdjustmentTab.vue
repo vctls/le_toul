@@ -420,17 +420,34 @@
                 </template>
                 <b-switch v-model="videoOptions.restorePausesInLines"></b-switch>
               </b-field>
-              <b-field v-if="mixGainLabel" horizontal>
+              <b-field horizontal :message="mixLevelLabel">
                 <template #label>
-                  Backing track gain
+                  Match the level
                   <viewport-tooltip
                     wide
-                    label="How far the backing track is turned up or down to match the original between lines, measured from the two tracks. Peaks that turning it up would clip are limited. It is not applied when the two tracks don't line up."
+                    label="The backing track is usually quieter than the original between lines, by an amount measured from the two tracks. Turn the original down to it, or turn the backing track up, which limits the peaks that would clip. Nothing is changed when the two tracks don't line up."
                   >
                     <b-icon size="is-small" icon="circle-question"></b-icon>
                   </viewport-tooltip>
                 </template>
-                <span class="mix-gain">{{ mixGainLabel }}</span>
+                <div class="mix-balance">
+                  <b-slider
+                    :model-value="videoOptions.gapLevelBalance"
+                    @update:model-value="
+                      (v: number | [number, number]) => (videoOptions.gapLevelBalance = Number(v))
+                    "
+                    aria-label="Match the level"
+                    :min="0"
+                    :max="1"
+                    :step="0.05"
+                    :tooltip="false"
+                    lazy
+                  />
+                  <div class="mix-balance-ends">
+                    <span>Original down</span>
+                    <span>Backing up</span>
+                  </div>
+                </div>
               </b-field>
               <b-field label="Mix settings" horizontal>
                 <b-button
@@ -1046,16 +1063,20 @@ export default defineComponent({
       }
       return "";
     },
-    // The gain the mix applies to the backing track, once measured for the current gaps.
-    mixGainLabel(): string {
-      const { restoreGaps } = this.videoOptions;
+    // The gains the mix applies to the two tracks, once measured for the current gaps.
+    mixLevelLabel(): string {
+      const { restoreGaps, gapLevelBalance } = this.videoOptions;
       const { gaps, complete } = this.timingsStore.gapPlan;
       if (!restoreGaps || !complete || !isEqual(this.gapLevels?.gaps, gaps)) return "";
       // A gain of exactly 1 is what the measurement gives back when the tracks don't line up.
       const gain = this.gapLevels!.gain;
       if (gain === 1) return "Not applied";
       const db = 20 * Math.log10(gain);
-      return `${db > 0 ? "+" : ""}${db.toFixed(1)} dB`;
+      const signed = (value: number) => {
+        const rounded = Number(value.toFixed(1)) || 0;
+        return `${rounded > 0 ? "+" : ""}${rounded.toFixed(1)} dB`;
+      };
+      return `Backing track ${signed(db * gapLevelBalance)}, original ${signed(db * (gapLevelBalance - 1))}`;
     },
     mixFrames(): MixFrame[] {
       if (!this.mixMode) return [];
@@ -1085,6 +1106,7 @@ export default defineComponent({
         JSON.stringify(this.timingsStore.restoredGaps),
         JSON.stringify(this.timingsStore.gapPlan.gaps),
         this.videoOptions.gapFade,
+        this.videoOptions.gapLevelBalance,
       ];
     },
     activeVoiceHasDisplayPeriods(): boolean {
@@ -1406,7 +1428,10 @@ export default defineComponent({
       const { gaps } = this.timingsStore.gapPlan;
       try {
         const [mix, { gain, levels }] = await Promise.all([
-          restoredBacking(backing, song, this.timingsStore.restoredGaps, this.videoOptions.gapFade),
+          restoredBacking(backing, song, this.timingsStore.restoredGaps, {
+            fade: this.videoOptions.gapFade,
+            balance: this.videoOptions.gapLevelBalance,
+          }),
           gapDifferences(backing, song, gaps),
         ]);
         if (request !== this.mixRequest) return;
@@ -1808,14 +1833,21 @@ Its rule ties on specificity with the one above. */
   font-weight: var(--bulma-weight-semibold);
 }
 
-/* The gain reads like the value of the controls above it. */
-.mix-gain {
-  display: inline-block;
+.mix-balance {
   width: 14em;
-  text-align: center;
 }
 
-.is-in-drawer .mix-gain {
+.mix-balance .b-slider {
+  margin: 0.5em 0 0.25em;
+}
+
+.mix-balance-ends {
+  display: flex;
+  justify-content: space-between;
+  font-size: 0.85em;
+}
+
+.is-in-drawer .mix-balance {
   width: 100%;
 }
 

@@ -66,6 +66,8 @@ export const DEFAULT_GAP_MIN_LENGTH = 1.0;
 export const DEFAULT_GAP_FADE = 0.1;
 // A tap tends to come before the syllable is heard, so a line's mute may start this long after it.
 export const GAP_MAX_LEAD = 0.2;
+// The whole level match raises the backing track, so the video keeps the original's level.
+export const DEFAULT_GAP_LEVEL_BALANCE = 1;
 
 // A button that turns into Cancel under the pointer that just clicked it ignores clicks this long,
 // so a double click doesn't call off what it started.

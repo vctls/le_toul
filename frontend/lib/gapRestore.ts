@@ -288,9 +288,26 @@ export function limitPeaks(
   }
 }
 
+export interface MixLevels {
+  // The scale from the backing track to the original's level, as `gapGain` measures it.
+  gain?: number;
+  // The share of the gain that raises the backing track, from 0 to 1. The rest lowers the original.
+  balance?: number;
+}
+
+/**
+ * Scale `samples` in place.
+ */
+function scale(samples: Float32Array, gain: number): Float32Array {
+  if (gain !== 1) {
+    for (let i = 0; i < samples.length; i++) samples[i] *= gain;
+  }
+  return samples;
+}
+
 /**
  * The backing track with the original blended in over each gap, with the fades of `gapFades`.
- * The backing track is scaled by `gain` first, and limited when that raises it.
+ * The gain is split between the two tracks by `balance`, and whichever one it raises is limited.
  * A channel either track lacks is taken from its last one, so mono mixes with stereo.
  */
 export function mixGaps(
@@ -299,19 +316,17 @@ export function mixGaps(
   sampleRate: number,
   gaps: Span[],
   fade: number,
-  gain = 1,
+  { gain = 1, balance = 1 }: MixLevels = {},
 ): Float32Array[] {
   const length = backing[0]?.length ?? 0;
   const usable = Math.min(length, original[0]?.length ?? 0);
   const channels = Math.max(backing.length, original.length);
-  const mixed = range(channels).map((c) => {
-    const samples = Float32Array.from(channel(backing, c));
-    if (gain !== 1) {
-      for (let i = 0; i < samples.length; i++) samples[i] *= gain;
-    }
-    return samples;
-  });
-  if (gain > 1) {
+  const backingGain = gain ** balance;
+  const originalGain = gain ** (balance - 1);
+  const mixed = range(channels).map((c) =>
+    scale(Float32Array.from(channel(backing, c)), backingGain),
+  );
+  if (backingGain > 1) {
     limitPeaks(mixed, sampleRate);
   }
   for (const gap of gaps) {
@@ -327,16 +342,23 @@ export function mixGaps(
     );
     const fadeIn = Math.floor(fades.fadeIn * sampleRate);
     const fadeOut = Math.floor(fades.fadeOut * sampleRate);
+    const source = range(channels).map((c) => {
+      const samples = channel(original, c).subarray(first, end);
+      return originalGain === 1 ? samples : scale(Float32Array.from(samples), originalGain);
+    });
+    if (originalGain > 1) {
+      limitPeaks(source, sampleRate);
+    }
     for (let c = 0; c < channels; c++) {
       const out = mixed[c];
-      const from = channel(original, c);
+      const from = source[c];
       for (let i = first; i < end; i++) {
         const weight = Math.min(
           1,
           fadeIn > 0 ? (i - first) / fadeIn : 1,
           fadeOut > 0 ? (end - i) / fadeOut : 1,
         );
-        out[i] = out[i] * (1 - weight) + from[i] * weight;
+        out[i] = out[i] * (1 - weight) + from[i - first] * weight;
       }
     }
   }

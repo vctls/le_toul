@@ -539,6 +539,7 @@
           :preview-track="previewBacking ? 'backing' : 'full'"
           :gaps="timingsStore.restoredGaps"
           :gap-fade="videoOptions.gapFade"
+          :gap-level-balance="videoOptions.gapLevelBalance"
           :subtitles="allVoicesSubtitles()"
           :audio-delay="audioDelay"
           :fonts="fontMap"
@@ -992,7 +993,10 @@ export default defineComponent({
           this.creationStep = "restoring the gaps";
         }
         const backing = await abortable(
-          restoredBacking(separatedTrack.backing, songFile, gaps, videoOptions.gapFade),
+          restoredBacking(separatedTrack.backing, songFile, gaps, {
+            fade: videoOptions.gapFade,
+            balance: videoOptions.gapLevelBalance,
+          }),
           abort.signal,
         );
         const videoFile: Uint8Array = await video.createVideo({

@@ -177,15 +177,17 @@ describe("parseSettingsYaml", () => {
     ]);
   });
 
-  test("reads a pre-roll down to the lead allowed", () => {
-    expect(parseSettingsYaml("videoOptions:\n  gapPreRoll: -0.2\n").videoOptions.gapPreRoll).toBe(
-      -0.2,
-    );
+  test("reads a pre-roll down to the lead allowed, and a level balance from 0 to 1", () => {
+    expect(
+      parseSettingsYaml("videoOptions:\n  gapPreRoll: -0.2\n  gapLevelBalance: 0.5\n").videoOptions,
+    ).toMatchObject({ gapPreRoll: -0.2, gapLevelBalance: 0.5 });
 
-    const parsed = parseSettingsYaml("videoOptions:\n  gapPreRoll: -0.5\n");
+    const parsed = parseSettingsYaml("videoOptions:\n  gapPreRoll: -0.5\n  gapLevelBalance: 2\n");
     expect(parsed.videoOptions.gapPreRoll).toBeUndefined();
+    expect(parsed.videoOptions.gapLevelBalance).toBeUndefined();
     expect(parsed.warnings).toEqual([
       "videoOptions.gapPreRoll: expected a number at least -0.2, ignoring -0.5",
+      "videoOptions.gapLevelBalance: expected a number from 0 to 1, ignoring 2",
     ]);
   });
 

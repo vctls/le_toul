@@ -1,7 +1,7 @@
 // Builds the restored backing track in the browser, for the render, the preview and the Timing tab.
 
 import bufferToWav from "audiobuffer-to-wav";
-import { gapDifference, gapGain, mixGaps, Span } from "./gapRestore";
+import { gapDifference, gapGain, MixLevels, mixGaps, Span } from "./gapRestore";
 
 // The separator writes its stems at this rate, so the backing track is decoded without resampling.
 const SAMPLE_RATE = 44100;
@@ -45,20 +45,24 @@ function decodePair(backing: Blob, original: Blob): DecodedPair["channels"] {
   return decoded.channels;
 }
 
+export interface GapMixSettings extends Omit<MixLevels, "gain"> {
+  fade: number;
+}
+
 /**
  * The backing track with the original song over the gaps, as a WAV, or the backing track itself
- * when there is no gap. The backing track is brought to the original's level in the gaps.
+ * when there is no gap. The two are brought to the same level in the gaps.
  */
 export function restoredBacking(
   backing: Blob,
   original: Blob,
   gaps: Span[],
-  fade: number,
+  { fade, balance = 1 }: GapMixSettings,
 ): Promise<Blob> {
   if (gaps.length === 0) {
     return Promise.resolve(backing);
   }
-  const key = JSON.stringify([gaps, fade]);
+  const key = JSON.stringify([gaps, fade, balance]);
   const cached = mixes.find(
     (mix) => mix.backing === backing && mix.original === original && mix.key === key,
   );
@@ -68,7 +72,7 @@ export function restoredBacking(
   const result = decodePair(backing, original).then((channels) => {
     const { backing, original } = channels;
     const gain = gapGain(backing, original, SAMPLE_RATE, gaps);
-    const mixed = mixGaps(backing, original, SAMPLE_RATE, gaps, fade, gain);
+    const mixed = mixGaps(backing, original, SAMPLE_RATE, gaps, fade, { gain, balance });
     const wav = bufferToWav({
       numberOfChannels: mixed.length,
       sampleRate: SAMPLE_RATE,

@@ -267,10 +267,35 @@ describe("mixGaps", () => {
       1,
       [{ start: 6, end: 10 }],
       0,
-      2,
+      { gain: 2 },
     );
 
     expect([...mixed]).toEqual([0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 3, 3, 3, 3]);
+  });
+
+  it("splits the gain between the two tracks by the balance", () => {
+    const quiet = [new Float32Array(10).fill(0.25)];
+    const loud = [new Float32Array(10).fill(1)];
+    const gaps = [{ start: 6, end: 10 }];
+
+    expect([...mixGaps(quiet, loud, 1, gaps, 0, { gain: 2, balance: 0 })[0]]).toEqual([
+      0.25, 0.25, 0.25, 0.25, 0.25, 0.25, 0.5, 0.5, 0.5, 0.5,
+    ]);
+    expect([...mixGaps(quiet, loud, 1, gaps, 0, { gain: 4, balance: 0.5 })[0]]).toEqual([
+      0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5,
+    ]);
+  });
+
+  it("limits the original when the balance raises it", () => {
+    const loud = [Float32Array.from({ length: 1000 }, (_, i) => 0.8 * Math.sin(i / 5))];
+
+    const [mixed] = mixGaps(loud, loud, 1000, [{ start: 0, end: 1 }], 0, {
+      gain: 0.5,
+      balance: 0,
+    });
+
+    expect(Math.max(...mixed.map(Math.abs))).toBeLessThanOrEqual(10 ** (-0.5 / 20) + 1e-6);
+    expect(Math.max(...mixed.map(Math.abs))).toBeGreaterThan(0.9);
   });
 
   it("leaves the backing track's own samples alone", () => {

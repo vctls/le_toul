@@ -67,6 +67,10 @@ export default defineComponent({
       type: Number,
       default: 0,
     },
+    gapLevelBalance: {
+      type: Number,
+      default: 1,
+    },
     subtitles: {
       type: String,
       required: true,
@@ -132,7 +136,9 @@ export default defineComponent({
       return this.songFile;
     },
     restoredGapsKey(): string {
-      return this.activeAudio === this.songFile ? "" : JSON.stringify([this.gaps, this.gapFade]);
+      return this.activeAudio === this.songFile
+        ? ""
+        : JSON.stringify([this.gaps, this.gapFade, this.gapLevelBalance]);
     },
   },
   mounted() {
@@ -200,7 +206,10 @@ export default defineComponent({
       let audioData = source;
       if (source !== this.songFile) {
         try {
-          audioData = await restoredBacking(source, this.songFile, this.gaps, this.gapFade);
+          audioData = await restoredBacking(source, this.songFile, this.gaps, {
+            fade: this.gapFade,
+            balance: this.gapLevelBalance,
+          });
         } catch (error) {
           console.error(
             "Could not restore the gaps, so the preview plays the backing track",

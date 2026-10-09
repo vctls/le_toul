@@ -220,6 +220,7 @@ describe("Settings Store", () => {
       gapPostRoll: 0,
       gapMinLength: 2,
       gapFade: 0,
+      gapLevelBalance: 0.5,
       restorePausesInLines: true,
       instrumentalThreshold: 0,
     });
@@ -234,6 +235,7 @@ describe("Settings Store", () => {
       gapPostRoll: 1.5,
       gapMinLength: 1,
       gapFade: 0.1,
+      gapLevelBalance: 1,
       restorePausesInLines: false,
       instrumentalThreshold: 0,
     });

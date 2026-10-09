@@ -112,6 +112,7 @@ const VIDEO_OPTIONS_OUTSIDE_SUBTITLES = [
   "gapPostRoll",
   "gapMinLength",
   "gapFade",
+  "gapLevelBalance",
   "restorePausesInLines",
   "useBackground",
   "backgroundFit",
@@ -243,6 +244,7 @@ const KNOWN_VIDEO_OPTIONS = [
   ...GAP_SECONDS_OPTIONS,
   ...SHADOW_OFFSET_OPTIONS,
   "gapPreRoll",
+  "gapLevelBalance",
   "outlineWidth",
   "countInMode",
   LEGACY_COUNT_IN_KEY,
@@ -597,6 +599,14 @@ function parseVideoOptions(raw: unknown, warnings: string[]): Partial<VideoSetti
     -GAP_MAX_LEAD,
   );
   if (preRoll !== undefined) options.gapPreRoll = preRoll;
+  const balance = readNumberBetween(
+    raw.gapLevelBalance,
+    "videoOptions.gapLevelBalance",
+    warnings,
+    0,
+    1,
+  );
+  if (balance !== undefined) options.gapLevelBalance = balance;
 
   const countInMode = readCountInMode(raw.countInMode, "videoOptions.countInMode", warnings);
   if (countInMode !== undefined) options.countInMode = countInMode;
