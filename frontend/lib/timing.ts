@@ -648,6 +648,8 @@ export class LyricsScreen {
     // The alignment lays out the lyrics. The title screen stays centred.
     const alignment =
       this.kind === "title" ? VerticalAlignment.Middle : videoOptions.verticalAlignment;
+    // A sweep tells singers to sing, so the title is drawn without one.
+    const sweep = this.kind !== "title";
     return (
       this.lines
         .map((l, i) =>
@@ -663,6 +665,7 @@ export class LyricsScreen {
             ),
             shadow,
             actor,
+            sweep,
           ),
         )
         .join("\n") + "\n"
@@ -804,6 +807,7 @@ export class LyricsLine {
     topMargin: number,
     tags: string = "",
     actor: string = "Singer",
+    sweep: boolean = true,
   ): string {
     if (isNaN(this.timestamp) || isNaN(screenStart) || isNaN(screenEnd)) {
       console.error("NaN value for line", this.toString(), screenStart, screenEnd);
@@ -822,7 +826,11 @@ export class LyricsLine {
       MarginR: 0,
       MarginV: topMargin,
       Effect: "",
-      Text: tags + this.decorateAssLine(this.segments, displayStart),
+      Text:
+        tags +
+        (sweep
+          ? this.decorateAssLine(this.segments, displayStart)
+          : this.addAssFades(this.segments.map((s) => s.text).join(""))),
     };
     return (
       `${e.type}: ` +

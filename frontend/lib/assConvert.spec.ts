@@ -95,6 +95,18 @@ describe("assToProjectFiles on the app's own files", () => {
     expect(settings.videoOptions.color).toMatchObject({ primary: "#FF00FF", secondary: "#00FFFF" });
   });
 
+  it("drops a title screen that sweeps, as older versions wrote it", () => {
+    const text = render([{ voice: "Voice 1", segments }], DEFAULT_KARAOKE_OPTIONS)
+      .replace(/(?<=[,}])Pale Moon$/m, "{\\k0}{\\kf200}Pale Moon")
+      .replace(/(?<=[,}])The Placeholders$/m, "{\\k200}{\\kf200}The Placeholders");
+    expect(text).toContain("{\\kf200}The Placeholders");
+
+    const imported = assToProjectFiles(text, { fonts: FONTS });
+    expect(imported.timings).toEqual({ "Voice 1": segments });
+    const settings = yaml.load(imported.settings) as Record<string, any>;
+    expect(settings.song).toEqual({ title: "Pale Moon", artist: "The Placeholders" });
+  });
+
   it("moves the timings back by the delay the title screen and a quick start added", () => {
     const early = segments.map((segment) => ({
       ...segment,

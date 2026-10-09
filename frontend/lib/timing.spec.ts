@@ -96,8 +96,8 @@ Style: Default,Arial Narrow,20,&H00FF00FF,&H00FFFF00,&H0000FFFF,&H00000000,-1,0,
 
 [Events]
 Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
-Dialogue: 0,0:00:00.00,0:00:04.00,Default,Singer,0,0,118,,{\\fad(0,150)}{\\k0}{\\kf200}It's Cøøl to Tüül
-Dialogue: 0,0:00:00.00,0:00:04.15,Default,Singer,0,0,148,,{\\fad(0,150)}{\\k200}{\\kf200}TÜ/ÜL
+Dialogue: 0,0:00:00.00,0:00:04.00,Default,Singer,0,0,118,,{\\fad(0,150)}It's Cøøl to Tüül
+Dialogue: 0,0:00:00.00,0:00:04.15,Default,Singer,0,0,148,,{\\fad(0,150)}TÜ/ÜL
 `;
 
 const testAss =

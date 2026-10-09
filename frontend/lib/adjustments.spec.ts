@@ -76,8 +76,8 @@ const DEFAULT_ASS_OPTIONS = {
 };
 
 test("addTitleScreenToShortIntroSong", () => {
-  const titleScreenAss = `Dialogue: 0,0:00:00.00,0:00:04.00,Default,Singer,0,0,118,,{\\k0}{\\kf200}Tüülin' Around
-Dialogue: 0,0:00:00.00,0:00:04.00,Default,Singer,0,0,148,,{\\k200}{\\kf200}The Tüüls
+  const titleScreenAss = `Dialogue: 0,0:00:00.00,0:00:04.00,Default,Singer,0,0,118,,Tüülin' Around
+Dialogue: 0,0:00:00.00,0:00:04.00,Default,Singer,0,0,148,,The Tüüls
 `;
   const screens = denormalizeTimestamps(
     compileLyricTimings(fromEvents(testLyrics, shortIntroTestEvents)),

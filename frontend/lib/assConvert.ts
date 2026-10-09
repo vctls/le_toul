@@ -127,8 +127,8 @@ function drawnText(event: AssEvent): string {
 }
 
 /**
- * The app writes the title screen first, as two lines shown from the start.
- * The title is sung over the first half of the screen and the artist over the second.
+ * The app writes the title screen first, as two lines shown from the start without karaoke tags.
+ * Older versions sang the title over the first half of the screen and the artist over the second.
  */
 function titleScreen(events: AssEvent[]): Song | null {
   const half = Math.round(TITLE_SCREEN_DURATION * 50);
@@ -136,8 +136,11 @@ function titleScreen(events: AssEvent[]): Song | null {
     const last = event ? parseKaraoke(event.text).syllables.at(-1) : undefined;
     return event?.start === 0 && last?.start === start && last.duration === half;
   };
+  // The app's lyric lines always carry karaoke tags.
+  const still = (event: AssEvent | undefined) =>
+    event?.start === 0 && !parseKaraoke(event.text).timed;
   const [title, artist] = events;
-  if (!sung(title, 0) || !sung(artist, half)) {
+  if (!(still(title) && still(artist)) && !(sung(title, 0) && sung(artist, half))) {
     return null;
   }
   return { title: drawnText(title), artist: drawnText(artist) };
