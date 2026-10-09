@@ -137,21 +137,27 @@ export function songOffset(render: VoiceTrackRender): Timestamp {
 
 /**
  * Fade every lyrics line in before it animates and out after it has been sung.
- * The title lines only fade out.
+ * The title lines fade in and out all together, as the title screen starts and ends.
  * A fade never overlaps the line's own animation, so it may be shorter than LINE_FADE, or absent.
  */
 export function fadeLines(renders: VoiceTrackRender[], songDuration: Timestamp): void {
   const lines = slotLines(renders, ["lyrics", "title"]);
   const songEnds = renders.map((render) => songDuration + songOffset(render));
   for (const slotted of lines) {
-    makeRoomToFadeOut(slotted, lines, songEnds[slotted.voice]);
+    if (slotted.screen.kind === "lyrics") {
+      makeRoomToFadeOut(slotted, lines, songEnds[slotted.voice]);
+    }
   }
   const fade = (room: Timestamp) => Math.min(LINE_FADE, Math.max(0, room));
   for (const { line, screen } of lines) {
+    const start = displayStartOf(line, screen);
+    const end = displayEndOf(line, screen);
     if (screen.kind === "lyrics") {
-      line.fadeInDuration = fade(line.timestamp - displayStartOf(line, screen));
+      line.fadeInDuration = fade(line.timestamp - start);
+      line.fadeOutDuration = fade(end - line.endTimestamp);
+    } else {
+      line.fadeInDuration = line.fadeOutDuration = fade((end - start) / 2);
     }
-    line.fadeOutDuration = fade(displayEndOf(line, screen) - line.endTimestamp);
   }
 }
 

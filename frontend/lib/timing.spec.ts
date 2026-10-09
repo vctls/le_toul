@@ -96,15 +96,15 @@ Style: Default,Arial Narrow,20,&H00FF00FF,&H00FFFF00,&H0000FFFF,&H00000000,-1,0,
 
 [Events]
 Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
-Dialogue: 0,0:00:00.00,0:00:04.00,Default,Singer,0,0,118,,{\\fad(0,150)}It's Cøøl to Tüül
-Dialogue: 0,0:00:00.00,0:00:04.15,Default,Singer,0,0,148,,{\\fad(0,150)}TÜ/ÜL
+Dialogue: 0,0:00:00.00,0:00:04.00,Default,Singer,0,0,118,,{\\fad(150,150)}It's Cøøl to Tüül
+Dialogue: 0,0:00:00.00,0:00:04.00,Default,Singer,0,0,148,,{\\fad(150,150)}TÜ/ÜL
 `;
 
 const testAss =
   assPreamble("5.000") +
   `Dialogue: 0,0:00:04.00,0:00:11.00,Default,Singer,0,0,118,,{\\fad(0,150)}{\\k0}{\\kf200}{\\alpha&H00&}${TEST_COUNT_IN_TEXT}{\\kf100}Be bop {\\kf100}{\\kf100}a lu bop
 
-Dialogue: 0,0:00:04.15,0:00:11.00,Default,Singer,0,0,148,,{\\fad(150,0)}{\\k485}{\\kf100}She's my ba{\\kf100}by
+Dialogue: 0,0:00:04.00,0:00:11.00,Default,Singer,0,0,148,,{\\fad(150,0)}{\\k500}{\\kf100}She's my ba{\\kf100}by
 
 
 Dialogue: 0,0:00:11.00,0:01:05.00,Default,Singer,0,0,133,,{\\k0}{\\kf100}And {\\kf100}here's {\\kf100}screen {\\kf5100}two
@@ -520,7 +520,7 @@ test("addCountIn", () => {
     assPreamble("0.000") +
     `Dialogue: 0,0:00:04.00,0:01:00.00,Default,Singer,0,0,118,,{\\fad(150,0)}{\\k9400}{\\kf200}{\\alpha&H00&}${TEST_COUNT_IN_TEXT}{\\kf500}That was a long intro
 
-Dialogue: 0,0:00:04.15,0:01:00.00,Default,Singer,0,0,148,,{\\fad(150,0)}{\\k10085}{\\kf-4500}Too bad nothing rhymes with intro
+Dialogue: 0,0:00:04.00,0:01:00.00,Default,Singer,0,0,148,,{\\fad(150,0)}{\\k10100}{\\kf-4500}Too bad nothing rhymes with intro
 `;
   expect(assFile).toBe(expected);
 });
@@ -547,7 +547,7 @@ test("addCountInToSevenSecondIntro", () => {
     assPreamble("0.000") +
     `Dialogue: 0,0:00:04.00,0:00:12.00,Default,Singer,0,0,118,,{\\fad(150,150)}{\\k150}{\\kf200}{\\alpha&H00&}${TEST_COUNT_IN_TEXT}{\\kf100}Be bop {\\kf50}{\\kf100}a lu bop
 
-Dialogue: 0,0:00:04.15,0:00:12.00,Default,Singer,0,0,148,,{\\fad(150,0)}{\\k585}{\\kf100}She's my ba{\\kf100}by
+Dialogue: 0,0:00:04.00,0:00:12.00,Default,Singer,0,0,148,,{\\fad(150,0)}{\\k600}{\\kf100}She's my ba{\\kf100}by
 
 
 Dialogue: 0,0:00:12.00,0:01:00.00,Default,Singer,0,0,133,,{\\k0}{\\kf100}And {\\kf100}here's {\\kf100}screen {\\kf4500}two

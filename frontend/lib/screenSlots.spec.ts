@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import { DEFAULT_KARAOKE_OPTIONS, KaraokeOptions, layOutVoices, LyricsScreen } from "./timing";
 import { TimedSegment } from "./timedSegments";
 import { LINE_FADE } from "./screenSlots";
+import { displayEndOf } from "./adjustments";
 import { TITLE_SCREEN_DURATION } from "@/constants";
 
 const options: KaraokeOptions = {
@@ -95,16 +96,17 @@ describe("fadeLines", () => {
     expect(instrumental?.startTimestamp).toBe(2 + LINE_FADE);
   });
 
-  it("fades the title out like a lyrics line, but not in", () => {
+  it("fades the title and artist in and out together with the title screen", () => {
     const screens = layOut([{ text: "a", start: 10, end: 11 }], {
       ...options,
       addTitleScreen: true,
     });
     const [title, artist] = screens[0].lines;
 
-    expect([title.fadeInDuration, title.fadeOutDuration]).toEqual([0, LINE_FADE]);
-    expect([artist.fadeInDuration, artist.fadeOutDuration]).toEqual([0, LINE_FADE]);
-    expect(artist.customDisplayEndTime).toBe(TITLE_SCREEN_DURATION + LINE_FADE);
+    expect([title.fadeInDuration, title.fadeOutDuration]).toEqual([LINE_FADE, LINE_FADE]);
+    expect([artist.fadeInDuration, artist.fadeOutDuration]).toEqual([LINE_FADE, LINE_FADE]);
+    expect(displayEndOf(title, screens[0])).toBe(TITLE_SCREEN_DURATION);
+    expect(displayEndOf(artist, screens[0])).toBe(TITLE_SCREEN_DURATION);
   });
 
   it("doesn't keep the title shown past a stored display start", () => {
@@ -115,6 +117,6 @@ describe("fadeLines", () => {
     const [title, artist] = screens[0].lines;
 
     expect([title.customDisplayEndTime, title.fadeOutDuration]).toEqual([3, LINE_FADE]);
-    expect([artist.customDisplayEndTime, artist.fadeOutDuration]).toEqual([3, 0]);
+    expect([artist.customDisplayEndTime, artist.fadeOutDuration]).toEqual([3, LINE_FADE]);
   });
 });
