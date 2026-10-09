@@ -449,6 +449,18 @@
                   </div>
                 </div>
               </b-field>
+              <b-field horizontal>
+                <template #label>
+                  Hear at the backing track's level
+                  <viewport-tooltip
+                    wide
+                    label="Turn what plays here down by what raised the backing track, so moving the slider above only changes the limiting. The video keeps its level."
+                  >
+                    <b-icon size="is-small" icon="circle-question"></b-icon>
+                  </viewport-tooltip>
+                </template>
+                <b-switch v-model="mixAtBackingLevel"></b-switch>
+              </b-field>
               <b-field label="Mix settings" horizontal>
                 <b-button
                   class="reset-mix"
@@ -871,6 +883,8 @@ export default defineComponent({
       // What Mix mode plays, once built, and how loud each gap differs between the two tracks.
       mixPlayback: null as Blob | null,
       gapLevels: null as { gaps: Span[]; gain: number; levels: number[] } | null,
+      // Mix mode alone plays at this level. The video never does.
+      mixAtBackingLevel: false,
       mixRequest: 0,
       _mixTimer: null as ReturnType<typeof setTimeout> | null,
       // Whether the mix playing is behind the settings, or has just caught up with them.
@@ -1107,6 +1121,7 @@ export default defineComponent({
         JSON.stringify(this.timingsStore.gapPlan.gaps),
         this.videoOptions.gapFade,
         this.videoOptions.gapLevelBalance,
+        this.mixAtBackingLevel,
       ];
     },
     activeVoiceHasDisplayPeriods(): boolean {
@@ -1431,6 +1446,7 @@ export default defineComponent({
           restoredBacking(backing, song, this.timingsStore.restoredGaps, {
             fade: this.videoOptions.gapFade,
             balance: this.videoOptions.gapLevelBalance,
+            atBackingLevel: this.mixAtBackingLevel,
           }),
           gapDifferences(backing, song, gaps),
         ]);

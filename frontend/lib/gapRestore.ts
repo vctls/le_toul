@@ -293,6 +293,9 @@ export interface MixLevels {
   gain?: number;
   // The share of the gain that raises the backing track, from 0 to 1. The rest lowers the original.
   balance?: number;
+  // Turn the whole mix down by what raised the backing track, so that every balance plays it at
+  // its own level and differs only in the limiting.
+  atBackingLevel?: boolean;
 }
 
 /**
@@ -316,7 +319,7 @@ export function mixGaps(
   sampleRate: number,
   gaps: Span[],
   fade: number,
-  { gain = 1, balance = 1 }: MixLevels = {},
+  { gain = 1, balance = 1, atBackingLevel = false }: MixLevels = {},
 ): Float32Array[] {
   const length = backing[0]?.length ?? 0;
   const usable = Math.min(length, original[0]?.length ?? 0);
@@ -361,6 +364,9 @@ export function mixGaps(
         out[i] = out[i] * (1 - weight) + from[i - first] * weight;
       }
     }
+  }
+  if (atBackingLevel && backingGain > 1) {
+    mixed.forEach((samples) => scale(samples, 1 / backingGain));
   }
   return mixed;
 }

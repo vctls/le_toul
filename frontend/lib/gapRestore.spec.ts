@@ -298,6 +298,19 @@ describe("mixGaps", () => {
     expect(Math.max(...mixed.map(Math.abs))).toBeGreaterThan(0.9);
   });
 
+  it("plays every balance at the backing track's level when asked", () => {
+    const quiet = [new Float32Array(10).fill(0.25)];
+    const loud = [new Float32Array(10).fill(1)];
+    const gaps = [{ start: 6, end: 10 }];
+    const atBackingLevel = (balance: number) => [
+      ...mixGaps(quiet, loud, 1, gaps, 0, { gain: 2, balance, atBackingLevel: true })[0],
+    ];
+
+    expect(atBackingLevel(1)).toEqual([0.25, 0.25, 0.25, 0.25, 0.25, 0.25, 0.5, 0.5, 0.5, 0.5]);
+    expect(atBackingLevel(0.5)).toEqual(atBackingLevel(1));
+    expect(atBackingLevel(0)).toEqual(atBackingLevel(1));
+  });
+
   it("leaves the backing track's own samples alone", () => {
     mixGaps(backing, original, 1, [{ start: 0, end: 10 }], 0);
 

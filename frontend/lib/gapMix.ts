@@ -57,12 +57,12 @@ export function restoredBacking(
   backing: Blob,
   original: Blob,
   gaps: Span[],
-  { fade, balance = 1 }: GapMixSettings,
+  { fade, balance = 1, atBackingLevel = false }: GapMixSettings,
 ): Promise<Blob> {
   if (gaps.length === 0) {
     return Promise.resolve(backing);
   }
-  const key = JSON.stringify([gaps, fade, balance]);
+  const key = JSON.stringify([gaps, fade, balance, atBackingLevel]);
   const cached = mixes.find(
     (mix) => mix.backing === backing && mix.original === original && mix.key === key,
   );
@@ -72,7 +72,11 @@ export function restoredBacking(
   const result = decodePair(backing, original).then((channels) => {
     const { backing, original } = channels;
     const gain = gapGain(backing, original, SAMPLE_RATE, gaps);
-    const mixed = mixGaps(backing, original, SAMPLE_RATE, gaps, fade, { gain, balance });
+    const mixed = mixGaps(backing, original, SAMPLE_RATE, gaps, fade, {
+      gain,
+      balance,
+      atBackingLevel,
+    });
     const wav = bufferToWav({
       numberOfChannels: mixed.length,
       sampleRate: SAMPLE_RATE,
