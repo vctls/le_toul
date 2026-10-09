@@ -377,6 +377,15 @@
               <track-select kind="vocals" expanded v-model="playbackTrackChoice" />
             </b-field>
             <template v-if="mixMode">
+              <b-field v-if="mediaStore.backingSources.length > 1" label="Backing track" horizontal>
+                <track-select
+                  kind="backing"
+                  :include-full="false"
+                  expanded
+                  :model-value="mediaStore.separatedTrack?.source ?? null"
+                  @update:model-value="(v: TrackSource) => (mediaStore.renderTrackSource = v)"
+                />
+              </b-field>
               <b-field horizontal :message="mixMessage">
                 <template #label>
                   Restore gaps
