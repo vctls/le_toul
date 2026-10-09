@@ -44,6 +44,10 @@ describe("planGaps", () => {
         start: 9.5,
         end: 13.5,
         openEnd: false,
+        startStored: false,
+        endStored: false,
+        latestStart: 10.2,
+        earliestEnd: 12,
       },
       {
         voice: "Voice 1",
@@ -53,6 +57,10 @@ describe("planGaps", () => {
         start: 19.5,
         end: 22.5,
         openEnd: false,
+        startStored: false,
+        endStored: false,
+        latestStart: 20.2,
+        earliestEnd: 21,
       },
     ]);
     expect(plan.gaps).toEqual([
@@ -200,6 +208,57 @@ describe("planGaps", () => {
       { start: 0, end: 10.2 },
       { start: 13.5, end: 20.1 },
       { start: 21.6, end: 30 },
+    ]);
+  });
+});
+
+describe("planGaps with stored bounds", () => {
+  it("mutes from a stored start to a stored end, past the margins", () => {
+    const plan = planGaps(
+      {
+        "Voice 1": [
+          { text: "a\n", start: 10, end: 11, muteStart: 6, muteEnd: 16 },
+          { text: "b", start: 20, end: 21 },
+        ],
+      },
+      30,
+      settings,
+    );
+
+    expect(plan.lines[0]).toMatchObject({ start: 6, end: 16, startStored: true, endStored: true });
+    expect(plan.gaps).toEqual([
+      { start: 0, end: 6 },
+      { start: 16, end: 19.5 },
+      { start: 22.5, end: 30 },
+    ]);
+  });
+
+  it("keeps a stored mute over the line's syllables", () => {
+    const plan = planGaps(
+      { "Voice 1": [{ text: "a", start: 10, end: 12, muteStart: 11, muteEnd: 11 }] },
+      30,
+      settings,
+    );
+
+    expect(plan.lines[0]).toMatchObject({ start: 10.2, end: 12 });
+  });
+
+  it("moves only a line's outer edges when restoring pauses inside it", () => {
+    const plan = planGaps(
+      {
+        "Voice 1": [
+          { text: "a_", start: 10, end: 11, muteStart: 9.9, muteEnd: 21.2 },
+          { text: "b", start: 20, end: 21 },
+        ],
+      },
+      30,
+      { ...settings, pausesInLines: true },
+    );
+
+    expect(plan.gaps).toEqual([
+      { start: 0, end: 9.9 },
+      { start: 12.5, end: 19.5 },
+      { start: 21.2, end: 30 },
     ]);
   });
 });

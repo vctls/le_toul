@@ -4,7 +4,7 @@
 import { range } from "lodash-es";
 import { GAP_MAX_LEAD } from "@/constants";
 import { displayText, resolveStarts } from "./timing";
-import { TimedSegment } from "./timedSegments";
+import { TimedSegment, muteLimits, sungSyllables } from "./timedSegments";
 import { VoiceId } from "./voices";
 
 // The gain is only trusted when the two tracks agree at least this well over the gaps. Sounds the
@@ -42,6 +42,11 @@ export interface MutedLine extends Span {
   syllables: Span[];
   // The last syllable has no end, so it runs to the next syllable and leaves no gap after it.
   openEnd: boolean;
+  startStored: boolean;
+  endStored: boolean;
+  // How far the period may shrink and still cover the line's syllables.
+  latestStart: number;
+  earliestEnd: number;
 }
 
 export interface GapPlan {
@@ -62,9 +67,8 @@ export function planGaps(
   settings: GapRestoreSettings,
 ): GapPlan {
   const preRoll = Math.max(settings.preRoll, -GAP_MAX_LEAD);
-  // The mute never starts after the first syllable has ended.
-  const mute = (start: number, firstEnd: number, end: number): Span => ({
-    start: Math.max(0, Math.min(start - preRoll, firstEnd)),
+  const automatic = (start: number, latestStart: number, end: number): Span => ({
+    start: Math.max(0, Math.min(start - preRoll, latestStart)),
     end: Math.min(duration, end + settings.postRoll),
   });
   const lines: MutedLine[] = [];
@@ -75,14 +79,21 @@ export function planGaps(
     if (resolved.some(({ start }) => start === undefined)) {
       complete = false;
     }
-    const syllables = sungSyllables(resolved, duration);
+    const sung = sungSyllables(resolved, duration);
     for (const [first, last] of lineRanges(resolved)) {
-      const timed = range(first, last + 1).filter((i) => syllables.has(i));
-      if (timed.length === 0) {
+      const limits = muteLimits(sung, first, last);
+      if (!limits) {
         continue;
       }
-      const spans = timed.map((i) => syllables.get(i) as Span);
-      const line = mute(spans[0].start, spans[0].end, Math.max(...spans.map((span) => span.end)));
+      const { latestStart, earliestEnd } = limits;
+      const timed = range(first, last + 1).filter((i) => sung.has(i));
+      const spans = timed.map((i) => sung.get(i) as Span);
+      const { muteStart, muteEnd } = segments[first];
+      const auto = automatic(spans[0].start, latestStart, earliestEnd);
+      const line: Span = {
+        start: muteStart === undefined ? auto.start : Math.max(0, Math.min(muteStart, latestStart)),
+        end: muteEnd === undefined ? auto.end : Math.min(duration, Math.max(muteEnd, earliestEnd)),
+      };
       lines.push({
         voice,
         segmentIndex: first,
@@ -94,12 +105,25 @@ export function planGaps(
         syllables: spans,
         ...line,
         openEnd: resolved[timed[timed.length - 1]].end === undefined,
+        startStored: muteStart !== undefined,
+        endStored: muteEnd !== undefined,
+        latestStart,
+        earliestEnd,
       });
-      muted.push(
-        ...(settings.pausesInLines
-          ? spans.map((span) => mute(span.start, span.end, span.end))
-          : [line]),
-      );
+      if (!settings.pausesInLines) {
+        muted.push(line);
+        continue;
+      }
+      // A pause inside a line follows the settings alone, so stored bounds only move the line's
+      // outer edges.
+      const pieces = spans.map((span) => automatic(span.start, span.end, span.end));
+      if (muteStart !== undefined) {
+        pieces[0].start = line.start;
+      }
+      if (muteEnd !== undefined) {
+        pieces[pieces.length - 1].end = line.end;
+      }
+      muted.push(...pieces);
     }
   }
   lines.sort((a, b) => a.start - b.start);
@@ -122,24 +146,6 @@ function lineRanges(segments: TimedSegment[]): Array<[number, number]> {
     }
   });
   return ranges;
-}
-
-/**
- * When each timed syllable is sung, keyed by its index.
- * An open end runs to the next syllable's start, or to the song's end after the last one.
- */
-function sungSyllables(resolved: TimedSegment[], duration: number): Map<number, Span> {
-  const spans = new Map<number, Span>();
-  let nextStart = duration;
-  for (let i = resolved.length - 1; i >= 0; i--) {
-    const { start, end } = resolved[i];
-    if (start === undefined) {
-      continue;
-    }
-    spans.set(i, { start, end: Math.max(start, end ?? nextStart) });
-    nextStart = start;
-  }
-  return spans;
 }
 
 function mergeSpans(spans: Span[]): Span[] {

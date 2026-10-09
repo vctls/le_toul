@@ -7,7 +7,9 @@ import {
   ReviewFlag,
   isSpellingFix,
   clampDisplayPeriods,
+  clampMuteBounds,
   normalizeDisplayPeriods,
+  normalizeMuteBounds,
   TimedSegment,
 } from "./timedSegments";
 import { parseLyrics } from "./timing";
@@ -631,6 +633,19 @@ describe("reconcile", () => {
       });
     });
 
+    it("keeps a line's muted period with its display period", () => {
+      const stored: TimedSegment[] = [
+        { text: "ka_", start: 1, displayStart: 0.5, muteStart: 0.2, muteEnd: 4 },
+        timed("den\n", 2),
+        timed("lu", 3),
+      ];
+
+      expect(reconcile(stored, lyrics("zo_ka_den\nlu")).slice(0, 2)).toEqual([
+        { ...timed("zo_"), displayStart: 0.5, muteStart: 0.2, muteEnd: 4 },
+        timed("ka_", 1),
+      ]);
+    });
+
     it("keeps the period of a line joined to the next one", () => {
       const stored: TimedSegment[] = [
         { text: "ka\n", start: 1, displayStart: 0.5 },
@@ -711,6 +726,79 @@ describe("normalizeDisplayPeriods", () => {
       { text: "b" },
     ];
     expect(normalizeDisplayPeriods(untimed)).toEqual(untimed);
+  });
+});
+
+describe("clampMuteBounds", () => {
+  it("lets the mute start up to 0.2 s into the line, but not past its first syllable", () => {
+    const { segments, clamped } = clampMuteBounds([
+      { text: "a_", start: 1, end: 1.1, muteStart: 1.5 },
+      { text: "b\n", start: 2, end: 3 },
+      { text: "c", start: 5, end: 6, muteStart: 5.5 },
+    ]);
+    expect(segments[0].muteStart).toBe(1.1);
+    expect(segments[2].muteStart).toBe(5.2);
+    expect(clamped).toBe(2);
+  });
+
+  it("keeps the mute end past the line's last end, even past the next start", () => {
+    const { segments } = clampMuteBounds([
+      { text: "a\n", start: 1, end: 5, muteEnd: 2 },
+      { text: "b", start: 3, end: 4 },
+    ]);
+    expect(segments[0].muteEnd).toBe(5);
+  });
+
+  it("runs an open end to the next start", () => {
+    const { segments } = clampMuteBounds([
+      { text: "a\n", start: 1, muteEnd: 2 },
+      { text: "b", start: 3, end: 4 },
+    ]);
+    expect(segments[0].muteEnd).toBe(3);
+  });
+
+  it("leaves a mute that already covers the line alone, within rounding", () => {
+    const stored: TimedSegment[] = [
+      { text: "a\n", start: 0.1, end: 1, muteStart: 0.3, muteEnd: 2 },
+      { text: "b", start: 3 },
+    ];
+    expect(clampMuteBounds(stored)).toEqual({ segments: stored, clamped: 0 });
+  });
+
+  it("drops the bounds of a line with no timed syllable", () => {
+    expect(clampMuteBounds([{ text: "a", muteStart: 1, muteEnd: 2 }]).segments).toEqual([
+      { text: "a" },
+    ]);
+  });
+});
+
+describe("normalizeMuteBounds", () => {
+  it("pushes a bound that a syllable has crossed, and never pulls it back", () => {
+    const pushed = normalizeMuteBounds([
+      { text: "a\n", start: 1, end: 4, muteStart: 2, muteEnd: 3 },
+      { text: "b", start: 5 },
+    ]);
+    expect(pushed[0]).toMatchObject({ muteStart: 1.2, muteEnd: 4 });
+
+    const movedBack = normalizeMuteBounds([{ ...pushed[0], start: 1.5, end: 2 }, pushed[1]]);
+    expect(movedBack[0]).toMatchObject({ muteStart: 1.2, muteEnd: 4 });
+  });
+
+  it("clears the bounds of a segment that no longer starts a line", () => {
+    expect(
+      normalizeMuteBounds([
+        { text: "a_", start: 1, muteStart: 0 },
+        { text: "b", start: 2, muteStart: 1, muteEnd: 3 },
+      ]),
+    ).toEqual([
+      { text: "a_", start: 1, muteStart: 0 },
+      { text: "b", start: 2 },
+    ]);
+  });
+
+  it("keeps the bounds of a line that isn't timed yet", () => {
+    const untimed: TimedSegment[] = [{ text: "a\n", muteStart: 1, muteEnd: 2 }, { text: "b" }];
+    expect(normalizeMuteBounds(untimed)).toEqual(untimed);
   });
 });
 

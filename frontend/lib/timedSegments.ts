@@ -2,7 +2,7 @@
 // Every segment carries its own text, so lyrics and timings cannot drift apart.
 
 import { range } from "lodash-es";
-import { LYRIC_MARKERS } from "@/constants";
+import { GAP_MAX_LEAD, LYRIC_MARKERS } from "@/constants";
 import { LyricEvent, Segment, parseLyrics, displayText, resolveStarts } from "@/lib/timing";
 
 export interface TimedSegment {
@@ -15,6 +15,10 @@ export interface TimedSegment {
   // A missing bound is automatic.
   displayStart?: number;
   displayEnd?: number;
+  // A line's muted period, when gap restore plays the backing track, only read on the line's
+  // first segment. A missing bound is automatic.
+  muteStart?: number;
+  muteEnd?: number;
   // A line's spacer counts, only read on its first segment.
   // They come from the lyrics, like the text.
   spacersBefore?: number;
@@ -304,7 +308,7 @@ function reconcileLines(stored: TimedSegment[], current: Segment[]): Carried[] {
     } else {
       // These lines have no counterparts,
       // so a period stays on the segment that carried it,
-      // and `normalizeDisplayPeriods` clears it if that segment no longer starts a line.
+      // and the normalising functions clear it if that segment no longer starts a line.
       result.push(...diffSegments(storedGap.flat(), currentGap.flat(), true));
     }
   };
@@ -321,24 +325,31 @@ function reconcileLines(stored: TimedSegment[], current: Segment[]): Carried[] {
 
 /**
  * A pair of lines.
- * The old line's display period goes to the new line's first segment,
+ * The old line's display and muted periods go to the new line's first segment,
  * whatever became of the old first segment.
  */
 function reconcileLine(stored: TimedSegment[], current: Segment[]): Carried[] {
-  const carried = diffSegments(stored, current, false).map(withoutDisplayPeriod);
-  const { displayStart, displayEnd } = stored[0];
+  const carried = diffSegments(stored, current, false).map(withoutLineBounds);
   if (carried.length > 0) {
-    carried[0].segment = {
-      ...carried[0].segment,
-      ...(displayStart !== undefined && { displayStart }),
-      ...(displayEnd !== undefined && { displayEnd }),
-    };
+    carried[0].segment = { ...carried[0].segment, ...lineBounds(stored[0]) };
   }
   return carried;
 }
 
-function withoutDisplayPeriod({ segment, raised }: Carried): Carried {
-  const { displayStart: _start, displayEnd: _end, ...rest } = segment;
+const LINE_BOUNDS = ["displayStart", "displayEnd", "muteStart", "muteEnd"] as const;
+
+/**
+ * The segment's stored line bounds, without those left automatic.
+ */
+function lineBounds(segment: TimedSegment): Partial<TimedSegment> {
+  return Object.fromEntries(
+    LINE_BOUNDS.filter((key) => segment[key] !== undefined).map((key) => [key, segment[key]]),
+  );
+}
+
+function withoutLineBounds({ segment, raised }: Carried): Carried {
+  const rest = { ...segment };
+  LINE_BOUNDS.forEach((key) => delete rest[key]);
   return { segment: rest, raised };
 }
 
@@ -528,6 +539,131 @@ function widenDisplayPeriods(
     }
   }
   return { segments: result, widened };
+}
+
+export function hasMuteBounds(segment: TimedSegment): boolean {
+  return segment.muteStart !== undefined || segment.muteEnd !== undefined;
+}
+
+/**
+ * When each timed syllable is sung, keyed by its index, from segments with their starts resolved.
+ * An open end runs to the next syllable's start, and the last one's to `songEnd`.
+ */
+export function sungSyllables(
+  resolved: TimedSegment[],
+  songEnd = Infinity,
+): Map<number, { start: number; end: number }> {
+  const spans = new Map<number, { start: number; end: number }>();
+  let nextStart = songEnd;
+  for (let i = resolved.length - 1; i >= 0; i--) {
+    const { start, end } = resolved[i];
+    if (start === undefined) {
+      continue;
+    }
+    spans.set(i, { start, end: Math.max(start, end ?? nextStart) });
+    nextStart = start;
+  }
+  return spans;
+}
+
+/**
+ * How far a line's muted period may shrink and still cover the line's timed syllables, or
+ * nothing when none is timed. The mute may start up to `GAP_MAX_LEAD` after the first syllable's
+ * start, since a tap tends to come before the syllable is heard, but never after its end.
+ */
+export function muteLimits(
+  sung: Map<number, { start: number; end: number }>,
+  first: number,
+  last: number,
+): { latestStart: number; earliestEnd: number } | undefined {
+  const spans = range(first, last + 1).flatMap((i) => sung.get(i) ?? []);
+  if (spans.length === 0) {
+    return undefined;
+  }
+  return {
+    latestStart: Math.min(spans[0].start + GAP_MAX_LEAD, spans[0].end),
+    earliestEnd: Math.max(...spans.map(({ end }) => end)),
+  };
+}
+
+/**
+ * Clamp each line's stored muted period so it covers the line's timed syllables (see
+ * `muteLimits`). A line with no timed syllable has no muted period, so its bounds are dropped.
+ */
+export function clampMuteBounds(segments: TimedSegment[]): {
+  segments: TimedSegment[];
+  clamped: number;
+} {
+  return clampMutes(segments, true);
+}
+
+/**
+ * Keep the stored muted periods valid after a timing write.
+ * Bounds on a segment that no longer starts a line are cleared.
+ * A bound that a syllable has crossed is pushed along, and never pulled back afterwards.
+ * Unlike the load clamp, a line with no timed syllable keeps its bounds, since it may be timed
+ * again.
+ */
+export function normalizeMuteBounds(segments: TimedSegment[]): TimedSegment[] {
+  const cleared = segments.map((segment, i) => {
+    const startsLine = i === 0 || segments[i - 1].text.endsWith("\n");
+    if (startsLine || !hasMuteBounds(segment)) {
+      return segment;
+    }
+    const { muteStart: _start, muteEnd: _end, ...rest } = segment;
+    return rest;
+  });
+  return clampMutes(cleared, false).segments;
+}
+
+function clampMutes(
+  segments: TimedSegment[],
+  dropUntimed: boolean,
+): { segments: TimedSegment[]; clamped: number } {
+  const sung = sungSyllables(resolveStarts(segments));
+  const result = segments.map((segment) => ({ ...segment }));
+  let clamped = 0;
+
+  let first = 0;
+  for (let i = 0; i < segments.length; i++) {
+    if (!segments[i].text.endsWith("\n") && i < segments.length - 1) {
+      continue;
+    }
+    const head = result[first];
+    const limits = muteLimits(sung, first, i);
+    first = i + 1;
+    if (!hasMuteBounds(head)) {
+      continue;
+    }
+    if (!limits) {
+      if (dropUntimed) {
+        delete head.muteStart;
+        delete head.muteEnd;
+      }
+      continue;
+    }
+
+    let changed = false;
+    // The latest start is a sum, which can land a rounding error short of the same time read back
+    // from a file.
+    if (head.muteStart !== undefined && head.muteStart > limits.latestStart + 1e-9) {
+      head.muteStart = limits.latestStart;
+      changed = true;
+    }
+    // The voice's last syllable may run to the song's end, which the segments don't know.
+    if (
+      head.muteEnd !== undefined &&
+      Number.isFinite(limits.earliestEnd) &&
+      head.muteEnd < limits.earliestEnd
+    ) {
+      head.muteEnd = limits.earliestEnd;
+      changed = true;
+    }
+    if (changed) {
+      clamped++;
+    }
+  }
+  return { segments: result, clamped };
 }
 
 // The versioned `timings.json` that older versions of the app wrote, which still loads.
