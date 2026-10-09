@@ -49,7 +49,9 @@ function precacheEntries(entries: ManifestEntry[]) {
 export default mergeConfig(
   commonConfig,
   defineConfig({
-    // Production-specific settings
+    // FastAPI serves the build here, and URLs baked into the bundle, such as a worker's, must
+    // point to it.
+    base: "/static/bundles/",
     build: {
       minify: true,
     },
