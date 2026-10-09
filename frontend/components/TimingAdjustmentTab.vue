@@ -406,7 +406,7 @@
               </b-field>
               <b-field horizontal :message="mixMessage">
                 <template #label>
-                  <span id="mix-restore-gaps-label">Restore gaps</span>
+                  <span id="mix-restore-gaps-label">Restore gaps </span>
                   <viewport-tooltip
                     wide
                     label="Play the original song instead of the backing track where nobody sings"
