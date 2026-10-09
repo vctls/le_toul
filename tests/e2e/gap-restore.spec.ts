@@ -43,6 +43,8 @@ test.describe("Gap restore", () => {
     await uploadTimingsFile(page, FIXTURE_TIMINGS);
 
     await navigateToTab(page, TabId.Submit);
+    await expect(fieldFor(page, "Restore Gaps").getByRole("checkbox")).not.toBeChecked();
+    await fieldFor(page, "Restore Gaps").locator(".switch").click();
     await expect(fieldFor(page, "Restore Gaps").getByRole("checkbox")).toBeChecked();
     await fieldFor(page, "Video Format").locator("select").selectOption("mkv");
 

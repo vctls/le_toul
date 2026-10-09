@@ -59,12 +59,11 @@ export const DEFAULT_DYNAMIC_COUNT_INS = true;
 export const DEFAULT_COUNT_IN_THRESHOLD = 3.0;
 export const DEFAULT_COUNT_IN_DURATION = 2.0;
 
-// Gap restore is on by default, so its margins around sung lines are wide.
-// A voice let through is worse than a sound left out.
+// A voice let through is worse than a sound left out, so the margins around sung lines are wide.
 export const DEFAULT_GAP_PRE_ROLL = 0.5;
 export const DEFAULT_GAP_POST_ROLL = 1.5;
-export const DEFAULT_GAP_MIN_LENGTH = 3.0;
-export const DEFAULT_GAP_FADE = 0.3;
+export const DEFAULT_GAP_MIN_LENGTH = 1.0;
+export const DEFAULT_GAP_FADE = 0.1;
 
 // A button that turns into Cancel under the pointer that just clicked it ignores clicks this long,
 // so a double click doesn't call off what it started.

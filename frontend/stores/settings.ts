@@ -212,7 +212,7 @@ const DEFAULT_SETTINGS: VideoSettings = {
   instrumentalThreshold: DEFAULT_INSTRUMENTAL_THRESHOLD,
   addStaggeredLines: true,
   useStoredDisplayPeriods: true,
-  restoreGaps: true,
+  restoreGaps: false,
   gapPreRoll: DEFAULT_GAP_PRE_ROLL,
   gapPostRoll: DEFAULT_GAP_POST_ROLL,
   gapMinLength: DEFAULT_GAP_MIN_LENGTH,
