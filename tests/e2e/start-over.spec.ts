@@ -54,6 +54,7 @@ test.describe("Starting over", () => {
     );
     await page.getByRole("dialog").getByRole("button", { name: "Start over" }).click();
 
+    await expect(page).toHaveURL(/#song$/);
     await expect(page.locator(".custom-font-help")).toHaveCount(0);
     await page.reload();
     await navigateToTab(page, TabId.Submit);

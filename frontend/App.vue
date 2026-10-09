@@ -527,6 +527,7 @@ export default defineComponent({
       this.lyricsLookupStore.reset();
       await this.mediaStore.clearSession();
       await this.settingsStore.clearCustomFonts();
+      this.setActiveTab("song");
     },
   },
 });
