@@ -144,8 +144,9 @@ export const useMediaStore = defineStore("media", () => {
   // Oldest first, one per source, and null rather than empty so a saved list can be restored.
   // A side the source has no track for is an empty blob.
   const trackPairs = shallowRef<TrackPair[] | null>(null);
-  // The pair the video renders with, as the user picked it.
-  const renderTrackSource = ref<TrackSource | null>(null);
+  // The pair the video renders with, as the user picked it, or the full song.
+  // The full song only counts in advanced mode.
+  const renderTrackSource = ref<"full" | TrackSource | null>(null);
   const error = ref<string | null>(null);
   const separationStartTime = shallowRef<Date | null>(null);
 
@@ -178,9 +179,11 @@ export const useMediaStore = defineStore("media", () => {
   const vocalSources = computed(() => sourcesWith("vocals"));
   const backingSources = computed(() => sourcesWith("backing"));
 
-  // The pair the video renders with. Until the user picks one, it is the latest with a backing track.
+  // The pair the video renders with, or whose tracks it carries beside the full song.
+  // Until the user picks one, it is the latest with a backing track.
   const separatedTrack = computed<TrackPair | null>(() => {
-    const picked = renderTrackSource.value && trackPair(renderTrackSource.value);
+    const choice = renderTrackSource.value;
+    const picked = choice && choice !== "full" && trackPair(choice);
     if (picked && picked.backing.size > 0) {
       return picked;
     }

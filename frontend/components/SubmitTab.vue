@@ -240,16 +240,20 @@
             controls-position="compact"
           ></b-numberinput>
         </b-field>
-        <b-field v-if="mediaStore.backingSources.length > 0" horizontal label="Backing Track">
+        <b-field
+          v-if="mediaStore.backingSources.length > 0 || rendersFullTrack"
+          horizontal
+          label="Backing Track"
+        >
           <track-select
             kind="backing"
-            :include-full="false"
+            :include-full="advancedStore.isAdvanced"
             expanded
-            :model-value="mediaStore.separatedTrack?.source ?? null"
-            @update:model-value="(v: TrackSource) => (mediaStore.renderTrackSource = v)"
+            :model-value="rendersFullTrack ? 'full' : (mediaStore.separatedTrack?.source ?? null)"
+            @update:model-value="(v: 'full' | TrackSource) => (mediaStore.renderTrackSource = v)"
           />
         </b-field>
-        <b-field horizontal :message="restoreGapsMessage">
+        <b-field v-if="!rendersFullTrack" horizontal :message="restoreGapsMessage">
           <template #label>
             Restore Gaps
             <viewport-tooltip
@@ -265,7 +269,7 @@
             Video Format
             <viewport-tooltip
               wide
-              label="MKV also carries the vocals and the original mix as extra audio tracks, for players that can switch between them"
+              :label="`MKV also carries ${mkvExtraTracks} as extra audio tracks, for players that can switch between them`"
             >
               <b-icon size="is-small" icon="circle-question"></b-icon>
             </viewport-tooltip>
@@ -730,7 +734,7 @@ import ViewportTooltip from "@/components/ViewportTooltip.vue";
 import SettingsSection from "@/components/SettingsSection.vue";
 import StyleOverrideFields from "@/components/StyleOverrideFields.vue";
 import jszip from "jszip";
-import video from "@/lib/video";
+import video, { CreateVideoOptions } from "@/lib/video";
 import { CreationPhase, TrackSource } from "@/types";
 import { useMediaStore } from "@/stores/media";
 import { useSettingsStore, VideoSettings } from "@/stores/settings";
@@ -760,10 +764,7 @@ import { restoredBacking } from "@/lib/gapMix";
 // The rest of the bar is the zip, which carries the source song and both separated tracks.
 const RENDER_SHARE = 0.95;
 
-const outputFormatLabels: Record<OutputFormat, string> = {
-  mp4: "MP4",
-  mkv: "MKV, with vocal and original tracks",
-};
+type VideoAudio = Pick<CreateVideoOptions, "backing" | "mainTrack" | "alternateTracks">;
 
 const qualityLabels: Record<RenderQuality, string> = {
   standard: "Standard",
@@ -811,7 +812,6 @@ export default defineComponent({
       kbpExportWarnings: [] as string[],
       fonts,
       countInSymbols: COUNT_IN_SYMBOLS,
-      outputFormatLabels,
       qualityLabels,
       resolutions: Object.keys(RESOLUTIONS),
       frameRates: FRAME_RATES,
@@ -934,6 +934,22 @@ export default defineComponent({
     },
     customFont(): File | null {
       return (this.settingsStore.customFont as File | null) ?? null;
+    },
+    rendersFullTrack(): boolean {
+      return this.advancedStore.isAdvanced && this.mediaStore.renderTrackSource === "full";
+    },
+    mkvExtraTracks(): string {
+      return this.rendersFullTrack
+        ? "the backing track and the vocals"
+        : "the vocals and the original mix";
+    },
+    outputFormatLabels(): Record<OutputFormat, string> {
+      return {
+        mp4: "MP4",
+        mkv: this.rendersFullTrack
+          ? "MKV, with backing and vocal tracks"
+          : "MKV, with vocal and original tracks",
+      };
     },
     previewBacking(): Blob | null {
       return this.mediaStore.trackFor("backing", this.previewTrack);
@@ -1058,6 +1074,45 @@ export default defineComponent({
       }
       this.mediaStore.background = file;
     },
+    /**
+     * The backing track the video plays, separated first if need be, with its gaps restored.
+     */
+    async backingAudio(
+      songFile: File,
+      videoOptions: VideoSettings,
+      signal: AbortSignal,
+    ): Promise<VideoAudio> {
+      const separatedTrack =
+        this.mediaStore.separatedTrack ??
+        (await abortable(
+          this.mediaStore.startSeparation(songFile, this.mediaStore.separationModel),
+          signal,
+        ));
+      if (!separatedTrack) {
+        throw new Error(this.mediaStore.error ?? "Track separation failed");
+      }
+      const gaps = this.timingsStore.restoredGaps;
+      if (gaps.length > 0) {
+        this.creationStep = "restoring the gaps";
+      }
+      const backing = await abortable(
+        restoredBacking(separatedTrack.backing, songFile, gaps, {
+          fade: videoOptions.gapFade,
+          balance: videoOptions.gapLevelBalance,
+        }),
+        signal,
+      );
+      const restored = backing !== separatedTrack.backing;
+      return {
+        backing,
+        mainTrack: restored ? "restoredBacking" : "backing",
+        alternateTracks: {
+          ...(restored && { backing: separatedTrack.backing }),
+          vocals: separatedTrack.vocals,
+          original: songFile,
+        },
+      };
+    },
     async createVideo() {
       const songFile = this.songFile;
       if (!songFile) {
@@ -1068,44 +1123,36 @@ export default defineComponent({
       let elapsedTimeInterval: ReturnType<typeof setInterval> | undefined;
       this.isSubmitting = true;
       try {
-        this.creationPhase = CreationPhase.SeparatingVocals;
-        // A separation started from the Song File tab keeps running and this one only waits on it,
-        // which otherwise looks like a stalled render.
-        this.waitingForSeparation = this.mediaStore.isProcessing && !this.mediaStore.separatedTrack;
         this.videoProgress = 0;
         this.creationStep = "";
-        elapsedTimeInterval = setInterval(() => {
-          if (!this.mediaStore.separationStartTime) {
-            return;
-          }
-          this.elapsedSubmissionTime =
-            new Date().getTime() - this.mediaStore.separationStartTime.getTime();
-        }, 1000);
-        const separatedTrack =
-          this.mediaStore.separatedTrack ??
-          (await abortable(
-            this.mediaStore.startSeparation(songFile, this.mediaStore.separationModel),
-            abort.signal,
-          ));
-        if (!separatedTrack) {
-          throw new Error(this.mediaStore.error ?? "Track separation failed");
+        const videoOptions = { createTitleScreens: true, ...this.renderOptions };
+        let audio: VideoAudio;
+        if (this.rendersFullTrack) {
+          const pair = this.mediaStore.separatedTrack;
+          audio = {
+            backing: songFile,
+            mainTrack: "original",
+            alternateTracks: { backing: pair?.backing, vocals: pair?.vocals },
+          };
+        } else {
+          this.creationPhase = CreationPhase.SeparatingVocals;
+          // A separation started from the Song File tab keeps running and this one only waits on
+          // it, which otherwise looks like a stalled render.
+          this.waitingForSeparation =
+            this.mediaStore.isProcessing && !this.mediaStore.separatedTrack;
+          elapsedTimeInterval = setInterval(() => {
+            if (!this.mediaStore.separationStartTime) {
+              return;
+            }
+            this.elapsedSubmissionTime =
+              new Date().getTime() - this.mediaStore.separationStartTime.getTime();
+          }, 1000);
+          audio = await this.backingAudio(songFile, videoOptions, abort.signal);
         }
         this.creationPhase = CreationPhase.CreatingVideo;
         this.waitingForSeparation = false;
-        const videoOptions = { createTitleScreens: true, ...this.renderOptions };
-        const gaps = this.timingsStore.restoredGaps;
-        if (gaps.length > 0) {
-          this.creationStep = "restoring the gaps";
-        }
-        const backing = await abortable(
-          restoredBacking(separatedTrack.backing, songFile, gaps, {
-            fade: videoOptions.gapFade,
-            balance: videoOptions.gapLevelBalance,
-          }),
-          abort.signal,
-        );
         const { video: videoFile, titleFrame } = await video.createVideo({
-          backing,
+          ...audio,
           background: videoOptions.useBackground ? this.background : null,
           backgroundVideoOffset: this.mediaStore.backgroundVideoOffset,
           subtitles: this.allVoicesSubtitles(),
@@ -1118,11 +1165,6 @@ export default defineComponent({
             duration: this.mediaStore.songDuration ?? undefined,
           },
           fontMap: this.renderFontMap,
-          alternateTracks: {
-            ...(backing !== separatedTrack.backing && { backing: separatedTrack.backing }),
-            vocals: separatedTrack.vocals,
-            original: songFile,
-          },
           signal: abort.signal,
           onProgress: (progress, step) => {
             this.videoProgress = progress * RENDER_SHARE;

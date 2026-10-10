@@ -16,10 +16,13 @@ interface VideoMetadata {
   title?: string;
 }
 
-// The additional audio tracks an MKV render carries alongside the backing track.
+// What the video's own audio track holds, which names it in an MKV.
+export type MainAudioTrack = "backing" | "restoredBacking" | "original";
+
+// The additional audio tracks an MKV render carries alongside the main track.
 // A track left undefined isn't wanted, and a null or empty one is missing.
 export interface AlternateAudioTracks {
-  // The plain backing track, when the main track restores the gaps.
+  // The plain backing track, when the main track is something else.
   backing?: Blob | null;
   vocals?: Blob | null;
   original?: Blob | null;
@@ -34,12 +37,18 @@ const RENDERED_VIDEO_FILE = "karaoke.mp4";
 const MKV_FILE = "karaoke.mkv";
 const TITLE_FRAME_FILE = "title.png";
 const BACKING_TRACK_TITLE = "Backing track";
-const RESTORED_BACKING_TRACK_TITLE = "Backing track, gaps restored";
+const ORIGINAL_TRACK_TITLE = "Original mix";
+
+const MAIN_TRACK_TITLES: Record<MainAudioTrack, string> = {
+  backing: BACKING_TRACK_TITLE,
+  restoredBacking: "Backing track, gaps restored",
+  original: ORIGINAL_TRACK_TITLE,
+};
 
 const ALTERNATE_TRACKS = [
   { key: "backing", title: BACKING_TRACK_TITLE },
   { key: "vocals", title: "Vocals" },
-  { key: "original", title: "Original mix" },
+  { key: "original", title: ORIGINAL_TRACK_TITLE },
 ] as const satisfies readonly { key: keyof AlternateAudioTracks; title: string }[];
 
 class ApiError extends Error {
@@ -268,10 +277,9 @@ export function getAlternateTrackParams(
 export function getMkvMuxParams(
   alternates: EncodedTrack[],
   metadata: VideoMetadata,
-  gapsRestored = false,
+  mainTrack: MainAudioTrack = "backing",
 ) {
-  const main = gapsRestored ? RESTORED_BACKING_TRACK_TITLE : BACKING_TRACK_TITLE;
-  const titles = [main, ...alternates.map(({ title }) => title)];
+  const titles = [MAIN_TRACK_TITLES[mainTrack], ...alternates.map(({ title }) => title)];
   return [
     "-i",
     RENDERED_VIDEO_FILE,
@@ -439,6 +447,7 @@ async function backingSeconds(backing: Blob, songSeconds?: number): Promise<numb
 
 export interface CreateVideoOptions {
   backing: Blob;
+  mainTrack?: MainAudioTrack;
   subtitles: string;
   videoOptions: KaraokeOptions;
   metadata: VideoMetadata;
@@ -462,6 +471,7 @@ export interface CreatedVideo {
 
 async function createVideo({
   backing,
+  mainTrack = "backing",
   subtitles,
   videoOptions,
   metadata,
@@ -631,7 +641,7 @@ async function createVideo({
     }
     await runFfmpeg(
       ffmpeg,
-      getMkvMuxParams(encoded, metadata, alternateTracks?.backing !== undefined),
+      getMkvMuxParams(encoded, metadata, mainTrack),
       muxStep,
       progress,
       diagnostics,

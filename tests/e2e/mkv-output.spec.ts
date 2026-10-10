@@ -11,6 +11,8 @@ import {
   loadAndEnterTimings,
   mockSeparateTrackApi,
   fieldFor,
+  exactFieldFor,
+  enableAdvancedMode,
 } from "./utils";
 
 test.describe("MKV Output", () => {
@@ -91,5 +93,45 @@ test.describe("MKV Output", () => {
     expect(video.includes("Backing track")).toBe(true);
     expect(video.includes("Vocals")).toBe(true);
     expect(video.includes("Original mix")).toBe(true);
+  });
+
+  test("Create a karaoke MKV that plays the full song, in advanced mode", async ({
+    page,
+    context,
+  }) => {
+    await mockSeparateTrackApi(context);
+    await enableAdvancedMode(page);
+
+    await navigateToTab(page, TabId.SongInfo);
+    await uploadAudioFile(
+      page,
+      defaultTestConfig.audioFile,
+      defaultTestConfig.artist,
+      defaultTestConfig.title,
+    );
+    await page.click('button:has-text("Separate Track")');
+
+    await navigateToTab(page, TabId.LyricInput);
+    await loadAndEnterLyrics(page, defaultTestConfig.lyricsFile);
+
+    await navigateToTab(page, TabId.SongTiming);
+    await loadAndEnterTimings(page, defaultTestConfig.timingsFile);
+
+    await navigateToTab(page, TabId.Submit);
+    await exactFieldFor(page, "Backing Track").locator("select").selectOption("full");
+    await expect(fieldFor(page, "Restore Gaps")).toHaveCount(0);
+    await fieldFor(page, "Video Format").locator("select").selectOption("mkv");
+
+    const downloadPromise = page.waitForEvent("download", { timeout: 180000 });
+    await page.click('button:has-text("Create Video")');
+    const download = await downloadPromise;
+
+    const zip = await JSZip.loadAsync(await fs.readFile((await download.path()) as string));
+    const videoName = Object.keys(zip.files).find((name) => name.endsWith(".mkv"));
+    const video = (await zip.file(videoName as string)!.async("nodebuffer")).toString("latin1");
+    // Tracks are stored in order, so the main track's name comes first.
+    expect(video.indexOf("Original mix")).toBeGreaterThan(-1);
+    expect(video.indexOf("Original mix")).toBeLessThan(video.indexOf("Backing track"));
+    expect(video.indexOf("Backing track")).toBeLessThan(video.indexOf("Vocals"));
   });
 });
