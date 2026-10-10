@@ -714,15 +714,18 @@ export class LyricsScreen {
   trimDisplayStart(adjustment: number): LyricsScreen {
     // Adjust the start of this screen's display by [adjustment]
     const newStartTime = this.startTimestamp ? this.startTimestamp + adjustment : adjustment;
-    if (newStartTime > this.lines[0].timestamp) {
+    const firstAnimation = this.lines[0].timestamp;
+    // The adjustment is often the gap up to the first line, which the sum can overshoot by a
+    // rounding error.
+    if (newStartTime > firstAnimation + 1e-9) {
       throw Error(
-        `Cannot adjust screen display start by ${adjustment}s: display start is ${this.startTimestamp}, first line animates at ${this.lines[0].timestamp}`,
+        `Cannot adjust screen display start by ${adjustment}s: display start is ${this.startTimestamp}, first line animates at ${firstAnimation}`,
       );
     }
     const trimmedScreen = new LyricsScreen(this.lines, this.audioDelay);
     trimmedScreen.kind = this.kind;
     trimmedScreen.slotCount = this.slotCount;
-    trimmedScreen.startTimestamp = newStartTime;
+    trimmedScreen.startTimestamp = Math.min(newStartTime, firstAnimation);
     return trimmedScreen;
   }
 }

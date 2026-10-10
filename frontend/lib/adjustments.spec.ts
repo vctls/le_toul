@@ -529,6 +529,25 @@ Dialogue: 0,0:00:30.00,0:00:31.00,Default,Singer,0,0,133,,{\\k0}{\\kf100}screen 
   );
 });
 
+test("addInstrumentalScreens survives a gap that rounds past the next line", () => {
+  const lyrics = "screen one\n\nscreen two";
+  // 21.09 + (55.86000000000001 - 21.09) comes out one rounding step past 55.86000000000001.
+  const timings: LyricEvent[] = [
+    [1.0, LYRIC_MARKERS.SEGMENT_START],
+    [21.09, LYRIC_MARKERS.SEGMENT_END],
+    [55.86000000000001, LYRIC_MARKERS.SEGMENT_START],
+    [56.5, LYRIC_MARKERS.SEGMENT_END],
+  ];
+
+  const screens = addInstrumentalScreens(
+    denormalizeTimestamps(compileLyricTimings(fromEvents(lyrics, timings)), 60),
+    DEFAULT_OPTIONS,
+  );
+
+  expect(screens.map(({ kind }) => kind)).toEqual(["lyrics", "instrumental", "lyrics"]);
+  expect(screens[2].startTimestamp).toBe(55.86000000000001);
+});
+
 test("addInstrumentalScreens skips gaps shorter than the threshold", () => {
   const lyrics = "screen one\n\nscreen two";
   const timings: LyricEvent[] = [
