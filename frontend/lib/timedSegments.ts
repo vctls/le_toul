@@ -4,6 +4,7 @@
 import { range } from "lodash-es";
 import { GAP_MAX_LEAD, LYRIC_MARKERS } from "@/constants";
 import { LyricEvent, Segment, parseLyrics, displayText, resolveStarts } from "@/lib/timing";
+import { VoiceId } from "@/lib/voices";
 
 export interface TimedSegment {
   // The text includes the trailing `_`, `/`, `\n` or `\n\n` separator, as
@@ -201,6 +202,125 @@ export function raisedFlags(
     lost: raised.filter((flag) => flag === "lost").length,
     moved: raised.filter((flag) => flag === "moved").length,
   };
+}
+
+/**
+ * Each voice's stored segments, with the lines that a change of voice tags moved carried along.
+ * A timed line that one voice lost moves to a voice that gained a line drawn the same way.
+ * It goes where the new lyrics put it, so `reconcile` pairs it with that line like an unchanged one.
+ * A moved line out of time order with its new neighbours is flagged for review, not reordered.
+ * `lyricsByVoice` holds the lyric segments of every voice that a line can leave or join.
+ */
+export function carryMovedLines(
+  storedByVoice: Record<VoiceId, TimedSegment[]>,
+  lyricsByVoice: Record<VoiceId, Segment[]>,
+): Record<VoiceId, TimedSegment[]> {
+  const diffs = Object.entries(lyricsByVoice).map(([voice, lyrics]) => {
+    const stored = splitLines(storedByVoice[voice] ?? []);
+    const current = splitLines(lyrics);
+    const matches = commonSubsequence(stored.map(lineKey), current.map(lineKey));
+    return { voice, stored, current, matches };
+  });
+
+  const lost = diffs.flatMap(({ voice, stored, matches }) => {
+    const kept = new Set(matches.map(([i]) => i));
+    return stored.flatMap((segments, line) =>
+      !kept.has(line) && lineKey(segments) !== "" && segments.some(isTimedSegment)
+        ? [{ voice, segments, line, key: lineKey(segments) }]
+        : [],
+    );
+  });
+  const taken = new Set<(typeof lost)[number]>();
+  const arrivals = new Map<VoiceId, Map<number, TimedSegment[]>>();
+  for (const { voice, current, matches } of diffs) {
+    const kept = new Set(matches.map(([, j]) => j));
+    current.forEach((segments, j) => {
+      const source = kept.has(j)
+        ? undefined
+        : lost.find(
+            (candidate) =>
+              !taken.has(candidate) &&
+              candidate.voice !== voice &&
+              candidate.key === lineKey(segments),
+          );
+      if (source) {
+        taken.add(source);
+        arrivals.set(voice, (arrivals.get(voice) ?? new Map()).set(j, source.segments));
+      }
+    });
+  }
+  if (taken.size === 0) {
+    return storedByVoice;
+  }
+
+  const result = { ...storedByVoice };
+  for (const { voice, stored, current, matches } of diffs) {
+    const leaving = new Set([...taken].filter((s) => s.voice === voice).map(({ line }) => line));
+    const incoming = arrivals.get(voice) ?? new Map<number, TimedSegment[]>();
+    if (leaving.size === 0 && incoming.size === 0) {
+      continue;
+    }
+    const matchedAt = new Map(matches.map(([i, j]) => [j, i]));
+    const lines: TimedSegment[][] = [];
+    const arrived = new Set<number>();
+    let next = 0;
+    const keepUpTo = (end: number) => {
+      for (; next < end; next++) {
+        if (!leaving.has(next)) {
+          lines.push(stored[next]);
+        }
+      }
+    };
+    for (let j = 0; j < current.length; j++) {
+      const i = matchedAt.get(j);
+      if (i !== undefined) {
+        keepUpTo(i + 1);
+      } else if (incoming.has(j)) {
+        arrived.add(lines.length);
+        lines.push(incoming.get(j) as TimedSegment[]);
+      }
+    }
+    keepUpTo(stored.length);
+    result[voice] = joinLines(
+      lines.map((line, k) => (arrived.has(k) ? flagIfOutOfOrder(lines, k) : line)),
+    );
+  }
+  return result;
+}
+
+/**
+ * The line at `index`, flagged for review if its starts don't fall between those of the lines
+ * around it.
+ */
+function flagIfOutOfOrder(lines: TimedSegment[][], index: number): TimedSegment[] {
+  const starts = (segments: TimedSegment[]) =>
+    segments.flatMap(({ start }) => (start === undefined ? [] : [start]));
+  const own = starts(lines[index]);
+  const inOrder =
+    Math.max(...lines.slice(0, index).flatMap(starts)) <= Math.min(...own) &&
+    Math.max(...own) <= Math.min(...lines.slice(index + 1).flatMap(starts));
+  return inOrder
+    ? lines[index]
+    : lines[index].map((segment) =>
+        isTimedSegment(segment)
+          ? { ...segment, review: strongerFlag(segment.review, "moved") }
+          : segment,
+      );
+}
+
+/**
+ * The lines as one voice's segments.
+ * A line that was last in another voice has no line break, so it gains one unless it is last here
+ * too.
+ */
+function joinLines(lines: TimedSegment[][]): TimedSegment[] {
+  return lines.flatMap((segments, k) => {
+    const last = segments[segments.length - 1];
+    if (k === lines.length - 1 || last.text.endsWith("\n")) {
+      return segments;
+    }
+    return [...segments.slice(0, -1), { ...last, text: last.text + "\n" }];
+  });
 }
 
 /**

@@ -363,6 +363,65 @@ describe("Timings Store", () => {
       expect(timings.areTimingsUsable).toBe(false);
     });
 
+    describe("a tag change that moves lines to another voice", () => {
+      const load = () => {
+        const timings = useTimingsStore();
+        const lyrics = useLyricsStore();
+        lyrics.setLyrics("[lead] one\n[choir] two_too\nthree");
+        timings.setAllSegments({
+          lead: [{ text: "one", start: 1 }],
+          choir: [
+            { text: "two_", start: 2 },
+            { text: "too\n", start: 2.5 },
+            { text: "three", start: 3 },
+          ],
+        });
+        timings.setupSegmentReconciliation();
+        return { timings, lyrics };
+      };
+      const edit = (text: string) =>
+        useHistoryStore().record({ label: "Typing", tab: "lyrics" }, () =>
+          useLyricsStore().setLyrics(text),
+        );
+
+      test("keeps their timings, and one undo puts them back", () => {
+        const { timings } = load();
+
+        edit("[lead] one\ntwo_too\n[choir] three");
+
+        expect(timings.segmentsByVoice).toEqual({
+          lead: [
+            { text: "one\n", start: 1 },
+            { text: "two_", start: 2 },
+            { text: "too", start: 2.5 },
+          ],
+          choir: [{ text: "three", start: 3 }],
+        });
+
+        useHistoryStore().undo();
+
+        expect(timings.segmentsByVoice.choir).toEqual([
+          { text: "two_", start: 2 },
+          { text: "too\n", start: 2.5 },
+          { text: "three", start: 3 },
+        ]);
+      });
+
+      test("keeps them when every line of a voice moves", async () => {
+        const { timings, lyrics } = load();
+
+        lyrics.setLyrics("[lead] one\ntwo_too\nthree");
+        await nextTick();
+
+        expect(timings.segmentsByVoice.lead).toEqual([
+          { text: "one\n", start: 1 },
+          { text: "two_", start: 2 },
+          { text: "too\n", start: 2.5 },
+          { text: "three", start: 3 },
+        ]);
+      });
+    });
+
     test("a voice the lyrics no longer mention keeps its timings parked", async () => {
       const timings = useTimingsStore();
       const lyrics = useLyricsStore();

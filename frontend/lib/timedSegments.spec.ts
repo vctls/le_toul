@@ -1,5 +1,6 @@
 import { describe, it, expect } from "vitest";
 import {
+  carryMovedLines,
   fromEvents,
   toEvents,
   reconcile,
@@ -673,6 +674,96 @@ describe("reconcile", () => {
 
       expect(raisedFlags(stored, lyrics("one_too_three"))).toEqual({ lost: 0, moved: 0 });
       expect(raisedFlags(stored, lyrics("one_two_three_four"))).toEqual({ lost: 0, moved: 0 });
+    });
+  });
+});
+
+describe("carryMovedLines", () => {
+  const lyrics = (text: string) => parseLyrics(text, true);
+
+  it("moves a timed line to the voice that gained it, in its new place", () => {
+    const stored = {
+      lead: [
+        { text: "one\n", start: 1 },
+        { text: "three", start: 3 },
+      ],
+      choir: [
+        { text: "two_", start: 2, displayStart: 1.5 },
+        { text: "too", start: 2.5 },
+      ],
+    };
+
+    expect(carryMovedLines(stored, { lead: lyrics("one\ntwo_too\nthree"), choir: [] })).toEqual({
+      lead: [
+        { text: "one\n", start: 1 },
+        { text: "two_", start: 2, displayStart: 1.5 },
+        { text: "too\n", start: 2.5 },
+        { text: "three", start: 3 },
+      ],
+      choir: [],
+    });
+  });
+
+  it("moves identical lines in order", () => {
+    const stored = {
+      lead: [{ text: "verse", start: 2 }],
+      choir: [
+        { text: "oh\n", start: 1 },
+        { text: "hey\n", start: 1.5 },
+        { text: "oh", start: 3 },
+      ],
+    };
+
+    expect(
+      carryMovedLines(stored, { lead: lyrics("oh\nverse\noh"), choir: lyrics("hey") }),
+    ).toEqual({
+      lead: [
+        { text: "oh\n", start: 1 },
+        { text: "verse\n", start: 2 },
+        { text: "oh", start: 3 },
+      ],
+      choir: [{ text: "hey\n", start: 1.5 }],
+    });
+  });
+
+  it("flags a line that lands out of time order", () => {
+    const stored = {
+      lead: [
+        { text: "one\n", start: 1 },
+        { text: "three", start: 3 },
+      ],
+      choir: [{ text: "four", start: 4 }],
+    };
+
+    expect(carryMovedLines(stored, { lead: lyrics("one\nfour\nthree"), choir: [] }).lead).toEqual([
+      { text: "one\n", start: 1 },
+      { text: "four\n", start: 4, review: "moved" },
+      { text: "three", start: 3 },
+    ]);
+  });
+
+  it("leaves an untimed line, and a line a voice kept, where they are", () => {
+    const stored = {
+      lead: [{ text: "one", start: 1 }],
+      choir: [{ text: "one\n", start: 1.2 }, { text: "two" }],
+    };
+
+    expect(carryMovedLines(stored, { lead: lyrics("one\ntwo"), choir: lyrics("one") })).toBe(
+      stored,
+    );
+  });
+
+  it("moves a line into a voice that had no segments", () => {
+    const stored = {
+      choir: [
+        { text: "one\n", start: 1 },
+        { text: "two", start: 2 },
+      ],
+    };
+
+    expect(carryMovedLines(stored, { choir: lyrics("one"), solo: lyrics("two") })).toEqual({
+      choir: [{ text: "one\n", start: 1 }],
+      solo: [{ text: "two", start: 2 }],
     });
   });
 });

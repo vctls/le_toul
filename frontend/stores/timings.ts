@@ -20,6 +20,7 @@ import { LinePlacement, placeLines } from "@/lib/linePlacements";
 import { songOffset, titleFrameTime } from "@/lib/screenSlots";
 import {
   TimedSegment,
+  carryMovedLines,
   clearRetimedFlags,
   fromEvents,
   fromLyric,
@@ -141,25 +142,41 @@ function renameVoice<T>(
 
 /**
  * Every voice's segments carried across to the lyrics that `lyricSegmentsFor` gives.
- * Each voice is reconciled from its baseline, and a voice the lyrics no longer mention is kept as
- * it is.
+ * Each voice is reconciled from its baseline, with the lines that a tag change moved from another
+ * voice, and a voice the lyrics no longer mention is kept as it is.
  */
 function reconcileByVoice(
   segmentsByVoice: SegmentsByVoice,
   baselineByVoice: SegmentsByVoice,
   voices: VoiceId[],
+  previousVoices: VoiceId[],
   lyricSegmentsFor: (voice: VoiceId) => Segment[],
 ): SegmentsByVoice {
+  // A voice with no baseline yet falls back to its current segments,
+  // which is the older chaining behavior, rather than a crash.
+  const baselines = Object.fromEntries(
+    Object.entries(segmentsByVoice).map(([voice, segments]) => [
+      voice,
+      baselineByVoice[voice] ?? segments,
+    ]),
+  );
+  // A voice that has just left the lyrics can give its lines away, but a parked one can't,
+  // or a line typed today could take the timing of one deleted long ago.
+  const departed = previousVoices.filter((voice) => !voices.includes(voice));
+  const carried = carryMovedLines(
+    baselines,
+    Object.fromEntries([
+      ...voices.map((voice) => [voice, lyricSegmentsFor(voice)]),
+      ...departed.map((voice) => [voice, []]),
+    ]),
+  );
   const updated: SegmentsByVoice = {};
-  for (const [voice, segments] of Object.entries(segmentsByVoice)) {
-    // A voice with no baseline yet falls back to its current segments,
-    // which is the older chaining behavior, rather than a crash.
-    const baseline = baselineByVoice[voice] ?? segments;
+  for (const [voice, baseline] of Object.entries(carried)) {
     // A voice the lyrics no longer mention is parked, not reconciled against nothing:
     // retyping its tag has to bring the timings back (see reconcileVoices).
     updated[voice] = voices.includes(voice)
       ? reconcile(baseline, lyricSegmentsFor(voice))
-      : segments;
+      : segmentsByVoice[voice];
   }
   return updated;
 }
@@ -855,6 +872,7 @@ export const useTimingsStore = defineStore("timings", {
         this._segmentsByVoice,
         this._baselineByVoice,
         lyricsStore.voices,
+        parseAnnotatedLyrics(this._reconciledLyricText ?? "").voices,
         (voice) => lyricsStore.segmentsForVoice(voice),
       );
       this.normalizeLineBounds();
@@ -865,6 +883,8 @@ export const useTimingsStore = defineStore("timings", {
      */
     setupSegmentReconciliation() {
       const lyricsStore = useLyricsStore();
+      // The stored segments were carried across to the stored lyrics.
+      this._reconciledLyricText ??= lyricsStore.lyricText;
       watch(
         () => lyricsStore.lyricText,
         (lyricText) => {

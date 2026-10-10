@@ -33,6 +33,7 @@
             with a tag between square brackets. Example:
           </p>
           <pre>{{ multiVoiceExample }}</pre>
+          <p>Lines that a tag moves to another voice keep their timings.</p>
         </div>
       </div>
       <p>
