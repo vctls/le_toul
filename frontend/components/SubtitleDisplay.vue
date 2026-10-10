@@ -141,7 +141,7 @@ export default defineComponent({
     this.view.visibilityObserver = new IntersectionObserver((entries) => {
       this.view.isDisplayed = entries[entries.length - 1].isIntersecting;
       if (this.view.isDisplayed && this.view.pendingSubtitles !== null) {
-        this.subtitleManager?.setTrack(this.view.pendingSubtitles);
+        this.setTrack(this.view.pendingSubtitles);
         this.view.pendingSubtitles = null;
       }
     });
@@ -158,7 +158,7 @@ export default defineComponent({
         this.view.pendingSubtitles = newSubs;
         return;
       }
-      this.subtitleManager?.setTrack(newSubs);
+      this.setTrack(newSubs);
     },
     currentTime(newTime: number) {
       this.subtitleManager?.setCurrentTime(newTime);
@@ -231,6 +231,21 @@ export default defineComponent({
       this.subtitleManager?.dispose?.();
       this.subtitleManager = null;
       // dispose() leaves its last frame on the canvas until the replacement draws.
+      this.clearCanvas();
+    },
+    /**
+     * Replace the subtitles the renderer draws.
+     */
+    setTrack(subtitles: string) {
+      if (!this.subtitleManager) {
+        return;
+      }
+      // After a new track, the renderer sends no frame when nothing is shown,
+      // so the old one would stay on the canvas.
+      this.clearCanvas();
+      this.subtitleManager.setTrack(subtitles);
+    },
+    clearCanvas() {
       const canvas = this.$refs.subtitleCanvas as HTMLCanvasElement | undefined;
       canvas?.getContext("2d")?.clearRect(0, 0, canvas.width, canvas.height);
     },
