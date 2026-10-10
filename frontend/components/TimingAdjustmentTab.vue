@@ -122,6 +122,7 @@
           @click="resetTimings"
         />
         <voice-selector />
+        <b-switch v-model="showSpectrogram">Spectrogram</b-switch>
       </div>
     </div>
     <help-section>
@@ -541,6 +542,7 @@
       :mixFrames="mixFrames"
       :mixGaps="mixGaps"
       :mixEnabled="mixEnabled"
+      :spectrogram="showSpectrogram"
       :tapMode="isTapMode"
       :growing="pass?.growing"
       :head="tapHead"
@@ -779,6 +781,7 @@ interface PersistedAdjust {
   showDisplayBands?: boolean;
   mode?: AdjustMode;
   showTapButtons?: boolean;
+  showSpectrogram?: boolean;
 }
 
 function writeAdjustState(value: PersistedAdjust) {
@@ -871,6 +874,7 @@ export default defineComponent({
         restored && (restored.version ?? 1) >= ADJUST_STATE_VERSION ? restored.preservePitch : true,
       // On by default where there is likely no keyboard to tap with.
       showTapButtons: restored?.showTapButtons ?? isMobile(),
+      showSpectrogram: restored?.showSpectrogram ?? false,
       isPlaying: false,
       isPhoneLandscape: false,
       // Set by "Show the whole tab", until the phone is turned upright again.
@@ -961,6 +965,7 @@ export default defineComponent({
         voiceState: { ...this.voiceState, [this.activeVoice]: this.snapshotState() },
         preservePitch: this.preservePitch,
         showTapButtons: this.showTapButtons,
+        showSpectrogram: this.showSpectrogram,
         mode: this.mode,
       };
     },

@@ -13,6 +13,7 @@
         :mixFrames="mixFrames"
         :mixGaps="mixGaps"
         :mixEnabled="mixEnabled"
+        :spectrogram="spectrogram"
         :selectable="!tapMode"
         :centered="tapMode"
         :mediaControls="false"
@@ -144,6 +145,7 @@ export default defineComponent({
     mixFrames: { type: Array as PropType<MixFrame[]>, default: () => [] },
     mixGaps: { type: Array as PropType<MixGap[]>, default: () => [] },
     mixEnabled: { type: Boolean, default: true },
+    spectrogram: { type: Boolean, default: false },
     audioData: Blob,
     // URL to the vocal track audio file
     vocalTrack: { type: Blob, required: false },

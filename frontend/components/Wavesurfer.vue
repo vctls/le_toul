@@ -1,7 +1,7 @@
 <template>
   <div
     ref="wavesurfer-container"
-    :class="['wavesurfer-container', { 'hide-waveform': !showWaveform, centered }]"
+    :class="['wavesurfer-container', { 'hide-waveform': !showWaveform || spectrogram, centered }]"
     @wheel="onWheel"
     @touchmove="blockPagePinch"
     @pointerdown.capture="onPointerDown"
@@ -14,12 +14,14 @@
 
 <script lang="ts">
 // A Vue wrapper for a WaveSurfer instance
-import { defineComponent, markRaw, PropType } from "vue";
+import { defineComponent, markRaw, PropType, Raw } from "vue";
 import WaveSurfer from "wavesurfer.js";
 import type { GenericPlugin } from "wavesurfer.js/dist/base-plugin.js";
 import RegionsPlugin, { Region, RegionParams } from "@/lib/wavesurferPlugins/OpenEndedRegionPlugin";
 import DisplayBandsPlugin from "@/lib/wavesurferPlugins/DisplayBandsPlugin";
 import MixPlugin, { MixFrame, MixGap } from "@/lib/wavesurferPlugins/MixPlugin";
+import SpectrogramPlugin from "wavesurfer.js/dist/plugins/spectrogram.esm.js";
+import createElement from "wavesurfer.js/dist/dom.js";
 import { DisplayBand } from "@/lib/displayBands";
 import { onSchemeChange } from "@/lib/colorScheme";
 import { drawPeaks, peakLevelsFor } from "@/lib/waveformPeaks";
@@ -32,6 +34,24 @@ const TAP_SLOP_PX = 10;
 
 // What a scroll by one line is worth, for a mouse wheel that reports lines rather than pixels.
 const LINE_HEIGHT_PX = 16;
+
+// How long the zoom and height have to stay put before the spectrogram is rebuilt for them.
+const SPECTROGRAM_SETTLE_MS = 300;
+
+type SpectrogramView = {
+  key: string;
+  rendering: "full" | "windowed";
+  layer: HTMLElement;
+  plugin: SpectrogramPlugin;
+};
+
+// A full render of the song, copied out of the plugin that drew it.
+type SpectrogramOverview = {
+  buffer: AudioBuffer;
+  width: number;
+  height: number;
+  canvas: HTMLCanvasElement;
+};
 
 // WaveSurfer paints to a canvas, so custom properties have to be resolved to literal colors rather than inherited.
 function schemeColor(name: string, fallback: string): string {
@@ -101,6 +121,11 @@ export default defineComponent({
       type: Boolean,
       default: true,
     },
+    // Draws a spectrogram in place of the waveform.
+    spectrogram: {
+      type: Boolean,
+      default: false,
+    },
     // Whether a click on a region selects it.
     selectable: {
       type: Boolean,
@@ -120,6 +145,13 @@ export default defineComponent({
       regionsPlugin: markRaw(RegionsPlugin.create()),
       bandsPlugin: markRaw(DisplayBandsPlugin.create()),
       mixPlugin: markRaw(MixPlugin.create()),
+      _shownSpectrogram: null as Raw<SpectrogramView> | null,
+      // A rebuilt spectrogram that hasn't drawn anything yet, while the shown one stays up.
+      _pendingSpectrogram: null as Raw<SpectrogramView> | null,
+      // The 100% view, which also shows through wherever the windowed spectrogram hasn't drawn yet.
+      _spectrogramOverview: null as Raw<SpectrogramOverview> | null,
+      _spectrogramTimer: 0,
+      _overviewFrame: 0,
       isVisible: false,
       _observer: null as IntersectionObserver | null,
       _resizeObserver: null as ResizeObserver | null,
@@ -194,6 +226,8 @@ export default defineComponent({
       ...this.schemeColors(),
       height: this.fittedHeight() || DEFAULT_HEIGHT,
       normalize: false,
+      // The spectrogram goes up to half this rate, which takes in the consonants.
+      sampleRate: 16000,
       // WaveSurfer's own renderer reads every sample a canvas covers, which on a phone takes
       // longer than a frame for each step of a pinch.
       renderFunction: (channels, ctx) => this.drawWaveform(channels, ctx),
@@ -230,6 +264,7 @@ export default defineComponent({
       this.updateMix();
       this.applyZoom();
       this.applyInitialScroll();
+      this.updateSpectrogram();
     });
 
     this.bandsPlugin.on("bands-updated", (updates) => {
@@ -276,6 +311,9 @@ export default defineComponent({
     },
     zoom() {
       this.applyZoom();
+    },
+    spectrogram() {
+      this.updateSpectrogram();
     },
     selectable(selectable: boolean) {
       this.regionsPlugin.setSelectable(selectable);
@@ -541,13 +579,18 @@ export default defineComponent({
       const scrollEl = this.scrollElement();
       const duration = this.wavesurfer?.getDuration() ?? 0;
       if (!this.wavesurfer || !this.isReady() || !scrollEl?.clientWidth || !duration) return;
-      // WaveSurfer rounds a set width up, which can overflow by a pixel at 100%. Its own fill can't.
-      const pxPerSec = this.zoom <= 100 ? 0 : ((this.zoom / 100) * scrollEl.clientWidth) / duration;
+      // The spectrogram plugin reads 0 as 50 px/s, so 100% needs a real rate. WaveSurfer rounds the
+      // width up, so half a pixel short of the fit fills the view without overflowing it.
+      const pxPerSec =
+        this.zoom <= 100
+          ? (scrollEl.clientWidth - 0.5) / duration
+          : ((this.zoom / 100) * scrollEl.clientWidth) / duration;
       if (pxPerSec === this.wavesurfer.options.minPxPerSec) {
         this._zoomAnchor = null;
         return;
       }
       this.wavesurfer.zoom(pxPerSec);
+      this.scheduleSpectrogramUpdate();
       this.$nextTick(() => {
         if (this.centered) {
           this._zoomAnchor = null;
@@ -685,7 +728,165 @@ export default defineComponent({
       const height = this.fittedHeight();
       if (this.wavesurfer && height > 0 && height !== this.wavesurfer.options.height) {
         this.wavesurfer.setOptions({ height });
+        this.scheduleSpectrogramUpdate();
       }
+    },
+    scheduleSpectrogramUpdate() {
+      // A full render under way is sized for the old zoom or height, and would redo the whole song
+      // at the new one.
+      if (this._pendingSpectrogram?.rendering === "full") {
+        this.dropSpectrogram(this._pendingSpectrogram);
+        this._pendingSpectrogram = null;
+      }
+      clearTimeout(this._spectrogramTimer);
+      this._spectrogramTimer = window.setTimeout(this.updateSpectrogram, SPECTROGRAM_SETTLE_MS);
+    },
+    /**
+     * Shows, hides or rebuilds the spectrogram to follow the `spectrogram` prop, the zoom and the
+     * height. The plugin has a fixed height, and computes each stretch of the song only once, at the
+     * zoom it is first seen at, so it takes a new plugin to follow either.
+     */
+    updateSpectrogram() {
+      clearTimeout(this._spectrogramTimer);
+      const buffer = this.wavesurfer?.getDecodedData();
+      const overview = this._spectrogramOverview;
+      if (overview) overview.canvas.style.display = this.spectrogram ? "" : "none";
+      if (!this.wavesurfer || !this.spectrogram) {
+        this.dropSpectrogramViews();
+        return;
+      }
+      const scrollEl = this.scrollElement();
+      if (!buffer || !scrollEl) return;
+      if (overview && overview.buffer !== buffer) {
+        overview.canvas.remove();
+        this._spectrogramOverview = null;
+      }
+      const height = this.wavesurfer.options.height as number;
+      const overviewFits =
+        this._spectrogramOverview?.width === scrollEl.clientWidth &&
+        this._spectrogramOverview.height === height;
+      // Windowed rendering takes the view to be at most 80% of the window wide while it doesn't
+      // scroll, which leaves the end of the song blank. The whole song is cheap at that width.
+      const rendering = this.zoom > 100 ? "windowed" : overviewFits ? null : "full";
+      if (!rendering) {
+        this.dropSpectrogramViews();
+        return;
+      }
+      const key = `${rendering}:${height}:${this.wavesurfer.options.minPxPerSec}`;
+      if ((this._pendingSpectrogram ?? this._shownSpectrogram)?.key === key) return;
+      this.dropSpectrogram(this._pendingSpectrogram);
+      this._pendingSpectrogram = null;
+      if (this._shownSpectrogram?.key === key) return;
+      // The layer has its own stacking context, so the plugin's z-indexes can't lift its canvases
+      // above the regions.
+      const layer = createElement(
+        "div",
+        {
+          part: "spectrogram",
+          style: {
+            position: "absolute",
+            top: "0",
+            left: "0",
+            width: "100%",
+            height: `${height}px`,
+            zIndex: "1",
+            pointerEvents: "none",
+          },
+        },
+        this.wavesurfer.getWrapper(),
+      );
+      const plugin = SpectrogramPlugin.create({
+        container: layer,
+        rendering,
+        height,
+        fftSamples: 1024,
+        scale: "mel",
+        colorMap: "roseus",
+        useWebWorker: true,
+      });
+      const view = markRaw<SpectrogramView>({ key, rendering, layer, plugin });
+      this._pendingSpectrogram = view;
+      if (rendering === "full") {
+        plugin.once("ready", () => this.keepOverview(view, buffer));
+        plugin.once("error", () => {
+          if (this._pendingSpectrogram !== view) return;
+          this.dropSpectrogram(view);
+          this._pendingSpectrogram = null;
+        });
+      } else {
+        // Windowed rendering is ready before it has drawn anything, and reports progress once it has.
+        const swap = () => {
+          if (this._pendingSpectrogram !== view) return;
+          this.dropSpectrogram(this._shownSpectrogram);
+          this._shownSpectrogram = view;
+          this._pendingSpectrogram = null;
+        };
+        plugin.once("progress", swap);
+        plugin.once("error", swap);
+      }
+      this.wavesurfer.registerPlugin(plugin);
+    },
+    /**
+     * Copies a full render into the overview and drops the plugin that drew it. The plugin is ready
+     * before its bitmaps are drawn, so this waits until every canvas has pixels.
+     */
+    keepOverview(view: SpectrogramView, buffer: AudioBuffer) {
+      cancelAnimationFrame(this._overviewFrame);
+      if (this._pendingSpectrogram !== view || !this.wavesurfer) return;
+      const sources = [...view.layer.querySelectorAll("canvas")];
+      // The color map is opaque, so a drawn pixel is never transparent.
+      const isDrawn = (c: HTMLCanvasElement) =>
+        c.getContext("2d")!.getImageData(0, c.height - 1, 1, 1).data[3] > 0;
+      if (sources.length === 0 || !sources.every(isDrawn)) {
+        this._overviewFrame = requestAnimationFrame(() => this.keepOverview(view, buffer));
+        return;
+      }
+      const canvas =
+        this._spectrogramOverview?.canvas ??
+        (createElement(
+          "canvas",
+          {
+            part: "spectrogram-overview",
+            style: {
+              position: "absolute",
+              top: "0",
+              left: "0",
+              width: "100%",
+              height: "100%",
+              zIndex: "0",
+              pointerEvents: "none",
+              // WaveSurfer pixelates every canvas, which would turn the overview into blocks once
+              // zoomed in.
+              imageRendering: "auto",
+            },
+          },
+          this.wavesurfer.getWrapper(),
+        ) as HTMLCanvasElement);
+      const pixelRatio = sources[0].width / sources[0].offsetWidth;
+      canvas.width = Math.round(view.layer.offsetWidth * pixelRatio);
+      canvas.height = sources[0].height;
+      const ctx = canvas.getContext("2d")!;
+      for (const source of sources) {
+        ctx.drawImage(source, Math.round(source.offsetLeft * pixelRatio), 0);
+      }
+      this._spectrogramOverview = markRaw({
+        buffer,
+        width: view.layer.offsetWidth,
+        height: sources[0].offsetHeight,
+        canvas,
+      });
+      this.dropSpectrogramViews();
+    },
+    dropSpectrogramViews() {
+      this.dropSpectrogram(this._pendingSpectrogram);
+      this.dropSpectrogram(this._shownSpectrogram);
+      this._pendingSpectrogram = null;
+      this._shownSpectrogram = null;
+    },
+    dropSpectrogram(view: SpectrogramView | null) {
+      if (!view) return;
+      this.wavesurfer?.unregisterPlugin(view.plugin);
+      view.layer.remove();
     },
     scrollElement(): HTMLElement | null {
       return (this.wavesurfer?.getWrapper()?.parentElement as HTMLElement) ?? null;
@@ -744,6 +945,8 @@ export default defineComponent({
   beforeUnmount() {
     cancelAnimationFrame(this._scrubFrame);
     cancelAnimationFrame(this._zoomFrame);
+    clearTimeout(this._spectrogramTimer);
+    cancelAnimationFrame(this._overviewFrame);
     this._observer?.disconnect();
     this._resizeObserver?.disconnect();
     this._heightObserver?.disconnect();
