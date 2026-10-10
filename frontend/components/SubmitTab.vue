@@ -312,235 +312,218 @@
             </option>
           </b-select>
         </b-field>
-        <div class="card fonts-and-colors">
-          <button
-            type="button"
-            class="card-header"
-            aria-controls="fonts-and-colors"
-            :aria-expanded="isShowingFontsAndColors"
-            @click="isShowingFontsAndColors = !isShowingFontsAndColors"
-          >
-            <span class="card-header-title">
-              <b-icon class="chevron" icon="angle-right"></b-icon>
-              Fonts and Colors
-            </span>
-          </button>
-          <div id="fonts-and-colors" ref="fontsAndColorsBody" class="fonts-and-colors-body">
-            <div class="card-content">
-              <b-field horizontal label="Font">
-                <b-select expanded v-model="videoOptions.font.name">
-                  <option
-                    v-for="(path, name) in fonts"
-                    :key="path"
-                    :value="name"
-                    :selected="name == videoOptions.font.name"
-                  >
-                    {{ name }}
-                  </option>
-                </b-select>
-              </b-field>
-              <b-field horizontal>
-                <template #label>
-                  Custom Font
-                  <viewport-tooltip
-                    wide
-                    label="Upload your own .ttf or .otf font file. It overrides the font picked above."
-                  >
-                    <b-icon size="is-small" icon="circle-question"></b-icon>
-                  </viewport-tooltip>
-                </template>
-                <file-upload
-                  expanded
-                  name="custom-font-upload"
-                  :accept="['.ttf', '.otf', '.ttc']"
-                  :model-value="(settingsStore.customFont as File | undefined) ?? undefined"
-                  @update:modelValue="onCustomFontChange"
-                />
-              </b-field>
-              <b-field horizontal v-if="settingsStore.customFontFamily">
-                <p class="help custom-font-help">
-                  Rendering lyrics in &ldquo;{{ settingsStore.customFontFamily }}&rdquo;, overriding
-                  the font above.
-                </p>
-              </b-field>
-              <b-field horizontal label="Font Size"
-                ><b-numberinput
-                  expanded
-                  :model-value="videoOptions.font.size"
-                  @update:model-value="
-                    (v: number | null | undefined) =>
-                      (videoOptions.font.size = Number(v ?? videoOptions.font.size))
-                  "
-                  controls-position="compact"
-                ></b-numberinput
-              ></b-field>
-              <!-- The renderer draws bold unless told otherwise. -->
-              <b-field horizontal label="Bold"
-                ><b-switch
-                  :model-value="videoOptions.font.bold !== false"
-                  @update:model-value="(bold: boolean) => (videoOptions.font.bold = bold)"
-                ></b-switch
-              ></b-field>
-              <b-field horizontal label="Italic"
-                ><b-switch
-                  :model-value="videoOptions.font.italic === true"
-                  @update:model-value="(italic: boolean) => (videoOptions.font.italic = italic)"
-                ></b-switch
-              ></b-field>
-              <b-field horizontal label="Background Color"
-                ><color-field v-model="videoOptions.color.background" label="background color"
-              /></b-field>
-              <b-field horizontal label="Primary Color"
-                ><color-field v-model="videoOptions.color.primary" label="primary color"
-              /></b-field>
-              <b-field horizontal label="Secondary Color"
-                ><color-field v-model="videoOptions.color.secondary" label="secondary color"
-              /></b-field>
-              <b-field horizontal label="Outline Color"
-                ><color-field v-model="videoOptions.color.outline" label="outline color"
-              /></b-field>
-              <b-field horizontal label="Outline Width"
-                ><b-numberinput
-                  expanded
-                  :model-value="videoOptions.outlineWidth"
-                  :min="0"
-                  :step="0.5"
-                  :min-step="0.1"
-                  @update:model-value="
-                    (v: number | null | undefined) =>
-                      (videoOptions.outlineWidth = Number(v ?? videoOptions.outlineWidth))
-                  "
-                  controls-position="compact"
-                ></b-numberinput
-              ></b-field>
-              <b-field horizontal label="Shadow Color"
-                ><color-field v-model="videoOptions.color.shadow" label="shadow color"
-              /></b-field>
-              <b-field horizontal>
-                <template #label>
-                  Shadow Offset X
-                  <viewport-tooltip
-                    wide
-                    label="Positive values move the shadow right, negative values left. Zero on both axes turns it off."
-                  >
-                    <b-icon size="is-small" icon="circle-question"></b-icon>
-                  </viewport-tooltip>
-                </template>
-                <b-numberinput
-                  expanded
-                  :model-value="videoOptions.shadowX"
-                  :step="0.5"
-                  :min-step="0.1"
-                  @update:model-value="
-                    (v: number | null | undefined) =>
-                      (videoOptions.shadowX = Number(v ?? videoOptions.shadowX))
-                  "
-                  controls-position="compact"
-                ></b-numberinput>
-              </b-field>
-              <b-field horizontal>
-                <template #label>
-                  Shadow Offset Y
-                  <viewport-tooltip
-                    wide
-                    label="Positive values move the shadow down, negative values up. Zero on both axes turns it off."
-                  >
-                    <b-icon size="is-small" icon="circle-question"></b-icon>
-                  </viewport-tooltip>
-                </template>
-                <b-numberinput
-                  expanded
-                  :model-value="videoOptions.shadowY"
-                  :step="0.5"
-                  :min-step="0.1"
-                  @update:model-value="
-                    (v: number | null | undefined) =>
-                      (videoOptions.shadowY = Number(v ?? videoOptions.shadowY))
-                  "
-                  controls-position="compact"
-                ></b-numberinput>
-              </b-field>
-              <b-field horizontal label="Lyric Vertical Alignment"
-                ><b-radio-button
-                  v-model="videoOptions.verticalAlignment"
-                  :native-value="VerticalAlignment.Top"
-                  type="is-primary is-light is-outlined"
-                >
-                  <span>Top</span>
-                </b-radio-button>
-
-                <b-radio-button
-                  v-model="videoOptions.verticalAlignment"
-                  :native-value="VerticalAlignment.Middle"
-                  type="is-primary is-light is-outlined"
-                >
-                  <span>Middle</span>
-                </b-radio-button>
-
-                <b-radio-button
-                  v-model="videoOptions.verticalAlignment"
-                  :native-value="VerticalAlignment.Bottom"
-                  type="is-primary is-light is-outlined"
-                >
-                  Bottom
-                </b-radio-button>
-              </b-field>
-              <b-field v-if="advancedStore.isAdvanced" horizontal>
-                <template #label>
-                  Line Spacing
-                  <viewport-tooltip
-                    wide
-                    label="From the top of one line to the top of the next, as a multiple of the font size. A KBP file sets it from its own margins."
-                  >
-                    <b-icon size="is-small" icon="circle-question"></b-icon>
-                  </viewport-tooltip>
-                </template>
-                <b-numberinput
-                  expanded
-                  :model-value="videoOptions.lineSpacing"
-                  :min="0.5"
-                  :step="0.1"
-                  :min-step="0.001"
-                  @update:model-value="
-                    (v: number | null | undefined) =>
-                      (videoOptions.lineSpacing = Number(v ?? videoOptions.lineSpacing))
-                  "
-                  controls-position="compact"
-                ></b-numberinput>
-              </b-field>
-              <b-field
-                v-if="
-                  advancedStore.isAdvanced &&
-                  videoOptions.verticalAlignment === VerticalAlignment.Top
-                "
-                horizontal
+        <settings-section title="Fonts and Colors" id="fonts-and-colors">
+          <b-field horizontal label="Font">
+            <b-select expanded v-model="videoOptions.font.name">
+              <option
+                v-for="(path, name) in fonts"
+                :key="path"
+                :value="name"
+                :selected="name == videoOptions.font.name"
               >
-                <template #label>
-                  Top Margin
-                  <viewport-tooltip
-                    wide
-                    label="The space above the first line, as a multiple of the font size. A KBP file sets it from its own margins."
-                  >
-                    <b-icon size="is-small" icon="circle-question"></b-icon>
-                  </viewport-tooltip>
-                </template>
-                <b-numberinput
-                  expanded
-                  :model-value="videoOptions.topMargin"
-                  :min="0"
-                  :step="0.1"
-                  :min-step="0.001"
-                  @update:model-value="
-                    (v: number | null | undefined) =>
-                      (videoOptions.topMargin = Number(v ?? videoOptions.topMargin))
-                  "
-                  controls-position="compact"
-                ></b-numberinput>
-              </b-field>
-              <voice-style-settings v-if="voices.length > 1" :fonts="fonts" />
-            </div>
-          </div>
-        </div>
+                {{ name }}
+              </option>
+            </b-select>
+          </b-field>
+          <b-field horizontal>
+            <template #label>
+              Custom Font
+              <viewport-tooltip
+                wide
+                label="Upload your own .ttf or .otf font file. It overrides the font picked above."
+              >
+                <b-icon size="is-small" icon="circle-question"></b-icon>
+              </viewport-tooltip>
+            </template>
+            <file-upload
+              expanded
+              name="custom-font-upload"
+              :accept="['.ttf', '.otf', '.ttc']"
+              :model-value="(settingsStore.customFont as File | undefined) ?? undefined"
+              @update:modelValue="onCustomFontChange"
+            />
+          </b-field>
+          <b-field horizontal v-if="settingsStore.customFontFamily">
+            <p class="help custom-font-help">
+              Rendering lyrics in &ldquo;{{ settingsStore.customFontFamily }}&rdquo;, overriding the
+              font above.
+            </p>
+          </b-field>
+          <b-field horizontal label="Font Size"
+            ><b-numberinput
+              expanded
+              :model-value="videoOptions.font.size"
+              @update:model-value="
+                (v: number | null | undefined) =>
+                  (videoOptions.font.size = Number(v ?? videoOptions.font.size))
+              "
+              controls-position="compact"
+            ></b-numberinput
+          ></b-field>
+          <!-- The renderer draws bold unless told otherwise. -->
+          <b-field horizontal label="Bold"
+            ><b-switch
+              :model-value="videoOptions.font.bold !== false"
+              @update:model-value="(bold: boolean) => (videoOptions.font.bold = bold)"
+            ></b-switch
+          ></b-field>
+          <b-field horizontal label="Italic"
+            ><b-switch
+              :model-value="videoOptions.font.italic === true"
+              @update:model-value="(italic: boolean) => (videoOptions.font.italic = italic)"
+            ></b-switch
+          ></b-field>
+          <b-field horizontal label="Background Color"
+            ><color-field v-model="videoOptions.color.background" label="background color"
+          /></b-field>
+          <b-field horizontal label="Primary Color"
+            ><color-field v-model="videoOptions.color.primary" label="primary color"
+          /></b-field>
+          <b-field horizontal label="Secondary Color"
+            ><color-field v-model="videoOptions.color.secondary" label="secondary color"
+          /></b-field>
+          <b-field horizontal label="Outline Color"
+            ><color-field v-model="videoOptions.color.outline" label="outline color"
+          /></b-field>
+          <b-field horizontal label="Outline Width"
+            ><b-numberinput
+              expanded
+              :model-value="videoOptions.outlineWidth"
+              :min="0"
+              :step="0.5"
+              :min-step="0.1"
+              @update:model-value="
+                (v: number | null | undefined) =>
+                  (videoOptions.outlineWidth = Number(v ?? videoOptions.outlineWidth))
+              "
+              controls-position="compact"
+            ></b-numberinput
+          ></b-field>
+          <b-field horizontal label="Shadow Color"
+            ><color-field v-model="videoOptions.color.shadow" label="shadow color"
+          /></b-field>
+          <b-field horizontal>
+            <template #label>
+              Shadow Offset X
+              <viewport-tooltip
+                wide
+                label="Positive values move the shadow right, negative values left. Zero on both axes turns it off."
+              >
+                <b-icon size="is-small" icon="circle-question"></b-icon>
+              </viewport-tooltip>
+            </template>
+            <b-numberinput
+              expanded
+              :model-value="videoOptions.shadowX"
+              :step="0.5"
+              :min-step="0.1"
+              @update:model-value="
+                (v: number | null | undefined) =>
+                  (videoOptions.shadowX = Number(v ?? videoOptions.shadowX))
+              "
+              controls-position="compact"
+            ></b-numberinput>
+          </b-field>
+          <b-field horizontal>
+            <template #label>
+              Shadow Offset Y
+              <viewport-tooltip
+                wide
+                label="Positive values move the shadow down, negative values up. Zero on both axes turns it off."
+              >
+                <b-icon size="is-small" icon="circle-question"></b-icon>
+              </viewport-tooltip>
+            </template>
+            <b-numberinput
+              expanded
+              :model-value="videoOptions.shadowY"
+              :step="0.5"
+              :min-step="0.1"
+              @update:model-value="
+                (v: number | null | undefined) =>
+                  (videoOptions.shadowY = Number(v ?? videoOptions.shadowY))
+              "
+              controls-position="compact"
+            ></b-numberinput>
+          </b-field>
+          <b-field horizontal label="Lyric Vertical Alignment"
+            ><b-radio-button
+              v-model="videoOptions.verticalAlignment"
+              :native-value="VerticalAlignment.Top"
+              type="is-primary is-light is-outlined"
+            >
+              <span>Top</span>
+            </b-radio-button>
+
+            <b-radio-button
+              v-model="videoOptions.verticalAlignment"
+              :native-value="VerticalAlignment.Middle"
+              type="is-primary is-light is-outlined"
+            >
+              <span>Middle</span>
+            </b-radio-button>
+
+            <b-radio-button
+              v-model="videoOptions.verticalAlignment"
+              :native-value="VerticalAlignment.Bottom"
+              type="is-primary is-light is-outlined"
+            >
+              Bottom
+            </b-radio-button>
+          </b-field>
+          <b-field v-if="advancedStore.isAdvanced" horizontal>
+            <template #label>
+              Line Spacing
+              <viewport-tooltip
+                wide
+                label="From the top of one line to the top of the next, as a multiple of the font size. A KBP file sets it from its own margins."
+              >
+                <b-icon size="is-small" icon="circle-question"></b-icon>
+              </viewport-tooltip>
+            </template>
+            <b-numberinput
+              expanded
+              :model-value="videoOptions.lineSpacing"
+              :min="0.5"
+              :step="0.1"
+              :min-step="0.001"
+              @update:model-value="
+                (v: number | null | undefined) =>
+                  (videoOptions.lineSpacing = Number(v ?? videoOptions.lineSpacing))
+              "
+              controls-position="compact"
+            ></b-numberinput>
+          </b-field>
+          <b-field
+            v-if="
+              advancedStore.isAdvanced && videoOptions.verticalAlignment === VerticalAlignment.Top
+            "
+            horizontal
+          >
+            <template #label>
+              Top Margin
+              <viewport-tooltip
+                wide
+                label="The space above the first line, as a multiple of the font size. A KBP file sets it from its own margins."
+              >
+                <b-icon size="is-small" icon="circle-question"></b-icon>
+              </viewport-tooltip>
+            </template>
+            <b-numberinput
+              expanded
+              :model-value="videoOptions.topMargin"
+              :min="0"
+              :step="0.1"
+              :min-step="0.001"
+              @update:model-value="
+                (v: number | null | undefined) =>
+                  (videoOptions.topMargin = Number(v ?? videoOptions.topMargin))
+              "
+              controls-position="compact"
+            ></b-numberinput>
+          </b-field>
+          <voice-style-settings v-if="voices.length > 1" :fonts="fonts" />
+        </settings-section>
       </div>
       <div class="column is-8 preview-column">
         <h3 class="title">Video Preview</h3>
@@ -667,6 +650,7 @@ import FileUpload from "@/components/FileUpload.vue";
 import SymbolPicker from "@/components/SymbolPicker.vue";
 import TrackSelect from "@/components/TrackSelect.vue";
 import ViewportTooltip from "@/components/ViewportTooltip.vue";
+import SettingsSection from "@/components/SettingsSection.vue";
 import jszip from "jszip";
 import video from "@/lib/video";
 import { CreationPhase, TrackSource } from "@/types";
@@ -693,7 +677,6 @@ import BackgroundReplacementModal from "@/components/BackgroundReplacementModal.
 import { BUNDLED_FONTS as fonts, COUNT_IN_SYMBOLS } from "@/lib/fonts";
 import { projectFilesToKbp } from "@/lib/kbpConvert";
 import { applyVoiceStyle } from "@/lib/voiceStyle";
-import { slide } from "@/lib/slide";
 import { restoredBacking } from "@/lib/gapMix";
 
 // The rest of the bar is the zip, which carries the source song and both separated tracks.
@@ -721,6 +704,7 @@ export default defineComponent({
     SymbolPicker,
     TrackSelect,
     ViewportTooltip,
+    SettingsSection,
   },
   setup() {
     const mediaStore = useMediaStore();
@@ -765,7 +749,6 @@ export default defineComponent({
       submitError: null as string | null,
       // Which track the preview plays: "full" (with vocals) or the source of a backing track.
       previewTrack: "full" as "full" | TrackSource,
-      isShowingFontsAndColors: true,
       // Vue would proxy the controller, whose methods need the instance itself.
       creation: markRaw({ abort: null as AbortController | null }),
       // Whether the settings column has content past its top and bottom edges. See the fade in the styles.
@@ -775,9 +758,6 @@ export default defineComponent({
     };
   },
   mounted() {
-    if (!this.isShowingFontsAndColors) {
-      (this.$refs.fontsAndColorsBody as HTMLElement).style.display = "none";
-    }
     // The tab starts hidden, so the column has no size to measure until it is opened.
     // The observer's first callback is what catches that, and the tab strip resizing it later.
     this.hintObserver.observer = new ResizeObserver(() => this.updateScrollHints());
@@ -794,12 +774,6 @@ export default defineComponent({
   beforeUnmount() {
     this.hintObserver.observer?.disconnect();
   },
-  watch: {
-    isShowingFontsAndColors(open: boolean) {
-      slide(this.$refs.fontsAndColorsBody as HTMLElement, open);
-    },
-  },
-
   computed: {
     canCreateVideo() {
       return (
@@ -1149,56 +1123,6 @@ export default defineComponent({
 }
 </style>
 <style scoped>
-.fonts-and-colors {
-  margin-top: 1rem;
-  border: 1px solid var(--bulma-border);
-  border-radius: var(--bulma-radius);
-  box-shadow: none;
-}
-
-.fonts-and-colors:has(> .card-header:hover) {
-  border-color: var(--bulma-border-hover);
-}
-
-.fonts-and-colors .card-header {
-  width: 100%;
-  border: none;
-  padding: 0;
-  font: inherit;
-  text-align: start;
-  cursor: pointer;
-  box-shadow: none;
-}
-
-.fonts-and-colors .card-header-title {
-  gap: 0.25rem;
-  padding: calc(0.5em - 1px) calc(0.75em - 1px);
-}
-
-.fonts-and-colors .chevron {
-  transition: transform 250ms ease;
-}
-
-.fonts-and-colors .card-header[aria-expanded="true"] .chevron {
-  transform: rotate(90deg);
-}
-
-.fonts-and-colors-body {
-  transition: height 250ms ease;
-}
-
-.fonts-and-colors .card-content {
-  padding: 0 calc(0.75em - 1px) 0.75rem;
-}
-
-/* With no transition, slide() snaps the section to its end state. */
-@media (prefers-reduced-motion: reduce) {
-  .fonts-and-colors-body,
-  .fonts-and-colors .chevron {
-    transition: none;
-  }
-}
-
 .kbp-warnings ul {
   list-style: disc;
   padding-left: 1.25em;

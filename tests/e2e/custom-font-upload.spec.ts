@@ -36,7 +36,7 @@ function isCanvasBlank(page: Page): Promise<boolean> {
   });
 }
 
-// The panel starts open, so clicking the trigger unconditionally would close it.
+// A test may open the panel more than once, and a second click would close it.
 async function openFontSettings(page: Page): Promise<void> {
   await navigateToTab(page, TabId.Submit);
   const trigger = page.getByRole("button", { name: "Fonts and Colors" });
