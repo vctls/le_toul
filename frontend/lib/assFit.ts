@@ -250,8 +250,17 @@ function distanceFrom(file: AssEvent[]) {
   };
 }
 
+/**
+ * The shadow offset the app tags an event with, or undefined when it has none.
+ */
+export function shadowOffset(event: AssEvent): [number, number] | undefined {
+  const match = event.text.match(/\\xshad(-?[\d.]+)\\yshad(-?[\d.]+)/);
+  return match ? [Number(match[1]), Number(match[2])] : undefined;
+}
+
 export interface FitContext {
   song: { title?: string; artist?: string } | null;
+  titleStyle?: KaraokeOptions["titleStyle"];
   // How far the file holds the song back, in centiseconds.
   delay: number;
   // How long the song lasts, in seconds, when the file says.
@@ -266,7 +275,7 @@ export interface FitContext {
 export function fitOwnRender(
   document: AssDocument,
   voices: FitVoice[],
-  { song, delay, duration, hints = {} }: FitContext,
+  { song, titleStyle, delay, duration, hints = {} }: FitContext,
 ): FitResult {
   const fileEvents = document.events.filter((event) => !event.comment);
   const lyricEvents = fileEvents.filter((event) => !isInstrumental(event));
@@ -274,13 +283,15 @@ export function fitOwnRender(
   // and only the end of the last fade-out would tell how much longer.
   const songDuration =
     duration ?? Math.max(...fileEvents.map((event) => event.end - delay)) / 100 + LINE_FADE;
+  // The title may cast a shadow of its own.
   const shadow = fileEvents
-    .map((event) => event.text.match(/\\xshad(-?[\d.]+)\\yshad(-?[\d.]+)/))
+    .slice(song ? 2 : 0)
+    .map(shadowOffset)
     .find(Boolean);
   const fixed: Partial<KaraokeOptions> = {
     addTitleScreen: song !== null,
-    shadowX: shadow ? Number(shadow[1]) : 0,
-    shadowY: shadow ? Number(shadow[2]) : 0,
+    shadowX: shadow ? shadow[0] : 0,
+    shadowY: shadow ? shadow[1] : 0,
   };
   const fontSize = voices[0].style?.fontSize ?? DEFAULT_KARAOKE_OPTIONS.font.size;
 
@@ -316,6 +327,8 @@ export function fitOwnRender(
     ...styleOptions(voices[0].style),
     ...fixed,
     ...hints,
+    // The import reads the title style from the file, so it is drawn with but not fitted.
+    ...(titleStyle ? { titleStyle } : {}),
     useStoredDisplayPeriods: false,
   };
   const observed = new Set<FittedKey>();

@@ -355,8 +355,23 @@ export function addInstrumentalScreens(
  * How far the title screen delays the song: not at all when the intro is long enough to show it,
  * and its whole length otherwise.
  */
-export function titleScreenDelay(introLength: Timestamp): Timestamp {
-  return introLength > TITLE_SCREEN_DURATION ? 0 : TITLE_SCREEN_DURATION;
+export function titleScreenDelay(
+  introLength: Timestamp,
+  duration: Timestamp = TITLE_SCREEN_DURATION,
+): Timestamp {
+  return introLength > duration ? 0 : duration;
+}
+
+/**
+ * Keep the lyrics off the title screen, by starting them after it or by delaying the song.
+ */
+export function makeRoomForTitleScreen(
+  screens: LyricsScreen[],
+  introLength: Timestamp = getIntroLength(screens),
+  duration: Timestamp = TITLE_SCREEN_DURATION,
+): LyricsScreen[] {
+  const audioDelay = titleScreenDelay(introLength, duration);
+  return audioDelay === 0 ? trimStart(screens, duration) : delaySong(screens, audioDelay);
 }
 
 /**
@@ -368,20 +383,19 @@ export function addTitleScreen(
   title: string,
   artist: string,
   introLength: Timestamp = getIntroLength(screens),
+  duration: Timestamp = TITLE_SCREEN_DURATION,
 ): LyricsScreen[] {
-  const audioDelay = titleScreenDelay(introLength);
+  const audioDelay = titleScreenDelay(introLength, duration);
   const adjustedLyricScreens =
-    audioDelay === 0
-      ? trimStart(screens, TITLE_SCREEN_DURATION)
-      : adjustScreenTimestamps(screens, audioDelay);
+    audioDelay === 0 ? trimStart(screens, duration) : adjustScreenTimestamps(screens, audioDelay);
   const titleScreen = new LyricsScreen(
     [
-      new LyricsLine([new LyricSegment(title, 0.0, TITLE_SCREEN_DURATION / 2)]),
-      new LyricsLine([new LyricSegment(artist, TITLE_SCREEN_DURATION / 2, TITLE_SCREEN_DURATION)]),
+      new LyricsLine([new LyricSegment(title, 0.0, duration / 2)]),
+      new LyricsLine([new LyricSegment(artist, duration / 2, duration)]),
     ],
     audioDelay,
   );
-  const denormalizedScreen = denormalizeTimestamps([titleScreen], TITLE_SCREEN_DURATION)[0];
+  const denormalizedScreen = denormalizeTimestamps([titleScreen], duration)[0];
   denormalizedScreen.kind = "title";
   const screensWithTitle = adjustedLyricScreens.slice();
   screensWithTitle.unshift(denormalizedScreen);

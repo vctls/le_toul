@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import yaml from "js-yaml";
+import BuefyColor from "buefy/src/utils/color";
 import {
   AssImport,
   assToProjectFiles,
@@ -105,6 +106,59 @@ describe("assToProjectFiles on the app's own files", () => {
     expect(imported.timings).toEqual({ "Voice 1": segments });
     const settings = yaml.load(imported.settings) as Record<string, any>;
     expect(settings.song).toEqual({ title: "Pale Moon", artist: "The Placeholders" });
+  });
+
+  it("reads the title's own style back", () => {
+    const options = {
+      ...DEFAULT_KARAOKE_OPTIONS,
+      titleStyle: {
+        fontName: "Georgia",
+        fontSize: 30,
+        primary: BuefyColor.parse("#112233"),
+        outlineWidth: 2,
+        shadowX: 1,
+      },
+    };
+    const text = render([{ voice: "Voice 1", segments }], options);
+    const imported = assToProjectFiles(text, { fonts: FONTS });
+    const { titleStyle } = parseSettingsYaml(imported.settings).videoOptions;
+
+    expect(imported.warnings).toEqual([]);
+    expect(titleStyle).toMatchObject({ fontName: "Georgia", fontSize: 30, outlineWidth: 2 });
+    expect(titleStyle?.primary?.toString()).toBe("#112233");
+    expect([titleStyle?.shadowX, titleStyle?.shadowY]).toEqual([1, undefined]);
+    expect(rerender(imported)).toBe(text);
+  });
+
+  it("keeps the timings of a blank title screen in the song's time", () => {
+    const early = segments.map((segment) => ({
+      ...segment,
+      start: (segment.start as number) - 8,
+      ...(segment.end ? { end: segment.end - 8 } : {}),
+    }));
+    const options = { ...DEFAULT_KARAOKE_OPTIONS, showTitle: false, titleScreenDuration: 6 };
+    const settings = yaml.dump(
+      { videoOptions: { addTitleScreen: true, showTitle: false, titleScreenDuration: 6 } },
+      { flowLevel: 0 },
+    );
+    const text = createMultiVoiceAssFile(
+      [{ voice: "Voice 1", segments: early, options }],
+      SONG_DURATION,
+      "Pale Moon",
+      "The Placeholders",
+      {},
+      settings.trim(),
+    );
+    const imported = assToProjectFiles(text, { fonts: FONTS });
+
+    expect(text).toContain("Audio Delay: 6.000");
+    expect(text).not.toContain("Pale Moon");
+    expect(imported.timings).toEqual({ "Voice 1": early });
+    expect(parseSettingsYaml(imported.settings).videoOptions).toMatchObject({
+      addTitleScreen: true,
+      showTitle: false,
+      titleScreenDuration: 6,
+    });
   });
 
   it("moves the timings back by the delay the title screen and a quick start added", () => {

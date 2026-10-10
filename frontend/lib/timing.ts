@@ -11,6 +11,7 @@ import {
   DEFAULT_LINE_SPACING,
   DEFAULT_TOP_MARGIN,
   DEFAULT_OUTLINE_WIDTH,
+  TITLE_SCREEN_DURATION,
   appName,
 } from "@/constants";
 import {
@@ -26,6 +27,7 @@ import {
   earliestStoredStart,
   endTitleScreenBy,
   fitInstrumentalScreens,
+  makeRoomForTitleScreen,
   placeStaggeredScreens,
   quickStartDelay,
   titleScreenDelay,
@@ -33,6 +35,7 @@ import {
 } from "./adjustments";
 import { fadeLines, giveWayToStoredPeriods, songOffset } from "./screenSlots";
 import { BUNDLED_SYMBOLS, FALLBACK_FONTS } from "./fonts";
+import { applyVoiceStyle, VoiceStyleOverride } from "./voiceStyle";
 import { map, method, isNumber } from "lodash-es";
 import { default as BuefyColor } from "buefy/src/utils/color";
 // This import must stay type-only,
@@ -72,6 +75,12 @@ export type CountInMode = (typeof COUNT_IN_MODES)[number];
 
 export interface KaraokeOptions {
   addTitleScreen: boolean;
+  // In seconds, from the start of the video.
+  titleScreenDuration?: number;
+  // When this is off, the title screen stays blank, for a background that shows its own title.
+  showTitle?: boolean;
+  // The fields left out take the lyrics' own.
+  titleStyle?: VoiceStyleOverride;
   countInMode: CountInMode;
   // Dynamic count-ins draw blocks when this is blank.
   countInText: string;
@@ -125,6 +134,9 @@ export enum VerticalAlignment {
 
 export const DEFAULT_KARAOKE_OPTIONS: KaraokeOptions = {
   addTitleScreen: true,
+  titleScreenDuration: TITLE_SCREEN_DURATION,
+  showTitle: true,
+  titleStyle: {},
   countInMode: DEFAULT_COUNT_IN_MODE,
   countInText: DEFAULT_COUNT_IN_TEXT,
   dynamicCountIns: DEFAULT_DYNAMIC_COUNT_INS,
@@ -1034,6 +1046,18 @@ function buildDisplayParams(formatParams: Object, styleName: string): Record<str
   return displayParams;
 }
 
+const TITLE_STYLE_NAME = "Title";
+
+/**
+ * The options the title is drawn with, or null when they would draw it like the lyrics.
+ */
+function ownTitleOptions(options: KaraokeOptions): KaraokeOptions | null {
+  const title = applyVoiceStyle(options, options.titleStyle);
+  const looks = (o: KaraokeOptions) =>
+    JSON.stringify([buildDisplayParams(optionsToFormatParams(o), ""), shadowTags(o)]);
+  return looks(title) === looks(options) ? null : title;
+}
+
 // The [Script Info] field holding the settings the subtitles can't show, as one line of YAML.
 export const PROJECT_SETTINGS_KEY = "Project Settings";
 
@@ -1098,7 +1122,14 @@ function renderAssDocument(
   projectSettings?: string,
 ): string {
   const formatKeys = Object.keys(tracks[0].displayParams);
-  const styleLines = tracks
+  const titled = tracks[0].screens.some((screen) => screen.kind === "title");
+  const titleOptions = titled ? ownTitleOptions(tracks[0].options) : null;
+  const titleStyle = titleOptions && {
+    styleName: TITLE_STYLE_NAME,
+    displayParams: buildDisplayParams(optionsToFormatParams(titleOptions), TITLE_STYLE_NAME),
+    options: titleOptions,
+  };
+  const styleLines = [...tracks, ...(titleStyle ? [titleStyle] : [])]
     .map((t) => `Style: ${formatKeys.map((k) => t.displayParams[k]).join(",")}`)
     .join("\n");
   // The canvas the line positions in getLineY were computed against.
@@ -1128,12 +1159,14 @@ ${styleLines}
 Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
 `;
   for (const track of tracks) {
-    const fontName = track.displayParams.Fontname as string;
-    const covered = glyphCoverage[fontName] ?? BUNDLED_SYMBOLS[fontName];
     // The actor field ends at a comma, and an import reads the voice back from it.
     const actor = track.voice.replace(/,/g, " ").trim() || "Singer";
     for (const screen of track.screens) {
-      const events = screen.toAssEvents(track.displayParams, track.options, track.styleName, actor);
+      const { displayParams, styleName, options } =
+        screen.kind === "title" && titleStyle ? titleStyle : track;
+      const fontName = displayParams.Fontname as string;
+      const covered = glyphCoverage[fontName] ?? BUNDLED_SYMBOLS[fontName];
+      const events = screen.toAssEvents(displayParams, options, styleName, actor);
       assText += withFallbackFonts(events, fontName, covered);
     }
   }
@@ -1185,17 +1218,19 @@ function createAutomaticScreens(
   });
 
   const introLength = Math.min(...firstStarts(counted));
-  const titled = primary.addTitleScreen && counted[0].length > 0;
+  const duration = primary.titleScreenDuration ?? TITLE_SCREEN_DURATION;
+  const titled = primary.addTitleScreen && duration > 0 && counted[0].length > 0;
   return counted.map((screens, i) => {
     const { options } = tracks[i];
     if (screens.length === 0) {
       return screens;
     }
-    if (titled) {
-      screens =
-        i === 0
-          ? addTitleScreen(screens, title, artist, introLength)
-          : delaySong(screens, titleScreenDelay(introLength));
+    if (titled && i > 0) {
+      screens = delaySong(screens, titleScreenDelay(introLength, duration));
+    } else if (titled && primary.showTitle === false) {
+      screens = makeRoomForTitleScreen(screens, introLength, duration);
+    } else if (titled) {
+      screens = addTitleScreen(screens, title, artist, introLength, duration);
     }
     if (options.addStaggeredLines) {
       screens = displayQuickLinesEarly(screens, options);

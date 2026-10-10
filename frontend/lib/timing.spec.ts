@@ -497,6 +497,50 @@ test("createAssFile handles timings without lyrics", () => {
   expect(assFile).toBe(headerOnly);
 });
 
+describe("the title style", () => {
+  const options: KaraokeOptions = { ...DEFAULT_OPTIONS, instrumentalThreshold: 0 };
+  const render = (titleStyle: KaraokeOptions["titleStyle"]) =>
+    createAssFile(
+      fromEvents(testLyrics, shortIntroTestEvents),
+      60,
+      "Pale Moon",
+      "The Placeholders",
+      { ...options, titleStyle },
+    );
+
+  it("gets an ASS style of its own, which only the title and artist use", () => {
+    const file = render({
+      fontName: "Georgia",
+      fontSize: 30,
+      italic: true,
+      primary: BuefyColor.parse("#112233"),
+      outlineWidth: 2,
+      shadowX: 1,
+      shadowY: 2,
+    });
+    const styles = file.match(/^Style: [^,]*,[^,]*,[^,]*,[^,]*/gm);
+    const titled = file.match(/^Dialogue: [^,]*,[^,]*,[^,]*,Title,.*$/gm) ?? [];
+
+    expect(styles).toEqual([
+      "Style: Default,Arial Narrow,20,&H00FF00FF",
+      "Style: Title,Georgia,30,&H00332211",
+    ]);
+    expect(file).toMatch(/^Style: Title,.*,-1,1,.*,1,2,0,/m);
+    expect(titled).toHaveLength(2);
+    expect(titled.map((line) => line.replace(/.*\}/, ""))).toEqual([
+      "Pale Moon",
+      "The Placeholders",
+    ]);
+    expect(titled.every((line) => line.includes("{\\xshad1\\yshad2}"))).toBe(true);
+    expect(file).not.toMatch(/,Default,.*xshad/);
+  });
+
+  it("is left out when it would draw the title like the lyrics", () => {
+    expect(render({ fontName: "Arial Narrow", fontSize: 20, bold: true })).toBe(render({}));
+    expect(render({})).not.toContain("Title,");
+  });
+});
+
 test("addCountIn", () => {
   const songDuration = 60.0;
   const lyrics = "That was a long intro\nToo bad nothing rhymes with intro";

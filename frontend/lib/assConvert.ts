@@ -9,13 +9,14 @@
 import yaml from "js-yaml";
 import { SUBTITLE_CANVAS, TITLE_SCREEN_DURATION, appName } from "@/constants";
 import { AssDocument, AssEvent, AssStyle, parseAss, parseKaraoke } from "./ass";
-import { fitOwnRender, FitVoice } from "./assFit";
+import { fitOwnRender, FitVoice, shadowOffset } from "./assFit";
 import { ImportedSyllable, importedTimings, lineMarkup, voiceNames } from "./importedLyrics";
 import { fontLeftOut, MARKUP_REMOVED, Warnings } from "./importWarnings";
 import { readSubtitleHints, settingsOutsideSubtitles, SubtitleHints } from "./settingsFile";
 import { PROJECT_SETTINGS_KEY } from "./timing";
 import { TimedSegment } from "./timedSegments";
 import { DEFAULT_VOICE_ID, VoiceId } from "./voices";
+import { deserializeVoiceStyle } from "./voiceStyle";
 
 // A pause in the singing this long, in centiseconds, starts a new screen.
 const SCREEN_BREAK_GAP = 300;
@@ -346,9 +347,14 @@ function playResY(info: Record<string, string>): number {
   return 288;
 }
 
+/**
+ * The style of the lyrics, of each voice that differs from the first,
+ * and of the title when `titleStyle` is given.
+ */
 function styleSettings(
   document: AssDocument,
   voiceStyles: [VoiceId, AssStyle | undefined][],
+  titleStyle: AssStyle | undefined,
   fonts: string[],
   warnings: Warnings,
 ): { videoOptions: Record<string, unknown>; voiceStyles: Record<VoiceId, unknown> } {
@@ -368,7 +374,7 @@ function styleSettings(
     return { videoOptions: {}, voiceStyles: {} };
   }
   const name = fontName(base);
-  const videoOptions = {
+  const videoOptions: Record<string, unknown> = {
     font: { ...(name ? { name } : {}), size: fontSize(base), bold: base.bold, italic: base.italic },
     color: {
       primary: base.primary,
@@ -378,10 +384,7 @@ function styleSettings(
     },
     outlineWidth: outlineWidth(base),
   };
-
-  const overrides: Record<VoiceId, Record<string, unknown>> = {};
-  for (const [voice, style] of voiceStyles) {
-    if (!style || style === base) continue;
+  const overrideOf = (style: AssStyle): Record<string, unknown> => {
     const override: Record<string, unknown> = {};
     const name = style.fontName !== base.fontName ? fontName(style) : undefined;
     if (name) override.fontName = name;
@@ -393,6 +396,16 @@ function styleSettings(
     if (style.outline !== base.outline) override.outline = style.outline;
     if (style.back !== base.back) override.shadow = style.back;
     if (outlineWidth(style) !== outlineWidth(base)) override.outlineWidth = outlineWidth(style);
+    return override;
+  };
+  if (titleStyle) {
+    videoOptions.titleStyle = overrideOf(titleStyle);
+  }
+
+  const overrides: Record<VoiceId, Record<string, unknown>> = {};
+  for (const [voice, style] of voiceStyles) {
+    if (!style || style === base) continue;
+    const override = overrideOf(style);
     if (Object.keys(override).length > 0) overrides[voice] = override;
   }
   return { videoOptions, voiceStyles: overrides };
@@ -414,6 +427,8 @@ export function assToProjectFiles(text: string, options: { fonts: string[] }): A
   }
   let song: Song = {};
   const title = own ? titleScreen(events) : null;
+  const titleEvent = title ? events[0] : undefined;
+  const titleStyle = document.styles.find((style) => style.name === titleEvent?.style);
   if (title) {
     song = title;
     events = events.slice(2);
@@ -484,9 +499,17 @@ export function assToProjectFiles(text: string, options: { fonts: string[] }): A
   const { videoOptions, voiceStyles: styleOverrides } = styleSettings(
     document,
     voiceStyles,
+    titleStyle,
     options.fonts,
     warnings,
   );
+  if (titleEvent && videoOptions.titleStyle) {
+    const [x, y] = shadowOffset(titleEvent) ?? [0, 0];
+    const [lyricsX, lyricsY] = events.map(shadowOffset).find(Boolean) ?? [0, 0];
+    const override = videoOptions.titleStyle as Mapping;
+    if (x !== lyricsX) override.shadowX = x;
+    if (y !== lyricsY) override.shadowY = y;
+  }
 
   if (own) {
     const voices = voiceStyles.map(([voice, style]): FitVoice => {
@@ -499,7 +522,15 @@ export function assToProjectFiles(text: string, options: { fonts: string[] }): A
       return { voice, style, segments: timings[voice], events };
     });
     const duration = typeof outsideSong.duration === "number" ? outsideSong.duration : undefined;
-    const fit = fitOwnRender(document, voices, { song: title, delay, duration, hints });
+    const fit = fitOwnRender(document, voices, {
+      song: title,
+      titleStyle: videoOptions.titleStyle
+        ? deserializeVoiceStyle(videoOptions.titleStyle as Record<string, unknown>)
+        : undefined,
+      delay,
+      duration,
+      hints,
+    });
     timings = fit.segments;
     const headIndex = (line: ImportedLine) =>
       syllablesByVoice[voiceOf(line)].indexOf(line.syllables[0]);

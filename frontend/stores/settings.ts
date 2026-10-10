@@ -52,6 +52,7 @@ import {
   DEFAULT_GAP_MIN_LENGTH,
   DEFAULT_GAP_FADE,
   DEFAULT_GAP_LEVEL_BALANCE,
+  TITLE_SCREEN_DURATION,
 } from "@/constants";
 
 const VOICE_STYLES_STORAGE_KEY = "voiceStyles";
@@ -158,6 +159,10 @@ function loadTimingKeys(): TimingKeys {
 export type VideoSettings = {
   vocalSeparationModel: SeparationModel;
   addTitleScreen: boolean;
+  titleScreenDuration: number;
+  showTitle: boolean;
+  // The fields left out take the lyrics' own.
+  titleStyle: VoiceStyleOverride;
   countInMode: CountInMode;
   countInText: string;
   dynamicCountIns: boolean;
@@ -204,13 +209,17 @@ export type VideoSettings = {
 };
 
 // Define StoredSettings by overriding the color fields in VideoSettings
-type StoredSettings = Omit<VideoSettings, "color"> & {
+type StoredSettings = Omit<VideoSettings, "color" | "titleStyle"> & {
   color: Record<keyof VideoSettings["color"], string>;
+  titleStyle?: Record<string, unknown>;
 };
 
 // Default settings with simple hex strings
 const DEFAULT_SETTINGS: VideoSettings = {
   addTitleScreen: true,
+  titleScreenDuration: TITLE_SCREEN_DURATION,
+  showTitle: true,
+  titleStyle: {},
   countInMode: DEFAULT_COUNT_IN_MODE,
   countInText: DEFAULT_COUNT_IN_TEXT,
   dynamicCountIns: DEFAULT_DYNAMIC_COUNT_INS,
@@ -268,6 +277,7 @@ const MIX_SETTINGS = [
 function defaultSettings(): VideoSettings {
   return {
     ...DEFAULT_SETTINGS,
+    titleStyle: { ...DEFAULT_SETTINGS.titleStyle },
     font: { ...DEFAULT_SETTINGS.font },
     color: { ...DEFAULT_SETTINGS.color },
   };
@@ -555,6 +565,7 @@ export const useSettingsStore = defineStore("settings", () => {
   // Merge a partial set of options over the current ones, e.g. from a loaded settings.yaml.
   // The nested font and color groups merge field by field, so a file that only mentions one color
   // leaves the others untouched.
+  // The title style is replaced whole, since a field it leaves out takes the lyrics' own.
   function applyVideoOptions(options: Partial<VideoSettings>): void {
     const { font, color, ...rest } = options;
     Object.assign(videoOptions, rest);
@@ -587,6 +598,7 @@ export const useSettingsStore = defineStore("settings", () => {
       };
       const newVideoOptions = {
         ...options,
+        titleStyle: deserializeVoiceStyle(options.titleStyle ?? {}),
         color: {
           ...defaultSettings().color,
           ...Object.fromEntries(
@@ -628,6 +640,7 @@ export const useSettingsStore = defineStore("settings", () => {
     try {
       const storageOptions = {
         ...videoOptions,
+        titleStyle: serializeVoiceStyle(videoOptions.titleStyle),
         color: Object.fromEntries(
           Object.entries(videoOptions.color).map(([field, color]) => [field, color.toString()]),
         ),

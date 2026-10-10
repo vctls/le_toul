@@ -715,6 +715,50 @@ describe("deferScreenStarts", () => {
   });
 });
 
+describe("the title screen", () => {
+  const options: KaraokeOptions = {
+    ...DEFAULT_OPTIONS,
+    titleScreenDuration: 6,
+    countInMode: "none",
+    instrumentalThreshold: 0,
+    addStaggeredLines: false,
+  };
+  const song = (start: number) => [
+    { text: "a\n", start, end: start + 1 },
+    { text: "b", start: start + 2, end: start + 3 },
+  ];
+  const songOffset = (screens: LyricsScreen[]) =>
+    screens.reduce((sum, screen) => sum + screen.audioDelay, 0);
+
+  it("lasts as long as it is set to, and delays a song with a shorter intro by that much", () => {
+    const screens = createScreens(song(5), 30, "T", "A", options);
+
+    expect(screens.map((screen) => screen.kind)).toEqual(["title", "lyrics"]);
+    expect(screens[0].endTimestamp).toBe(6);
+    expect(songOffset(screens)).toBe(6);
+    expect(screens[1].lines[0].timestamp).toBe(11);
+  });
+
+  it("keeps the lyrics of a song with a longer intro until it has ended", () => {
+    const screens = createScreens(song(8), 30, "T", "A", options);
+
+    expect(songOffset(screens)).toBe(0);
+    expect(screens[1].startTimestamp).toBe(6);
+  });
+
+  it("stays blank without the title, and moves the song the same way", () => {
+    const blank: KaraokeOptions = { ...options, showTitle: false };
+    const short = createScreens(song(5), 30, "T", "A", blank);
+    const long = createScreens(song(8), 30, "T", "A", blank);
+
+    expect(short.map((screen) => screen.kind)).toEqual(["lyrics"]);
+    expect(songOffset(short)).toBe(6);
+    expect([short[0].startTimestamp, short[0].lines[0].timestamp]).toEqual([6, 11]);
+    expect(songOffset(long)).toBe(0);
+    expect(long[0].startTimestamp).toBe(6);
+  });
+});
+
 describe("stored display periods", () => {
   const plain: KaraokeOptions = {
     ...DEFAULT_OPTIONS,

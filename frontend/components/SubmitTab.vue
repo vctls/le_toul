@@ -312,6 +312,82 @@
             </option>
           </b-select>
         </b-field>
+        <settings-section title="Title Screen" id="title-screen">
+          <b-field horizontal>
+            <template #label>
+              Title Screen
+              <viewport-tooltip
+                wide
+                label="Open the video on a screen without lyrics, where the title goes. When the song's intro is too short to hold it, the song starts after it."
+              >
+                <b-icon size="is-small" icon="circle-question"></b-icon>
+              </viewport-tooltip> </template
+            ><b-switch v-model="videoOptions.addTitleScreen"></b-switch
+          ></b-field>
+          <template v-if="videoOptions.addTitleScreen">
+            <b-field horizontal>
+              <template #label>
+                Length
+                <viewport-tooltip
+                  wide
+                  label="How many seconds the title screen lasts from the start of the video"
+                >
+                  <b-icon size="is-small" icon="circle-question"></b-icon>
+                </viewport-tooltip>
+              </template>
+              <b-numberinput
+                expanded
+                :model-value="videoOptions.titleScreenDuration"
+                :min="0.5"
+                :step="0.5"
+                :min-step="0.01"
+                @update:model-value="
+                  (v: number | null | undefined) =>
+                    (videoOptions.titleScreenDuration = Number(
+                      v ?? videoOptions.titleScreenDuration,
+                    ))
+                "
+                controls-position="compact"
+              ></b-numberinput>
+            </b-field>
+            <b-field horizontal>
+              <template #label>
+                Show Title
+                <viewport-tooltip
+                  wide
+                  label="Write the song's title and artist on the title screen. Turn this off to leave it blank, for a background that shows a title of its own."
+                >
+                  <b-icon size="is-small" icon="circle-question"></b-icon>
+                </viewport-tooltip> </template
+              ><b-switch v-model="videoOptions.showTitle"></b-switch
+            ></b-field>
+            <template v-if="videoOptions.showTitle">
+              <b-field horizontal>
+                <template #label>
+                  Title Style
+                  <viewport-tooltip
+                    wide
+                    label="Draw the title with a font and colors of its own. When this is off, the title is drawn like the lyrics."
+                  >
+                    <b-icon size="is-small" icon="circle-question"></b-icon>
+                  </viewport-tooltip> </template
+                ><b-switch
+                  :model-value="hasTitleStyle"
+                  @update:model-value="setOwnTitleStyle"
+                ></b-switch
+              ></b-field>
+              <style-override-fields
+                v-if="hasTitleStyle"
+                :override="videoOptions.titleStyle"
+                :base="titleBase"
+                :fonts="fonts"
+                name="title"
+                :with-secondary="false"
+                @set="setTitleStyleField"
+              />
+            </template>
+          </template>
+        </settings-section>
         <settings-section title="Fonts and Colors" id="fonts-and-colors">
           <b-field horizontal label="Font">
             <b-select expanded v-model="videoOptions.font.name">
@@ -636,6 +712,7 @@ import { defineComponent, markRaw } from "vue";
 import { storeToRefs } from "pinia";
 import {
   FRAME_RATES,
+  KaraokeOptions,
   OutputFormat,
   RESOLUTIONS,
   RenderQuality,
@@ -651,6 +728,7 @@ import SymbolPicker from "@/components/SymbolPicker.vue";
 import TrackSelect from "@/components/TrackSelect.vue";
 import ViewportTooltip from "@/components/ViewportTooltip.vue";
 import SettingsSection from "@/components/SettingsSection.vue";
+import StyleOverrideFields from "@/components/StyleOverrideFields.vue";
 import jszip from "jszip";
 import video from "@/lib/video";
 import { CreationPhase, TrackSource } from "@/types";
@@ -676,7 +754,7 @@ import {
 import BackgroundReplacementModal from "@/components/BackgroundReplacementModal.vue";
 import { BUNDLED_FONTS as fonts, COUNT_IN_SYMBOLS } from "@/lib/fonts";
 import { projectFilesToKbp } from "@/lib/kbpConvert";
-import { applyVoiceStyle } from "@/lib/voiceStyle";
+import { applyVoiceStyle, isEmptyOverride, VoiceStyleOverride } from "@/lib/voiceStyle";
 import { restoredBacking } from "@/lib/gapMix";
 
 // The rest of the bar is the zip, which carries the source song and both separated tracks.
@@ -705,6 +783,7 @@ export default defineComponent({
     TrackSelect,
     ViewportTooltip,
     SettingsSection,
+    StyleOverrideFields,
   },
   setup() {
     const mediaStore = useMediaStore();
@@ -827,6 +906,7 @@ export default defineComponent({
     renderFontMap(): Record<string, string> {
       const families = new Set([
         this.renderOptions.font.name,
+        this.renderOptions.titleStyle.fontName ?? this.renderOptions.font.name,
         ...this.voices.map(
           (voice) =>
             applyVoiceStyle(this.renderOptions, this.settingsStore.renderVoiceStyle(voice)).font
@@ -839,6 +919,15 @@ export default defineComponent({
       return Object.fromEntries(
         Object.entries(this.fontMap).filter(([family]) => families.has(family)),
       );
+    },
+    hasTitleStyle(): boolean {
+      return !isEmptyOverride(this.videoOptions.titleStyle);
+    },
+    // The title is drawn on the first voice's style.
+    titleBase(): KaraokeOptions {
+      const [first] = this.timingsStore.voicesWithTimings;
+      const style = first === undefined ? undefined : this.settingsStore.getVoiceStyle(first);
+      return applyVoiceStyle(this.videoOptions, style);
     },
     songFile(): File | null {
       return this.mediaStore.songFile as File | null;
@@ -909,6 +998,15 @@ export default defineComponent({
       const cursor = start + symbol.length;
       // The input has lost focus to the picker but still keeps its cursor for the next pick.
       this.$nextTick(() => input.setSelectionRange(cursor, cursor));
+    },
+    /**
+     * Start the title's own style from the lyrics font size, or go back to drawing it like the lyrics.
+     */
+    setOwnTitleStyle(own: boolean) {
+      this.videoOptions.titleStyle = own ? { fontSize: this.titleBase.font.size } : {};
+    },
+    setTitleStyleField<K extends keyof VoiceStyleOverride>(field: K, value: VoiceStyleOverride[K]) {
+      this.videoOptions.titleStyle = { ...this.videoOptions.titleStyle, [field]: value };
     },
     updateScrollHints() {
       const el = this.$refs.settingsColumn as HTMLElement | undefined;

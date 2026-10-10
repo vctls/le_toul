@@ -153,6 +153,25 @@ describe("parseSettingsYaml", () => {
     expect(off.videoOptions.countInMode).toBe("none");
   });
 
+  test("reads the title screen settings, and skips a length that is not positive", () => {
+    const parsed = parseSettingsYaml(
+      'videoOptions:\n  showTitle: false\n  titleScreenDuration: 0\n  titleStyle: { fontSize: 30, primary: "#112233" }\n',
+    );
+    const { showTitle, titleScreenDuration, titleStyle } = parsed.videoOptions;
+
+    expect([showTitle, titleScreenDuration]).toEqual([false, undefined]);
+    expect(titleStyle?.fontSize).toBe(30);
+    expect(titleStyle?.primary?.toString()).toBe("#112233");
+    expect(parsed.warnings.join("\n")).toContain("videoOptions.titleScreenDuration");
+  });
+
+  test("reads an empty title style, which draws the title like the lyrics", () => {
+    const parsed = parseSettingsYaml("videoOptions:\n  titleStyle: {}\n");
+
+    expect(parsed.warnings).toEqual([]);
+    expect(parsed.videoOptions).toEqual({ titleStyle: {} });
+  });
+
   test("skips a negative instrumental threshold", () => {
     const parsed = parseSettingsYaml("videoOptions:\n  instrumentalThreshold: -1\n");
     expect(parsed.videoOptions.instrumentalThreshold).toBeUndefined();
@@ -354,6 +373,9 @@ describe("serializeSettingsYaml", () => {
     videoOptions: {
       vocalSeparationModel: NO_VOCALS_SEPARATOR_MODEL,
       addTitleScreen: false,
+      titleScreenDuration: 5.5,
+      showTitle: false,
+      titleStyle: { fontName: "Georgia", primary: Color.parse("#123456"), shadowX: 2 },
       countInMode: "line",
       countInText: "1 2 3 ",
       dynamicCountIns: false,
@@ -440,6 +462,9 @@ describe("serializeSubtitleSettings", () => {
     backgroundVideoOffset: 0,
     videoOptions: {
       addTitleScreen: true,
+      titleScreenDuration: 4,
+      showTitle: true,
+      titleStyle: {},
       countInMode: "line",
       countInText: "",
       instrumentalThreshold: 5.6,
@@ -478,12 +503,18 @@ describe("serializeSubtitleSettings", () => {
         frameRate: 30,
         quality: "standard",
         color: { background: "#000000" },
+        addTitleScreen: true,
+        titleScreenDuration: 4,
+        showTitle: true,
         countInMode: "line",
         countInText: "",
         instrumentalThreshold: 5.6,
       },
     });
     expect(readSubtitleHints(line)).toEqual({
+      addTitleScreen: true,
+      titleScreenDuration: 4,
+      showTitle: true,
       countInMode: "line",
       countInText: "",
       instrumentalThreshold: 5.6,

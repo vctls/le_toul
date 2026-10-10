@@ -85,7 +85,7 @@ function settingsDocument({
   voiceStyles,
 }: SettingsFileSource): Record<string, unknown> {
   // The video options' own model gives way to `separationModel`, the one the user actually picked.
-  const { vocalSeparationModel, color, ...rest } = videoOptions;
+  const { vocalSeparationModel, color, titleStyle, ...rest } = videoOptions;
   const styledVoices = Object.entries(voiceStyles).filter(([, style]) => !isEmptyOverride(style));
   const document: Record<string, unknown> = {
     song,
@@ -94,6 +94,7 @@ function settingsDocument({
     ...(backgroundVideoOffset ? { backgroundVideoOffset } : {}),
     videoOptions: {
       ...rest,
+      titleStyle: serializeVoiceStyle(titleStyle),
       color: Object.fromEntries(
         Object.entries(color).map(([field, value]) => [field, value.toString()]),
       ),
@@ -129,6 +130,9 @@ const VIDEO_OPTIONS_OUTSIDE_SUBTITLES = [
 // and the top margin only counts when the lyrics are aligned to the top.
 // The ASS import keeps them only where they reproduce the file.
 export const SUBTITLE_HINT_OPTIONS = [
+  "addTitleScreen",
+  "titleScreenDuration",
+  "showTitle",
   "countInMode",
   "dynamicCountIns",
   "countInText",
@@ -187,10 +191,8 @@ export function settingsOutsideSubtitles(
  * The settings outside the subtitles and the hints, as a single line of YAML for the ASS export.
  */
 export function serializeSubtitleSettings(source: SettingsFileSource): string {
-  const document = settingsOutsideSubtitles(
-    settingsDocument(source),
-    source.videoOptions.addTitleScreen,
-  );
+  const { addTitleScreen, showTitle } = source.videoOptions;
+  const document = settingsOutsideSubtitles(settingsDocument(source), addTitleScreen && showTitle);
   const hints = compact(
     Object.fromEntries(SUBTITLE_HINT_OPTIONS.map((key) => [key, source.videoOptions[key]])),
   );
@@ -213,6 +215,7 @@ export function readSubtitleHints(line: string): SubtitleHints {
 
 const BOOLEAN_OPTIONS = [
   "addTitleScreen",
+  "showTitle",
   "dynamicCountIns",
   "addStaggeredLines",
   "useStoredDisplayPeriods",
@@ -221,7 +224,11 @@ const BOOLEAN_OPTIONS = [
   "useBackground",
 ] as const;
 
-const POSITIVE_NUMBER_OPTIONS = ["countInThreshold", "countInDuration"] as const;
+const POSITIVE_NUMBER_OPTIONS = [
+  "titleScreenDuration",
+  "countInThreshold",
+  "countInDuration",
+] as const;
 
 const GAP_SECONDS_OPTIONS = ["gapPostRoll", "gapMinLength", "gapFade"] as const;
 
@@ -263,6 +270,7 @@ const KNOWN_VIDEO_OPTIONS = [
   "lineSpacing",
   "topMargin",
   "font",
+  "titleStyle",
   "color",
   "vocalSeparationModel",
 ];
@@ -686,6 +694,15 @@ function parseVideoOptions(raw: unknown, warnings: string[]): Partial<VideoSetti
       if (Object.keys(font).length > 0) options.font = font as VideoSettings["font"];
     } else {
       warnings.push("videoOptions.font: expected a mapping, ignoring it");
+    }
+  }
+
+  // An empty title style is a setting of its own: the title is drawn like the lyrics.
+  if (raw.titleStyle !== undefined && raw.titleStyle !== null) {
+    if (isMapping(raw.titleStyle)) {
+      options.titleStyle = parseVoiceStyle(raw.titleStyle, "videoOptions.titleStyle", warnings);
+    } else {
+      warnings.push("videoOptions.titleStyle: expected a mapping, ignoring it");
     }
   }
 
