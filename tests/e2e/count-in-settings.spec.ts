@@ -7,8 +7,8 @@ test.describe("Count-In Settings", () => {
     await navigateToTab(page, TabId.Submit);
   });
 
-  test("count-ins are on a screen's first line by default", async ({ page }) => {
-    await expect(radioFor(page, "Count-Ins", "screen")).toBeChecked();
+  test("count-ins are on every line's start by default", async ({ page }) => {
+    await expect(radioFor(page, "Count-Ins", "line")).toBeChecked();
   });
 
   test("the count-in fields are only shown when count-ins are on", async ({ page }) => {

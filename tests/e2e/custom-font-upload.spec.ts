@@ -53,14 +53,14 @@ test.describe("Custom Font Upload", () => {
 
   test("an uploaded font overrides the picked one and survives a reload", async ({ page }) => {
     await openFontSettings(page);
-    await expect(fontSelect(page)).toHaveValue("Arial Narrow");
+    await expect(fontSelect(page)).toHaveValue("Trebuchet MS");
 
     await page.locator(FONT_UPLOAD).setInputFiles(bundledFontPath());
 
     await expect(page.locator('.toast:has-text("Metal Mania")')).toBeVisible();
     await expect(page.locator(".custom-font-help")).toContainText("Metal Mania");
     // The picker keeps its own value, so removing the font restores it.
-    await expect(fontSelect(page)).toHaveValue("Arial Narrow");
+    await expect(fontSelect(page)).toHaveValue("Trebuchet MS");
 
     await expect(page.locator(".source-file-links")).toContainText("MetalMania.ttf");
 
@@ -124,7 +124,7 @@ test.describe("Custom Font Upload", () => {
 
     await expect(page.locator(".toast.is-danger")).toBeVisible();
     await expect(page.locator(".custom-font-help")).toHaveCount(0);
-    await expect(fontSelect(page)).toHaveValue("Arial Narrow");
+    await expect(fontSelect(page)).toHaveValue("Trebuchet MS");
   });
 
   test("a voice takes its own uploaded font, kept across a reload and dropped on Start over", async ({

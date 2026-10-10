@@ -27,7 +27,7 @@ describe("Settings Store", () => {
 
     // Check default values
     expect(settingsStore.videoOptions.addTitleScreen).toBe(true);
-    expect(settingsStore.videoOptions.countInMode).toBe("screen");
+    expect(settingsStore.videoOptions.countInMode).toBe("line");
     expect(settingsStore.videoOptions.instrumentalThreshold).toBe(8);
     expect(settingsStore.videoOptions.addStaggeredLines).toBe(true);
     expect(settingsStore.videoOptions.useBackground).toBe(false);
@@ -36,13 +36,14 @@ describe("Settings Store", () => {
     expect(settingsStore.videoOptions.vocalSeparationModel).toBe(BACKING_VOCALS_SEPARATOR_MODEL);
 
     // Check font default values
-    expect(settingsStore.videoOptions.font.size).toBe(20);
-    expect(settingsStore.videoOptions.font.name).toBe("Arial Narrow");
+    expect(settingsStore.videoOptions.font.size).toBe(30);
+    expect(settingsStore.videoOptions.font.name).toBe("Trebuchet MS");
+    expect(settingsStore.videoOptions.font.bold).toBe(true);
 
     // Check color default values
     expect(settingsStore.videoOptions.color.background.toString()).toBe("#000000");
-    expect(settingsStore.videoOptions.color.primary.toString()).toBe("#ff00ff");
-    expect(settingsStore.videoOptions.color.secondary.toString()).toBe("#00ffff");
+    expect(settingsStore.videoOptions.color.primary.toString()).toBe("#7957d5");
+    expect(settingsStore.videoOptions.color.secondary.toString()).toBe("#ffffff");
   });
 
   test("should save settings to localStorage when changed", async () => {
@@ -132,7 +133,7 @@ describe("Settings Store", () => {
 
     // Verify default settings were used
     expect(settingsStore.videoOptions.addTitleScreen).toBe(true);
-    expect(settingsStore.videoOptions.font.size).toBe(20);
+    expect(settingsStore.videoOptions.font.size).toBe(30);
     expect(settingsStore.videoOptions.color.background.toString()).toBe("#000000");
 
     // Spy on console.error
@@ -172,12 +173,12 @@ describe("Settings Store", () => {
 
     // Verify settings were reset
     expect(settingsStore.videoOptions.addTitleScreen).toBe(true);
-    expect(settingsStore.videoOptions.countInMode).toBe("screen");
-    expect(settingsStore.videoOptions.font.size).toBe(20);
-    expect(settingsStore.videoOptions.font.name).toBe("Arial Narrow");
+    expect(settingsStore.videoOptions.countInMode).toBe("line");
+    expect(settingsStore.videoOptions.font.size).toBe(30);
+    expect(settingsStore.videoOptions.font.name).toBe("Trebuchet MS");
     expect(settingsStore.videoOptions.color.background.toString()).toBe("#000000");
-    expect(settingsStore.videoOptions.color.primary.toString()).toBe("#ff00ff");
-    expect(settingsStore.videoOptions.color.secondary.toString()).toBe("#00ffff");
+    expect(settingsStore.videoOptions.color.primary.toString()).toBe("#7957d5");
+    expect(settingsStore.videoOptions.color.secondary.toString()).toBe("#ffffff");
 
     // Check localStorage was updated
     const savedOptions = JSON.parse(window.localStorage.videoOptions);
@@ -271,9 +272,9 @@ describe("Settings Store", () => {
     expect(settingsStore.videoOptions.color.primary.toString()).toBe("#abcdef");
     // Untouched
     expect(settingsStore.videoOptions.addTitleScreen).toBe(true);
-    expect(settingsStore.videoOptions.font.size).toBe(20);
+    expect(settingsStore.videoOptions.font.size).toBe(30);
     expect(settingsStore.videoOptions.color.background.toString()).toBe("#000000");
-    expect(settingsStore.videoOptions.color.secondary.toString()).toBe("#00ffff");
+    expect(settingsStore.videoOptions.color.secondary.toString()).toBe("#ffffff");
 
     // And persisted, like any other change
     await nextTick();
@@ -372,7 +373,7 @@ describe("Settings Store", () => {
       await store.setCustomFont(fontFile("Impact.ttf"));
 
       expect(store.renderOptions.font.size).toBe(42);
-      expect(store.renderOptions.color.primary.toString()).toBe("#ff00ff");
+      expect(store.renderOptions.color.primary.toString()).toBe("#7957d5");
     });
 
     test("clearing the font falls back to the picked one", async () => {
@@ -396,7 +397,7 @@ describe("Settings Store", () => {
       );
       expect(store.customFont).toBeNull();
       expect(store.customFontFamily).toBeNull();
-      expect(store.renderOptions.font.name).toBe("Arial Narrow");
+      expect(store.renderOptions.font.name).toBe("Trebuchet MS");
     });
 
     test("a voice with its own font keeps it over the uploaded one", async () => {
@@ -491,7 +492,7 @@ describe("Settings Store", () => {
 
       expect(store.customFont).toBeNull();
       expect(store.customFontFamily).toBeNull();
-      expect(store.renderOptions.font.name).toBe("Arial Narrow");
+      expect(store.renderOptions.font.name).toBe("Trebuchet MS");
     });
   });
 

@@ -5,8 +5,8 @@
 
 // Buefy's palette from before Bulma 1. The `-invert` lightnesses (the text drawn
 // on the colour) stay fixed at Bulma's own defaults, so white has to be restated.
-// Primary is #7957d5; keep in sync with SELECTION_COLOR in
-// lib/wavesurferPlugins/OpenEndedRegionPlugin.ts.
+// Primary is #7957d5. Keep in sync with SELECTION_COLOR in
+// lib/wavesurferPlugins/OpenEndedRegionPlugin.ts and the default primary in stores/settings.ts.
 :root {
   --bulma-primary-h: 256.19deg;
   --bulma-primary-s: 60%;

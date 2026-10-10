@@ -53,7 +53,7 @@ export const DEFAULT_OUTLINE_WIDTH = 1;
 export const TITLE_SCREEN_DURATION = 4.0;
 export const DEFAULT_INSTRUMENTAL_THRESHOLD = 8.0;
 
-export const DEFAULT_COUNT_IN_MODE = "screen";
+export const DEFAULT_COUNT_IN_MODE = "line";
 export const DEFAULT_COUNT_IN_TEXT = "";
 export const DEFAULT_DYNAMIC_COUNT_INS = true;
 export const DEFAULT_COUNT_IN_THRESHOLD = 3.0;

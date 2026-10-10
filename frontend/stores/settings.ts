@@ -249,13 +249,15 @@ const DEFAULT_SETTINGS: VideoSettings = {
   shadowY: 0,
   vocalSeparationModel: BACKING_VOCALS_SEPARATOR_MODEL,
   font: {
-    size: 20,
-    name: "Arial Narrow",
+    size: 30,
+    name: "Trebuchet MS",
+    bold: true,
   },
   color: {
-    background: Color.parse("#000000"), // black
-    primary: Color.parse("#FF00FF"), // magenta
-    secondary: Color.parse("#00FFFF"), // cyan
+    background: Color.parse("#000000"),
+    // Keep in sync with the primary in main.scss.
+    primary: Color.parse("#7957D5"),
+    secondary: Color.parse("#FFFFFF"),
     outline: Color.parse("#000000"),
     shadow: Color.parse("#000000"),
   },
