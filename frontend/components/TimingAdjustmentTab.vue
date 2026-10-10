@@ -416,7 +416,7 @@
                 </template>
                 <b-switch
                   v-model="videoOptions.restoreGaps"
-                  aria-labelledby="mix-restore-gaps-label"
+                  ariaLabelledby="mix-restore-gaps-label"
                 ></b-switch>
               </b-field>
               <b-field
