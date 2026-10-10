@@ -1096,8 +1096,16 @@ class RegionsPlugin extends BasePlugin<RegionsPluginEvents, RegionsPluginOptions
     }
 
     if (region.start > newRegion.start) {
-      this.firstRegion = newRegion;
+      const prev = region.prevRegion;
+      newRegion.prevRegion = prev;
       newRegion.nextRegion = region;
+      region.prevRegion = newRegion;
+      if (prev) {
+        prev.nextRegion = newRegion;
+      } else {
+        this.firstRegion = newRegion;
+      }
+      this.checkRegions();
       return;
     }
 

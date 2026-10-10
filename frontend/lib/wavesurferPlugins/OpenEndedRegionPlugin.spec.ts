@@ -195,3 +195,44 @@ describe("resizing", () => {
     expect(region.end).toBeCloseTo(11.5, 5);
   });
 });
+
+describe("adding regions", () => {
+  function setUp() {
+    const wavesurfer = {
+      getWrapper: () => document.createElement("div"),
+      getDuration: () => DURATION,
+      getScroll: () => 0,
+      getWidth: () => 1000,
+      on: () => () => {},
+      once: () => () => {},
+    };
+    const plugin = RegionsPlugin.create();
+    (plugin as unknown as { _init(ws: unknown): void })._init(wavesurfer);
+    return plugin;
+  }
+
+  it("links regions added before existing ones in time order", () => {
+    const plugin = setUp();
+    plugin.syncRegions([
+      { id: "if", start: 57, end: 57.5 },
+      { id: "you", start: 58, end: 58.5 },
+    ]);
+
+    plugin.syncRegions([
+      { id: "oh1", start: 7 },
+      { id: "oh2", start: 8 },
+      { id: "oh3", start: 9, end: 9.5 },
+      { id: "if", start: 57, end: 57.5 },
+      { id: "you", start: 58, end: 58.5 },
+    ]);
+
+    const byId = new Map(plugin.getRegions().map((region) => [region.id, region]));
+    const order = ["oh1", "oh2", "oh3", "if", "you"];
+    expect(order.map((id) => byId.get(id)?.nextRegion?.id)).toEqual([...order.slice(1), undefined]);
+    expect(order.map((id) => byId.get(id)?.prevRegion?.id)).toEqual([
+      undefined,
+      ...order.slice(0, -1),
+    ]);
+    expect(byId.get("oh1")?.end).toBe(8);
+  });
+});
