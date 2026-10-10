@@ -253,7 +253,11 @@
             @update:model-value="(v: 'full' | TrackSource) => (mediaStore.renderTrackSource = v)"
           />
         </b-field>
-        <b-field v-if="!rendersFullTrack" horizontal :message="restoreGapsMessage">
+        <b-field
+          v-if="advancedStore.isAdvanced && !rendersFullTrack"
+          horizontal
+          :message="restoreGapsMessage"
+        >
           <template #label>
             Restore Gaps
             <viewport-tooltip

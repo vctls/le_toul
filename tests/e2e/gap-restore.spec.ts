@@ -34,6 +34,7 @@ test.describe("Gap restore", () => {
     context,
   }) => {
     await mockSeparateTrackApi(context);
+    await enableAdvancedMode(page);
 
     await navigateToTab(page, TabId.SongInfo);
     await uploadAudioFile(

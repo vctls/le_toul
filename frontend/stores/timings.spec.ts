@@ -15,6 +15,7 @@ import { parseTimingsText } from "@/lib/timingsText";
 import { startPass, tapStart, tapSteps } from "@/lib/tapPass";
 import { pendingSync } from "@/lib/alignment";
 import { useHistoryStore } from "./history";
+import { useAdvancedStore } from "./advanced";
 
 // Mock the createAssFile function
 vi.mock("@/lib/timing", async (importOriginal) => ({
@@ -739,6 +740,27 @@ describe("Timings Store", () => {
         Ben: [{ text: "world", start: 5 }],
       });
       expect(timings.hasMuteBounds).toBe(false);
+    });
+  });
+
+  describe("restored gaps", () => {
+    test("are none outside advanced mode, even with the switch on", () => {
+      const timings = useTimingsStore();
+      useLyricsStore().setLyrics("one\ntwo");
+      timings.setAllSegments({
+        [DEFAULT_VOICE_ID]: [
+          { text: "one\n", start: 1, end: 2 },
+          { text: "two", start: 20, end: 21 },
+        ],
+      });
+      useMediaStore().songDuration = 30;
+      useSettingsStore().videoOptions.restoreGaps = true;
+      expect(timings.gapPlan.gaps.length).toBeGreaterThan(0);
+
+      useAdvancedStore().isAdvanced = false;
+      expect(timings.restoredGaps).toEqual([]);
+      useAdvancedStore().isAdvanced = true;
+      expect(timings.restoredGaps).toEqual(timings.gapPlan.gaps);
     });
   });
 

@@ -6,6 +6,7 @@ import { findLastIndex } from "lodash-es";
 import { useLyricsStore } from "./lyrics";
 import { useMediaStore } from "./media";
 import { useSettingsStore } from "./settings";
+import { useAdvancedStore } from "./advanced";
 import { useHistoryStore } from "./history";
 import {
   createAssFile,
@@ -460,11 +461,12 @@ export const useTimingsStore = defineStore("timings", {
     },
 
     /**
-     * The gaps the video restores, which is none while the switch is off or the song is partly
-     * timed.
+     * The gaps the video restores, which is none outside advanced mode, while the switch is off,
+     * or while the song is partly timed.
      */
     restoredGaps(): GapPlan["gaps"] {
-      return useSettingsStore().videoOptions.restoreGaps ? this.gapPlan.gaps : [];
+      const restores = useAdvancedStore().isAdvanced && useSettingsStore().videoOptions.restoreGaps;
+      return restores ? this.gapPlan.gaps : [];
     },
 
     /**
