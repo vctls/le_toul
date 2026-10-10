@@ -58,6 +58,31 @@ function schemeColor(name: string, fallback: string): string {
   return getComputedStyle(document.documentElement).getPropertyValue(name).trim() || fallback;
 }
 
+/**
+ * A 256-step spectrogram color map from the page background through the primary color to the
+ * strongest text color.
+ */
+function themeColorMap(): number[][] {
+  const ctx = document.createElement("canvas").getContext("2d", { willReadFrequently: true })!;
+  const rgb = (color: string) => {
+    ctx.fillStyle = color;
+    ctx.fillRect(0, 0, 1, 1);
+    return [...ctx.getImageData(0, 0, 1, 1).data.slice(0, 3)].map((v) => v / 255);
+  };
+  const stops = [
+    rgb(schemeColor("--bulma-scheme-main", "#fff")),
+    rgb(schemeColor("--bulma-primary", "#7957d5")),
+    rgb(schemeColor("--bulma-text-strong", "#000")),
+  ];
+  return Array.from({ length: 256 }, (_, i) => {
+    const t = (i / 255) * (stops.length - 1);
+    const k = Math.min(Math.floor(t), stops.length - 2);
+    const [from, to] = [stops[k], stops[k + 1]];
+    // The entries stay opaque, as keepOverview() tells a drawn pixel from an empty one by its alpha.
+    return [...from.map((v, c) => v + (to[c] - v) * (t - k)), 1];
+  });
+}
+
 export default defineComponent({
   props: {
     audioData: {
@@ -388,6 +413,7 @@ export default defineComponent({
     },
     applySchemeColors() {
       this.wavesurfer?.setOptions(this.schemeColors());
+      this.resetSpectrogram();
     },
     onWheel(event: WheelEvent) {
       // Shift turns the wheel sideways. Some browsers report that as deltaX already, others don't.
@@ -801,7 +827,7 @@ export default defineComponent({
         height,
         fftSamples: 1024,
         scale: "mel",
-        colorMap: "roseus",
+        colorMap: themeColorMap(),
         useWebWorker: true,
       });
       const view = markRaw<SpectrogramView>({ key, rendering, layer, plugin });
@@ -876,6 +902,16 @@ export default defineComponent({
         canvas,
       });
       this.dropSpectrogramViews();
+    },
+    /**
+     * Throws away every spectrogram render, as their colors are baked into the pixels, and draws
+     * the spectrogram again.
+     */
+    resetSpectrogram() {
+      this._spectrogramOverview?.canvas.remove();
+      this._spectrogramOverview = null;
+      this.dropSpectrogramViews();
+      this.updateSpectrogram();
     },
     dropSpectrogramViews() {
       this.dropSpectrogram(this._pendingSpectrogram);
