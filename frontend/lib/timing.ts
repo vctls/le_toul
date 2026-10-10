@@ -20,6 +20,7 @@ import {
   addOverlappingCountIns,
   addTitleScreen,
   addInstrumentalScreens,
+  addIntroInstrumentalScreen,
   applyStoredDisplayPeriods,
   displayQuickLinesEarly,
   deferScreenStarts,
@@ -1237,6 +1238,7 @@ function createAutomaticScreens(
     }
     screens = addOverlappingCountIns(screens, options);
     if (options.instrumentalThreshold > 0) {
+      screens = addIntroInstrumentalScreen(screens, options, titled ? duration : 0);
       screens = addInstrumentalScreens(screens, options);
     }
     return screens;

@@ -323,6 +323,29 @@ function createInstrumentalScreen(
   return screen;
 }
 
+/**
+ * Add an instrumental screen from `start` until the first lyrics, when they start at least the
+ * threshold later.
+ */
+export function addIntroInstrumentalScreen(
+  screens: LyricsScreen[],
+  options: KaraokeOptions,
+  start: Timestamp,
+): LyricsScreen[] {
+  const [first] = screens;
+  if (first?.kind !== "lyrics") {
+    return screens;
+  }
+  const end = first.segments[0].timestamp;
+  if (end - start < options.instrumentalThreshold) {
+    return screens;
+  }
+  return [
+    createInstrumentalScreen(start, end - start, options.font.size),
+    ...trimStart(screens, end - (first.startTimestamp ?? 0)),
+  ];
+}
+
 export function addInstrumentalScreens(
   screens: LyricsScreen[],
   options: KaraokeOptions,

@@ -746,6 +746,32 @@ describe("the title screen", () => {
     expect(screens[1].startTimestamp).toBe(6);
   });
 
+  it("is followed by an instrumental screen until the lyrics, whether the title is shown or not", () => {
+    const breaks: KaraokeOptions = { ...options, instrumentalThreshold: 8 };
+    const bar = (screens: LyricsScreen[]) => {
+      const screen = screens.find((s) => s.kind === "instrumental");
+      return screen && [screen.startTimestamp, screen.lines[0].segments[0].endTimestamp];
+    };
+
+    expect(bar(createScreens(song(15), 30, "T", "A", breaks))).toEqual([6, 15]);
+    expect(bar(createScreens(song(15), 30, "T", "A", { ...breaks, showTitle: false }))).toEqual([
+      6, 15,
+    ]);
+    expect(bar(createScreens(song(12), 30, "T", "A", breaks))).toBeUndefined();
+  });
+
+  it("leaves an instrumental screen from the start when it is off", () => {
+    const screens = createScreens(song(9), 30, "T", "A", {
+      ...options,
+      addTitleScreen: false,
+      instrumentalThreshold: 8,
+    });
+
+    expect(screens.map((screen) => screen.kind)).toEqual(["instrumental", "lyrics"]);
+    expect([screens[0].startTimestamp, screens[0].endTimestamp]).toEqual([0, 9]);
+    expect(screens[1].startTimestamp).toBe(9);
+  });
+
   it("stays blank without the title, and moves the song the same way", () => {
     const blank: KaraokeOptions = { ...options, showTitle: false };
     const short = createScreens(song(5), 30, "T", "A", blank);
@@ -865,7 +891,8 @@ describe("stored display periods", () => {
   });
 
   it("shorten an instrumental screen, or remove it", () => {
-    const options: KaraokeOptions = { ...plain, instrumentalThreshold: 8 };
+    // Above the 10 s intro, so only the break between the screens is added.
+    const options: KaraokeOptions = { ...plain, instrumentalThreshold: 12 };
     const bar = (screens: LyricsScreen[]) => {
       const screen = screens.find((s) => s.kind === "instrumental");
       return screen && [screen.startTimestamp, screen.lines[0].segments[0].endTimestamp];
