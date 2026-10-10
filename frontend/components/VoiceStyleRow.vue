@@ -3,103 +3,48 @@
     <b-field horizontal :label="voice">
       <b-switch v-model="customizing">Custom style</b-switch>
     </b-field>
-    <div v-if="customizing" class="voice-style-fields">
-      <b-field horizontal label="Font">
-        <b-select expanded v-model="fontName">
-          <option v-for="(path, name) in fonts" :key="path" :value="name">{{ name }}</option>
-        </b-select>
-      </b-field>
-      <b-field horizontal label="Custom Font">
-        <file-upload
-          expanded
-          class="voice-font-upload"
-          :accept="['.ttf', '.otf', '.ttc']"
-          :model-value="customFont?.file ?? null"
-          @update:model-value="onCustomFontChange"
-        />
-      </b-field>
-      <b-field horizontal v-if="customFont">
-        <p class="help voice-font-help">
-          Rendering {{ voice }} in &ldquo;{{ customFont.family }}&rdquo;, overriding the font above.
-        </p>
-      </b-field>
-      <b-field horizontal label="Font Size">
-        <b-numberinput
-          expanded
-          :model-value="fontSize"
-          @update:model-value="(v: number | null | undefined) => (fontSize = Number(v ?? fontSize))"
-          controls-position="compact"
-        />
-      </b-field>
-      <b-field horizontal label="Bold">
-        <b-switch v-model="bold" />
-      </b-field>
-      <b-field horizontal label="Italic">
-        <b-switch v-model="italic" />
-      </b-field>
-      <b-field horizontal label="Primary Color">
-        <color-field v-model="primary" :label="`${voice} primary color`" />
-      </b-field>
-      <b-field horizontal label="Secondary Color">
-        <color-field v-model="secondary" :label="`${voice} secondary color`" />
-      </b-field>
-      <b-field horizontal label="Outline Color">
-        <color-field v-model="outline" :label="`${voice} outline color`" />
-      </b-field>
-      <b-field horizontal label="Outline Width">
-        <b-numberinput
-          expanded
-          :model-value="outlineWidth"
-          :min="0"
-          :step="0.5"
-          :min-step="0.1"
-          @update:model-value="
-            (v: number | null | undefined) => (outlineWidth = Number(v ?? outlineWidth))
-          "
-          controls-position="compact"
-        />
-      </b-field>
-      <b-field horizontal label="Shadow Color">
-        <color-field v-model="shadow" :label="`${voice} shadow color`" />
-      </b-field>
-      <b-field horizontal label="Shadow Offset X">
-        <b-numberinput
-          expanded
-          :model-value="shadowX"
-          :step="0.5"
-          :min-step="0.1"
-          @update:model-value="(v: number | null | undefined) => (shadowX = Number(v ?? shadowX))"
-          controls-position="compact"
-        />
-      </b-field>
-      <b-field horizontal label="Shadow Offset Y">
-        <b-numberinput
-          expanded
-          :model-value="shadowY"
-          :step="0.5"
-          :min-step="0.1"
-          @update:model-value="(v: number | null | undefined) => (shadowY = Number(v ?? shadowY))"
-          controls-position="compact"
-        />
-      </b-field>
-    </div>
+    <style-override-fields
+      v-if="customizing"
+      class="voice-style-fields"
+      :override="override"
+      :base="base"
+      :fonts="fonts"
+      :name="voice"
+      @set="(field, value) => settingsStore.setVoiceStyleField(voice, field, value)"
+    >
+      <template #font>
+        <b-field horizontal label="Custom Font">
+          <file-upload
+            expanded
+            class="voice-font-upload"
+            :accept="['.ttf', '.otf', '.ttc']"
+            :model-value="customFont?.file ?? null"
+            @update:model-value="onCustomFontChange"
+          />
+        </b-field>
+        <b-field horizontal v-if="customFont">
+          <p class="help voice-font-help">
+            Rendering {{ voice }} in &ldquo;{{ customFont.family }}&rdquo;, overriding the font
+            above.
+          </p>
+        </b-field>
+      </template>
+    </style-override-fields>
   </div>
 </template>
 
 <script lang="ts">
 import { defineComponent, PropType } from "vue";
-import { BField, BSelect, BNumberinput, BSwitch } from "buefy";
-import { default as BuefyColor } from "buefy/src/utils/color";
-import ColorField from "@/components/ColorField.vue";
+import { BField, BSwitch } from "buefy";
 import FileUpload from "@/components/FileUpload.vue";
+import StyleOverrideFields from "@/components/StyleOverrideFields.vue";
 import { useSettingsStore } from "@/stores/settings";
 import { VoiceStyleOverride, isEmptyOverride } from "@/lib/voiceStyle";
 import { VoiceId } from "@/lib/voices";
 
 // Editor for a single voice's style override.
-// Uses v-model throughout (Vue 3 component model binding), mirroring the base "Fonts and Colors" controls.
 export default defineComponent({
-  components: { BField, BSelect, BNumberinput, BSwitch, ColorField, FileUpload },
+  components: { BField, BSwitch, FileUpload, StyleOverrideFields },
   props: {
     voice: { type: String as PropType<VoiceId>, required: true },
     fonts: { type: Object as PropType<Record<string, string>>, required: true },
@@ -133,94 +78,6 @@ export default defineComponent({
         if (!on) {
           this.settingsStore.clearVoiceStyle(this.voice);
         }
-      },
-    },
-    fontName: {
-      get(): string {
-        return this.override.fontName ?? this.base.font.name;
-      },
-      set(value: string) {
-        this.settingsStore.setVoiceStyleField(this.voice, "fontName", value);
-      },
-    },
-    fontSize: {
-      get(): number {
-        return this.override.fontSize ?? this.base.font.size;
-      },
-      set(value: number) {
-        this.settingsStore.setVoiceStyleField(this.voice, "fontSize", value);
-      },
-    },
-    bold: {
-      get(): boolean {
-        return this.override.bold ?? this.base.font.bold ?? true;
-      },
-      set(value: boolean) {
-        this.settingsStore.setVoiceStyleField(this.voice, "bold", value);
-      },
-    },
-    italic: {
-      get(): boolean {
-        return this.override.italic ?? this.base.font.italic ?? false;
-      },
-      set(value: boolean) {
-        this.settingsStore.setVoiceStyleField(this.voice, "italic", value);
-      },
-    },
-    primary: {
-      get(): BuefyColor {
-        return this.override.primary ?? this.base.color.primary;
-      },
-      set(value: BuefyColor) {
-        this.settingsStore.setVoiceStyleField(this.voice, "primary", value);
-      },
-    },
-    secondary: {
-      get(): BuefyColor {
-        return this.override.secondary ?? this.base.color.secondary;
-      },
-      set(value: BuefyColor) {
-        this.settingsStore.setVoiceStyleField(this.voice, "secondary", value);
-      },
-    },
-    outline: {
-      get(): BuefyColor {
-        return this.override.outline ?? this.base.color.outline;
-      },
-      set(value: BuefyColor) {
-        this.settingsStore.setVoiceStyleField(this.voice, "outline", value);
-      },
-    },
-    outlineWidth: {
-      get(): number {
-        return this.override.outlineWidth ?? this.base.outlineWidth;
-      },
-      set(value: number) {
-        this.settingsStore.setVoiceStyleField(this.voice, "outlineWidth", value);
-      },
-    },
-    shadow: {
-      get(): BuefyColor {
-        return this.override.shadow ?? this.base.color.shadow;
-      },
-      set(value: BuefyColor) {
-        this.settingsStore.setVoiceStyleField(this.voice, "shadow", value);
-      },
-    },
-    shadowX: {
-      get(): number {
-        return this.override.shadowX ?? this.base.shadowX;
-      },
-      set(value: number) {
-        this.settingsStore.setVoiceStyleField(this.voice, "shadowX", value);
-      },
-    },
-    shadowY: {
-      get(): number {
-        return this.override.shadowY ?? this.base.shadowY;
-      },
-      set(value: number) {
-        this.settingsStore.setVoiceStyleField(this.voice, "shadowY", value);
       },
     },
   },
