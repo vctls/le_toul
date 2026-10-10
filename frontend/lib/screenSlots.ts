@@ -177,6 +177,19 @@ export function fadeLines(renders: VoiceTrackRender[], songDuration: Timestamp):
 }
 
 /**
+ * Fade every instrumental bar in and out while it sweeps, since the sweep lasts its whole screen.
+ */
+export function fadeInstrumentalScreens(screens: LyricsScreen[]): void {
+  for (const screen of screens.filter(({ kind }) => kind === "instrumental")) {
+    const length = screen.endTimestamp - (screen.startTimestamp ?? 0);
+    screen.lines[0].fadeInDuration = screen.lines[0].fadeOutDuration = Math.min(
+      LINE_FADE,
+      length / 2,
+    );
+  }
+}
+
+/**
  * Keep a line whose automatic end comes right after its singing shown long enough to fade out.
  * The line at its height that appears next gives way, but only to the midpoint of the time
  * between the two lines' animations, so that it keeps as much room to fade in.

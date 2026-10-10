@@ -41,6 +41,29 @@ function twoScreens(second: Partial<TimedSegment>, first: Partial<TimedSegment> 
   ];
 }
 
+describe("fadeInstrumentalScreens", () => {
+  const breaks = { ...options, instrumentalThreshold: 8 };
+  const fades = (screens: LyricsScreen[]) =>
+    screens
+      .filter((screen) => screen.kind === "instrumental")
+      .map(({ lines: [bar] }) => [bar.fadeInDuration, bar.fadeOutDuration]);
+
+  it("fades an instrumental bar in and out as it sweeps", () => {
+    expect(fades(layOut(twoScreens({ start: 20, end: 21 }), breaks))).toEqual([
+      [LINE_FADE, LINE_FADE],
+    ]);
+  });
+
+  it("splits a break too short for both fades between them", () => {
+    const screens = layOut(twoScreens({ start: 20, end: 21, displayStart: 2.2 }), breaks);
+    const [bar] = screens.filter((screen) => screen.kind === "instrumental");
+    const length = bar.endTimestamp - (bar.startTimestamp ?? 0);
+
+    expect(length).toBeLessThan(2 * LINE_FADE);
+    expect(fades(screens)).toEqual([[length / 2, length / 2]]);
+  });
+});
+
 describe("fadeLines", () => {
   it("keeps a line shown to fade out, and shows the next one at its height after it", () => {
     const [a, b] = lines(layOut(twoScreens({})));

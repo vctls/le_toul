@@ -34,7 +34,12 @@ import {
   titleScreenDelay,
   unstagger,
 } from "./adjustments";
-import { fadeLines, giveWayToStoredPeriods, songOffset } from "./screenSlots";
+import {
+  fadeInstrumentalScreens,
+  fadeLines,
+  giveWayToStoredPeriods,
+  songOffset,
+} from "./screenSlots";
 import { BUNDLED_SYMBOLS, FALLBACK_FONTS } from "./fonts";
 import { applyVoiceStyle, VoiceStyleOverride } from "./voiceStyle";
 import { map, method, isNumber } from "lodash-es";
@@ -1435,6 +1440,7 @@ export function layOutVoices(
   fadeLines(renders, songDuration);
   for (const render of renders) {
     render.screens = fitInstrumentalScreens(render.screens);
+    fadeInstrumentalScreens(render.screens);
   }
   return renders;
 }
